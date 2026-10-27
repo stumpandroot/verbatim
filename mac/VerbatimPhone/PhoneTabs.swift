@@ -190,7 +190,6 @@ struct ProjectsScreen: View {
         }
         .environment(\.defaultMinListRowHeight, 1)
         .scrollContentBackground(.hidden)
-        .tabEntrance(.projects)
         .phonePage()
         .navigationTitle("Projects")
         .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)

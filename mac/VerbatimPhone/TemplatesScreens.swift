@@ -140,7 +140,7 @@ struct TemplateDetailScreen: View {
         let kinds = t.kinds.isEmpty ? AutoRunSettings.kinds : t.kinds
         let recent = app.store.live.filter { $0.status == .ready && !$0.isDictation && !$0.segments.isEmpty }
             .sorted { $0.createdAt > $1.createdAt }.prefix(12)
-        return SettingsPageScaffold(title: t.name) {
+        return SettingsPageScaffold(title: t.name, inline: true) {
             VStack(alignment: .leading, spacing: 6) {
                 PhoneEyebrow(text: t.origin.eyebrow)
                 Text(TemplateLibrary.summaryLine(t)).font(.system(size: 15)).foregroundStyle(.lookDim)

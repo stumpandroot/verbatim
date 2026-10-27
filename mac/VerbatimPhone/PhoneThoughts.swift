@@ -106,7 +106,7 @@ extension PhoneState {
         coordinator.enqueue(t)
         lastThought = t.id
         Log.note("thought: added \(String(format: "%.1f", duration)) s; transcribing")
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Haptics.play(.light)
         if UIApplication.shared.applicationState == .active { say(ThoughtRules.savedTitle) }
         return t.id
     }

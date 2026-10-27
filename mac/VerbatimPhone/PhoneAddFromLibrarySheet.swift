@@ -7,6 +7,7 @@ struct PhoneAddFromLibrarySheet: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
     var project: UUID
     @State private var query = ""
     @State private var filter = LibraryFilter.saved(LibraryFilter.addSheetKey)
@@ -45,7 +46,7 @@ struct PhoneAddFromLibrarySheet: View {
             .scrollContentBackground(.hidden)
             .phonePage()
             .animation(limitMotion ? Motion.fade : Motion.settle, value: shown.map(\.id))
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search titles, tags, and text")
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: look.isNative ? "Search your library" : "Find the line you need")
             .navigationTitle("Add to \(projectName)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -80,7 +81,7 @@ struct PhoneAddFromLibrarySheet: View {
                     Text(t.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
                     HStack(spacing: 5) {
                         Text(LibraryFilter.describe(t))
-                        if t.duration > 0 { Text("·"); Text(t.duration.timecode).font(.system(size: 12.5)).monospacedDigit() }
+                        if t.duration > 0 { Text("·"); Text(HomeRecentStyle.length(t.duration)).font(.system(size: 12.5)).monospacedDigit() }
                     }
                     .font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(1)
                     if let other = t.projectId, let name = app.store.projects.first(where: { $0.id == other })?.name {

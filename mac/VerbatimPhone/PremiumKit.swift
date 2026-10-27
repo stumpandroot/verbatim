@@ -154,7 +154,7 @@ struct PremiumRecordingItem: View {
                         if t.pinned {
                             Image(systemName: "pin.fill").font(.system(size: dateSize - 3)).accessibilityLabel("Pinned")
                         }
-                        Text(Self.dateLine(t, now: now)).monospacedDigit()
+                        Text(Self.dateLine(t, now: now, length: !canPlay)).monospacedDigit()
                     }
                     .font(.system(size: dateSize)).foregroundStyle(NativeInk.secondary)
                     Text(t.title).font(.system(size: titleSize, weight: .semibold)).foregroundStyle(NativeInk.label)
@@ -190,9 +190,6 @@ struct PremiumRecordingItem: View {
                     .buttonStyle(PhoneCardPress())
                     .accessibilityLabel("Play, \(HomeRecentStyle.length(t.duration))")
                     .accessibilityHint("Opens the transcript and plays it.")
-                } else if t.duration > 0, t.status == .ready {
-                    Text(HomeRecentStyle.length(t.duration)).font(.system(size: 15, weight: .semibold)).monospacedDigit()
-                        .foregroundStyle(NativeInk.secondary)
                 }
                 state
                 Spacer(minLength: 6)
@@ -225,8 +222,11 @@ struct PremiumRecordingItem: View {
     }
 
     /// "Today · 9:12 AM", "Oct 22 · 8:05 AM".
-    static func dateLine(_ t: Transcript, now: Date) -> String {
-        "\(HomeRecentStyle.day(t.createdAt, now: now)) · \(Formats.style(date: .none, time: .short).string(from: t.createdAt))"
+    /// "Today · 2:03 AM", and with `length` (an item with nothing to play) its length too, "Today · 2:03 AM · 32:00",
+    /// so every item's lower line is the same shape: the play pill or nothing, the state, and ⋯ (review P-21).
+    static func dateLine(_ t: Transcript, now: Date, length: Bool = false) -> String {
+        let when = "\(HomeRecentStyle.day(t.createdAt, now: now)) · \(Formats.style(date: .none, time: .short).string(from: t.createdAt))"
+        return length && t.status == .ready && t.duration > 0 ? "\(when) · \(HomeRecentStyle.length(t.duration))" : when
     }
 
     /// The first cleaned lines (or the transcript's first lines); while there are none, the kind and where it is.

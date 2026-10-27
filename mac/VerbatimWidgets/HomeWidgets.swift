@@ -560,7 +560,8 @@ private struct VerboseRecordPanel: View {
                 HStack(alignment: .bottom, spacing: 4) {
                     VStack(alignment: .leading, spacing: 0) {
                         Text("Record").font(Ink.serif(26)).foregroundStyle(skin.onPanel).lineLimit(1).minimumScaleFactor(0.8)
-                        Text("a thought").font(Ink.serif(13)).italic().foregroundStyle(skin.onPanel.opacity(0.85))
+                        Text("a voice note").font(Ink.serif(13)).italic().foregroundStyle(skin.onPanel.opacity(0.85))
+                            .lineLimit(1).minimumScaleFactor(0.8)
                     }
                     Spacer(minLength: 0)
                     RecordDisc(look: .verbose, size: 40)
@@ -998,7 +999,7 @@ private struct TodayThoughtsView: View {
         let count = today?.count ?? 0
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             if skin.native {
-                Text("Today's Thoughts").font(.system(size: 13, weight: .semibold)).foregroundStyle(skin.full ? Ink.nativeAccent : .primary).widgetAccentable()
+                Text("Today's thoughts").font(.system(size: 13, weight: .semibold)).foregroundStyle(skin.full ? Ink.nativeAccent : .primary).widgetAccentable()
                 if count > 0 { Text("\(count)").font(.system(size: 12)).monospacedDigit().foregroundStyle(NativeWidget.secondary) }
                 Spacer(minLength: 4)
                 Text(entry.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day()).font(.system(size: 12)).foregroundStyle(NativeWidget.secondary)

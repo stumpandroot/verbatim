@@ -44,7 +44,7 @@ enum PremiumRules {
     /// The week card's line. No streak, no pressure (the calm rule): it says what happened and nothing else.
     static func daysSentence(_ n: Int, of total: Int = 7) -> String {
         if n == 0 { return "Nothing recorded in the last \(total) days. No streak to keep; it's here when you are." }
-        return "You used Verbose on \(n) of the last \(total) days. No streak to keep; this is just your week."
+        return "You used Verbose on \(n) of the last \(total) days. No streak to keep. This is your week."
     }
 
     // MARK: You's year card

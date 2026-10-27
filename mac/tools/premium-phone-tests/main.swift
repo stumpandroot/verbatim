@@ -37,7 +37,7 @@ check("eight days ago doesn't count", !R.daysUsed([day(2026, 10, 15)], now: now,
 check("today just after midnight counts", R.daysUsed([day(2026, 10, 23, 0)], now: now, calendar: cal).last == true)
 check("the letters end on today (Friday)", R.dayLetters(now: now, calendar: cal) == ["S", "S", "M", "T", "W", "T", "F"], "\(R.dayLetters(now: now, calendar: cal))")
 check("days label", R.daysLabel(5) == "5 days" && R.daysLabel(1) == "1 day" && R.daysLabel(0) == "0 days")
-check("the sentence keeps the calm rule", R.daysSentence(5) == "You used Verbose on 5 of the last 7 days. No streak to keep; this is just your week.")
+check("the sentence keeps the calm rule", R.daysSentence(5) == "You used Verbose on 5 of the last 7 days. No streak to keep. This is your week.")
 check("an empty week says so without pressure", R.daysSentence(0).contains("No streak") && !R.daysSentence(0).contains("!"))
 
 // MARK: Year

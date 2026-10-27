@@ -26,30 +26,37 @@ struct TabBarSettingsScreen: View {
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
             Section {
+                if !look.isNative { PhoneListHeading(text: inBar(bar)) }
                 fixedRow(.home)
                 ForEach(bar.middle, id: \.self) { t in row(t, picked: true, room: true) }
                     .onMove { from, to in animate { app.setTabBar(PhoneTabBar.move(bar.middle, fromOffsets: from, toOffset: to)) } }
                 fixedRow(.settings)
             } header: {
-                heading("In the bar · \(bar.middle.count) of \(PhoneTabBar.maxMiddle)")
+                if look.isNative { Text(inBar(bar)) }
             }
             if !more.isEmpty {
                 Section {
-                    ForEach(more, id: \.self) { t in row(t, picked: false, room: bar.middle.count < PhoneTabBar.maxMiddle) }
-                } header: {
-                    heading("More tabs")
-                } footer: {
-                    if bar.middle.count >= PhoneTabBar.maxMiddle {
-                        Text("Three fit between Home and Settings. Uncheck one to add another.")
+                    if !look.isNative { PhoneListHeading(text: "More tabs") }
+                    ForEach(Array(more.enumerated()), id: \.element) { i, t in
+                        row(t, picked: false, room: bar.middle.count < PhoneTabBar.maxMiddle, first: i == 0, last: i == more.count - 1)
                     }
+                    if !look.isNative, bar.middle.count >= PhoneTabBar.maxMiddle {
+                        Text(Self.fullNote).font(.system(size: 13)).foregroundStyle(Ink.mute)
+                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 0, trailing: 4))
+                    }
+                } header: {
+                    if look.isNative { Text("More tabs") }
+                } footer: {
+                    if look.isNative, bar.middle.count >= PhoneTabBar.maxMiddle { Text(Self.fullNote) }
                 }
             }
         }
         .environment(\.editMode, .constant(.active))
-        .listStyle(.insetGrouped)
+        .phoneGroupedList()
         .scrollContentBackground(.hidden)
         .phonePage()
-        .navigationTitle(look.isNative ? "Tab Bar" : "")
+        .navigationTitle(look.isNative ? "Tab bar" : "")
         .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
         .toolbar {
             if let onDone {
@@ -80,33 +87,31 @@ struct TabBarSettingsScreen: View {
                 (Text("Tab ") + Text("bar").italic()).lookSerif(titleSize).foregroundStyle(.lookInk)
                     .accessibilityAddTraits(.isHeader)
             }
-            Text("Home stays first and Settings last. Check up to three tabs for between them, and drag to reorder.")
+            Text("Home stays first and Settings last. Choose up to three tabs to go between them, and drag to reorder.")
                 .font(.system(size: 15)).foregroundStyle(.lookDim)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 4)
     }
 
-    @ViewBuilder private func heading(_ text: String) -> some View {
-        if look.isNative {
-            Text(text)
-        } else {
-            Text(text).font(Ink.mono(12)).foregroundStyle(Ink.mute).textCase(nil)
-        }
-    }
+    private func inBar(_ bar: PhoneTabBar) -> String { "In the bar · \(bar.middle.count) of \(PhoneTabBar.maxMiddle)" }
+
+    static let fullNote = "Three fit between Home and Settings. Uncheck one to add another."
 
     /// Home or Settings: always in the bar, in place, with no checkbox.
     private func fixedRow(_ t: PhoneTab) -> some View {
         HStack(spacing: 12) {
             PhoneTabGlyph(tab: t, size: 22).foregroundStyle(.lookMute).frame(width: 32)
             VStack(alignment: .leading, spacing: 2) {
-                Text(t.title).font(look.isNative ? .body : Ink.serif(19)).foregroundStyle(.lookInk).opacity(0.65)
+                Text(t.title).font(look.isNative ? .body : .system(size: 16)).foregroundStyle(.lookInk).opacity(0.65)
                 Text(t.detail).font(.system(size: 13)).foregroundStyle(.lookMute)
             }
             Spacer(minLength: 0)
         }
         .padding(.vertical, 3)
-        .listRowBackground(look.isNative ? NativeInk.card : Ink.card)
+        .listRowBackground(PhoneListRowCard(first: t == .home, last: t == .settings))
+        .listRowSeparator(t == .settings ? .hidden : .automatic, edges: .bottom)
+        .listRowSeparatorTint(look.isNative ? nil : Ink.hairline)
         .moveDisabled(true)
         .accessibilityElement(children: .combine)
         .accessibilityValue(t == .home ? "Always first" : "Always last")
@@ -114,7 +119,7 @@ struct TabBarSettingsScreen: View {
 
     /// A tab you can add: the check (or the empty circle), the tab's icon, its name, and what it opens. Tap to check or
     /// uncheck it.
-    private func row(_ t: PhoneTab, picked: Bool, room: Bool) -> some View {
+    private func row(_ t: PhoneTab, picked: Bool, room: Bool, first: Bool = false, last: Bool = false) -> some View {
         Button {
             animate { app.setTabBar(PhoneTabBar.toggle(t, in: store.bar.middle)) }
         } label: {
@@ -122,7 +127,7 @@ struct TabBarSettingsScreen: View {
                 check(picked)
                 PhoneTabGlyph(tab: t, size: 22).foregroundStyle(.lookInk).frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(t.title).font(look.isNative ? .body : Ink.serif(19)).foregroundStyle(.lookInk)
+                    Text(t.title).font(look.isNative ? .body : .system(size: 16)).foregroundStyle(.lookInk)
                     Text(t.detail).font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(2)
                 }
                 Spacer(minLength: 0)
@@ -133,7 +138,9 @@ struct TabBarSettingsScreen: View {
         }
         .buttonStyle(.borderless)
         .disabled(!picked && !room)
-        .listRowBackground(look.isNative ? NativeInk.card : Ink.card)
+        .listRowBackground(PhoneListRowCard(first: first, last: last))
+        .listRowSeparator(last ? .hidden : .automatic, edges: .bottom)
+        .listRowSeparatorTint(look.isNative ? nil : Ink.hairline)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(picked ? [.isButton, .isSelected] : .isButton)
         .accessibilityValue(picked ? "In the tab bar" : "Not in the tab bar")

@@ -32,6 +32,8 @@ struct SettingsScreen: View {
     @State private var showAcknowledgements = false
     /// Show words while you record (MiniRecorder.swift). On by default.
     @AppStorage(RecordingLiveText.enabledKey) private var recordLiveWords = true
+    /// Haptics (PhoneMotion.swift's `Haptics`). On by default, per device.
+    @AppStorage(Haptics.enabledKey) private var hapticsOn = true
     /// Understand spoken corrections, in the App Group so the keyboard's live words follow it.
     @AppStorage(SpokenCorrections.enabledKey, store: SpokenCorrections.store) private var spokenCorrections = true
     /// Dictation cleanup level (the Mac's `flow.cleanup` key; per device, never synced).
@@ -43,9 +45,6 @@ struct SettingsScreen: View {
         let m = tabBarStore.bar.middle
         return m.isEmpty ? "Home and Settings" : m.map(\.title).joined(separator: ", ")
     }
-    /// Groups stagger in when you switch to Settings.
-    @State private var seen = SeenRows()
-    @State private var entrance = 0
     /// Tap counts per row: each change gives that row's icon one small bounce.
     @State private var bumps: [String: Int] = [:]
     /// The page pushed from a root row, a search result, or a request (SettingsPage).
@@ -83,20 +82,17 @@ struct SettingsScreen: View {
                 if !look.isNative {
                     PhoneCompactTitle(title: "Settings")
                         .padding(.top, 2)
-                        .riseIn("title", index: 0, seen: seen, epoch: entrance)
                 }
                 SettingsSearchField(text: $search.query) {
                     if let first = SettingsSearchIndex.search(search.query).first?.entries.first { pickSearchResult(first, proxy) }
                 }
                 .padding(.top, look.isNative ? 4 : 14)
                 .id("settings-top")
-                .riseIn("search", index: 0, seen: seen, epoch: entrance)
                 if search.isActive {
                     SettingsSearchResults(query: search.query, value: { SettingsSearchIndex.value(for: $0, app: app) }) { pickSearchResult($0, proxy) }
                 } else {
                 youCard
                     .padding(.top, 18)
-                    .riseIn("you", index: 1, seen: seen, epoch: entrance)
                 group(1, PhoneSettingsMap.personalization) { personalization }
                 group(2, PhoneSettingsMap.recording,
                       footer: "Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links download and transcribe on this iPhone; a few sites need your Mac to fetch them. Naming and sorting use Apple Intelligence on this iPhone; where it isn't available, titles use the first words and the kind is a best guess. Nothing you rename or change is overwritten.") { recording }
@@ -108,7 +104,6 @@ struct SettingsScreen: View {
                 footer
                     .padding(.top, 30)
                     .id("settings-footer")
-                    .riseIn("footer", index: 8, seen: seen, epoch: entrance)
                 }
             }
             .padding(.horizontal, look.isNative ? 16 : 20).padding(.bottom, 32)
@@ -129,7 +124,6 @@ struct SettingsScreen: View {
             withAnimation(nil) { proxy.scrollTo(id, anchor: .top) }
         }
         }
-        .tabEntrance(.settings) { seen.entered(); entrance += 1 }
         .phonePage()
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
@@ -163,7 +157,7 @@ struct SettingsScreen: View {
         }
         .alert("Turn off iCloud sync?", isPresented: $confirmSyncOff) {
             Button("Cancel", role: .cancel) {}
-            Button("Turn Off") { turnSyncOff() }
+            Button("Turn off") { turnSyncOff() }
         } message: {
             Text("Verbose copies your library onto this iPhone, then stops syncing the next time it opens. Your Mac keeps what's already in iCloud.")
         }
@@ -180,7 +174,7 @@ struct SettingsScreen: View {
         }
         .alert(deleteTitle, isPresented: $confirmDeleteFinal) {
             Button("Cancel", role: .cancel) {}
-            Button("Delete Everything", role: .destructive) { app.deleteAllData() }
+            Button("Delete everything", role: .destructive) { app.deleteAllData() }
         } message: {
             Text(deleteDetail)
         }
@@ -226,9 +220,7 @@ struct SettingsScreen: View {
         let name = profileName.trimmingCharacters(in: .whitespacesAndNewlines)
         return Button { showYou = true } label: {
             HStack(spacing: 14) {
-                Text(HomeScreen.initials(name)).font(.system(size: 22, weight: .semibold)).foregroundStyle(Color.white)
-                    .frame(width: 56, height: 56)
-                    .background(Color(uiColor: .systemGray), in: Circle())
+                NativeAvatar(name: name, size: 56)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name.isEmpty ? "You" : name).font(.title3.weight(.semibold)).foregroundStyle(NativeInk.label).lineLimit(1)
@@ -343,6 +335,10 @@ struct SettingsScreen: View {
         SettingsDivider()
         SettingsToggleRow(icon: "tortoise", tint: PhoneInk.wash, art: .iconLimitMotion, title: "Limit animation", isOn: $motionLimited)
             .settingsSearchTarget("limitMotion", flash: searchFlash)
+        SettingsDivider()
+        SettingsToggleRow(icon: "hand.tap", tint: PhoneInk.wash, art: .iconHaptics, title: "Haptics",
+                          subtitle: "Light taps when you save, copy, or mark", isOn: $hapticsOn)
+            .settingsSearchTarget("haptics", flash: searchFlash)
     }
 
     @ViewBuilder private var recording: some View {
@@ -587,7 +583,6 @@ struct SettingsScreen: View {
             NativeGroup(header: title, footer: footer) { content }
                 .padding(.top, 26)
                 .id("group-\(index)")
-                .riseIn("group-\(index)", index: index, seen: seen, epoch: entrance)
         } else {
             verboseGroup(index, title, footer: footer, rows)
         }
@@ -610,7 +605,6 @@ struct SettingsScreen: View {
         }
         .padding(.top, 22)
         .id("group-\(index)")
-        .riseIn("group-\(index)", index: index, seen: seen, epoch: entrance)
     }
 
     private func bump(_ key: String) { bumps[key, default: 0] += 1 }
@@ -713,10 +707,10 @@ struct SettingsLabel: View {
     private var verbose: some View {
         HStack(spacing: 12) {
             ZStack {
-                // The website style's colored squares: the row's tint at full strength, ink on top. Destructive
-                // rows stay neutral with the danger color.
+                // Neutral squares with ink glyphs: a settings row is a tool, and tools stay neutral (DESIGN.md §1).
+                // Destructive rows keep the neutral square with the danger color.
                 let square = danger ? Ink.neutralChip : SettingsLabel.square(for: tint)
-                let on = danger ? Ink.danger : (square == PhoneInk.wash ? Ink.ink : Ink.inkFixed)
+                let on = danger ? Ink.danger : Ink.ink
                 RoundedRectangle(cornerRadius: 7, style: .continuous).fill(square)
                 if let art {
                     IconGlyph(art: art, size: 17, color: on)
@@ -741,14 +735,9 @@ struct SettingsLabel: View {
         }
     }
 
-    /// The full panel color behind a row's tint (`Ink.*Tint` → `PhoneInk.*`); anything else is the wash.
-    static func square(for tint: Color) -> Color {
-        if tint == Ink.persimmonTint { return PhoneInk.record }
-        if tint == Ink.butterTint { return PhoneInk.butter }
-        if tint == Ink.sageTint { return PhoneInk.sage }
-        if tint == Ink.petalTint { return PhoneInk.petal }
-        return PhoneInk.wash
-    }
+    /// Every row's square is the neutral wash, whatever tint the call site passes: the brand hues mean capture modes
+    /// (persimmon Record, butter Dictate, sage Import, petal App audio), so a settings row never borrows one (P-01).
+    static func square(for tint: Color) -> Color { PhoneInk.wash }
 }
 
 /// One settings row: icon tile, title and subtitle, then a value, chevron, or control.
@@ -887,7 +876,7 @@ struct AboutMeScreen: View {
                     if v.count > Profile.aboutMeLimit { aboutMe = String(v.prefix(Profile.aboutMeLimit)) }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("Verbose uses this on device to spell names and word titles and summaries. It syncs with your Mac when iCloud sync is on.")
+                    Text("Verbose uses this on device to spell names correctly and to write titles and summaries. It syncs with your Mac when iCloud sync is on.")
                         .font(.system(size: 13)).foregroundStyle(.lookMute)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)

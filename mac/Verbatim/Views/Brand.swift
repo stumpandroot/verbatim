@@ -218,6 +218,7 @@ extension BrandArt {
     static let iconMark = BrandArt(box: iconGrid, strokes: [.path("M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z"), .path("M12 7.5V12.5"), .path("M9.5 10H14.5")], strokeWidth: 1.5)
     static let iconMarked = BrandArt(box: iconGrid, strokes: [.path("M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z"), .path("M9.3 10L11.3 12L14.8 8.5")], strokeWidth: 1.5)
     static let iconAsk = BrandArt(box: iconGrid, strokes: [.path("M4 5H20V16H11.5L7 20V16H4Z"), .path("M7.4 10.5C8.3 10.5 8.5 8.8 9.4 8.8S11.6 12.2 12.6 12.2S13.7 10.5 14.6 10.5H16.6")], strokeWidth: 1.5)
+    static let iconHaptics = BrandArt(box: iconGrid, strokes: [.path("M10 3 H14 C15.38 3 16.5 4.12 16.5 5.5 V18.5 C16.5 19.88 15.38 21 14 21 H10 C8.62 21 7.5 19.88 7.5 18.5 V5.5 C7.5 4.12 8.62 3 10 3 Z"), .path("M5 9.5C4.3 10.9 4.3 13.1 5 14.5"), .path("M2.8 7.5C1.6 10.3 1.6 13.7 2.8 16.5"), .path("M19 9.5C19.7 10.9 19.7 13.1 19 14.5"), .path("M21.2 7.5C22.4 10.3 22.4 13.7 21.2 16.5")], strokeWidth: 1.5)
     // END ICONS
 
     // Kind and feature diagrams (capture-and-archive canvas, October 2026): the same geometric line family as the
@@ -855,5 +856,37 @@ struct AIGeneratedNote: View {
         .font(.system(size: 12))
         .foregroundStyle(Ink.mute)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// The end of some live words, cut only between words: the longest tail that fits in `lines` lines of
+/// `lineHeight` at the width it's given, so nothing ever starts mid-word or behind an ellipsis (build 228 review,
+/// P-23). `label` draws a candidate (its font and colors); the candidates drop one leading word at a time, and the
+/// last word alone is the fallback.
+struct TailWords<Label: View>: View {
+    var text: String
+    var lines: Int
+    /// One line's height, line spacing included.
+    var lineHeight: CGFloat
+    @ViewBuilder var label: (String) -> Label
+
+    /// At most this many candidates, the longest first; callers pass a few lines' worth of words.
+    static var maxCandidates: Int { 32 }
+
+    static func candidates(_ text: String) -> [String] {
+        let words = text.split(whereSeparator: { $0.isWhitespace })
+        guard !words.isEmpty else { return [] }
+        let first = max(0, words.count - maxCandidates)
+        return (first..<words.count).map { words[$0...].joined(separator: " ") }
+    }
+
+    var body: some View {
+        ViewThatFits(in: .vertical) {
+            ForEach(Array(Self.candidates(text).enumerated()), id: \.offset) { _, tail in
+                label(tail).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxHeight: lineHeight * CGFloat(lines) + 1, alignment: .topLeading)
+        .clipped()   // only a single word longer than the space could overflow
     }
 }

@@ -23,10 +23,14 @@ extension Transcript {
             if let p = originalMedia { return URL(fileURLWithPath: p).lastPathComponent }
             return sourceLabel.isEmpty ? "File" : sourceLabel
         case .dictation: return flow.map { "Dictation into \($0.app)" } ?? "Dictation"
-        case .voiceMemo: return "Voice memo"
+        case .voiceMemo: return "Voice note"
         case .app: return sourceLabel.isEmpty ? "App audio" : sourceLabel
         }
     }
+
+    /// The source label as the app says it: older recordings stored "Voice memo"; the app calls them voice notes
+    /// everywhere you read it (the recorder's word). The stored value doesn't change.
+    var sourceName: String { source == .voiceMemo && sourceLabel == "Voice memo" ? "Voice note" : sourceLabel }
 
     /// "Local audio · local text", "Audio from youtube.com · local text", "Local audio · cloud cleanup (Anthropic)".
     var dataPathBadge: String { DataPath.badge(linkHost: linkHost, cloudCleanup: flow?.cloudCleanup) }

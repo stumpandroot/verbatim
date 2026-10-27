@@ -41,7 +41,6 @@ struct HomeScreen: View {
         Group {
             if look.isNative { nativeScreen } else { verboseScreen }
         }
-        .tabEntrance(.home) {}
         .phonePage()
         .navigationBarTitleDisplayMode(.large)
         .sheet(isPresented: $editingHome) {
@@ -205,7 +204,7 @@ struct HomeScreen: View {
                 HStack(alignment: .bottom, spacing: 10) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Record").lookSerif(recordSize)
-                        Text("a thought, a call, a walk.").lookSerif(recordLine).italic()
+                        Text("a call, a walk, a meeting.").lookSerif(recordLine).italic()
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 8)
@@ -292,8 +291,9 @@ struct HomeScreen: View {
 
     // MARK: Tiles
 
-    /// The four tiles you picked. Large: two by two, as tall as a thumb. Compact: one row of four. Fills go by slot
-    /// (butter, sage, petal, then paper with an ink outline, so the fourth never outweighs Record).
+    /// The four tiles you picked. Large: two by two, as tall as a thumb. Compact: one row of four. Fills go by what a
+    /// tile does (`HomeTile.hue`): Dictate butter, Import sage, What's playing petal, everything else paper with an ink
+    /// outline, and never more than three colored.
     @ViewBuilder private func tiles(_ picks: [HomeTile], size: HomeCardSize) -> some View {
         if size == .large {
             Grid(horizontalSpacing: 10, verticalSpacing: 10) {
@@ -309,17 +309,19 @@ struct HomeScreen: View {
     private func tileCells(_ picks: [HomeTile], slots: Range<Int>, size: HomeCardSize) -> some View {
         ForEach(HomeTileSlot.slots(picks, slots), id: \.tile) { s in
             HomeTileButton(tile: s.tile) {
-                tile(s.tile.title, art: s.tile.art, fill: Self.tileFill(s.slot), compact: size == .compact)
+                tile(s.tile.title, art: s.tile.art, fill: Self.tileFill(s.tile, in: picks), compact: size == .compact)
             }
         }
     }
 
-    static func tileFill(_ slot: Int) -> Color? {
-        switch slot {
-        case 0: return PhoneInk.butter
-        case 1: return PhoneInk.sage
-        case 2: return PhoneInk.petal
-        default: return nil
+    /// A picked tile's fill: its capture mode's panel color, or nil for paper with an ink outline (review P-14).
+    static func tileFill(_ tile: HomeTile, in picks: [HomeTile]) -> Color? {
+        guard let i = picks.firstIndex(of: tile) else { return nil }
+        switch HomeTile.hues(picks)[i] {
+        case .butter?: return PhoneInk.butter
+        case .sage?: return PhoneInk.sage
+        case .petal?: return PhoneInk.petal
+        case nil: return nil
         }
     }
 
@@ -437,7 +439,7 @@ struct HomeScreen: View {
     /// Large: the two newest recordings as flat rows (a Clean up pill where there are filler words). Compact: the
     /// three newest as one-line rows with their length.
     private func recent(_ size: HomeCardSize) -> some View {
-        let items = Array(app.store.live.lazy.filter { !$0.isDictation }.prefix(size == .large ? 2 : 3))
+        let items = Array(PremiumHome.recentRecordings(app.store).prefix(size == .large ? 2 : 3))
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 (Text("Recent ") + Text("recordings").italic())
@@ -533,29 +535,46 @@ struct HomeScreen: View {
 // MARK: - Native look
 // brand: native begin
 
-/// Home in Premium Native (PremiumHome.swift), with the account button: your initials on the persimmon gradient.
+/// Home in Premium Native (PremiumHome.swift), with the account button: your initials on a gray disc.
 extension HomeScreen {
     var nativeBody: some View {
         PremiumHome(now: now, layout: layouts.layout(.native), onEdit: { editingHome = true })
     }
 
-    /// Your initials on the persimmon gradient; opens the You page.
+    /// Opens the You page. Your initials on a gray disc, or a person glyph with no name; never a "?", which reads as
+    /// Help, and never persimmon, so the record button stays the one saturated fill (review P-16).
     var nativeAccountButton: some View {
         Button { Self.openProfile(app) } label: {
-            Text(Self.initials(storedName))
-                .font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.white)
-                .frame(width: 34, height: 34)
-                .background(PremiumStyle.persimmon, in: Circle())
+            NativeAvatar(name: storedName, size: 34)
         }
         .accessibilityLabel("You")
         .accessibilityHint("Opens your You page: your week, your year, and About me.")
     }
 
-    /// "TM" from "Tim Medina"; one letter for one name; a person glyph's stand-in ("?") when there's no name.
+    /// "TM" from "Tim Medina"; one letter for one name; empty when there's no name (`NativeAvatar` shows a person).
     static func initials(_ name: String) -> String {
         let parts = name.split(whereSeparator: \.isWhitespace).prefix(2)
-        let s = parts.compactMap(\.first).map { String($0).uppercased() }.joined()
-        return s.isEmpty ? "?" : s
+        return parts.compactMap(\.first).map { String($0).uppercased() }.joined()
+    }
+}
+
+/// Native: the Apple Account-style avatar. Your initials in white on system gray, or a person glyph when there's no
+/// name (Home's account button and Settings' You row).
+struct NativeAvatar: View {
+    var name: String
+    var size: CGFloat
+    var body: some View {
+        let initials = HomeScreen.initials(name.trimmingCharacters(in: .whitespacesAndNewlines))
+        Group {
+            if initials.isEmpty {
+                Image(systemName: "person.fill").font(.system(size: size * 0.45, weight: .medium))
+            } else {
+                Text(initials).font(.system(size: size * 0.4, weight: .semibold))
+            }
+        }
+        .foregroundStyle(Color.white)
+        .frame(width: size, height: size)
+        .background(Color(uiColor: .systemGray), in: Circle())
     }
 }
 // brand: native end
@@ -644,8 +663,6 @@ struct RecordScreen: View {
     @State private var pull: CGFloat = 0
     private var paused: Bool { app.recorder.isPaused }
     private var adding: Transcript? { app.continuing.flatMap { app.store.transcript($0) } }
-    /// The system cover slides up; its content staggers in behind it.
-    @State private var seen = SeenRows()
     /// Discard asks first: the recording moves to Recently Deleted.
     @State private var confirmDiscard = false
     @State private var discardLength = ""
@@ -665,7 +682,7 @@ struct RecordScreen: View {
         // Swipe down to minimize where the system's zoom transition doesn't provide it. Never stops the recording.
         .gesture(swipeDown, including: RecorderZoomDestination.systemSwipe(limitMotion: limitMotion) ? .subviews : .all)
         .modifier(RecorderZoomDestination(zoom: zoom))
-        .sensoryFeedback(.impact(weight: .light), trigger: paused)
+        .sensoryFeedback(trigger: paused) { _, _ in Haptics.feedback(.impact(weight: .light)) }
         .accessibilityElement(children: .contain)
         .accessibilityAction(.escape) { app.minimizeRecorder() }
         .confirmationDialog("Move this recording to Recently Deleted?", isPresented: $confirmDiscard, titleVisibility: .visible) {
@@ -676,11 +693,37 @@ struct RecordScreen: View {
         }
     }
 
-    /// Beside Mark: "Marked 4:12 · 3 moments" for two seconds, then how many are marked.
-    private var markLine: String {
+    /// Under the meter: "Marked 4:12 · 3 moments" for two seconds, then how many are marked.
+    private var markLine: String? {
         if let c = app.lastMark { return Marks.confirmation(c) }
         let n = app.recordingMoments.count
-        return n > 0 ? "\(Marks.count(n)) marked" : "Keep this moment as a bookmark"
+        return n > 2 ? "\(Marks.count(n)) marked" : nil
+    }
+
+    /// The moments marked so far: the last two as butter chips ("Moment 4:12", the Marked icon, ink text; DESIGN.md
+    /// §18.3), then the confirmation or the count. Nothing until the first mark (review P-22).
+    @ViewBuilder private var markChips: some View {
+        let recent = app.recordingMoments.suffix(2)
+        if !recent.isEmpty || markLine != nil {
+            HStack(spacing: 8) {
+                ForEach(recent) { m in
+                    HStack(spacing: 5) {
+                        IconGlyph(art: .iconMarked, size: 14, color: Ink.inkFixed)
+                        Text("Moment \(Marks.clock(m.at))").font(.system(size: 13, weight: .semibold)).monospacedDigit()
+                    }
+                    .foregroundStyle(Ink.inkFixed)
+                    .padding(.horizontal, 10).frame(height: 28)
+                    .background(PhoneInk.butter, in: Capsule())
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Moment at \(Marks.clock(m.at))")
+                }
+                if let line = markLine {
+                    Text(line).font(.system(size: 13)).foregroundStyle(app.lastMark != nil ? Ink.butterText : Ink.mute)
+                        .lineLimit(1).minimumScaleFactor(0.85)
+                }
+            }
+            .padding(.top, 14)
+        }
     }
 
     private var verbose: some View {
@@ -703,14 +746,12 @@ struct RecordScreen: View {
                 Text(adding != nil ? "Adds to \(HomeRecentStyle.length(adding!.duration))" : app.recordingThought ? PhoneState.thoughtPageTitle(app.todayPage) : "Voice note").font(.system(size: 13)).monospacedDigit().foregroundStyle(.lookMute)
             }
             .padding(.top, 8)
-            .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
             Text(headline)
                 .lookSerif(30).foregroundStyle(.lookInk).lineLimit(2).minimumScaleFactor(0.8)
                 .padding(.top, 14)
                 .contentTransition(.opacity)
                 .animation(Motion.settle, value: paused)
-                .riseIn("headline", index: 1, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top) {
@@ -734,24 +775,9 @@ struct RecordScreen: View {
             .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(.lookHairline))
             .padding(.top, 20)
-            .riseIn("meter", index: 2, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
-            // Mark a moment (Model/Marks.swift): a bookmark at this time, on the line being said once transcribed.
-            HStack(spacing: 12) {
-                Button { app.markMoment() } label: {
-                    HStack(spacing: 7) {
-                        IconGlyph(art: .iconMark, size: 17, color: Ink.ink)
-                        Text("Mark")
-                    }
-                }
-                .buttonStyle(.phoneSecondary)
-                .disabled(saving)
-                .accessibilityLabel("Mark a moment")
-                .accessibilityHint("Saves this point in the recording as a moment.")
-                Text(markLine).font(.system(size: 13)).foregroundStyle(app.lastMark != nil ? Ink.butterText : Ink.mute)
-                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.top, 14)
+            // The moments marked so far (Model/Marks.swift); Mark moment itself is in the thumb row below.
+            markChips
 
             if paused, let reason = app.autoPauseReason {
                 // Paused by an interruption (a call, a microphone change): say so, and offer Resume right here.
@@ -769,7 +795,6 @@ struct RecordScreen: View {
             } else {
                 Text("Keeps recording with the screen locked").font(.system(size: 13)).foregroundStyle(.lookMute)
                     .frame(maxWidth: .infinity).padding(.top, 14)
-                    .riseIn("locked", index: 3, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
             }
 
             // Show words while you record: the newest three lines, a preview only.
@@ -779,14 +804,14 @@ struct RecordScreen: View {
 
             Spacer(minLength: 20)
 
-            // Centered: the Record button you tapped is now Stop, with Discard and Pause on either side.
+            // Centered: the Record button you tapped is now Stop, with Mark moment and Pause on either side, the same
+            // three as Premium Native (review P-22). Mark a moment saves this time as a bookmark, on the line being
+            // said once transcribed.
             HStack(alignment: .top, spacing: 0) {
-                RoundControl(label: "Discard", size: 62) {
-                    Image(systemName: "xmark").font(.system(size: 20, weight: .semibold)).foregroundStyle(.lookDim)
-                } action: {
-                    discardLength = app.recorder.elapsed.timecode
-                    confirmDiscard = true
-                }
+                RoundControl(label: "Mark moment", size: 62) {
+                    IconGlyph(art: .iconMark, size: 22, color: Ink.butterText)
+                } action: { app.markMoment() }
+                .accessibilityHint("Saves this point in the recording as a moment.")
                 .frame(maxWidth: .infinity)
                 RoundControl(label: saving ? "Saving…" : (adding == nil && !app.recordingThought) ? "Stop & transcribe" : "Stop & add", size: 100, primary: true) {
                     if saving { ProgressView().tint(Ink.readerFixed) }
@@ -799,8 +824,16 @@ struct RecordScreen: View {
                 .frame(maxWidth: .infinity)
             }
             .disabled(saving)
-            .padding(.bottom, 18)
-            .riseIn("controls", index: 4, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
+            // Discard is a quiet word under the row, away from Stop, and it still asks first (review P-22).
+            Button("Discard") {
+                discardLength = app.recorder.elapsed.timecode
+                confirmDiscard = true
+            }
+            .font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.danger)
+            .frame(maxWidth: .infinity).frame(minHeight: 34)
+            .disabled(saving)
+            .accessibilityHint("Asks before it moves the recording to Recently Deleted.")
+            .padding(.top, 4).padding(.bottom, 10)
         }
         .padding(.horizontal, 20)
         .phonePage()

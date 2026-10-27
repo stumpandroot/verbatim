@@ -48,7 +48,7 @@ struct TranscriptLanguageMenu: View {
         .accessibilityLabel("Language, \(current)")
         .accessibilityHint("Transcribe again in another language")
         .confirmationDialog(confirmTitle, isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }), titleVisibility: .visible) {
-            Button("Transcribe Again") {
+            Button("Transcribe again") {
                 if let choice = pending { app.transcribeAgain(transcript.id, language: choice) }
                 pending = nil
             }

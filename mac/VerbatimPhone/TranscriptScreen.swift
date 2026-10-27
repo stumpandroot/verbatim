@@ -20,8 +20,6 @@ struct TranscriptScreen: View {
     @State private var noteText = ""
     @State private var downloading = false
     @State private var didStart = false
-    /// The system push slides the screen in; header, modes, and text stagger in behind it.
-    @State private var seen = SeenRows()
     /// "2 filler lines hidden · Show": per screen, starting from Settings › Hide filler lines.
     @State private var showFiller = false
     @AppStorage(Transcript.hideFillerKey) private var hideFillerSetting = true
@@ -76,20 +74,16 @@ struct TranscriptScreen: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
                                 header(t)
-                                    .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
                                 if t.status == .ready {
                                     PhoneSummaryPanel(transcript: t,
                                                       onSummarize: { replacing in SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: replacing) },
                                                       onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
                                         .padding(.top, 16)
-                                        .riseIn("summary", index: 1, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
                                     PhoneSegmented(options: modes(t), selection: $mode)
                                         .padding(.top, 16)
-                                        .riseIn("modes", index: 2, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
                                         .onChange(of: t.corrections.isEmpty) { _, none in if none, mode == .review { mode = .transcript } }
                                 }
                                 content(t).padding(.top, 14)
-                                    .riseIn("content", index: 3, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
                             }
                             .padding(.horizontal, 20).padding(.top, 4)
                             .padding(.bottom, t.audioFileName != nil && t.status == .ready && mode != .document ? 120 : 32)
@@ -146,6 +140,7 @@ struct TranscriptScreen: View {
                     }
                     .coordinateSpace(.named(TranscriptScrubber.frameSpace))
                 }
+                .phoneTopFade()
                 .phonePage()
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -305,7 +300,7 @@ struct TranscriptScreen: View {
             if look.isNative { PhoneEyebrow(text: Self.eyebrow(t)) }
             HStack(spacing: 6) {
                 // The kind, day, and length are in the eyebrow above.
-                Text(t.sourceLabel)
+                Text(t.sourceName)
                 if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
                 // The language it was transcribed in, and Transcribe again in… another one.
                 if t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil, t.source != .dictation {

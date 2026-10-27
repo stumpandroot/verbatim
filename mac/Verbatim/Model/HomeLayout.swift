@@ -143,7 +143,33 @@ enum HomeTile: String, CaseIterable, Sendable {
 
     /// The picker's tiles for an app, in the picker's order.
     static func available(on platform: HomePlatform) -> [HomeTile] { allCases.filter { $0.isAvailable(on: platform) } }
+
+    /// The capture mode's hue a tile wears in Verbose style, by what it does, never by its slot (DESIGN.md §1, review
+    /// P-14): Dictate butter, Import and Paste a link sage, What's playing and App audio petal. Everything else (Live
+    /// captions, New thought, Journal, the tools) is a card with an ink outline.
+    var hue: HomeTileHue? {
+        switch self {
+        case .dictate: return .butter
+        case .importMedia, .pasteLink: return .sage
+        case .whatsPlaying, .appAudio: return .petal
+        default: return nil
+        }
+    }
+
+    /// Each pick's hue, in slot order. At most three tiles are colored, so the row never outweighs Record; a fourth
+    /// colored pick is a card.
+    static func hues(_ picks: [HomeTile]) -> [HomeTileHue?] {
+        var colored = 0
+        return picks.map { t in
+            guard let h = t.hue, colored < 3 else { return nil }
+            colored += 1
+            return h
+        }
+    }
 }
+
+/// A Home tile's capture-mode hue in Verbose style (`HomeTile.hue`).
+enum HomeTileHue: Sendable { case butter, sage, petal }
 
 /// A picked tile and its slot (0 to 3). Home's tiles are identified by the tile, so a new pick appears as a new tile.
 struct HomeTileSlot: Hashable, Sendable {

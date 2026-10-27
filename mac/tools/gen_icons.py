@@ -234,6 +234,11 @@ I = {
     # Ask your library (mockup "Library features", section 2, October 26, 2026), same grammar: a speech bubble holding a
     # short sound wave, the Thoughts filament's wave laid flat.
     'Ask': [s('M4 5H20V16H11.5L7 20V16H4Z'), s('M7.4 10.5C8.3 10.5 8.5 8.8 9.4 8.8S11.6 12.2 12.6 12.2S13.7 10.5 14.6 10.5H16.6')],
+    # Settings › Haptics on iPhone (build 228 review, P-04), same grammar: Back Tap's phone with no tap, buzzing, two
+    # arcs on each side.
+    'Haptics': [s('M10 3H14A2.5 2.5 0 0 1 16.5 5.5V18.5A2.5 2.5 0 0 1 14 21H10A2.5 2.5 0 0 1 7.5 18.5V5.5A2.5 2.5 0 0 1 10 3Z'),
+                s('M5 9.5C4.3 10.9 4.3 13.1 5 14.5'), s('M2.8 7.5C1.6 10.3 1.6 13.7 2.8 16.5'),
+                s('M19 9.5C19.7 10.9 19.7 13.1 19 14.5'), s('M21.2 7.5C22.4 10.3 22.4 13.7 21.2 16.5')],
 }
 
 

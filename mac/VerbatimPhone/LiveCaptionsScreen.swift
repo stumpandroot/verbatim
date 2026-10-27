@@ -190,7 +190,8 @@ struct LiveCaptionsScreen: View {
                 Button { stopTapped() } label: {
                     Text("Stop").font(.system(size: 16, weight: .medium)).foregroundStyle(.lookInk)
                         .frame(maxWidth: .infinity).frame(height: 52)
-                        .background(Ink.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                        .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5))
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(SoftPress())
                 Button { app.stopCaptions(save: true) } label: {
@@ -200,7 +201,7 @@ struct LiveCaptionsScreen: View {
                     }
                     .foregroundStyle(Ink.onInteractive)
                     .frame(maxWidth: .infinity).frame(height: 52)
-                    .background(Ink.interactive, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                    .background(Ink.interactive, in: Capsule())
                 }
                 .buttonStyle(SoftPress())
                 .disabled(!captions.running)

@@ -12,7 +12,13 @@
         "Mac and iPhone: recipes are questions you ask again. Run one now, or schedule it weekly on that device; its answers stay in Ask › Recipes with their citations. Recipes sync between your Mac and iPhone, and schedules stay on each device. Start from three suggestions, such as Weekly digest of my thoughts.",
         "Mac and iPhone: a scheduled recipe runs while Verbose is open, or the next time it opens after its time, once even if you missed several weeks. On iPhone, it can also run when iOS gives Verbose background time. You get a notification with the first line of the answer.",
         "Mac and iPhone: Ask's index stays on your device and updates in the background as your transcripts change, never while you record or transcribe. Nothing from your transcripts leaves your device.",
-        "Mac and iPhone: when you delete a recording or move it to Recently Deleted, Ask forgets its passages at once, and saved answers drop its citations. Delete all data also removes Ask's index, your recent questions, recipes, and their answers."
+        "Mac and iPhone: when you delete a recording or move it to Recently Deleted, Ask forgets its passages at once, and saved answers drop its citations. Delete all data also removes Ask's index, your recent questions, recipes, and their answers.",
+        "iPhone: screens, tabs, and rows appear at once, without rising or sliding in.",
+        "iPhone: a Haptics switch in Settings › Personalization and preferences turns off every tap Verbose plays. Copying and saving give a light tap instead of a success buzz, and Delete all data no longer buzzes.",
+        "iPhone: in Verbose style, Settings icons are neutral, Home's tiles take their color from what they do (Dictate butter, Import sage, What's playing petal) wherever you put them, and every button is a pill.",
+        "iPhone: Recent recordings on Home lists your newest recordings first, by when you made them, as the Library does.",
+        "iPhone: the Verbose style recorder puts Mark moment, Stop & transcribe, and Pause in the thumb row, as Premium Native does, shows your last two moments under the meter, and moves Discard under the row. Live words while you record start on a whole word.",
+        "iPhone: smaller fixes. Voice notes have one name everywhere, Native uses sentence case and large titles on Settings pages, the Library's count is the system's tab badge, the Saved sheet keeps Open transcript as its one filled button, Home shows a person icon until you add your name, and Edit Home, the tab bar picker, and Today's thoughts no longer cut off their labels."
       ]
     },
     {

@@ -34,16 +34,22 @@ struct EditHomeView: View {
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
             Section {
-                ForEach(layout.shown, id: \.section) { item in row(item, layout: layout) }
-                    .onMove { from, to in store.update(hl) { $0.moveShown(fromOffsets: from, toOffset: to) } }
+                if !look.isNative { PhoneListHeading(text: "On Home") }
+                ForEach(Array(layout.shown.enumerated()), id: \.element.section) { i, item in
+                    row(item, layout: layout, first: i == 0, last: i == layout.shown.count - 1)
+                }
+                .onMove { from, to in store.update(hl) { $0.moveShown(fromOffsets: from, toOffset: to) } }
             } header: {
-                heading("On Home")
+                if look.isNative { Text("On Home") }
             }
             if !layout.hidden.isEmpty {
                 Section {
-                    ForEach(layout.hidden, id: \.section) { item in row(item, layout: layout) }
+                    if !look.isNative { PhoneListHeading(text: "Hidden") }
+                    ForEach(Array(layout.hidden.enumerated()), id: \.element.section) { i, item in
+                        row(item, layout: layout, first: i == 0, last: i == layout.hidden.count - 1)
+                    }
                 } header: {
-                    heading("Hidden")
+                    if look.isNative { Text("Hidden") }
                 } footer: {
                     if look.isNative, !layout.isVisible(.record) {
                         Text("The record button beside the tab bar always starts a voice note.")
@@ -52,7 +58,7 @@ struct EditHomeView: View {
             }
         }
         .environment(\.editMode, .constant(.active))
-        .listStyle(.insetGrouped)
+        .phoneGroupedList()
         .scrollContentBackground(.hidden)
         .phonePage()
         .navigationTitle(look.isNative ? "Edit Home" : "")
@@ -108,30 +114,29 @@ struct EditHomeView: View {
             Text("Drag to reorder. Choose Compact or Large for each section, and hide what you don't use.")
                 .font(.system(size: 15)).foregroundStyle(.lookDim)
                 .fixedSize(horizontal: false, vertical: true)
-            Button("Tab bar…") { editingTabBar = true }
-                .buttonStyle(.borderless)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.lookAccentText)
-                .accessibilityHint("Choose up to three tabs between Home and Settings.")
-                .accessibilityIdentifier("editHome.tabBar")
+            // A link to another screen: its name and a chevron (an ellipsis read as cut-off text; review P-20).
+            Button { editingTabBar = true } label: {
+                HStack(spacing: 3) {
+                    Text("Tab bar")
+                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                }
+            }
+            .buttonStyle(.borderless)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.lookAccentText)
+            .accessibilityLabel("Tab bar")
+            .accessibilityHint("Choose up to three tabs between Home and Settings.")
+            .accessibilityIdentifier("editHome.tabBar")
         }
         .padding(.vertical, 4)
     }
 
-    @ViewBuilder private func heading(_ text: String) -> some View {
-        if look.isNative {
-            Text(text)
-        } else {
-            Text(text).font(Ink.mono(12)).foregroundStyle(Ink.mute).textCase(nil)
-        }
-    }
-
-    private func row(_ item: HomeLayout.Item, layout: HomeLayout) -> some View {
+    private func row(_ item: HomeLayout.Item, layout: HomeLayout, first: Bool, last: Bool) -> some View {
         HStack(spacing: 12) {
             if look.isNative { visibility(item) }
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.section.title)
-                    .font(look.isNative ? .body : Ink.serif(19))
+                    .font(look.isNative ? .body : .system(size: 16))
                     .foregroundStyle(.lookInk)
                     .opacity(item.visible ? 1 : 0.65)
                     .lineLimit(1)
@@ -142,20 +147,24 @@ struct EditHomeView: View {
             if !look.isNative { visibility(item) }
         }
         .padding(.vertical, 3)
-        .listRowBackground(look.isNative ? NativeInk.card : Ink.card)
+        .listRowBackground(PhoneListRowCard(first: first, last: last))
+        .listRowSeparator(last ? .hidden : .automatic, edges: .bottom)
+        .listRowSeparatorTint(look.isNative ? nil : Ink.hairline)
         .accessibilityElement(children: .contain)
     }
 
-    /// The second line: what the section shows. The tiles row names its tiles after a Choose tiles link.
+    /// The second line: what the section shows. The tiles row names its tiles, with Choose tiles on its own line under
+    /// them, so neither wraps beside the size menu (review P-18).
     @ViewBuilder private func detail(_ item: HomeLayout.Item, layout: HomeLayout) -> some View {
         if item.section == .tiles {
-            HStack(spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Self.tileSummary(layout.tiles)).font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(1)
                 Button("Choose tiles") { pickingTiles = true }
                     .buttonStyle(.borderless)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.lookAccentText)
+                    .lineLimit(1).fixedSize()
                     .accessibilityHint("Pick the four tiles and their order.")
-                Text("· \(Self.tileSummary(layout.tiles))").font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(1)
             }
         } else {
             Text(item.section.detail(on: .phone, look: hl)).font(.system(size: 13)).foregroundStyle(.lookMute)
@@ -184,7 +193,7 @@ struct EditHomeView: View {
                 Text(item.size.title)
                 Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold))
             }
-            .font(look.isNative ? .system(size: 14, weight: .medium) : Ink.mono(12))
+            .font(look.isNative ? .system(size: 14, weight: .medium) : .system(size: 13, weight: .semibold))
             .foregroundStyle(.lookInk)
             .padding(.horizontal, 10).frame(minHeight: 30)
             .background(look.isNative ? NativeInk.fill : PhoneInk.wash, in: RoundedRectangle(cornerRadius: look.isNative ? 15 : Radius.button, style: .continuous))
@@ -315,22 +324,23 @@ struct HomeTilePicker: View {
         .accessibilityHint(n == nil ? (picks.count < HomeLayout.tileCount ? "Picks it into the next slot." : "Take a tile off first.") : "Takes it off.")
     }
 
-    /// The tile's face. Verbose style: picked tiles take their slot's color with an ink outline. Native: a soft card,
-    /// outlined in the accent when picked.
+    /// The tile's face. Verbose style: picked tiles take their capture mode's color (Home's `tileFill`) with an ink
+    /// outline. Native: a soft card, outlined in the accent when picked.
     private func tileFace(_ t: HomeTile, slot: Int?, compact: Bool) -> some View {
         let shape = RoundedRectangle(cornerRadius: look.isNative ? 18 : Radius.tile, style: .continuous)
+        let fill = slot == nil ? nil : HomeScreen.tileFill(t, in: picks)
         return VStack(alignment: look.isNative ? .center : .leading, spacing: 6) {
             if look.isNative {
                 Image(systemName: t.symbol).font(.system(size: compact ? 15 : 17, weight: .medium)).foregroundStyle(NativeInk.accent)
                     .frame(width: compact ? 30 : 36, height: compact ? 30 : 36)
                     .background(PremiumInk.accentSoft, in: Circle())
             } else {
-                IconGlyph(art: t.art, size: compact ? 16 : 20, color: slot.flatMap(HomeScreen.tileFill) == nil ? Ink.ink : Ink.inkFixed)
+                IconGlyph(art: t.art, size: compact ? 16 : 20, color: fill == nil ? Ink.ink : Ink.inkFixed)
             }
             if !look.isNative { Spacer(minLength: 0) }
             Text(t.title)
                 .font(look.isNative ? .system(size: compact ? 11 : 13, weight: .semibold) : Ink.serif(compact ? 13 : 16))
-                .foregroundStyle(look.isNative ? NativeInk.label : (slot.flatMap(HomeScreen.tileFill) == nil ? Ink.ink : Ink.inkFixed))
+                .foregroundStyle(look.isNative ? NativeInk.label : (fill == nil ? Ink.ink : Ink.inkFixed))
                 .multilineTextAlignment(look.isNative ? .center : .leading)
                 .lineLimit(2).minimumScaleFactor(0.8)
         }
@@ -339,7 +349,7 @@ struct HomeTilePicker: View {
         .background {
             if look.isNative {
                 shape.fill(PremiumInk.card).shadow(color: PremiumStyle.cardShadow, radius: 6, y: 3)
-            } else if let s = slot, let fill = HomeScreen.tileFill(s) {
+            } else if let fill {
                 PhonePanelFill(color: fill, shape: shape)
             } else {
                 shape.fill(Ink.card)

@@ -202,7 +202,7 @@ struct PhoneDictationRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .sensoryFeedback(.success, trigger: copies)
+        .sensoryFeedback(trigger: copies) { _, _ in Haptics.feedback(.selection) }
         .accessibilityElement(children: .combine)
         .accessibilityValue(copied ? "Copied" : "")
         .accessibilityHint("Copies the words.")

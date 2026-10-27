@@ -8,10 +8,11 @@ import UIKit
 
 // MARK: - Page structure
 
-/// A Settings page: Verbose style's compact serif title on the paper (Native uses the inline navigation title), then
-/// its groups.
+/// A Settings page: Verbose style's compact serif title on the paper, then its groups. Native uses the large navigation
+/// title, as every root and first-level screen does there; a detail of a detail passes `inline` (review P-06).
 struct SettingsPageScaffold<Content: View>: View {
     var title: String
+    var inline = false
     @ViewBuilder var content: () -> Content
     @Environment(\.look) private var look
 
@@ -28,7 +29,7 @@ struct SettingsPageScaffold<Content: View>: View {
         .scrollDismissesKeyboard(.interactively)
         .phonePage()
         .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(look.isNative && !inline ? .large : .inline)
         .toolbar {
             // Verbose style puts the serif title on the paper.
             if !look.isNative {
@@ -114,7 +115,7 @@ struct SpeakersSettingsScreen: View {
                 SettingsDivider()
                 Button { confirmClear = true } label: {
                     SettingsRow(icon: "trash", tint: Ink.petalTint, art: .iconDeleteAll, title: "Clear saved voices",
-                                subtitle: savedVoices == 0 ? "No saved voices" : "\(savedVoices) saved voice\(savedVoices == 1 ? "" : "s"), on this iPhone only") { EmptyView() }
+                                subtitle: savedVoices == 0 ? "No saved voices" : "\(savedVoices) saved voice\(savedVoices == 1 ? "" : "s"), on this iPhone only", danger: true) { EmptyView() }
                 }
                 .buttonStyle(SettingsRowPress())
                 .disabled(savedVoices == 0)

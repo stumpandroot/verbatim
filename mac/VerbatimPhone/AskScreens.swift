@@ -238,7 +238,7 @@ struct AskScreen: View {
         if !others.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 if look.isNative {
-                    Text("Other Passages").font(.system(size: 15, weight: .semibold)).foregroundStyle(NativeInk.secondary).padding(.top, 8)
+                    Text("Other passages").font(.system(size: 15, weight: .semibold)).foregroundStyle(NativeInk.secondary).padding(.top, 8)
                 } else {
                     PhoneDayHeader(text: "Other passages")
                 }
@@ -661,11 +661,11 @@ struct PhoneRecipeEditor: View {
                 }
                 if draft.recipeId != nil {
                     Section {
-                        Button("Delete Recipe", role: .destructive) { confirmDelete = true }
+                        Button("Delete recipe", role: .destructive) { confirmDelete = true }
                     }
                 }
             }
-            .navigationTitle(draft.recipeId == nil ? "New Recipe" : "Edit Recipe")
+            .navigationTitle(draft.recipeId == nil ? "New recipe" : "Edit recipe")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -675,7 +675,7 @@ struct PhoneRecipeEditor: View {
                 }
             }
             .confirmationDialog("Delete this recipe?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Delete Recipe", role: .destructive) { if let id = draft.recipeId { AskRecipeCenter.shared.delete(id) }; dismiss() }
+                Button("Delete recipe", role: .destructive) { if let id = draft.recipeId { AskRecipeCenter.shared.delete(id) }; dismiss() }
             } message: { Text("Its answers on this iPhone go too.") }
         }
     }

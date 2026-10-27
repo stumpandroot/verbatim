@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// The "link added" card on iPhone, laid over the whole TabView so its tile can fly from the screen into the
-/// Library tab, plus the Library tab's count badge (persimmon, like the Mac's Queue badge).
+/// Library tab. The tab's count is the system badge (PhoneApp.swift), which VoiceOver reads and the tab bar places.
 ///
 /// The system tab bar doesn't publish its items' frames to SwiftUI, so `TabBarLocator` reads the Library item's
 /// frame from UIKit (the tab bar's buttons, in window coordinates), falling back to an equal share of the tab
@@ -27,25 +27,13 @@ struct PhoneLinkCardLayer: View {
                         .id(id)
                         .onAppear(perform: locate)
                 }
-                if let item {
-                    let count = app.libraryBadgeCount
-                    CountPill(text: "\(count)", pops: app.libraryBadgePops)
-                        .opacity(count == 0 ? 0 : 1)
-                        .animation(Motion.fade, value: count == 0)
-                        // Where the system puts a tab badge: above the icon's top-right corner.
-                        .position(x: item.midX + 14, y: item.minY + 9)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
             }
             .frame(width: g.size.width, height: g.size.height)
             .onChange(of: g.size) { _, _ in DispatchQueue.main.async(execute: locate) }
         }
         .ignoresSafeArea()
         .allowsHitTesting(app.linkCardImport != nil)
-        .sensoryFeedback(.success, trigger: app.libraryBadgePops)
         .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: locate) }
-        .onChange(of: app.libraryBadgeCount) { _, _ in locate() }
         .onChange(of: app.tab) { _, _ in DispatchQueue.main.async(execute: locate) }
         .onReceive(app.tabBarStore.$bar) { _ in DispatchQueue.main.async(execute: locate) }
     }

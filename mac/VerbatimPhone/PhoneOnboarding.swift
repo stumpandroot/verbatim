@@ -172,7 +172,7 @@ struct PhoneOnboarding: View {
         case 2:
             if micAllowed { bigButton("Continue", fill: Ink.interactive, text: Ink.onInteractive) { step = 3 } }
             else {
-                bigButton("Allow Microphone", fill: Ink.persimmon, text: Ink.inkFixed) {
+                bigButton("Allow microphone", fill: Ink.persimmon, text: Ink.inkFixed) {
                     AVAudioApplication.requestRecordPermission { ok in
                         DispatchQueue.main.async { micAllowed = ok; step = 3 }
                     }

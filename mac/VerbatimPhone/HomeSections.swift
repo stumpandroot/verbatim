@@ -534,7 +534,8 @@ struct HomeThoughtsSection: View {
         }
     }
 
-    /// New thought: a line pill with the bulb in Verbose style; the accent's soft capsule in Native.
+    /// New thought: a line pill with the bulb in Verbose style; the accent's soft capsule in Native. In the compact row
+    /// it's the bulb alone in a 34 pt circle in both looks, so the count beside it never cuts off (review P-18).
     private func newThought(compact: Bool) -> some View {
         Button { HomeTileAction.startThought(app) } label: {
             HStack(spacing: 7) {
@@ -543,10 +544,10 @@ struct HomeThoughtsSection: View {
                 } else {
                     IconGlyph(art: .iconThought, size: 16, color: Ink.ink)
                 }
-                if !compact || !look.isNative { Text("New thought").font(.system(size: 14, weight: .semibold)) }
+                if !compact { Text("New thought").font(.system(size: 14, weight: .semibold)) }
             }
             .foregroundStyle(look.isNative ? NativeInk.accent : Ink.ink)
-            .padding(.horizontal, compact && look.isNative ? 10 : 14).frame(minHeight: 34)
+            .padding(.horizontal, compact ? 0 : 14).frame(minWidth: 34, minHeight: 34)
             .background {
                 if look.isNative { Capsule().fill(PremiumInk.accentSoft) }
                 else { Capsule().fill(Ink.card).overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5)) }

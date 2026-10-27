@@ -38,7 +38,7 @@ struct VoiceProfileScreen: View {
         .navigationTitle("Your voice")
         .navigationBarTitleDisplayMode(.inline)
         .onDisappear { model.cancel() }
-        .sensoryFeedback(.success, trigger: isGoodResult)
+        .sensoryFeedback(trigger: isGoodResult) { _, good in good ? Haptics.feedback(.success) : nil }
     }
 
     private var isGoodResult: Bool {

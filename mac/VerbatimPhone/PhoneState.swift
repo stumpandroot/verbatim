@@ -15,13 +15,8 @@ final class PhoneState: ObservableObject {
     let recorder = Recorder()
     let player = Player()
 
-    @Published var tab: Tab = .home {
-        didSet { if tab != oldValue { tabFrom = oldValue; tabEpoch += 1 } }
-    }
-    /// The tab you came from, and a count of tab changes: each tab's content enters when the count moves on
-    /// and it's the selected tab (`TabEntrance`).
-    private(set) var tabFrom: Tab = .home
-    @Published private(set) var tabEpoch = 0
+    /// The selected tab. Tabs arrive at once, with no entrance (DESIGN.md §7).
+    @Published var tab: Tab = .home
     /// Each tab keeps its own navigation stack.
     @Published var homePath = NavigationPath()
     @Published var libraryPath = NavigationPath()
@@ -281,7 +276,7 @@ final class PhoneState: ObservableObject {
             // A thought: if Verbatim is closed mid-thought, recovery brings it back as a thought on the day it started.
             beginThoughtIfAsked(url)
             showRecorder = true
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Haptics.play(.medium)
             warmModel()
             if let warning = Store.lowSpaceWarning() { say(warning) }
         } catch {
@@ -405,7 +400,7 @@ final class PhoneState: ObservableObject {
             let offset = store.transcript(target)?.duration ?? 0
             guard coordinator.queueAppend(recording: r.url, to: target) else { say("Couldn't save the recording."); return }
             for n in Store.skippedNotes(r.skipped, offset: offset) + RecordingMoment.notes(moments, offset: offset) { store.addNote(n, to: target) }
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            Haptics.play(.light)
             return
         }
         if let thoughtStart {
@@ -414,12 +409,12 @@ final class PhoneState: ObservableObject {
             return
         }
         guard let name = store.adoptRecording(r.url) else { say("Couldn't save the recording."); return }
-        var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: r.duration, audioFileName: name, model: "")
+        var t = Transcript(title: "Voice note", source: .voiceMemo, sourceLabel: "Voice memo", duration: r.duration, audioFileName: name, model: "")
         t.waveform = r.envelope
         t.notes = Store.skippedNotes(r.skipped) + RecordingMoment.notes(moments)
         t.pickKindAtStart(kind)
         enqueue(t)
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Haptics.play(.light)
         // Premium Native: the Saved sheet, once the recorder's cover has gone.
         if AppLook.current == .native {
             let saved = SavedRecording(id: t.id, length: r.duration, moments: moments.count, savedAt: Date())
@@ -441,7 +436,7 @@ final class PhoneState: ObservableObject {
         if let url = recorder.recordingURL { Marks.save(marks, for: url) }
         let c = MarkConfirmation(at: confirmed.at, count: marks.count)
         lastMark = c
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.play(.light)
         Log.note("marks: marked \(Marks.clock(confirmed.at)) from \(source.rawValue) (\(marks.count) in this recording)")
         RecordingPresence.shared.marked()
         DispatchQueue.main.asyncAfter(deadline: .now() + Marks.confirmSeconds) { [weak self] in
@@ -510,7 +505,7 @@ final class PhoneState: ObservableObject {
         var t = Transcript(title: "Live captions", source: .voiceMemo, sourceLabel: "Live captions", duration: duration, audioFileName: name, model: "")
         t.waveform = env
         enqueue(t)
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Haptics.play(.light)
         say("Saved. Transcribing now.")
     }
 
@@ -632,8 +627,6 @@ final class PhoneState: ObservableObject {
     @Published var linkCardImport: LinkImport? = nil
     /// Links counted by the Library badge only once their card has landed there.
     @Published var linkBadgeHeld: Set<UUID> = []
-    /// Goes up each time a card lands on the Library tab, so its badge pops.
-    @Published var libraryBadgePops = 0
 
     /// Resolves, downloads, and prepares a link transcript's audio, then queues it for transcription.
     private func startLinkFetch(_ id: UUID) {
@@ -876,7 +869,7 @@ final class PhoneState: ObservableObject {
     func useSpeakerSuggestion(_ id: UUID, _ s: SpeakerSuggestion) {
         renameSpeaker(id, speaker: s.speakerId, to: s.name)
         store.update(id) { $0.markSpeakerSuggestion(s.id, .accepted) }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.play(.light)
     }
     /// Dismiss: the suggestion hides and isn't made again.
     func dismissSpeakerSuggestion(_ id: UUID, _ s: SpeakerSuggestion) {
@@ -890,7 +883,7 @@ final class PhoneState: ObservableObject {
     func addNote(_ id: UUID, text: String, at: Double?, segment: UUID?, bookmark: Bool = false) {
         store.addNote(Note(text: text, at: at, segmentId: segment, isBookmark: bookmark), to: id)
         say(bookmark ? "Bookmarked \((at ?? 0).timecode)" : "Note added")
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.play(.light)
     }
     func deleteNote(_ id: UUID, note: UUID) { store.update(id) { $0.notes.removeAll { $0.id == note } } }
 
@@ -984,7 +977,6 @@ final class PhoneState: ObservableObject {
         Log.trimNow()
         try? FileManager.default.removeItem(at: Log.file)
         say("Deleted everything")
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 }
 
@@ -1062,7 +1054,7 @@ extension PhoneState: TranscriptionHost {
     }
 
     func transcriptReady(_ id: UUID, corrections: Int, queueEmpty: Bool) {
-        if queueEmpty { say("Transcript ready"); UINotificationFeedbackGenerator().notificationOccurred(.success) }
+        if queueEmpty { say("Transcript ready"); Haptics.play(.light) }
     }
 
     func jobFailed(_ id: UUID, error: Error) {
@@ -1070,7 +1062,7 @@ extension PhoneState: TranscriptionHost {
     }
 
     func appendReady(_ id: UUID, queueEmpty: Bool) {
-        if queueEmpty { say("New recording added"); UINotificationFeedbackGenerator().notificationOccurred(.success) }
+        if queueEmpty { say("New recording added"); Haptics.play(.light) }
     }
 
     func appendFailed(_ id: UUID, error: Error) {
@@ -1083,10 +1075,9 @@ extension PhoneState: TranscriptionHost {
 // MARK: - The "link added" card
 
 extension PhoneState {
-    /// The tile reached the Library tab: the badge counts the link now, with a pop.
+    /// The tile reached the Library tab: the badge counts the link now.
     func linkCardLanded(_ id: UUID) {
         linkBadgeHeld.remove(id)
-        libraryBadgePops += 1
     }
 
     /// The card is gone (landed, faded, or cancelled).

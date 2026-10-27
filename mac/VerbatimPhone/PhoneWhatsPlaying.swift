@@ -30,7 +30,7 @@ struct WhatsPlayingSheet: View {
                         .padding(.top, 14)
                         .accessibilityAddTraits(.isHeader)
 
-                    Text("Start, then open TikTok or any app and play videos. Verbose records the sound they play — not your microphone or screen — and transcribes it when you stop.")
+                    Text("Start, then open TikTok or any app and play videos. Verbose records the sound they play, not your microphone or screen, and transcribes it when you stop.")
                         .font(.system(size: 16)).foregroundStyle(.lookDim)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
