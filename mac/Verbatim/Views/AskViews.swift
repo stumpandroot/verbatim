@@ -682,7 +682,7 @@ struct AskView: View {
                     HStack(spacing: 6) {
                         FilterChip(title: "Questions", selected: nav.pane == .questions) { nav.pane = .questions }.uiTarget("ask-pane-questions")
                         FilterChip(title: "Recipes", selected: nav.pane == .recipes) { nav.pane = .recipes }.uiTarget("ask-pane-recipes")
-                        PillButton(title: "New recipe", kind: .dark, size: .mini, trailing: .plus) { nav.editing = RecipeDraft(question: "", scope: nav.scope) }
+                        PillButton(title: "New recipe", kind: .dark, size: .mini, icon: .webPlus) { nav.editing = RecipeDraft(question: "", scope: nav.scope) }
                             .uiTarget("ask-new-recipe")
                     }
                 }

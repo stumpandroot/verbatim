@@ -98,9 +98,8 @@ struct TemplateLibraryPane: View {
                 PageTitle(title: "Templates", count: "\(all.count) templates",
                           lede: "Turn a transcript into notes, a plan, or a draft. Pick one per kind to run when a recording finishes.") {
                     HStack(spacing: 8) {
-                        PillButton(title: "Run automatically", kind: .line, size: .mini, icon: .iconRecent) { nav.pane = .auto }
-                            .uiTarget("templates-auto")
-                        PillButton(title: "New template", kind: .dark, size: .mini, trailing: .plus) { nav.newTemplate() }
+                        TemplatesPaneSwitch()
+                        PillButton(title: "New template", kind: .dark, size: .mini, icon: .webPlus) { nav.newTemplate() }
                             .uiTarget("templates-new")
                     }
                 }
@@ -341,6 +340,16 @@ struct TemplateTryOnMenu: View {
     }
 }
 
+/// Library | Run automatically: the shared view switch (DESIGN.md §11.15), the same on both panes.
+private struct TemplatesPaneSwitch: View {
+    @ObservedObject private var nav = TemplatesNav.shared
+    var body: some View {
+        SegmentedCapsule(label: "Templates view", options: [TemplatesPane.library, .auto], selection: $nav.pane,
+                         title: { $0 == .library ? "Library" : "Run automatically" }, small: true,
+                         target: { $0 == .library ? "templates-library" : "templates-auto" })
+    }
+}
+
 // MARK: - Run automatically
 
 struct RunAutomaticallyPane: View {
@@ -356,10 +365,7 @@ struct RunAutomaticallyPane: View {
             VStack(alignment: .leading, spacing: 18) {
                 PageTitle(title: "Run", italic: "automatically", count: "\(settings.assignedCount) of \(AutoRunSettings.kinds.count) kinds",
                           lede: "When a recording of a kind finishes, its template runs after the transcript and summary.") {
-                    HStack(spacing: 6) {
-                        FilterChip(title: "Library", selected: false, small: true) { nav.pane = .library }.uiTarget("templates-library")
-                        FilterChip(title: "Run automatically", selected: true, small: true) {}
-                    }
+                    TemplatesPaneSwitch()
                 }
                 VStack(spacing: 0) {
                     HStack(spacing: 0) {
@@ -505,12 +511,8 @@ struct TemplateEditorSheet: View {
                 }
                 .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
-                Button { draft.sections.append(TemplateSection("", .bullets)) } label: {
-                    HStack(spacing: 6) { Image(systemName: "plus").font(.system(size: 11, weight: .bold)); Text("Add a section") }
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.accentText)
-                }
-                .buttonStyle(.plain)
-                .uiTarget("editor-add-section")
+                TextLink(title: "Add a section", glyph: .plus) { draft.sections.append(TemplateSection("", .bullets)) }
+                    .uiTarget("editor-add-section")
             }
             Rectangle().fill(Ink.hairline).frame(height: 1)
             HStack(spacing: 10) {

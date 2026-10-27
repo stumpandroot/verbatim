@@ -244,7 +244,7 @@ struct LibraryView: View {
             } else if let p = app.projectFilter {
                 EmptyStateCard(art: .iconProject, title: "Nothing in this project yet",
                                message: "Add transcripts from your library or import files.",
-                               button: "Add from Library", action: { app.addFromLibrary = p })
+                               button: "Add from Library…", action: { app.addFromLibrary = p })
             } else if kind != nil {
                 EmptyStateCard(art: .iconLibrary, title: "Nothing here yet",
                                message: "Recordings of this kind land here as you make them.",
@@ -275,7 +275,7 @@ struct LibraryView: View {
             ForEach(Array(projects.enumerated()), id: \.element.id) { i, p in
                 projectCard(p, items: members[p.id] ?? [], index: i, moving: moving == p.id)
             }
-            PillButton(title: "New project", kind: .line, trailing: .plus, fullWidth: true,
+            PillButton(title: "New project", kind: .line, icon: .webPlus, fullWidth: true,
                        hint: "Names a new project. Then drag transcripts onto it in the sidebar.") { app.newProjectFor = [] }
                 .uiTarget("library-new-project")
             Text(projects.isEmpty ? "Group transcripts by client or job." : "Drag a transcript onto a project in the sidebar to file it.")
