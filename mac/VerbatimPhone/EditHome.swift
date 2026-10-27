@@ -32,6 +32,8 @@ struct EditHomeView: View {
                 intro
             }
             .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
             Section {
                 if !look.isNative { PhoneListHeading(text: "On Home") }
@@ -42,6 +44,7 @@ struct EditHomeView: View {
             } header: {
                 if look.isNative { Text("On Home") }
             }
+            .listSectionSeparator(.hidden)
             if !layout.hidden.isEmpty {
                 Section {
                     if !look.isNative { PhoneListHeading(text: "Hidden") }
@@ -55,6 +58,7 @@ struct EditHomeView: View {
                         Text("The record button beside the tab bar always starts a voice note.")
                     }
                 }
+                .listSectionSeparator(.hidden)
             }
         }
         .environment(\.editMode, .constant(.active))

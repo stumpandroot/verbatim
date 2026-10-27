@@ -24,6 +24,8 @@ struct TabBarSettingsScreen: View {
                     .padding(.vertical, 6)
             }
             .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
             Section {
                 if !look.isNative { PhoneListHeading(text: inBar(bar)) }
@@ -34,6 +36,7 @@ struct TabBarSettingsScreen: View {
             } header: {
                 if look.isNative { Text(inBar(bar)) }
             }
+            .listSectionSeparator(.hidden)
             if !more.isEmpty {
                 Section {
                     if !look.isNative { PhoneListHeading(text: "More tabs") }
@@ -50,6 +53,7 @@ struct TabBarSettingsScreen: View {
                 } footer: {
                     if look.isNative, bar.middle.count >= PhoneTabBar.maxMiddle { Text(Self.fullNote) }
                 }
+                .listSectionSeparator(.hidden)
             }
         }
         .environment(\.editMode, .constant(.active))
