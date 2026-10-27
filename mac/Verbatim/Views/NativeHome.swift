@@ -39,6 +39,8 @@ extension HomeView {
                 // Back and Forward bring Home back where you left it; the sidebar opens it at the top (App/NavTrail.swift).
                 .scrollPlace(ScreenPlaces.scrollKey("home", look: .native), restore: NavTrail.shared.movingThroughHistory)
             }
+            // The greeting fades under the toolbar's glass instead of running into it (review M-05).
+            .softScrollEdges(.top)
         }
     }
 
@@ -83,7 +85,7 @@ extension HomeView {
         switch item.section {
         case .week: nativeWeek(large: item.size == .large)
         case .stats: nativeStats(large: item.size == .large, paired: paired, wide: wide)
-        case .tiles: nativeTiles(layout.tiles, wide: wide && !paired, large: item.size == .large)
+        case .tiles: nativeTiles(layout.tiles, wide: width >= Self.nativeTilesRowWidth && !paired, large: item.size == .large)
         case .recent: nativeRecent(wide: width >= 700, compact: item.size == .compact)
         case .record: NativeHomeRecord(size: item.size, status: recordStatus, recording: recording)
         case .lastDictation: NativeHomeLastDictation(size: item.size)
@@ -134,6 +136,10 @@ extension HomeView {
     }
 
     // MARK: Tiles
+
+    /// The content width a row of four compact tiles needs; narrower, they go two by two so names and a blocking status
+    /// ("Needs Accessibility") never truncate (review M-06).
+    static let nativeTilesRowWidth: CGFloat = 760
 
     /// The four tiles you picked. Compact: one row of four (two by two in a narrow window). Large: two by two, taller.
     @ViewBuilder private func nativeTiles(_ picks: [HomeTile], wide: Bool, large: Bool) -> some View {
@@ -287,8 +293,8 @@ struct NativeCardButtonStyle: ButtonStyle {
     }
 }
 
-/// A start tile: a white card with the symbol on a soft accent disc, the name and one line of detail, and the
-/// shortcut as a small badge (Dictate's key).
+/// A start tile: a white card with the symbol on a soft accent disc, the name and up to two lines of detail, and the
+/// shortcut (Dictate's key) as a small badge on a large tile, or in the help on a compact one.
 private struct PremiumTile: View {
     var title: String
     var detail: String
@@ -313,12 +319,15 @@ private struct PremiumTile: View {
                     .padding(16)
                     .frame(maxWidth: .infinity, minHeight: 112, maxHeight: 112, alignment: .topLeading)
                 } else {
+                    // The detail may take two lines, and the shortcut goes to the help instead of over the name.
                     HStack(spacing: 12) {
                         symbolDisc
                         VStack(alignment: .leading, spacing: 1) {
                             Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
-                            Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.85)
+                            Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
+                        .layoutPriority(1)
                         Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 14)
@@ -326,7 +335,7 @@ private struct PremiumTile: View {
                 }
             }
             .overlay(alignment: .topTrailing) {
-                if let badge {
+                if tall, let badge {
                     Text(badge).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                         .padding(.horizontal, 6).padding(.vertical, 1)
                         .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(PremiumInk.separator, lineWidth: 1))
@@ -339,6 +348,7 @@ private struct PremiumTile: View {
             }
         }
         .buttonStyle(PremiumCardPress(radius: 18))
+        .help(tall ? "" : badge.map { "\(title) · \($0)" } ?? "")
         .accessibilityLabel(title)
         .accessibilityValue([detail, badge.map(Keycap.spoken)].compactMap { $0 }.joined(separator: " "))
         .accessibilityHint(hint)

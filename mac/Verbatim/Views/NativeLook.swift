@@ -180,6 +180,12 @@ extension View {
     func lookRebuild() -> some View { modifier(LookRebuild()) }
     /// The accent for switches, buttons, and selection: brand sage in Verbose style, persimmon in Native.
     func lookTint(_ look: AppLook) -> some View { tint(look == .native ? Ink.nativeAccent : Ink.switchOn) }
+    /// The soft scroll edge effect on these edges (macOS 26), so text that scrolls under the toolbar's glass or beside
+    /// the player bar fades instead of colliding with it (DESIGN.md §13.5; review M-05, M-29). Earlier systems
+    /// draw no glass there, so nothing changes.
+    @ViewBuilder func softScrollEdges(_ edges: Edge.Set) -> some View {
+        if #available(macOS 26, *) { scrollEdgeEffectStyle(.soft, for: edges) } else { self }
+    }
 }
 
 // MARK: - Boxes
@@ -280,18 +286,22 @@ struct NativeChipFace: View {
     var selected: Bool
     var small = false
     var hover = false
+    /// Chosen kinds and tags stay neutral (a stronger wash and a check), so the accent marks only the selected filter.
+    var neutral = false
 
     var body: some View {
+        let accent = selected && !neutral
         HStack(spacing: 5) {
+            if selected && neutral { Image(systemName: "checkmark").font(.system(size: small ? 9 : 10, weight: .bold)) }
             Text(title)
             if let count { Text("\(count)").monospacedDigit().opacity(0.7) }
         }
-        .font(.system(size: small ? 11.5 : 12, weight: .medium))
+        .font(.system(size: small ? 11.5 : 12, weight: selected && neutral ? .semibold : .medium))
         .lineLimit(1)
-        .foregroundStyle(selected ? PremiumInk.onAccent : Color.primary)
+        .foregroundStyle(accent ? PremiumInk.onAccent : Color.primary)
         .padding(.horizontal, small ? 9 : 11)
         .frame(height: small ? 22 : 26)
-        .background(Capsule().fill(selected ? Ink.nativeAccent : (hover ? NativeInk.borderedHover : NativeInk.bordered)))
+        .background(Capsule().fill(accent ? Ink.nativeAccent : (selected || hover ? NativeInk.borderedHover : NativeInk.bordered)))
         .contentShape(Capsule())
     }
 }

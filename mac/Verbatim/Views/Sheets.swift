@@ -7,7 +7,7 @@ struct MicSheet: View {
         VStack(spacing: 8) {
             EmptyStateArt(art: .capture, tint: Ink.persimmonTint).padding(.bottom, 4)
             Text("Verbose wants to use the microphone").font(.system(size: 15, weight: .semibold))
-            Text("Voice memos are recorded and transcribed on this Mac. Nothing is uploaded.")
+            Text("Voice notes are recorded and transcribed on this Mac. Nothing is uploaded.")
                 .font(.system(size: 13)).foregroundStyle(Ink.dim).multilineTextAlignment(.center)
             HStack(spacing: 8) {
                 Button("Not now") { app.showMicSheet = false }.buttonStyle(.bordered).uiTarget("sheet-notnow")
@@ -41,8 +41,20 @@ struct AppPickerSheet: View {
                     .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             }
             TextField("Filter apps", text: $filter).textFieldStyle(.roundedBorder)
-            if let e = error {
-                Text(e).font(.system(size: 12.5)).foregroundStyle(Ink.danger)
+            if error != nil {
+                // Plain words and a way to fix it, never the system's raw error (review M-11).
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 8) {
+                        IconGlyph(art: .iconAttention, size: 16, color: Ink.danger)
+                        Text(AppPickerSheet.permissionText).font(.system(size: 12.5)).foregroundStyle(Ink.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Button("Open System Settings") { NSWorkspace.shared.open(AppPickerSheet.screenCaptureSettings) }
+                        .buttonStyle(PillButtonStyle(kind: .dark, size: .mini))
+                        .padding(.leading, 24)
+                }
+                .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
@@ -64,9 +76,23 @@ struct AppPickerSheet: View {
             HStack { Spacer(); Button("Cancel") { app.showAppPicker = false }.keyboardShortcut(.cancelAction) }
         }
         .padding(20).frame(width: 420).background(Ink.paper)
-        .task {
-            do { apps = try await AppAudioCapture.runningApps() }
-            catch { self.error = "Couldn't list apps: \(error.localizedDescription). Allow Verbose under Privacy & Security › Screen & System Audio Recording, then try again." }
+        .task { await load() }
+        // Back from System Settings: try again, so the list fills once the permission is on.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            if error != nil { Task { await load() } }
         }
     }
+
+    private func load() async {
+        do {
+            apps = try await AppAudioCapture.runningApps()
+            error = nil
+        } catch {
+            Log.note("app picker: couldn't list apps: \(error.localizedDescription)")
+            self.error = AppPickerSheet.permissionText
+        }
+    }
+
+    static let permissionText = "Verbose needs permission to hear other apps. Turn on Verbose in System Settings › Privacy & Security › Screen & System Audio Recording."
+    static let screenCaptureSettings = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
 }

@@ -4,7 +4,7 @@ import AppKit
 // brand: web style
 //
 // Edit Home on the Mac (mockup "premium", section 03, Mac): a list of Home's sections with a checkbox to show each,
-// a drag to reorder, and Compact or Large; the Shortcut tiles row opens the tile picker. Changes reach Home at once and
+// a drag to reorder, and Compact or Large; the Tiles row opens the tile picker. Changes reach Home at once and
 // are kept per look in this Mac's defaults (HomeLayout.swift).
 //
 // Two ways in: Edit Home at the end of Home outlines the sections and shows this list as an inspector on the right,
@@ -108,27 +108,35 @@ struct EditHomeView: View {
                 .accessibilityHidden(true)
             Toggle(isOn: Binding(get: { item.visible },
                                  set: { on in store.update(hl) { $0.setVisible(item.section, on) } })) {
-                Text(item.section.title).font(.system(size: 13.5))
+                Text(item.section.title).font(.system(size: 13.5)).lineLimit(1)
             }
             .toggleStyle(.checkbox)
+            .layoutPriority(1)
             .accessibilityHint(item.visible ? "Hides it from Home." : "Shows it at the end of Home.")
             if item.section == .tiles {
-                Button("Choose…") { picking.wrappedValue = true }
-                    .buttonStyle(.link)
-                    .font(.system(size: 12.5))
+                // A line mini pill (Native: a small bordered button), never a system link (review M-02).
+                Button("Choose tiles") { picking.wrappedValue = true }
+                    .buttonStyle(PillButtonStyle(kind: .line, size: .mini))
                     .popover(isPresented: picking, arrowEdge: .leading) { HomeTilePickerMac(look: hl) }
                     .help(layout.tiles.map(\.title).joined(separator: ", "))
-                    .accessibilityLabel("Choose tiles")
                     .accessibilityValue(layout.tiles.map(\.title).joined(separator: ", "))
             }
             Spacer(minLength: 6)
-            Picker("Size", selection: Binding(get: { item.size }, set: { s in store.update(hl) { $0.setSize(item.section, s) } })) {
-                ForEach(HomeCardSize.allCases, id: \.self) { Text($0.title).tag($0) }
+            // A borderless menu, narrower than a pop-up button, so the section's name keeps its room.
+            Menu {
+                ForEach(HomeCardSize.allCases, id: \.self) { s in
+                    Button { store.update(hl) { $0.setSize(item.section, s) } } label: {
+                        if s == item.size { Label(s.title, systemImage: "checkmark") } else { Text(s.title) }
+                    }
+                }
+            } label: {
+                Text(item.size.title).font(.system(size: 12.5))
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
+            .menuStyle(.borderlessButton)
             .fixedSize()
+            .foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.dim))
             .accessibilityLabel("\(item.section.title) size")
+            .accessibilityValue(item.size.title)
         }
         .frame(height: 30)
         .listRowBackground(Color.clear)
@@ -155,7 +163,7 @@ struct HomeTilePickerMac: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if look == .native {
-                Text("Shortcut Tiles").font(.system(size: 14, weight: .bold))   // brand: native
+                Text("Tiles").font(.system(size: 14, weight: .bold))   // brand: native
             } else {
                 Eyebrow(text: "Tiles")
                 WebText.serif("Choose", italic: "four", size: 24).foregroundStyle(Ink.ink)

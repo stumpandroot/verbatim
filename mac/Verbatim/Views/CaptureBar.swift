@@ -186,20 +186,22 @@ struct DictateControls: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(app.dictation.hotkey.title).font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.ink)
                         Text(app.dictation.enabled ? "\(app.dictation.hotkey.shortTitle.prefix(1).uppercased() + app.dictation.hotkey.shortTitle.dropFirst()) in any app, or click \(DictationSurface.stored().clickHint). Settings › Dictation and keyboard has cleanup, styles, and snippets." : "Dictation is off. Turn it on in Settings › Dictation and keyboard.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                
             } else {
-                HStack(spacing: 10) {
+                // The reason wraps (a popover sizes to one line otherwise and cuts it off), then one dark pill.
+                HStack(alignment: .top, spacing: 10) {
                     IconGlyph(art: .iconAccessibility, size: 20, color: Ink.danger)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Needs Accessibility access").font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.ink)
-                        Text("To hear the key and paste into other apps. Verbose reads nothing from them.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                        Text("Verbose needs it to hear the key and paste into other apps. It reads nothing from them.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer()
-                    Button("Allow") { app.dictation.requestAccessibility(); app.dictation.openAccessibilitySettings() }.buttonStyle(.brandPrimary)
                 }
-                
+                Button("Open Accessibility settings") { app.dictation.requestAccessibility(); app.dictation.openAccessibilitySettings() }
+                    .buttonStyle(PillButtonStyle(kind: .dark, size: .mini))
+                    .padding(.leading, 30)
             }
             if let last = app.dictation.lastResult, !last.isEmpty {
                 HStack(spacing: 8) {
@@ -208,8 +210,10 @@ struct DictateControls: View {
                 }
             }
         }
-        .frame(maxWidth: 360, alignment: .leading)
+        .frame(width: DictateControls.width, alignment: .leading)
     }
+    /// A fixed width, so the popover's text wraps instead of truncating (review M-01).
+    static let width: CGFloat = 320
 }
 
 // MARK: - Shared pieces
