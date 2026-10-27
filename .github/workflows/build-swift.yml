@@ -14,7 +14,8 @@ name: Build Mac app (SwiftUI)
 # ci-screens keeps the newest iPhone and bench results when a build skips them (their file names carry their build).
 # Release notes (mac/ReleaseNotes/README.md): each build, iPhone tour, and TestFlight archive first stamps the bundled
 # ReleaseNotes.json's "next" entry with the run number in its own checkout (never committed), and the updates job puts
-# that entry in the appcast and the GitHub release, so the Mac's update window lists what's new.
+# that entry in the appcast and the GitHub release, so the Mac's update window lists what's new; the TestFlight job sets
+# it as the build's What to Test.
 # Versions (mac/VERSIONING.md): builds of main take project.yml's MARKETING_VERSION and VERBOSE_CHANNEL ("1.0 beta");
 # a mac-v* tag sets its own. Every successful build of main (push or by hand) is tagged v<version>-b<run>, such as
 # v1.0-b217, on the built commit (the `tag` job).
@@ -24,7 +25,7 @@ name: Build Mac app (SwiftUI)
 # is unsigned and keeps everything on the Mac.
 # TestFlight (iPhone): ASC_KEY_ID, ASC_ISSUER_ID, and ASC_KEY_P8. Xcode's cloud signing for App Store distribution
 # needs an App Store Connect API key with the Admin role. With them, every build of main uploads the iPhone app to
-# TestFlight. The archive is ad hoc signed, so no run creates a certificate; IOS_DEV_CERTIFICATE and
+# TestFlight, and the same key sets the build's What to Test from its release notes once Apple has processed it. The archive is ad hoc signed, so no run creates a certificate; IOS_DEV_CERTIFICATE and
 # IOS_DEV_CERTIFICATE_PASSWORD are an optional fallback (mac/APP_STORE.md, "TestFlight signing").
 # Automatic updates (Sparkle, mac/Updates/README.md): SPARKLE_PRIVATE_KEY (EdDSA key from `generate_keys -x`) and
 # UPDATES_TOKEN (fine-grained token, Contents read/write on stumpandroot/verbose-updates only), both in the release
@@ -1078,6 +1079,7 @@ jobs:
         run: python3 ReleaseNotes/release_notes.py stamp ReleaseNotes/ReleaseNotes.json --build "$GITHUB_RUN_NUMBER"
 
       - name: Send the iPhone app to TestFlight
+        id: upload
         if: env.HAS_ASC == 'true'
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -1205,6 +1207,41 @@ jobs:
             ship error || exit 1
           fi
           echo "::notice::iPhone build ${GITHUB_RUN_NUMBER} uploaded to TestFlight"
+
+      # What to Test (mac/ReleaseNotes/README.md): this build's release notes as plain text, iPhone first, then Apple
+      # Watch, then "Also on Mac" (release_notes.py notes --format testflight), set as the build's en-US What to Test
+      # through the App Store Connect API (betaBuildLocalizations) with the same key as the upload. App Store Connect
+      # takes the text only once it has processed the build, so this waits up to 20 minutes. A problem is a warning:
+      # a slow or failing App Store Connect never fails the build, and the build keeps whatever What to Test it has.
+      - name: Set TestFlight's What to Test from the release notes
+        if: env.HAS_ASC == 'true' && steps.upload.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 25
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set +x
+          python3 ReleaseNotes/release_notes.py notes ReleaseNotes/ReleaseNotes.json --build "$GITHUB_RUN_NUMBER" --format testflight > "$RUNNER_TEMP/what-to-test.txt"
+          if [ ! -s "$RUNNER_TEMP/what-to-test.txt" ]; then
+            echo "::notice::No release notes for build ${GITHUB_RUN_NUMBER}, so TestFlight's What to Test stays empty."; exit 0
+          fi
+          echo "What to Test for build ${GITHUB_RUN_NUMBER} ($(wc -m < "$RUNNER_TEMP/what-to-test.txt" | tr -d ' ') characters):"
+          cat "$RUNNER_TEMP/what-to-test.txt"
+          # The key goes to a file only this user can read, removed when the step ends (and by the next step).
+          export ASC_KEY_ID="$(printf '%s' "$ASC_KEY_ID" | tr -d '[:space:]')"
+          export ASC_ISSUER_ID="$(printf '%s' "$ASC_ISSUER_ID" | tr -d '[:space:]')"
+          export ASC_KEY_PATH="$RUNNER_TEMP/AuthKey_what_to_test.p8"
+          trap 'rm -f "$ASC_KEY_PATH"' EXIT
+          (umask 077; printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH")
+          unset ASC_KEY_P8
+          if ! python3 ReleaseNotes/testflight_what_to_test.py set --text "$RUNNER_TEMP/what-to-test.txt" \
+              --build "$GITHUB_RUN_NUMBER" --bundle-id co.stumpandroot.verbatim.ios --timeout 1200 --interval 30 2> "$RUNNER_TEMP/what-to-test.err"; then
+            while IFS= read -r l; do echo "::warning::$l"; done < "$RUNNER_TEMP/what-to-test.err"
+            echo "::warning::TestFlight build ${GITHUB_RUN_NUMBER} keeps its What to Test. Paste the text above in App Store Connect › TestFlight if you want it there."
+            exit 1
+          fi
 
       - name: Remove the App Store Connect key and the development certificate
         if: always()

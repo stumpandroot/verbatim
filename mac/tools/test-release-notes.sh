@@ -196,5 +196,84 @@ check "check: an empty detail or an unknown key fails" \
 printf '{"notes": [{"build": "3", "date": "2026-01-01", "title": "C", "items": ["Mac: z."]}]}\n' > "$out/old.json"
 check "check: strings stay valid in numbered builds" 'python3 -I "$py" check "$out/old.json" > /dev/null'
 
+# TestFlight's What to Test (testflight_what_to_test.py, the build's last TestFlight step): ES256 signing with a
+# throwaway key, and the API calls against a stand-in for App Store Connect. No network, no real key.
+wtt="$here/../ReleaseNotes/testflight_what_to_test.py"
+if command -v openssl > /dev/null; then
+  openssl ecparam -genkey -name prime256v1 -noout 2> /dev/null | openssl pkcs8 -topk8 -nocrypt -out "$out/throwaway.p8"
+  check "What to Test: the App Store Connect token is ES256 and verifies" 'python3 -I "$wtt" jwt-check --key "$out/throwaway.p8" > /dev/null'
+fi
+cat > "$out/wtt-fake.py" <<'EOF'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("wtt", sys.argv[1])
+w = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(w)
+what = sys.argv[2]
+
+class Fake:
+    """App Store Connect: build 7 processes after two checks; `existing` says whether en-US is already there."""
+    def __init__(self, existing=False, state_after="VALID", checks=2):
+        self.calls, self.n, self.existing, self.state_after, self.checks = [], 0, existing, state_after, checks
+    def call(self, method, path, query=None, body=None):
+        self.calls.append((method, path, query, body))
+        if path == "/v1/apps":
+            return {"data": [{"id": "app1", "attributes": {"bundleId": query["filter[bundleId]"]}}]}
+        if path == "/v1/builds":
+            self.n += 1
+            if self.n == 1:
+                return {"data": []}
+            state = self.state_after if self.n > self.checks else "PROCESSING"
+            return {"data": [{"id": "b7", "attributes": {"version": query["filter[version]"], "processingState": state}}]}
+        if path.endswith("/betaBuildLocalizations") and method == "GET":
+            return {"data": [{"id": "loc1", "attributes": {"locale": "en-US", "whatsNew": "old"}}] if self.existing else []}
+        return {}
+
+clock = [0]
+tick = lambda: clock[0]
+def sleep(s): clock[0] += s
+
+if what == "create":
+    f = Fake()
+    bid = w.wait_for_build(f, w.find_app(f, "co.stumpandroot.verbatim.ios"), 7, 1200, 30, clock=tick, sleep=sleep)
+    how = w.set_what_to_test(f, bid, "Notes.")
+    post = f.calls[-1]
+    ok = (bid == "b7" and how == "created" and post[0] == "POST" and post[1] == "/v1/betaBuildLocalizations"
+          and post[3]["data"]["attributes"] == {"locale": "en-US", "whatsNew": "Notes."}
+          and post[3]["data"]["relationships"]["build"]["data"] == {"type": "builds", "id": "b7"}
+          and all(c[2].get("filter[preReleaseVersion.platform]") == "IOS" for c in f.calls if c[1] == "/v1/builds"))
+    sys.exit(0 if ok else 1)
+if what == "update":
+    f = Fake(existing=True)
+    how = w.set_what_to_test(f, "b7", "Notes.")
+    patch = f.calls[-1]
+    sys.exit(0 if how == "updated" and patch[0] == "PATCH" and patch[1] == "/v1/betaBuildLocalizations/loc1"
+             and patch[3]["data"] == {"type": "betaBuildLocalizations", "id": "loc1", "attributes": {"whatsNew": "Notes."}} else 1)
+if what == "timeout":
+    f = Fake(checks=10**6)
+    try:
+        w.wait_for_build(f, "app1", 7, 1200, 30, clock=tick, sleep=sleep)
+    except w.Problem as e:
+        sys.exit(0 if "wasn't processed within 20 minutes" in str(e) and clock[0] <= 1200 else 1)
+    sys.exit(1)
+if what == "failed":
+    f = Fake(state_after="INVALID")
+    try:
+        w.wait_for_build(f, "app1", 7, 1200, 30, clock=tick, sleep=sleep)
+    except w.Problem as e:
+        sys.exit(0 if "INVALID" in str(e) else 1)
+    sys.exit(1)
+sys.exit("unknown check " + what)
+EOF
+check "What to Test: waits for processing, then creates the en-US localization for the build" 'python3 -I "$out/wtt-fake.py" "$wtt" create > /dev/null'
+check "What to Test: updates the en-US localization when there is one" 'python3 -I "$out/wtt-fake.py" "$wtt" update > /dev/null'
+check "What to Test: gives up after 20 minutes of processing, or when processing fails" \
+  'python3 -I "$out/wtt-fake.py" "$wtt" timeout > /dev/null && python3 -I "$out/wtt-fake.py" "$wtt" failed > /dev/null'
+printf '' > "$out/empty.txt"
+check "What to Test: no notes, no call, no failure" \
+  'env -u ASC_KEY_ID -u ASC_ISSUER_ID -u ASC_KEY_PATH python3 -I "$wtt" set --text "$out/empty.txt" --build 7 > /dev/null'
+printf 'Notes.\n' > "$out/wtt.txt"
+check "What to Test: without the key it fails with a reason (the workflow warns), and names no secret" \
+  '! env -u ASC_KEY_ID -u ASC_ISSUER_ID -u ASC_KEY_PATH python3 -I "$wtt" set --text "$out/wtt.txt" --build 7 2> "$out/wtt.err" && grep -q "must be set" "$out/wtt.err"'
+
 if [ "$fails" -gt 0 ]; then echo "$fails release notes check(s) failed"; exit 1; fi
 echo "All release notes checks passed."
