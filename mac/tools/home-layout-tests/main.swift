@@ -301,5 +301,41 @@ check("after an edit, New thought and Journal stay neutral wherever they sit",
       HomeTile.hues([.newThought, .journal, .dictate, .importMedia]) == [nil, nil, .butter, .sage])
 check("at most three tiles are colored", HomeTile.hues([.dictate, .importMedia, .appAudio, .whatsPlaying]) == [.butter, .sage, .petal, nil])
 
+// MARK: The refined Home's Record card, once (HomeRefinedMigration)
+
+let oldNative = HomeLayout.decode(json(#"{"version":1,"items":[{"section":"week","visible":true,"size":"large"},{"section":"record","visible":false,"size":"large"},{"section":"tiles","visible":true,"size":"compact"},{"section":"recent","visible":true,"size":"large"},{"section":"thoughts","visible":true,"size":"compact"},{"section":"journal","visible":false,"size":"large"}],"tiles":["journal","dictate","import","whatsPlaying"]}"#), .phone, .native)!
+let turnedOn = HomeRefinedMigration.apply(oldNative)
+check("migration: a hidden Record card is shown, at the top of Home", turnedOn.isVisible(.record) && turnedOn.shown.first?.section == .record)
+check("migration: every other section keeps its order, visibility, and size",
+      turnedOn.items.filter { $0.section != .record } == oldNative.items.filter { $0.section != .record }
+      && names(turnedOn.shown) == ["record", "week", "tiles", "recent", "thoughts"], "\(names(turnedOn.shown))")
+check("migration: the tiles stay as saved", turnedOn.tiles == oldNative.tiles)
+check("migration: the Record card's size stays as saved", turnedOn.size(.record) == oldNative.size(.record))
+check("migration: a layout already showing the card is untouched", HomeRefinedMigration.apply(pv) == pv && HomeRefinedMigration.apply(turnedOn) == turnedOn)
+var movedCard = pv
+movedCard.moveShown(.record, before: nil)
+check("migration: a shown card keeps the place you gave it", HomeRefinedMigration.apply(movedCard) == movedCard)
+
+let migSuite = "home-layout-tests.\(UUID().uuidString)"
+let migStore = UserDefaults(suiteName: migSuite)!
+migStore.set(oldNative.encoded()!, forKey: HomeLayout.key(.native))
+migStore.set(pv.encoded()!, forKey: HomeLayout.key(.verbose))
+check("migration: the flag is home.refined.recordShown.v1", HomeRefinedMigration.key == "home.refined.recordShown.v1")
+check("migration: runs the first time", HomeRefinedMigration.runOnce(migStore, platform: .phone) && migStore.bool(forKey: HomeRefinedMigration.key))
+let afterRun = migStore.data(forKey: HomeLayout.key(.native)).flatMap { HomeLayout.decode($0, .phone, .native) }
+check("migration: the stored Native layout now shows the card, the rest as saved", afterRun == turnedOn)
+check("migration: the stored Verbose layout, already showing it, is unchanged",
+      migStore.data(forKey: HomeLayout.key(.verbose)).flatMap { HomeLayout.decode($0, .phone, .verbose) } == pv)
+var hiddenAgain = turnedOn
+hiddenAgain.setVisible(.record, false)
+migStore.set(hiddenAgain.encoded()!, forKey: HomeLayout.key(.native))
+check("migration: never runs again, so a card hidden afterward stays hidden", !HomeRefinedMigration.runOnce(migStore, platform: .phone)
+      && migStore.data(forKey: HomeLayout.key(.native)).flatMap { HomeLayout.decode($0, .phone, .native) }?.isVisible(.record) == false)
+let migFresh = UserDefaults(suiteName: migSuite + ".migFresh")!
+check("migration: a new install has nothing to change and is marked done", HomeRefinedMigration.runOnce(migFresh, platform: .mac)
+      && migFresh.data(forKey: HomeLayout.key(.native)) == nil && migFresh.bool(forKey: HomeRefinedMigration.key))
+migStore.removePersistentDomain(forName: migSuite)
+migFresh.removePersistentDomain(forName: migSuite + ".migFresh")
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

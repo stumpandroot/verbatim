@@ -193,8 +193,9 @@ struct HomeLayout: Equatable, Sendable {
     /// Home as a new install (or Reset) starts it: one Home in both looks since the refined look (DESIGN.md §13,
     /// October 28, 2026), as its mockup draws it. iPhone: the Record card, the four tiles, a slim This week, and Recent
     /// recordings. Mac: the Record card, the four tiles in a row, then Recent recordings beside This week. Today's
-    /// thoughts and Journal start hidden. A layout a device already stored keeps its sections, order, and sizes; the
-    /// look is still a key (each look keeps its own layout until the look switch goes).
+    /// thoughts and Journal start hidden. A layout a device already stored keeps its sections, order, and sizes (the
+    /// Record card aside, turned on once by `HomeRefinedMigration`); the look is still a key (each look keeps its own
+    /// layout until the look switch goes).
     static func defaults(_ platform: HomePlatform, _ look: HomeLook) -> HomeLayout {
         func on(_ s: HomeSection, _ size: HomeCardSize) -> Item { Item(section: s, visible: true, size: size) }
         func off(_ s: HomeSection, _ size: HomeCardSize) -> Item { Item(section: s, visible: false, size: size) }
@@ -382,6 +383,42 @@ struct HomeLayout: Equatable, Sendable {
     static func key(_ look: HomeLook) -> String { "home.layout.\(look.rawValue)" }
 }
 
+// MARK: - The refined Home's Record card (October 28, 2026)
+
+/// One look is the plan (DESIGN.md §13), and its Home leads with the Record card. A layout a device saved before the
+/// refined Home (Native's hid the card, since Record sat in the toolbar or the tab bar) gets the card turned on once, at
+/// the top of Home; every other section, size, and tile stays as saved. The flag keeps it to once per device, so a card
+/// hidden again afterward stays hidden.
+enum HomeRefinedMigration {
+    static let key = "home.refined.recordShown.v1"
+
+    /// The layout with the Record card shown first, if it was hidden; the rest in the order and state it had.
+    static func apply(_ layout: HomeLayout) -> HomeLayout {
+        guard let i = layout.items.firstIndex(where: { $0.section == .record }), !layout.items[i].visible else { return layout }
+        var l = layout
+        var record = l.items.remove(at: i)
+        record.visible = true
+        l.items.insert(record, at: 0)
+        return l
+    }
+
+    /// Runs once per device, over both looks' stored layouts in `defaults` (where `HomeLayoutStore` keeps them): each
+    /// stored layout that hides the card is written back with it shown. A look with nothing stored starts from the
+    /// defaults, which already show it. Returns whether it ran.
+    @discardableResult
+    static func runOnce(_ defaults: UserDefaults, platform: HomePlatform) -> Bool {
+        guard !defaults.bool(forKey: key) else { return false }
+        for look in HomeLook.allCases {
+            guard let data = defaults.data(forKey: HomeLayout.key(look)),
+                  let stored = HomeLayout.decode(data, platform, look) else { continue }
+            let shown = apply(stored)
+            if shown != stored, let out = shown.encoded() { defaults.set(out, forKey: HomeLayout.key(look)) }
+        }
+        defaults.set(true, forKey: key)
+        return true
+    }
+}
+
 // MARK: - Today's thoughts and Journal
 
 /// What Home's Today's thoughts section shows (both apps): Large lists the latest few of today's thoughts in the order
@@ -493,6 +530,8 @@ final class HomeLayoutStore: ObservableObject {
         let old = HomeLayout.Legacy(showWeek: legacy.object(forKey: "home.showWeek") as? Bool,
                                     nativeRecordCard: legacy.object(forKey: "home.premium.recordCard") as? Bool,
                                     keepsEarlierTiles: Consolidation.wasExistingInstall(legacy))
+        // The refined Home's Record card, turned on once for layouts saved before it (HomeRefinedMigration).
+        if persist { HomeRefinedMigration.runOnce(defaults, platform: platform) }
         func load(_ look: HomeLook) -> HomeLayout {
             if persist, let data = defaults.data(forKey: HomeLayout.key(look)), let l = HomeLayout.decode(data, platform, look) { return l }
             guard persist else { return HomeLayout.defaults(platform, look) }
