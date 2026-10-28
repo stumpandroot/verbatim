@@ -35,10 +35,9 @@ struct VerbatimPhoneApp: App {
 }
 
 /// The tabs in the system tab bar (Liquid Glass on iOS 26): Home, up to three you pick (Library and Thoughts unless you
-/// change them in Settings › Personalization and preferences › Tab bar), and Settings. Paper underneath. In Verbose
-/// style the recorder covers the screen until you minimize it; then a bar above the tab bar carries the recording on
-/// every tab (MiniRecorder.swift). In Native, Record and the live recording live in the tab bar's bottom accessory
-/// (RecordAccessory.swift), and the recorder is a sheet.
+/// change them in Settings › Personalization and preferences › Tab bar), and Settings. Paper underneath. The recorder
+/// is a sheet in both looks (RecorderSheet.swift); minimized, the recording rides on a card above the tab bar in Verbose
+/// style (MiniRecorder.swift) and in the tab bar's bottom accessory in Native (RecordAccessory.swift).
 struct PhoneRoot: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.scenePhase) private var scenePhase
@@ -49,8 +48,6 @@ struct PhoneRoot: View {
     @ObservedObject private var tabBar = PhoneTabBarStore.shared
     /// Home's layouts: Native's Record accessory steps aside on Home while its Record card is there.
     @ObservedObject private var layouts = HomeLayoutStore.shared
-    /// The full-screen recorder zooms out of the bar and back into it.
-    @Namespace private var recorderZoom
     @Environment(\.look) private var look
     /// The look each tab you've left was last drawn in. A look switch rebuilds only the tab on screen; the others keep
     /// their look (and do no work) until you come back to them, when they rebuild in the new one.
@@ -106,11 +103,11 @@ struct PhoneRoot: View {
     @ViewBuilder private func tabRoot(_ t: PhoneState.Tab) -> some View {
         if t == .settings {
             NavigationStack { SettingsScreen() }
-                .miniRecorderInset(.settings, zoom: recorderZoom)
+                .miniRecorderInset(.settings)
         } else {
             NavigationStack(path: app.pathBinding(t)) { rootScreen(t).phoneRoutes() }
                 .tabLook(builtLook(t))
-                .miniRecorderInset(t, zoom: recorderZoom)
+                .miniRecorderInset(t)
         }
     }
 
@@ -136,13 +133,10 @@ struct PhoneRoot: View {
 
     var body: some View {
         tabs
-        // The recorder: full screen in Verbose style; in Native, a standard sheet with a grabber, like Voice Memos'.
-        // Swiping either one down minimizes it; the recording goes on.
-        .fullScreenCover(isPresented: Binding(get: { app.showRecorder && !look.isNative }, set: { app.showRecorder = $0 })) {
-            RecordScreen(zoom: recorderZoom)
-        }
-        .sheet(isPresented: Binding(get: { app.showRecorder && look.isNative }, set: { app.showRecorder = $0 })) {
-            NativeRecorder().environmentObject(app)
+        // The recorder: one sheet with a grabber in both looks (RecorderSheet.swift). Swiping it down minimizes it; the
+        // recording goes on.
+        .sheet(isPresented: $app.showRecorder) {
+            RecorderSheet().environmentObject(app)
         }
         // Native: Record as's Import, from Photos, files, or a link (RecordAccessory.swift).
         .confirmationDialog("Import", isPresented: $app.showImportChoices, titleVisibility: .hidden) {
@@ -217,7 +211,7 @@ struct PhoneRoot: View {
         .sheet(isPresented: $app.showRecordAsEditor) { PhoneRecordAsEditor() }
         .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet().environmentObject(app) }
         .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }
-        // Native: Saved to Library, after Stop (NativeRecorder.swift).
+        // Native: Saved to Library, after Stop (SavedSheet.swift).
         .sheet(item: $app.savedRecording) { s in NativeSavedSheet(saved: s).environmentObject(app) }
         // A pasted link that turned out to be a whole show or feed: pick the episode.
         .sheet(item: $app.episodeChoice) { choice in

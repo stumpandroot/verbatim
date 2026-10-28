@@ -730,45 +730,6 @@ private struct TrayRow: View {
     // brand: native end
 }
 
-// MARK: - The recorder's kind
-
-/// The recorder's header in Verbose style: a neutral chip with the kind's glyph and name, in place of "Voice note"
-/// (ink at 6%, like every kind, §1; the persimmon panel and Stop stay the screen's one record color).
-struct RecordKindChip: View {
-    var choice: RecordChoice
-    var body: some View {
-        HStack(spacing: 6) {
-            IconGlyph(art: choice.art, size: 17, color: Ink.ink).accessibilityHidden(true)
-            Text(choice.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
-        }
-        .padding(.leading, 7).padding(.trailing, 11)
-        .frame(minHeight: 30)
-        .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Recording as \(choice.name)")
-    }
-}
-
-// brand: native begin
-/// Premium Native's recorder: a gray capsule with the kind's symbol under the clock.
-struct NativeRecordKindChip: View {
-    var choice: RecordChoice
-    var body: some View {
-        HStack(spacing: 7) {
-            if choice != .voiceNote { Image(systemName: choice.nativeSymbol).font(.system(size: 15, weight: .medium)) }
-            Text(choice.name).font(.system(size: 15, weight: .semibold))
-        }
-        .foregroundStyle(NativeInk.label)
-        .padding(.leading, choice == .voiceNote ? 15 : 11).padding(.trailing, 15)
-        .frame(minHeight: 34)
-        .background(NativeInk.fill, in: Capsule())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Recording as \(choice.name)")
-    }
-}
-// brand: native end
-
 /// Edit Record as (consolidation, October 28, 2026): every way to record with a switch, in Record as's order, so a row
 /// you hid comes back. Interview, Journal entry, and Talk start hidden; Voice note always shows. A standard sheet in both
 /// looks: a grouped list with system switches, which Verbose style draws on paper.

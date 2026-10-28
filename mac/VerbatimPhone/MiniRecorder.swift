@@ -4,11 +4,12 @@ import UIKit
 
 // MARK: - The minimized recorder
 //
-// Recording on iPhone starts full screen (RecordScreen, HomeScreen.swift). The chevron, a swipe down, or VoiceOver's
-// escape gesture minimizes it: the full screen goes away, and the recording carries on in `PhoneState.recorder`,
-// which lives as long as the app. A bar just above the tab bar shows it on every tab, with Pause or Resume and
-// Stop. Tapping the bar brings the full screen back. Minimizing never stops, pauses, or discards anything: it only
-// changes what's on screen.
+// Recording on iPhone starts in the recorder sheet (RecorderSheet.swift). Minimize, a swipe down, or VoiceOver's escape
+// gesture minimizes it: the sheet goes away, and the recording carries on in `PhoneState.recorder`, which lives as long
+// as the app. The minimized recorder (`MiniRecordingBar`, the refined kit; one design in both looks) shows it on every
+// tab, with Pause or Resume and Stop: on a card above the tab bar in Verbose style, in the tab bar's bottom accessory in
+// Native (RecordAccessory.swift). Tapping it brings the sheet back. Minimizing never stops, pauses, or discards
+// anything: it only changes what's on screen.
 
 /// The minimized recorder's rules, as pure functions so the self-test can check them without a microphone.
 enum RecorderPresentation {
@@ -16,11 +17,11 @@ enum RecorderPresentation {
     enum RecordTap: Equatable {
         /// Nothing is recording: start a new recording.
         case start
-        /// A recording is running or saving: bring its full screen back instead of starting another.
+        /// A recording is running or saving: bring its recorder back instead of starting another.
         case reopen
     }
 
-    /// The parts of the recorder's state the screen shows.
+    /// The parts of the recorder's state the screen shows (`fullScreen`: the recorder sheet is up).
     struct State: Equatable {
         var recording: Bool
         var paused: Bool
@@ -28,25 +29,21 @@ enum RecorderPresentation {
         var elapsed: TimeInterval
     }
 
-    /// The id the full screen zooms from and back to (iOS 18 and later).
-    static let zoomID = "recorder"
-
     static func recordTap(recording: Bool, saving: Bool) -> RecordTap {
         recording || saving ? .reopen : .start
     }
 
-    /// The bar is up while a recording exists, so it's already in place when the full screen zooms back to it.
-    /// The full screen covers it while it's up.
+    /// The minimized recorder is up while a recording exists; the sheet covers it while it's up.
     static func showsBar(recording: Bool, saving: Bool) -> Bool { recording || saving }
 
-    /// Minimizing hides the full screen. The recording, its pause state, and its elapsed time stay as they were.
+    /// Minimizing hides the sheet. The recording, its pause state, and its elapsed time stay as they were.
     static func minimize(_ s: State) -> State {
         var s = s
         s.fullScreen = false
         return s
     }
 
-    /// Reopening shows the full screen again, only while there's a recording to show.
+    /// Reopening shows the sheet again, only while there's a recording to show.
     static func reopen(_ s: State) -> State {
         var s = s
         if s.recording { s.fullScreen = true }
@@ -196,14 +193,15 @@ final class RecordingLiveText: ObservableObject {
     func clearScreenshots() { shown = LiveWords() }
 }
 
-// MARK: - The bar
+// MARK: - The minimized recorder
 
-/// Places the bar just above the tab bar on a tab's content. A safe-area inset, so lists and scroll views end above
-/// it instead of under it. Opaque: no glass behind its text.
+/// Places the minimized recorder just above the tab bar on a tab's content in Verbose style: the kit's bar on an opaque
+/// card with a hairline (it sits over scrolling content), never glass behind its text. A safe-area inset, so lists and
+/// scroll views end above it instead of under it. In Native the tab bar's accessory carries it (RecordAccessory.swift),
+/// and before iOS 26 an opaque bar above the tab bar does.
 struct MiniRecorderInset: ViewModifier {
     @EnvironmentObject var app: PhoneState
     var tab: PhoneState.Tab
-    var zoom: Namespace.ID
     @Environment(\.limitMotion) private var limitMotion
     @Environment(\.look) private var look
     @ObservedObject private var layouts = HomeLayoutStore.shared
@@ -227,7 +225,15 @@ struct MiniRecorderInset: ViewModifier {
                 if look.isNative {
                     if nativeBar { NativeRecordBar() }   // brand: native
                 } else if showing {
-                    MiniRecorderBar(live: app.recorder.live, words: app.recordingWords, zoom: zoom, isZoomSource: app.tab == tab)
+                    let shape = RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous)
+                    PhoneMiniRecorder()
+                        .frame(height: 56)
+                        .background(Refined.card, in: shape)
+                        .overlay(shape.strokeBorder(Refined.separator, lineWidth: 1))
+                        .padding(.horizontal, 12)
+                        .padding(.top, 6)
+                        .padding(.bottom, 8)
+                        .accessibilityIdentifier("recorder.mini")
                         .transition(limitMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -236,174 +242,44 @@ struct MiniRecorderInset: ViewModifier {
 }
 
 extension View {
-    /// The minimized recorder's bar on this tab's content, while a recording exists.
-    func miniRecorderInset(_ tab: PhoneState.Tab, zoom: Namespace.ID) -> some View {
-        modifier(MiniRecorderInset(tab: tab, zoom: zoom))
+    /// The minimized recorder on this tab's content, while a recording exists.
+    func miniRecorderInset(_ tab: PhoneState.Tab) -> some View {
+        modifier(MiniRecorderInset(tab: tab))
     }
 }
 
-/// The bar: a pulsing persimmon dot, Recording or Paused with the elapsed time, a small level meter, then Pause or
-/// Resume and Stop. Tap anywhere else on it to open the full screen. 56 pt tall on the reader surface.
-struct MiniRecorderBar: View {
+/// The minimized recorder with the app's recording: the kit's `MiniRecordingBar` (the persimmon dot, "Recording ·
+/// 4:12", your newest words or the kind, Pause or Resume, and Stop), the same in both looks.
+struct PhoneMiniRecorder: View {
     @EnvironmentObject var app: PhoneState
-    @ObservedObject var live: LiveMeter
+    var inline = false
+
+    var body: some View {
+        MiniRecordingBar(live: app.recorder.live, paused: app.recorder.isPaused, saving: app.savingRecording, inline: inline,
+                         onOpen: { app.openRecorder() }, onPause: { app.togglePause() }, onStop: { app.stopRecording() }) {
+            MiniRecorderDetail(words: app.recordingWords, kind: app.recordingChoice.name, saving: app.savingRecording)
+        }
+    }
+}
+
+/// The bar's second line: your newest words, one line of whole words, or the kind when there are none.
+private struct MiniRecorderDetail: View {
     @ObservedObject var words: RecordingLiveText
-    var zoom: Namespace.ID
-    var isZoomSource: Bool
-    @Environment(\.limitMotion) private var limitMotion
+    var kind: String
+    var saving: Bool
     @AppStorage(RecordingLiveText.enabledKey) private var showWords = true
-
-    private var paused: Bool { app.recorder.isPaused }
-    private var saving: Bool { app.savingRecording }
-    private var status: String { saving ? "Saving…" : paused ? "Paused" : "Recording" }
-    /// The newest words, one line, only when there are some.
-    private var line: String? {
-        guard showWords, !saving else { return nil }
-        let t = words.shown.tail(80).text
-        return t.isEmpty ? nil : t
-    }
+    @ScaledMetric(relativeTo: .footnote) private var size: CGFloat = CGFloat(RefinedRules.TextRole.meta.size(mac: false))
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button { app.openRecorder() } label: {
-                HStack(spacing: 12) {
-                    RecordingDot(paused: paused || saving, animate: !limitMotion)
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 8) {
-                            Text(status).font(.system(size: 15, weight: .semibold)).foregroundStyle(paused || saving ? Ink.dim : Ink.ink)
-                            Text(RecorderPresentation.clock(live.elapsed)).lookMono(14, weight: .medium).foregroundStyle(.lookInk)
-                                .monospacedDigit()
-                        }
-                        .lineLimit(1)
-                        if let line {
-                            // Whole words only, never cut mid-word at the start (TailWords, review P-23).
-                            TailWords(text: line, lines: 1, lineHeight: UIFont.systemFont(ofSize: 12.5).lineHeight) { tail in
-                                Text(tail).font(.system(size: 12.5)).foregroundStyle(.lookMute)
-                            }
-                        }
-                    }
-                    Spacer(minLength: 6)
-                    MiniLevel(live: live, paused: paused || saving)
-                        .frame(width: 26, height: 22)
-                }
-                .padding(.leading, 14)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
+        let line = showWords && !saving ? words.shown.tail(80).text : ""
+        if line.isEmpty {
+            Text(kind).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+        } else {
+            // Whole words only, never cut mid-word at the start (TailWords, review P-23).
+            TailWords(text: line, lines: 1, lineHeight: UIFont.systemFont(ofSize: size).lineHeight) { tail in
+                Text(tail).font(.system(size: size)).foregroundStyle(Refined.mute)
             }
-            .buttonStyle(SoftPress())
-
-            MiniControl(primary: false, action: { app.togglePause() }) {
-                if paused { PlayMark().fill(Ink.ink).frame(width: 12, height: 14).offset(x: 1) }
-                else { PauseMark().fill(Ink.ink).frame(width: 12, height: 14) }
-            }
-            MiniControl(primary: true, action: { app.stopRecording() }) {
-                if saving { ProgressView().controlSize(.small).tint(Ink.readerFixed) }
-                else { RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Ink.readerFixed).frame(width: 13, height: 13) }
-            }
-            .padding(.trailing, 8)
         }
-        .disabled(saving)
-        .frame(height: 56)
-        .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(.lookHairline))
-        .shadow(color: Ink.inkFixed.opacity(0.10), radius: 12, y: 4)
-        .modifier(RecorderZoomSource(zoom: zoom, active: isZoomSource))
-        .padding(.horizontal, 12)
-        .padding(.top, 6)
-        .padding(.bottom, 8)
-        // One element for VoiceOver: "Recording, 4 minutes 12 seconds", with Pause or Resume, Stop, and Open.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(RecorderPresentation.accessibilityLabel(paused: paused, saving: saving, elapsed: live.elapsed))
-        .accessibilityValue(line ?? "")
-        .accessibilityHint("Opens the recorder.")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { app.openRecorder() }
-        .accessibilityAction(named: Text(paused ? "Resume" : "Pause")) { app.togglePause() }
-        .accessibilityAction(named: "Stop") { app.stopRecording() }
-        .accessibilityAction(named: "Open") { app.openRecorder() }
-    }
-}
-
-/// A 40 pt round control in the bar. Stop is persimmon; Pause and Resume sit on the paper.
-private struct MiniControl<Mark: View>: View {
-    var primary: Bool
-    var action: () -> Void
-    @ViewBuilder var mark: () -> Mark
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                Circle().fill(primary ? Ink.persimmon : Ink.paper)
-                if !primary { Circle().strokeBorder(.lookHairline) }
-                mark()
-            }
-            .frame(width: 40, height: 40)
-            .contentShape(Circle())
-        }
-        .buttonStyle(SoftPress())
-    }
-}
-
-/// The recording light: persimmon with a soft ring that pulses outward. Still when paused or when motion is limited.
-struct RecordingDot: View {
-    var paused: Bool
-    var animate: Bool
-    var body: some View {
-        ZStack {
-            if !paused && animate {
-                Circle().fill(Ink.persimmon)
-                    .phaseAnimator([false, true]) { c, out in
-                        c.scaleEffect(out ? 2.2 : 1).opacity(out ? 0 : 0.45)
-                    } animation: { out in out ? .easeOut(duration: 1.3) : .linear(duration: 0.01) }
-            }
-            Circle().fill(paused ? Ink.mute : Ink.persimmon)
-        }
-        .frame(width: 10, height: 10)
-        .frame(width: 22, height: 22)
-        .accessibilityHidden(true)
-    }
-}
-
-/// Five bars from the recorder's live meter, newest on the right.
-struct MiniLevel: View {
-    @ObservedObject var live: LiveMeter
-    var paused: Bool
-    var body: some View {
-        GeometryReader { g in
-            let values = Array(live.levels.suffix(5))
-            HStack(alignment: .center, spacing: 2.5) {
-                ForEach(Array(values.enumerated()), id: \.offset) { i, v in
-                    Capsule()
-                        .fill(paused ? Ink.track : (i == values.count - 1 ? Ink.persimmon : Ink.ink))
-                        .frame(width: 3, height: max(3, CGFloat(paused ? 0 : v) * g.size.height))
-                }
-            }
-            .frame(width: g.size.width, height: g.size.height)
-        }
-        .animation(.easeOut(duration: 0.12), value: live.levels)
-        .accessibilityHidden(true)
-    }
-}
-
-// MARK: - Marks (drawn, so there are no SF Symbols in the recorder's controls)
-
-struct PauseMark: Shape {
-    func path(in r: CGRect) -> Path {
-        let w = r.width * 0.34
-        var p = Path()
-        p.addRoundedRect(in: CGRect(x: r.minX, y: r.minY, width: w, height: r.height), cornerSize: CGSize(width: 1.5, height: 1.5))
-        p.addRoundedRect(in: CGRect(x: r.maxX - w, y: r.minY, width: w, height: r.height), cornerSize: CGSize(width: 1.5, height: 1.5))
-        return p
-    }
-}
-
-struct PlayMark: Shape {
-    func path(in r: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: r.minX, y: r.minY))
-        p.addLine(to: CGPoint(x: r.maxX, y: r.midY))
-        p.addLine(to: CGPoint(x: r.minX, y: r.maxY))
-        p.closeSubpath()
-        return p
     }
 }
 
@@ -418,93 +294,26 @@ struct ChevronDownMark: Shape {
     }
 }
 
-// MARK: - The matched transition
-
-/// The bar the full screen zooms from (iOS 18 and later). Only the selected tab's bar is the source.
-struct RecorderZoomSource: ViewModifier {
-    var zoom: Namespace.ID
-    var active: Bool
-    @ViewBuilder func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            if active { content.matchedTransitionSource(id: RecorderPresentation.zoomID, in: zoom) } else { content }
-        } else {
-            content
-        }
-    }
-}
-
-/// The full screen zooms out of the bar and back into it, and a swipe down minimizes it (iOS 18 and later). With
-/// motion limited, or on iOS 17, it uses the standard cover, and RecordScreen handles the swipe itself.
-struct RecorderZoomDestination: ViewModifier {
-    var zoom: Namespace.ID
-    @Environment(\.limitMotion) private var limitMotion
-    @ViewBuilder func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            if limitMotion { content } else { content.navigationTransition(.zoom(sourceID: RecorderPresentation.zoomID, in: zoom)) }
-        } else {
-            content
-        }
-    }
-
-    /// True when the system zoom transition (and its swipe down) is in use.
-    static func systemSwipe(limitMotion: Bool) -> Bool {
-        if #available(iOS 18.0, *) { return !limitMotion }
-        return false
-    }
-}
-
-// MARK: - Live text on the record screen
-
-/// The last three lines of live words: settled words in ink, words still changing lighter. Nothing at all when
-/// live text is off or hasn't heard anything.
-struct RecordLiveText: View {
-    @ObservedObject var text: RecordingLiveText
-    @AppStorage(RecordingLiveText.enabledKey) private var showWords = true
-    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 18
-
-    var body: some View {
-        let w = text.shown.tail(260)
-        if showWords && !w.isEmpty {
-            // Whole words only: the longest end that fits in three lines (TailWords, review P-23). The last words that
-            // are still changing stay lighter.
-            let changing = w.volatile.split(whereSeparator: { $0.isWhitespace }).count
-            TailWords(text: w.text, lines: 3, lineHeight: UIFont.systemFont(ofSize: size).lineHeight + 3) { tail in
-                let words = tail.split(separator: " ")
-                let settled = words.dropLast(min(changing, words.count)).joined(separator: " ")
-                let volatile = words.suffix(min(changing, words.count)).joined(separator: " ")
-                (Text(settled).foregroundStyle(.lookInk) + Text(settled.isEmpty || volatile.isEmpty ? "" : " ") + Text(volatile).foregroundStyle(.lookMute))
-                    .font(.system(size: size))
-                    .lineSpacing(3)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Live text")
-            .accessibilityValue(w.text)
-            .accessibilityAddTraits(.updatesFrequently)
-        }
-    }
-}
-
 // MARK: - PhoneState
 
 extension PhoneState {
     /// A recording exists: running, paused, or being saved (or the screenshot tour's stand-in).
     var recordingActive: Bool { recorder.isRecording || savingRecording || previewRecording }
 
-    /// The chevron, a swipe down, or VoiceOver's escape: the full screen goes away and the recording carries on.
+    /// Minimize, a swipe down, or VoiceOver's escape: the recorder sheet goes away and the recording carries on.
     /// Never stops, pauses, or discards anything.
     func minimizeRecorder() {
         guard showRecorder else { return }
         setRecorderShown(false)
     }
 
-    /// The bar, or Record while a recording exists: the full screen comes back with the same recording.
+    /// The minimized recorder, or Record while a recording exists: the sheet comes back with the same recording.
     func openRecorder() {
         guard recordingActive else { return }
         setRecorderShown(true)
     }
 
-    /// With motion limited, the cover appears and goes without sliding; its content fades in.
+    /// With motion limited, the sheet appears and goes without sliding.
     private func setRecorderShown(_ on: Bool) {
         guard showRecorder != on else { return }
         var t = Transaction()

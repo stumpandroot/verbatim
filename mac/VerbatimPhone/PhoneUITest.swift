@@ -142,6 +142,7 @@ enum PhoneUITest {
                 if prefix == "p" { await recordTrayTour(app, native: false) }
                 app.showRecorder = true
                 await show("\(prefix)02-record")
+                if prefix == "p" { recorderLayoutCheck(.verbose) }
                 app.showRecorder = false
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 // A recording with live text, then minimized to the bar over Library. A stand-in recording with
@@ -420,7 +421,7 @@ enum PhoneUITest {
                 app.recordingMoments = [RecordingMoment(at: 42, source: MarkSource.phoneApp.rawValue), RecordingMoment(at: 118, source: MarkSource.lockScreen.rawValue)]
                 app.openRecorder()
                 await show("\(prefix)02-record-native")
-                if prefix == "p" { lookCheck("the record flow opens the Native recorder sheet", NativeRecorder.visible) }
+                if prefix == "p" { recorderLayoutCheck(.native) }
                 app.minimizeRecorder()
                 app.previewRecording = false
                 app.recordingMoments = []
@@ -617,7 +618,7 @@ enum PhoneUITest {
             check("Thought asks for a thought, not a recording of the Thoughts kind", app.pendingThought && app.recordKind == nil && app.showConsentNotice)
             let url = app.store.newRecordingURL()
             app.beginThoughtIfAsked(url)
-            check("Thought opens the thought recorder (New thought, Stop & add)", app.recordingThought && app.recordingChoice == .thought)
+            check("Thought opens the thought recorder (Thought, Adds to today's page)", app.recordingThought && app.recordingChoice == .thought)
             app.recordingThought = false
             app.thoughtStartedAt = nil
             Store.clearThoughtMark(url)
@@ -638,7 +639,7 @@ enum PhoneUITest {
         app.recordKind = nil
         try? await Task.sleep(nanoseconds: 700_000_000)
         if !native {
-            // And a thought's: "New thought" and Stop & add.
+            // And a thought's: "Thought" and "Adds to today's page".
             app.recordingThought = true
             app.openRecorder()
             await show("p02q-record-thought")
@@ -712,9 +713,9 @@ enum PhoneUITest {
         check("while recording, the accessory is the live recording", NativeRecordAccessory.onScreen > 0 && !NativeRecordAccessory.showsRecord)
         app.openRecorder()
         await show("p02k-record-meeting-native")
-        check("the recorder is a sheet, Voice Memos style", NativeRecorder.visible)
+        check("the recorder is a sheet with a grabber, the same as Verbose style's", RecorderSheet.visible)
         check("the recorder shows the picked kind", app.recordingChoice == .kind(.meeting))
-        check("the recorder's stop is system red", NativeRecorder.stopColor.map { sameColor($0, .systemRed) } ?? false)
+        check("the recorder's stop is system red", RecorderSheet.stopColor.map { sameColor($0, .systemRed) } ?? false)
         app.minimizeRecorder()
         app.recordKind = nil
         app.previewRecording = false
@@ -1564,6 +1565,17 @@ enum PhoneUITest {
         let places = LibraryScreen.placeRows(dictations: 1, todayThoughts: 1, templates: 1, recipes: 1, projects: 1).map { $0.id }
         lookCheck("Library's places keep the self-test's identifiers",
                   places == ["library.dictations", "library.byDay", "library.templates", "library.ask", "library.projects"])
+    }
+
+    /// The recorder draws its one refined sheet in either look (DESIGN.md §6.10), once: the sheet on screen is the one
+    /// built in the current look, with the system red stop square, and the minimized recorder's rules hold.
+    private static func recorderLayoutCheck(_ look: AppLook) {
+        let shown = RecorderSheet.onScreen
+        lookCheck("the recorder in \(look == .native ? "Native" : "Verbose style") is the refined sheet, once (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))",
+                  RecorderSheet.visible && shown == [look])
+        lookCheck("the recorder's stop square is system red", RecorderSheet.stopColor.map { sameColor($0, .systemRed) } ?? false)
+        let words = RefinedRules.liveWords("The wheels first. Then the wagons in the field.")
+        lookCheck("the recorder's newest sentence is ink, the older words mute", words.older == "The wheels first." && words.newest == "Then the wagons in the field.")
     }
 
     /// A transcript draws its one refined layout in either look (DESIGN.md §13), once: the screen on screen is the one

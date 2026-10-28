@@ -317,14 +317,14 @@ final class PhoneState: ObservableObject {
         }
     }
 
-    /// Opens the full-screen recorder. Started from the Record as tray, it appears at once with no system transition
-    /// and slides its content up 12 pt over 150 ms (RecordScreen), opaque from its first frame; with Limit animation or
+    /// Opens the recorder sheet. Started from the Record as tray, it appears at once with no system transition and
+    /// slides its content up 12 pt over 150 ms (RecorderSheet), opaque from its first frame; with Limit animation or
     /// Reduce Motion it appears at once and doesn't move (DESIGN.md §7).
     private func presentRecorder() {
         guard recorderSlideIn else { showRecorder = true; return }
         recorderSlideIn = false
         let still = UserDefaults.standard.bool(forKey: MotionPreference.key) || UIAccessibility.isReduceMotionEnabled
-        RecordScreen.slideInNext = !still
+        RecorderSheet.slideInNext = !still
         var t = Transaction()
         t.disablesAnimations = true
         withTransaction(t) { showRecorder = true }
@@ -390,7 +390,7 @@ final class PhoneState: ObservableObject {
         if !recorder.isPaused { autoPauseReason = nil }
     }
 
-    /// Stop & transcribe (or Stop & add): capture ends at once, the record screen says "Saving…" while a long
+    /// Stop: capture ends at once, the recorder says "Saving…" while a long
     /// recording's parts are joined off the main thread, then it joins the queue. Nothing that reached the disk
     /// is thrown away: only a recording with no audio at all is removed, with a message saying so.
     func stopRecording() {

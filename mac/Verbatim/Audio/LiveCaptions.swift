@@ -261,7 +261,14 @@ struct CaptionLinesView: View {
     var spacing: CGFloat
     /// Characters of the current line to show (its end).
     var currentLimit = 160
+    /// The refined look's colors and serif (the Mac's captions panel, DESIGN.md §6.10), instead of Verbose style's.
+    var refined = false
     @Environment(\.limitMotion) private var limitMotion
+
+    private var ink: Color { refined ? Refined.ink : Ink.ink }
+    private var accent: Color { refined ? Refined.accentText : Ink.accentText }
+    private var mute: Color { refined ? Refined.mute : Ink.mute }
+    private func serif(_ size: CGFloat) -> Font { refined ? .system(size: size, design: .serif) : Ink.serif(size) }
 
     var body: some View {
         let past = Array(feed.history.suffix(older.count))
@@ -272,7 +279,7 @@ struct CaptionLinesView: View {
                     .transition(limitMotion ? .opacity : .opacity.combined(with: .move(edge: .bottom)))
             }
             ForEach(feed.current) { line in
-                lineText(line, size: size, color: Ink.ink, highlight: true)
+                lineText(line, size: size, color: ink, highlight: true)
                     .accessibilityHidden(true)
                     .transition(.opacity)
             }
@@ -285,18 +292,18 @@ struct CaptionLinesView: View {
         let text = highlight ? CaptionFeed.tail(line.text, limit: currentLimit) : line.text
         var out = Text("")
         if showSpeakers, let who = line.speaker {
-            out = Text(who).font(.system(size: 12, weight: .semibold)).foregroundColor(Ink.mute) + Text("  ")
+            out = Text(who).font(.system(size: 12, weight: .semibold)).foregroundColor(mute) + Text("  ")
         }
         if highlight, let space = text.lastIndex(of: " ") {
             out = out + Text(String(text[..<space]) + " ").foregroundColor(color)
-                + Text(String(text[text.index(after: space)...])).foregroundColor(Ink.accentText)
+                + Text(String(text[text.index(after: space)...])).foregroundColor(accent)
         } else if highlight {
-            out = out + Text(text).foregroundColor(Ink.accentText)
+            out = out + Text(text).foregroundColor(accent)
         } else {
             out = out + Text(text).foregroundColor(color)
         }
         return out
-            .font(Ink.serif(size))
+            .font(serif(size))
             .lineSpacing(size * 0.12)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)

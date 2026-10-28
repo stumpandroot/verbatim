@@ -776,41 +776,6 @@ struct EmptyStateArt: View {
 
 // MARK: - Drawing helpers
 
-/// Damped springs stepped once per frame (semi-implicit Euler). Each spring chases its own target, so several
-/// driven by one signal still move independently. A reference type kept in @State: stepping it while drawing
-/// doesn't invalidate the view.
-final class SpringBank {
-    struct Spring { var k: Double; var d: Double; var gain: Double; var x = 0.0; var v = 0.0 }
-    private(set) var springs: [Spring]
-    private var last: Date?
-
-    init(_ specs: [(k: Double, d: Double, gain: Double)]) {
-        springs = specs.map { Spring(k: $0.k, d: $0.d, gain: $0.gain) }
-    }
-
-    /// Seconds since the previous frame, at most 50 ms; a long gap (paused, off screen) counts as one frame.
-    func tick(_ now: Date) -> Double {
-        defer { last = now }
-        guard let prev = last else { return 0 }
-        let dt = now.timeIntervalSince(prev)
-        if dt <= 0 { return 0 }
-        return dt > 0.25 ? 1.0 / 60 : min(0.05, dt)
-    }
-
-    func step(_ dt: Double, targets: [Double]) {
-        guard dt > 0 else { return }
-        for i in springs.indices where i < targets.count {
-            let a = springs[i].k * (targets[i] - springs[i].x) - springs[i].d * springs[i].v
-            springs[i].v += a * dt
-            springs[i].x += springs[i].v * dt
-        }
-    }
-
-    /// 1 + displacement × gain: the scale for spring `i`.
-    func scale(_ i: Int) -> CGFloat { 1 + CGFloat(springs[i].x * springs[i].gain) }
-    func value(_ i: Int) -> Double { springs[i].x }
-}
-
 /// Maps a design-space box onto a canvas, aspect fit and centered (as BrandGlyph does).
 struct ArtSpace {
     let s: CGFloat, dx: CGFloat, dy: CGFloat

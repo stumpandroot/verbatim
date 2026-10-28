@@ -16,17 +16,6 @@ struct TactileButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Meter
-
-struct ElapsedLabel: View {
-    @ObservedObject var live: LiveMeter
-    var size: CGFloat = 40
-    var body: some View {
-        Text(live.elapsed.timecode).lookMono(size, weight: .medium).foregroundStyle(.lookInk)
-            .contentTransition(.numericText()).accessibilityLabel("Elapsed \(live.elapsed.timecode)")
-    }
-}
-
 // MARK: - Share sheet
 
 struct ShareSheet: UIViewControllerRepresentable {

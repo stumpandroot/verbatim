@@ -7,7 +7,8 @@ import UIKit
 // Record card stands in for it while it's shown (HomeSpacing.hidesRecordAccessory). A tap records a voice note; touch and hold
 // opens Record as, a system Menu built like Books' reading menu (an icon row for Dictate, Live captions, and Import,
 // then the six ways to record, each with the line that says what it does). While a recording runs, the accessory is
-// the live recording (the time, the kind, Pause, and Stop), and a tap brings the recorder back. The tab bar shrinks
+// the minimized recorder (`PhoneMiniRecorder`, the refined kit's design in both looks: the persimmon dot, the time,
+// your newest words or the kind, Pause, and Stop), and a tap brings the recorder back. The tab bar shrinks
 // when you scroll down, with Record beside it. Before iOS 26 there's no accessory, so the same content sits in an
 // opaque bar above the tab bar (MiniRecorder.swift).
 //
@@ -26,7 +27,8 @@ struct NativeRecordAccessory: View {
         AccessoryPlacement { inline in
             Group {
                 if app.recordingActive {
-                    NativeLiveAccessory(live: app.recorder.live, inline: inline)
+                    // The minimized recorder, the same design as Verbose style's bar (the refined kit).
+                    PhoneMiniRecorder(inline: inline).accessibilityIdentifier("native.recording")
                 } else {
                     NativeRecordButton(inline: inline)
                 }
@@ -157,75 +159,6 @@ struct NativeRecordDisc: View {
             .frame(width: size, height: size)
             .overlay(Circle().strokeBorder(NativeInk.gray, lineWidth: max(1.5, size * 0.08)))
             .accessibilityHidden(true)
-    }
-}
-
-// MARK: - The live recording
-
-/// While a recording runs: a red level glyph, "Recording · 2:14" over the kind, then Pause or Resume and the red Stop
-/// square. A tap on the text brings the recorder back.
-struct NativeLiveAccessory: View {
-    @EnvironmentObject var app: PhoneState
-    @ObservedObject var live: LiveMeter
-    var inline = false
-    @Environment(\.dynamicTypeSize) private var typeSize
-
-    private var paused: Bool { app.recorder.isPaused }
-    private var saving: Bool { app.savingRecording }
-    private var status: String { saving ? "Saving…" : paused ? "Paused" : "Recording" }
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Button { app.openRecorder() } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "waveform").font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(paused || saving ? NativeInk.secondary : NativeInk.record)
-                        .frame(width: 26)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("\(status) · \(RecorderPresentation.clock(live.elapsed))")
-                            .font(.subheadline.weight(.semibold)).monospacedDigit().foregroundStyle(NativeInk.label)
-                        if !inline, !typeSize.isAccessibilitySize {
-                            Text(app.recordingChoice.name).font(.caption).foregroundStyle(NativeInk.secondary)
-                        }
-                    }
-                    .lineLimit(1)
-                    Spacer(minLength: 0)
-                }
-                .padding(.leading, inline ? 8 : 12)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            Button { app.togglePause() } label: {
-                Image(systemName: paused ? "play.fill" : "pause.fill").font(.system(size: 17)).foregroundStyle(NativeInk.label)
-                    .frame(width: 40, height: 44).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(paused ? "Resume" : "Pause")
-            Button { app.stopRecording() } label: {
-                Group {
-                    if saving { ProgressView().controlSize(.small) }
-                    else { RoundedRectangle(cornerRadius: 3, style: .continuous).fill(NativeInk.record).frame(width: 16, height: 16) }
-                }
-                .frame(width: 40, height: 44).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Stop")
-            .padding(.trailing, 4)
-        }
-        .disabled(saving)
-        // One element for VoiceOver, as the Verbose bar: "Recording, 4 minutes 12 seconds", with Pause or Resume,
-        // Stop, and Open.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(RecorderPresentation.accessibilityLabel(paused: paused, saving: saving, elapsed: live.elapsed))
-        .accessibilityValue(app.recordingChoice.name)
-        .accessibilityHint("Opens the recorder.")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { app.openRecorder() }
-        .accessibilityAction(named: Text(paused ? "Resume" : "Pause")) { app.togglePause() }
-        .accessibilityAction(named: "Stop") { app.stopRecording() }
-        .accessibilityAction(named: "Open") { app.openRecorder() }
-        .accessibilityIdentifier("native.recording")
     }
 }
 
