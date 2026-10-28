@@ -105,6 +105,11 @@ check("only the date sort keeps day headers", NativeTableSort.allCases.filter(\.
 check("the table and the Library's sort agree", NativeTableSort.librarySort(.date, descending: true) == "newest" && NativeTableSort.librarySort(.name, descending: false) == "title"
       && NativeTableSort.librarySort(.kind, descending: false) == nil)
 check("a stored sort starts the table on its column", NativeTableSort.column(forLibrarySort: "longest") == (.length, true) && NativeTableSort.column(forLibrarySort: "newest") == (.date, true))
+check("the refined Library's sort menu says Newest first, as the mockup", NativeTableSort.date.title(descending: true) == "Newest first"
+      && NativeTableSort.date.title(descending: false) == "Oldest first" && NativeTableSort.length.title(descending: false) == "Shortest first"
+      && NativeTableSort.name.title(descending: false) == "Title A–Z")
+check("every column and direction has its own sort title", Set(NativeTableSort.allCases.flatMap { [$0.title(descending: true), $0.title(descending: false)] }).count == 10)
+check("the table's columns are the mockup's", NativeTableSort.allCases.map(\.header) == ["Name", "Kind", "People or source", "Date", "Length"])
 
 // MARK: Settings squares
 

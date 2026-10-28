@@ -232,6 +232,7 @@ One look replaces both Verbose style and Native on the Mac and iPhone (approved 
 | `macSwitch` | `#B23F24` | `#E2694B` | | An on switch on the Mac |
 | `separator` | ink 10% | paper 12% | 40%, 30% | Hairlines in cards; a card's edge under Increase Contrast |
 | `neutral` | ink 7% | paper 8% | 12%, 14% | Quiet chips and buttons at rest |
+| `stripe` | ink 2.5% | paper 3% | 5%, 6% | Every other row of a table in a card (the Mac Library) |
 | `playing` | sage 32% | sage 20% | 45%, 30% | The line being played |
 | `ringFull` | ink 28% | ink 28% | 45% | The Record card's rings on Full |
 | `ringSoft` | accent text 35% | accent text 35% | 55% | The rings on Soft |
@@ -281,6 +282,11 @@ Kinds have colors again (this replaces §1's neutral kinds for refined screens),
 | `PaperRow` | `Views/RefinedKit.swift` | `PaperRow(kind:title:meta:) { trailing }` with `RowLength(text:)`: a recording in a card (iPhone: the badge over two lines; Mac: one line with the kind's dot) |
 | `WeekCard` | `Views/RefinedKit.swift` | `WeekCard(words:detail:saved:days:large:)` with `RefinedWeekBars`: This week as the card or one line; it fills its band's height beside Recent on the Mac |
 | `RefinedActionStyle` | `Views/RefinedKit.swift` | `.buttonStyle(RefinedActionStyle(kind:ink:light:wash:))`: quiet (a wash with ink text) or strong (ink with light text); on a persimmon fill, pass the ready chip's wash (`Refined.readyChip(palette)`), since the neutral wash measures 3.95:1 there under Increase Contrast |
+| `RefinedChip` | `Views/RefinedKit.swift` | `RefinedChip(title:selected:action:)` in a `RefinedChipRow(label:margin:) { chips }`: a filter chip (the neutral wash, or the persimmon tint with accent text when chosen; 44 pt tall to tap on iPhone), and a row that scrolls sideways and reads as one filter group |
+| `RefinedSearchField` | `Views/RefinedKit.swift` | `RefinedSearchField(text:prompt:shortcut:onSubmit:)`: a search field on the page where the window has no system field (the Mac Library in Verbose style) |
+| `IconSquareRow` | `Views/RefinedKit.swift` | `IconSquareRow(art:hue:title:value:)`: a row that opens a place, with its `IconSquare`, the name, a value, and a chevron |
+| `PaperTable` | `Views/RefinedKit.swift` | `PaperTable { header } rows: { rows }`: a lazy card whose header stays at the top while the rows scroll (the Mac Library) |
+| `PaperRowBackground` | `Views/RefinedKit.swift` | `.listRowBackground(PaperRowBackground(first:last:))`: a row's share of a card in a system `List`, so rows keep swipe actions and selection (the iPhone Library) |
 
 Also in the kit: `ReadyChip`, `RecordDiscMark`, `RecordRings`, `RefinedPress` (the press style), `refinedSurface(_:radius:)`, and `refinedFont(_:weight:)`. The names `KindColorChip` and `SerifSectionTitle` avoid Verbose style's `KindChip` and `SectionTitle`; they take the short names once those retire.
 

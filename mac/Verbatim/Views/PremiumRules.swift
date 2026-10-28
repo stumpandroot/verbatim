@@ -143,6 +143,29 @@ enum NativeTableSort: String, CaseIterable {
     /// Whether the table shows day headers: only while it's sorted by date.
     var grouped: Bool { self == .date }
 
+    /// The refined Library's sort, as its menu at the end of the chips says it (mockup MacLibrary): "Newest first",
+    /// "Oldest first", "Longest first", "Shortest first", and "Title A–Z", "Kind Z–A", and so on for the words.
+    func title(descending: Bool) -> String {
+        switch self {
+        case .date: return descending ? "Newest first" : "Oldest first"
+        case .length: return descending ? "Longest first" : "Shortest first"
+        case .name: return descending ? "Title Z–A" : "Title A–Z"
+        case .kind: return descending ? "Kind Z–A" : "Kind A–Z"
+        case .people: return descending ? "People Z–A" : "People A–Z"
+        }
+    }
+
+    /// The column's title in the refined Library's table.
+    var header: String {
+        switch self {
+        case .name: return "Name"
+        case .kind: return "Kind"
+        case .people: return "People or source"
+        case .date: return "Date"
+        case .length: return "Length"
+        }
+    }
+
     /// Orders two rows by this column's values; ties keep the newest first.
     static func ordered(_ a: (name: String, kind: String, people: String, date: Date, length: Double),
                         _ b: (name: String, kind: String, people: String, date: Date, length: Double),

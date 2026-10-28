@@ -27,21 +27,6 @@ extension RecordingKind {
         case .audio: return .kindAudio
         }
     }
-    var plural: String {
-        switch self {
-        case .journal: return "Journal"
-        case .idea: return "Thoughts"
-        case .meeting: return "Meetings"
-        case .note: return "Notes"
-        case .dictation: return "Dictations"
-        case .podcast: return "Podcasts"
-        case .video: return "Videos"
-        case .talk: return "Talks"
-        case .interview: return "Interviews"
-        case .brainDump: return "Brain dumps"
-        case .audio: return "Audio"
-        }
-    }
     var index: String {
         switch self {
         case .journal: return "01"

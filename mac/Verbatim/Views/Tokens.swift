@@ -392,6 +392,8 @@ enum RefinedHex {
     static let separator = Wash(ink, 0.10, 0.12, hc: (0.40, 0.30))
     /// Quiet buttons and chips at rest (filter chips, the recorder's Mark and Pause).
     static let neutral = Wash(ink, 0.07, 0.08, hc: (0.12, 0.14))
+    /// Every other row of a table in a card (the Mac Library), so a long row reads across.
+    static let stripe = Wash(ink, 0.025, 0.03, hc: (0.05, 0.06))
     /// The line being played.
     static let playing = Wash(Tone(0xAFC398, 0x93A87C), 0.32, 0.20, hc: (0.45, 0.30))
     /// The Record card's rings on a Full fill, and on a Soft tint.
@@ -446,11 +448,20 @@ enum Refined {
     static let macSwitch = color(RefinedHex.macSwitch)
     static let separator = color(RefinedHex.separator)
     static let neutral = color(RefinedHex.neutral)
+    static let stripe = color(RefinedHex.stripe)
     static let playing = color(RefinedHex.playing)
     static let glassFallback = color(RefinedHex.glassFallback)
     /// The record disc's dot and the stop square: the system's red (it adapts to dark mode and Increase Contrast),
     /// and nowhere else.
     static let recordRed = Color.red
+
+    #if os(iOS)
+    /// A tone as a UIKit color that follows light, dark, and Increase Contrast: the system search field on the iPhone
+    /// Library's page (`SystemSearchField`).
+    static func uiColor(_ t: RefinedHex.Tone) -> UIColor {
+        UIColor { tc in PColor(hex: t.value(dark: tc.userInterfaceStyle == .dark, increased: tc.accessibilityContrast == .high)) }
+    }
+    #endif
 }
 
 // MARK: - Look switch card
