@@ -435,7 +435,7 @@ struct RecipesScreen: View {
                             let sched = s.schedule.map { RecipeSchedule(weekday: $0.weekday, hour: $0.hour, minute: $0.minute) }
                             _ = center.add(s.question, scope: s.scope, schedule: sched)
                         } label: {
-                            SettingsRow(icon: s.schedule == nil ? "questionmark.bubble" : "calendar", tint: Ink.neutralChip, art: s.schedule == nil ? .iconAsk : .iconCalendar,
+                            SettingsRow(hue: .neutral, art: s.schedule == nil ? .iconAsk : .iconCalendar,
                                         title: s.question, subtitle: subtitle(s.scope, s.schedule.map { RecipeSchedule(weekday: $0.weekday, hour: $0.hour, minute: $0.minute) })) {
                                 Image(systemName: "plus.circle").foregroundStyle(.lookAccentText)
                             }
@@ -489,7 +489,7 @@ struct RecipesScreen: View {
         ForEach(Array(list.enumerated()), id: \.element.id) { i, r in
             if i > 0 { SettingsDivider() }
             NavigationLink(value: RecipeRoute(id: r.id)) {
-                SettingsRow(icon: center.schedule(r.id) == nil ? "questionmark.bubble" : "calendar", tint: Ink.neutralChip,
+                SettingsRow(hue: .neutral,
                             art: center.schedule(r.id) == nil ? .iconAsk : .iconCalendar, title: r.question,
                             subtitle: subtitle(r.scope, center.schedule(r.id)), subtitleLines: 1) {
                     if center.running.contains(r.id) {

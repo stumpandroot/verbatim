@@ -24,25 +24,8 @@ check("no marks without a window", R.rulerTicks(elapsed: 10, window: 0).isEmpty)
 check("short clock", R.shortClock(131) == "2:11" && R.shortClock(3725) == "1:02:05" && R.shortClock(-1) == "0:00")
 check("moments label", R.momentsLabel(1) == "1 moment" && R.momentsLabel(3) == "3 moments")
 
-// MARK: Settings squares
-
-check("no square is red: red means recording", !R.Square.allCases.map(\.rawValue).contains("red"))
-check("Appearance, the Action button, and Privacy are blue, as in Apple's Settings",
-      R.square(for: "circle.lefthalf.filled") == .blue && R.square(for: "button.horizontal.top.press") == .blue && R.square(for: "hand.raised") == .blue)
-check("Keyboard is gray, as in Apple's Settings", R.square(for: "keyboard") == .gray)
-check("Delete all data is a gray square (its title is red)", R.square(for: "trash") == .gray)
-check("an unknown symbol is gray", R.square(for: "no.such.symbol") == .gray)
-
-// Every icon Settings' rows use, read from the source: each gets a square, and Settings' root isn't mostly gray.
+// The Native look code to scan: the iPhone folder is the first argument.
 let dir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "VerbatimPhone"
-let settings = (try? String(contentsOfFile: dir + "/SettingsScreen.swift", encoding: .utf8)) ?? ""
-let iconPattern = try! NSRegularExpression(pattern: #"icon: *"([^"]+)""#)
-let icons = iconPattern.matches(in: settings, range: NSRange(settings.startIndex..., in: settings)).compactMap { m in
-    Range(m.range(at: 1), in: settings).map { String(settings[$0]) }
-}
-check("Settings' rows were read", icons.count >= 20, "\(icons.count)")
-let gray = icons.filter { R.square(for: $0) == .gray }
-check("most of Settings' squares carry a color (\(icons.count - gray.count) of \(icons.count))", gray.count * 3 <= icons.count, gray.joined(separator: ", "))
 
 // MARK: This week
 

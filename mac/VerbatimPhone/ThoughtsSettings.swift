@@ -79,16 +79,16 @@ struct ThoughtsSettingsScreen: View {
             SiriCard().padding(.top, 12)
 
             SettingsPageGroup(title: "Recording", footer: "These stay on this iPhone; your Mac has its own New page each day at. A thought belongs to the day it started.") {
-                SettingsToggleRow(icon: "record.circle", tint: Ink.persimmonTint, art: .iconVoice, title: "Record without opening Verbose",
+                SettingsToggleRow(title: "Record without opening Verbose",
                                   subtitle: "Shows a Live Activity while you talk.", isOn: $inPlace)
                     .settingsSearchTarget("thoughtsInPlace", flash: nil)
                 SettingsDivider()
-                SettingsToggleRow(icon: "text.bubble", tint: Ink.butterTint, art: .iconDictations, title: "Show words in the Dynamic Island",
+                SettingsToggleRow(title: "Show words in the Dynamic Island",
                                   subtitle: "Never on the Lock Screen.", isOn: $islandWords)
                     .settingsSearchTarget("thoughtsIslandWords", flash: nil)
                 SettingsDivider()
                 HStack(spacing: 10) {
-                    SettingsLabel(icon: "calendar", tint: Ink.sageTint, art: .iconCalendar, title: "New page each day at")
+                    SettingsLabel(hue: .sage, art: .iconCalendar, title: "New page each day at")
                     Spacer(minLength: 8)
                     Picker("New page each day at", selection: $newPageHour) {
                         ForEach(DayPages.hours, id: \.self) { h in Text(DayPages.hourLabel(h)).tag(h) }
@@ -136,7 +136,7 @@ struct ThoughtsSettingsScreen: View {
     }
 
     private func wayRow(icon: String, art: BrandArt, title: String, subtitle: String, value: String) -> some View {
-        SettingsRow(icon: icon, tint: Ink.sageTint, art: art, title: title, subtitle: subtitle) { SettingsValue(value) }
+        SettingsRow(hue: .sage, art: art, title: title, subtitle: subtitle) { SettingsValue(value) }
             .accessibilityElement(children: .combine)
     }
 
@@ -165,7 +165,7 @@ private struct StepCard<Footer: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                SettingsLabel(icon: icon, tint: Ink.sageTint, art: art, title: "")
+                SettingsLabel(hue: .sage, art: art, title: "")
                     .fixedSize()
                 SerifTitle(title.0, italic: title.1, size: 20).foregroundStyle(.lookInk)
                     .accessibilityAddTraits(.isHeader)
@@ -192,7 +192,7 @@ private struct SiriCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                SettingsLabel(icon: "waveform", tint: Ink.sageTint, art: .iconSpeak, title: "").fixedSize()
+                SettingsLabel(hue: .sage, art: .iconSpeak, title: "").fixedSize()
                 Text("Siri").font(look.isNative ? .system(size: 20, weight: .semibold) : Ink.serif(20)).foregroundStyle(.lookInk)
                     .accessibilityAddTraits(.isHeader)
             }

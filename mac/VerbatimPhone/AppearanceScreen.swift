@@ -1,128 +1,78 @@
 import SwiftUI
 
-/// Settings › Appearance (the native mockup's section 04), modeled on Display & Brightness: the look picker with two
-/// live thumbnails, then light or dark (Limit animation is a switch on the Settings root). Both looks use this
-/// layout, each in its own clothes. Picking a look applies it at once, no relaunch: a small card in the new look shows
-/// while the screens rebuild behind it, then fades (LookSwitch.swift). The look is stored per device in the App Group (`AppLook`), so the keyboard
-/// follows it; it never syncs.
+/// Settings › Appearance in the refined look (DESIGN.md §13), one layout in both look settings: the look as one plain
+/// row with a menu (Verbose style or Native; it retires with the look switch), the palette (Full or Soft), then light
+/// or dark (Limit animation is a switch on the Settings root). Picking a look applies it at once, no relaunch: a small
+/// card in the new look shows while the screens rebuild behind it, then fades (LookSwitch.swift). The look is stored
+/// per device in the App Group (`AppLook`), so the keyboard follows it; it never syncs.
 struct AppearanceScreen: View {
     @EnvironmentObject var app: PhoneState
     @AppStorage(AppLook.key, store: AppLook.store) private var lookRaw = AppLook.verbose.rawValue
     /// The refined look's palette (DESIGN.md §13), stored with the look in the App Group.
     @AppStorage(AppPalette.key, store: AppLook.store) private var palette: AppPalette = .full
-    @Environment(\.look) private var look
     /// Whether Appearance is on screen, for the UI tour's checks.
     static var visible = false
 
     static let lookNote = "How Verbose looks on this iPhone. Your Mac has its own setting. The Verbose keyboard uses the same look."
     static let paletteNote = "How much color the Record card and Home's tiles carry. Kind badges and speaker chips keep their colors."
 
-    private var selection: Binding<AppLook> {
-        // The switching card shows first, then the look is stored behind it (LookSwitch.swift).
-        Binding(get: { AppLook(rawValue: lookRaw) ?? .verbose }, set: { LookSwitch.shared.pick($0) })
-    }
+    private var current: AppLook { AppLook(rawValue: lookRaw) ?? .verbose }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if !look.isNative {
-                    PhoneCompactTitle(title: "Appearance").padding(.top, 2)
-                }
-                section("Look", footer: Self.lookNote) {
-                    LookPicker(selection: selection)
-                        .padding(.vertical, 16)
-                        .settingsSearchTarget("look", flash: nil)
-                }
-                .padding(.top, look.isNative ? 8 : 18)
-                section("Palette", footer: Self.paletteNote) {
-                    ForEach(Array(AppPalette.allCases.enumerated()), id: \.element) { i, p in
-                        if i > 0 { divider }
-                        Button { palette = p } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(p.label).font(.system(size: look.isNative ? 17 : 16)).foregroundStyle(.lookInk)
-                                    Text(p.detail).font(.footnote).foregroundStyle(.lookMute)
-                                }
-                                Spacer(minLength: 8)
-                                if palette == p {
-                                    Image(systemName: "checkmark").font(.system(size: 15, weight: .semibold))
-                                        .foregroundStyle(.lookAccentText)
-                                }
-                            }
-                            .padding(.horizontal, look.isNative ? 16 : 14).padding(.vertical, 8)
-                            .frame(minHeight: look.isNative ? 46 : 50)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(SettingsRowPress())
-                        .accessibilityAddTraits(palette == p ? [.isButton, .isSelected] : .isButton)
+        SettingsPageScaffold(title: "Appearance") {
+            SettingsPageGroup(title: "Look", footer: Self.lookNote, first: true) {
+                // A plain row with the system menu: the switching card shows first, then the look is stored behind it.
+                Menu {
+                    Picker("Look", selection: Binding(get: { current }, set: { if $0 != current { LookSwitch.shared.pick($0) } })) {
+                        ForEach(AppLook.allCases) { l in Text(l.label).tag(l) }
+                    }
+                } label: {
+                    SettingsRow(hue: RefinedRules.settingsHue(0), art: .iconAppearance, title: "Look") {
+                        SettingsValue(current.label); SettingsMenuMark()
                     }
                 }
-                .settingsSearchTarget("palette", flash: nil)
-                .padding(.top, 26)
-                section("Light or dark") {
-                    ForEach(Array(Self.modes.enumerated()), id: \.element.0) { i, mode in
-                        if i > 0 { divider }
-                        Button { app.appearance = mode.0 } label: {
-                            HStack {
-                                Text(mode.1).font(.system(size: look.isNative ? 17 : 16)).foregroundStyle(.lookInk)
-                                Spacer(minLength: 8)
-                                if app.appearance == mode.0 {
-                                    Image(systemName: "checkmark").font(.system(size: 15, weight: .semibold))
-                                        .foregroundStyle(.lookAccentText)
-                                }
-                            }
-                            .padding(.horizontal, look.isNative ? 16 : 14).frame(minHeight: look.isNative ? 46 : 50)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(SettingsRowPress())
-                        .accessibilityAddTraits(app.appearance == mode.0 ? [.isButton, .isSelected] : .isButton)
-                    }
+                .buttonStyle(SettingsRowPress())
+                .accessibilityHint("Shows the looks")
+                .settingsSearchTarget("look", flash: nil)
+            }
+            SettingsPageGroup(title: "Palette", footer: Self.paletteNote) {
+                ForEach(Array(AppPalette.allCases.enumerated()), id: \.element) { i, p in
+                    if i > 0 { SettingsDivider() }
+                    choiceRow(p.label, detail: p.detail, chosen: palette == p) { palette = p }
                 }
-                .settingsSearchTarget("appearance", flash: nil)
-                .padding(.top, 26)
             }
-            .padding(.horizontal, look.isNative ? 16 : 20).padding(.bottom, 32)
-        }
-        .phonePage()
-        .navigationTitle("Appearance")
-        .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
-        .toolbar {
-            // Verbose style puts the serif title on the paper.
-            if !look.isNative {
-                ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
+            .settingsSearchTarget("palette", flash: nil)
+            SettingsPageGroup(title: "Light or dark") {
+                ForEach(Array(Self.modes.enumerated()), id: \.element.0) { i, mode in
+                    if i > 0 { SettingsDivider() }
+                    choiceRow(mode.1, detail: nil, chosen: app.appearance == mode.0) { app.appearance = mode.0 }
+                }
             }
+            .settingsSearchTarget("appearance", flash: nil)
         }
-        .onAppear { Self.visible = true }
+        .onAppear { Self.visible = true; LookSwitch.prewarm() }
         .onDisappear { Self.visible = false }
     }
 
     static let modes: [(String, String)] = [("system", "Match the system"), ("light", "Light"), ("dark", "Dark")]
 
-    @ViewBuilder private var divider: some View {
-        if look.isNative { NativeDivider() } else { Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, 14) }
-    }
-
-    /// A group in the look's clothes: Native's inset grouped card, or Verbose style's mono label over a card with a
-    /// hairline edge (as on Settings).
-    @ViewBuilder private func section<Rows: View>(_ title: String, footer: String? = nil, @ViewBuilder _ rows: () -> Rows) -> some View {
-        if look.isNative {
-            let content = rows()
-            NativeGroup(header: title, footer: footer) { content }
-        } else {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title).font(Ink.mono(12)).foregroundStyle(Ink.mute)
-                    .padding(.horizontal, 4)
-                    .accessibilityAddTraits(.isHeader)
-                VStack(spacing: 0) { rows() }
-                    .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.record, style: .continuous).strokeBorder(Ink.hairline))
-                if let footer {
-                    Text(footer).font(.system(size: 13)).foregroundStyle(Ink.mute)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 4)
+    /// One choice in a list: its name and line, and the accent's checkmark on the chosen one.
+    private func choiceRow(_ title: String, detail: String?, chosen: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                SettingsRowText(title: title, subtitle: detail)
+                Spacer(minLength: 8)
+                if chosen {
+                    Image(systemName: "checkmark").font(.system(size: 15, weight: .semibold)).foregroundStyle(Refined.accentText)
+                        .accessibilityHidden(true)
                 }
             }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(SettingsRowPress())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(chosen ? [.isButton, .isSelected] : .isButton)
     }
 }

@@ -82,7 +82,7 @@ enum Haptics {
 struct KeyboardTypingHapticsRow: View {
     @AppStorage(HapticSettings.typingKey, store: KeyboardBridge.defaults) private var on = false
     var body: some View {
-        SettingsToggleRow(icon: "hand.tap", tint: Ink.persimmonTint, art: .iconHaptics, title: "Typing haptics",
+        SettingsToggleRow(title: "Typing haptics",
                           subtitle: "A light tap with each key you type. Needs Allow Full Access. Start and Done tap either way while Haptics is on.", isOn: $on)
             .cardSurface(radius: Radius.row)
     }

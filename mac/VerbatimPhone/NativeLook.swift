@@ -54,26 +54,6 @@ enum NativeFind {
     static let highlight = Color(uiColor: .systemYellow).opacity(0.35)
 }
 
-extension NativeRules.Square {
-    /// The square's system color (Settings' rows, iPhone and Mac alike).
-    var color: Color {
-        switch self {
-        case .blue: return Color(uiColor: .systemBlue)
-        case .indigo: return Color(uiColor: .systemIndigo)
-        case .purple: return Color(uiColor: .systemPurple)
-        case .pink: return Color(uiColor: .systemPink)
-        case .orange: return Color(uiColor: .systemOrange)
-        case .yellow: return Color(uiColor: .systemYellow)
-        case .green: return Color(uiColor: .systemGreen)
-        case .mint: return Color(uiColor: .systemMint)
-        case .teal: return Color(uiColor: .systemTeal)
-        case .cyan: return Color(uiColor: .systemCyan)
-        case .brown: return Color(uiColor: .systemBrown)
-        case .gray: return Color(uiColor: .systemGray)
-        }
-    }
-}
-
 /// A color that follows the look: the Verbose style token, or its Native stand-in. Resolved from the environment, so a
 /// view using it changes with the look without reading `\.look` itself.
 struct LookStyle: ShapeStyle {

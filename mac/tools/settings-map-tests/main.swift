@@ -103,7 +103,7 @@ check("iPhone: Settings has a destination for every page", noDestination.isEmpty
 // Row ids: every root row, and every search entry that flashes a row, can be scrolled to.
 let phoneSources = sources(["VerbatimPhone"])
 func phoneTarget(_ id: String) -> Bool {
-    phoneSources.contains("settingsSearchTarget(\"\(id)\"") || screen.contains("pageRow(\"\(id)\"") || screen.contains("actionRow(\"\(id)\"")
+    phoneSources.contains("settingsSearchTarget(\"\(id)\"") || screen.contains("pageRow(\"\(id)\"") || screen.contains("actionRow(\"\(id)\"") || screen.contains("menuRow(\"\(id)\"")
 }
 let rootRowsWithoutTarget = phoneRows.filter { !phoneTarget($0.id) }.map(\.id)
 check("iPhone: every root row has its row id", rootRowsWithoutTarget.isEmpty, "\(rootRowsWithoutTarget)")

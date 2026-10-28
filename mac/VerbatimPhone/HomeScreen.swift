@@ -316,39 +316,6 @@ struct HomeScreen: View {
     }
 }
 
-// MARK: - The account avatar
-// brand: native begin
-
-extension HomeScreen {
-    /// "TM" from "Tim Medina"; one letter for one name; empty when there's no name (`NativeAvatar` shows a person).
-    static func initials(_ name: String) -> String {
-        let parts = name.split(whereSeparator: \.isWhitespace).prefix(2)
-        return parts.compactMap(\.first).map { String($0).uppercased() }.joined()
-    }
-}
-
-/// Native: the Apple Account-style avatar. Your initials in white on system gray, or a person glyph when there's no
-/// name (Settings' You row). Never a "?", which reads as Help, and never persimmon (review P-16).
-struct NativeAvatar: View {
-    var name: String
-    var size: CGFloat
-    var body: some View {
-        let initials = HomeScreen.initials(name.trimmingCharacters(in: .whitespacesAndNewlines))
-        Group {
-            if initials.isEmpty {
-                Image(systemName: "person.fill").font(.system(size: size * 0.45, weight: .medium))
-            } else {
-                Text(initials).font(.system(size: size * 0.4, weight: .semibold))
-            }
-        }
-        .foregroundStyle(Color.white)
-        .frame(width: size, height: size)
-        .background(Color(uiColor: .systemGray), in: Circle())
-    }
-}
-// brand: native end
-
-
 extension Notification.Name {
     /// Scrolls Home to a section ("home-top", "home-recent", "home-dictations"); the screenshot tour uses it.
     static let verbatimHomeScroll = Notification.Name("verbatimHomeScroll")

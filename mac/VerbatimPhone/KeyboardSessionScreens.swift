@@ -343,19 +343,19 @@ struct KeyboardSetupScreen: View {
 
                 // Every build: the keyboard opens Verbose to start a session (App Store builds too, since October 2026).
                 VStack(spacing: 0) {
-                    SettingsToggleRow(icon: "mic", tint: Ink.persimmonTint, title: "Start dictating when you come back",
+                    SettingsToggleRow(title: "Start dictating when you come back",
                                       subtitle: "The first tap opens Verbose and starts listening; no second tap.", isOn: $autoStart)
                     SettingsDivider()
-                    SettingsToggleRow(icon: "sparkles", tint: Ink.persimmonTint, title: "Polish after inserting",
+                    SettingsToggleRow(title: "Polish after inserting",
                                       subtitle: "Your words appear right away; Verbose swaps in the cleaned-up version a moment later.", isOn: $polishAfter)
                     SettingsDivider()
-                    SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, title: "Show words as you speak",
+                    SettingsToggleRow(title: "Show words as you speak",
                                       subtitle: "The keyboard shows your words while you talk, recognized on this iPhone.", isOn: $liveWords)
                     SettingsDivider()
-                    SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, title: "Show words in the Dynamic Island",
+                    SettingsToggleRow(title: "Show words in the Dynamic Island",
                                       subtitle: "When you touch and hold the Dynamic Island during a take, it shows your last few words. The Lock Screen never shows your words.", isOn: $islandWords)
                     SettingsDivider()
-                    SettingsToggleRow(icon: "doc.on.clipboard", tint: Ink.persimmonTint, title: "Also copy each dictation",
+                    SettingsToggleRow(title: "Also copy each dictation",
                                       subtitle: "Each keyboard dictation also goes on the clipboard, so you can paste it somewhere else. The clock button in the keyboard shows your last dictations either way.", isOn: $alwaysCopy)
                 }
                 .cardSurface(radius: Radius.row)

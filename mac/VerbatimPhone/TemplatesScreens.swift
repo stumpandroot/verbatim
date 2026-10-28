@@ -35,7 +35,7 @@ struct TemplatesScreen: View {
                 .padding(.top, 14)
             SettingsPageGroup(first: true) {
                 NavigationLink(value: TemplatesAutoRoute()) {
-                    SettingsRow(icon: "arrow.triangle.2.circlepath", tint: Ink.sageTint, art: .iconRecent, title: "Run automatically",
+                    SettingsRow(hue: .sage, art: .iconRecent, title: "Run automatically",
                                 subtitle: "A template for each kind, when a recording finishes") {
                         SettingsValue("\(settings.assignedCount) of \(AutoRunSettings.kinds.count)")
                         SettingsChevron()
@@ -74,7 +74,7 @@ struct TemplatesScreen: View {
 
     private func row(_ t: TranscriptTemplate, _ s: AutoRunSettings) -> some View {
         let kinds = s.kinds(for: t.id)
-        return SettingsRow(icon: t.nativeSymbol, tint: Ink.neutralChip, art: t.art, title: t.name, subtitle: TemplateLibrary.summaryLine(t), subtitleLines: 1) {
+        return SettingsRow(hue: .neutral, art: t.art, title: t.name, subtitle: TemplateLibrary.summaryLine(t), subtitleLines: 1) {
             if !kinds.isEmpty { Text("Auto").font(.system(size: 14)).foregroundStyle(.lookMute) }
             SettingsChevron()
         }
@@ -128,7 +128,7 @@ struct TemplateDetailScreen: View {
             SettingsPageGroup(title: "Run automatically for", footer: "A kind runs one template. Turning one on here replaces the template it had.") {
                 ForEach(Array(kinds.enumerated()), id: \.element) { i, k in
                     if i > 0 { SettingsDivider() }
-                    SettingsToggleRow(icon: k.nativeSymbol, tint: Ink.neutralChip, art: k.art, title: k.label,
+                    SettingsToggleRow(title: k.label,
                                       subtitle: other(k, t).map { "Now runs \($0)" },
                                       isOn: Binding(get: { auto.settings.template(for: k) == t.id }, set: { on in auto.set(on ? t.id : nil, for: k) }))
                         .accessibilityIdentifier("template.kind.\(k.rawValue)")
@@ -139,7 +139,7 @@ struct TemplateDetailScreen: View {
                     if recent.isEmpty { Text("No recordings yet") }
                     ForEach(Array(recent)) { r in Button(r.title) { tryOn = PhoneTryOn(template: t, transcript: r.id) } }
                 } label: {
-                    SettingsRow(icon: "play.circle", tint: Ink.sageTint, art: .iconPlay, title: "Try on a recording", subtitle: "See the result; nothing is saved") {
+                    SettingsRow(hue: .sage, art: .iconPlay, title: "Try on a recording", subtitle: "See the result; nothing is saved") {
                         SettingsMenuMark()
                     }
                 }
@@ -147,19 +147,19 @@ struct TemplateDetailScreen: View {
                 Button {
                     editingIsNew = true; editing = TemplateLibrary.duplicate(t)
                 } label: {
-                    SettingsRow(icon: "plus.square.on.square", tint: Ink.butterTint, art: .iconCopy, title: t.isEditable ? "Duplicate" : "Duplicate and edit") { SettingsChevron() }
+                    SettingsRow(hue: .butter, art: .iconCopy, title: t.isEditable ? "Duplicate" : "Duplicate and edit") { SettingsChevron() }
                 }
                 .buttonStyle(SettingsRowPress())
                 .accessibilityIdentifier("template.duplicate")
                 if t.isEditable {
                     SettingsDivider()
                     Button { editingIsNew = false; editing = t } label: {
-                        SettingsRow(icon: "square.and.pencil", tint: Ink.butterTint, art: .iconNotes, title: "Edit") { SettingsChevron() }
+                        SettingsRow(hue: .butter, art: .iconNotes, title: "Edit") { SettingsChevron() }
                     }
                     .buttonStyle(SettingsRowPress())
                     SettingsDivider()
                     Button { confirmDelete = true } label: {
-                        SettingsRow(icon: "trash", tint: Ink.petalTint, art: .iconDeleteAll, title: "Delete template", danger: true) { EmptyView() }
+                        SettingsRow(hue: .petal, art: .iconDeleteAll, title: "Delete template", danger: true) { EmptyView() }
                     }
                     .buttonStyle(SettingsRowPress())
                 }
@@ -215,28 +215,28 @@ struct TemplatesAutoScreen: View {
                 }
                 // Audio only has no transcript, so no template can run on it: listed with no picker.
                 SettingsDivider()
-                SettingsRow(icon: RecordingKind.audio.nativeSymbol, tint: Ink.neutralChip, art: RecordingKind.audio.art, title: RecordingKind.audio.label, subtitle: AudioOnlyCopy.noTemplate) {
+                SettingsRow(hue: .neutral, art: RecordingKind.audio.art, title: RecordingKind.audio.label, subtitle: AudioOnlyCopy.noTemplate) {
                     EmptyView()
                 }
                 .accessibilityIdentifier("templates.auto.audio")
             }
             .settingsSearchTarget("templatesAuto", flash: nil)
             SettingsPageGroup(footer: TemplateCopy.onDevice("iPhone") + " Your Mac keeps its own choices; the results sync with the library.") {
-                SettingsToggleRow(icon: "clock", tint: Ink.sageTint, art: .iconRecent, title: "Skip short recordings", subtitle: "Under 2 minutes",
+                SettingsToggleRow(title: "Skip short recordings", subtitle: "Under 2 minutes",
                                   isOn: $auto.settings.skipShort)
                     .settingsSearchTarget("templatesSkipShort", flash: nil)
                 SettingsDivider()
-                SettingsToggleRow(icon: "doc.text", tint: Ink.sageTint, art: .iconSummaries, title: "Show the result first", subtitle: "Open transcripts on it",
+                SettingsToggleRow(title: "Show the result first", subtitle: "Open transcripts on it",
                                   isOn: $auto.settings.showFirst)
                     .settingsSearchTarget("templatesShowFirst", flash: nil)
                 SettingsDivider()
-                SettingsToggleRow(icon: "bell", tint: Ink.sageTint, art: .iconAttention, title: "Notify me when it\u{2019}s done", subtitle: "For recordings over 20 minutes",
+                SettingsToggleRow(title: "Notify me when it\u{2019}s done", subtitle: "For recordings over 20 minutes",
                                   isOn: $auto.settings.notify)
                     .settingsSearchTarget("templatesNotify", flash: nil)
             }
             SettingsPageGroup(footer: app.store.recipes.isEmpty ? "Questions you save in Ask and run again, now or every week."
                                                                 : "Ask shows your recipes while you have one.") {
-                SettingsToggleRow(icon: "calendar", tint: Ink.sageTint, art: .iconCalendar, title: "Recipes", subtitle: "Show them in Ask",
+                SettingsToggleRow(title: "Recipes", subtitle: "Show them in Ask",
                                   isOn: Binding(get: { RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty) }, set: { showRecipes = $0 }))
                     .disabled(!app.store.recipes.isEmpty)
                     .settingsSearchTarget("askRecipes", flash: nil)
@@ -257,7 +257,7 @@ struct TemplatesAutoScreen: View {
                 ForEach(others) { t in choice(t, k, current) }
             }
         } label: {
-            SettingsRow(icon: k.nativeSymbol, tint: Ink.neutralChip, art: k.art, title: k.label) {
+            SettingsRow(hue: .neutral, art: k.art, title: k.label) {
                 SettingsValue(current?.name ?? "Off")
                 SettingsMenuMark()
             }
@@ -310,7 +310,7 @@ struct PhoneTemplateEditor: View {
                     SettingsPageGroup(title: "Use it for") {
                         ForEach(Array(AutoRunSettings.kinds.enumerated()), id: \.element) { i, k in
                             if i > 0 { SettingsDivider() }
-                            SettingsToggleRow(icon: k.nativeSymbol, tint: Ink.neutralChip, art: k.art, title: k.label,
+                            SettingsToggleRow(title: k.label,
                                               isOn: Binding(get: { draft.kinds.contains(k) }, set: { on in
                                                   draft.kinds.removeAll { $0 == k }
                                                   if on { draft.kinds.append(k) }
@@ -324,7 +324,7 @@ struct PhoneTemplateEditor: View {
                         }
                         SettingsDivider()
                         Button { draft.sections.append(TemplateSection("", .bullets)) } label: {
-                            SettingsRow(icon: "plus", tint: Ink.sageTint, art: nil, title: "Add a section") { EmptyView() }
+                            SettingsRow(hue: .sage, art: nil, title: "Add a section") { EmptyView() }
                         }
                         .buttonStyle(SettingsRowPress())
                     }

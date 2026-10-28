@@ -3,97 +3,73 @@ import UIKit
 
 // The Settings pages the regrouped root opens (PhoneSettingsMap, SettingsScreen.swift): Speakers, More transcription
 // options, Cloud cleanup, Welcome tour, Widgets and controls, and Shortcuts and Siri, plus the spot Customize Home
-// fills. Each page uses the root's rows and groups in both looks, and every row keeps the search id it had on the
-// root, so search and the self-test find it here.
+// fills. Each page uses the root's refined rows and groups in both look settings, and every row keeps the search id it
+// had on the root, so search and the self-test find it here.
 
 // MARK: - Page structure
 
-/// A Settings page: Verbose style's compact serif title on the paper, then its groups. Native uses the large navigation
-/// title, as every root and first-level screen does there; a detail of a detail passes `inline` (review P-06).
+/// A Settings page in the refined look (DESIGN.md §13), one layout in both look settings: the page's large serif title
+/// on the paper under the system's navigation bar (Back, and the page's own buttons), then its groups. A detail of a
+/// detail passes `inline`, which sets the title at the section size.
 struct SettingsPageScaffold<Content: View>: View {
     var title: String
-    /// An optional eyebrow ("◇ Scenario template"), above the title as on every other screen.
+    /// An optional line above the title ("Scenario template").
     var eyebrow: String? = nil
     var inline = false
     @ViewBuilder var content: () -> Content
-    @Environment(\.look) private var look
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if let eyebrow { PhoneEyebrow(text: eyebrow).padding(.top, look.isNative ? 6 : 4) }
-                if !look.isNative {
-                    PhoneCompactTitle(title: title).padding(.top, 2)
+                Group {
+                    if inline {
+                        VStack(alignment: .leading, spacing: 2) {
+                            if let eyebrow { Text(eyebrow).refinedFont(.meta).foregroundStyle(Refined.mute) }
+                            Text(title).refinedFont(.transcriptTitle).foregroundStyle(Refined.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityAddTraits(.isHeader)
+                        }
+                    } else {
+                        LargeSerifTitle(title: title, eyebrow: eyebrow)
+                    }
                 }
+                .padding(.top, 4)
                 content()
             }
-            .padding(.horizontal, look.isNative ? 16 : 20).padding(.bottom, 32)
+            .padding(.horizontal, 20).padding(.bottom, 32)
         }
         .scrollDismissesKeyboard(.interactively)
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
         .navigationTitle(title)
-        .navigationBarTitleDisplayMode(look.isNative && !inline ? .large : .inline)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // Verbose style puts the serif title on the paper.
-            if !look.isNative {
-                ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
-            }
+            // The serif title is on the paper; the bar keeps Back and the page's buttons.
+            ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
         }
     }
 }
 
-/// A group on a Settings page, as on the root: Native's inset grouped section, or Verbose style's mono label over a
-/// card with a hairline edge.
+/// A group on a Settings page, as on the root: its label over a card of rows, then its note (`PaperSection`).
 struct SettingsPageGroup<Rows: View>: View {
     var title: String? = nil
     var footer: String? = nil
     var first = false
     @ViewBuilder var rows: () -> Rows
-    @Environment(\.look) private var look
 
     var body: some View {
-        Group {
-            if look.isNative {
-                let content = rows()
-                NativeGroup(header: title, footer: footer) { content }
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    if let title {
-                        Text(title).lookMono(12).foregroundStyle(.lookMute)
-                            .padding(.horizontal, 4)
-                            .accessibilityAddTraits(.isHeader)
-                    }
-                    VStack(spacing: 0) { rows() }
-                        .background(.lookCard, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Radius.record, style: .continuous).strokeBorder(.lookHairline))
-                    if let footer {
-                        Text(footer).font(.system(size: 13)).foregroundStyle(.lookMute)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, 4)
-                    }
-                }
-            }
-        }
-        .padding(.top, first ? (look.isNative ? 8 : 18) : 26)
+        PaperSection(title, footer: footer) { rows() }
+            .padding(.top, first ? 18 : 24)
     }
 }
 
-/// A section label on a Settings page outside a group (a heading over steps or a paragraph): Verbose style's mono 12
-/// label, as `SettingsPageGroup` draws over its card; Native's footnote header.
+/// A label on a Settings page outside a group (a heading over steps or a paragraph), as `SettingsPageGroup` draws over
+/// its card.
 struct SettingsPageLabel: View {
     var text: String
-    @Environment(\.look) private var look
     var body: some View {
-        Group {
-            if look.isNative {
-                Text(text).font(.footnote).foregroundStyle(NativeInk.secondary)
-            } else {
-                Text(text).lookMono(12).foregroundStyle(.lookMute)
-            }
-        }
-        .padding(.horizontal, 4)
-        .accessibilityAddTraits(.isHeader)
+        Text(text).refinedFont(.meta).foregroundStyle(Refined.mute)
+            .padding(.horizontal, 14)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -120,22 +96,22 @@ struct SpeakersSettingsScreen: View {
     var body: some View {
         SettingsPageScaffold(title: "Speakers") {
             SettingsPageGroup(footer: "Speaker labels are made on this iPhone and add a little time to each transcript.", first: true) {
-                SettingsToggleRow(icon: "person.2", tint: Ink.sageTint, art: .iconSpeakers, title: "Identify speakers",
+                SettingsToggleRow(title: "Identify speakers",
                                   subtitle: "Labels turns as Speaker 1, Speaker 2, and so on, so you can name them", isOn: $app.identifySpeakers)
                     .settingsSearchTarget("speakers", flash: nil)
                 SettingsDivider()
-                SettingsToggleRow(icon: "person", tint: Ink.sageTint, art: .iconMainSpeaker, title: "Main speaker only",
+                SettingsToggleRow(title: "Main speaker only",
                                   subtitle: "In voice memos, other voices fold into a Background voices section", isOn: $mainSpeakerOnly)
                     .settingsSearchTarget("mainSpeaker", flash: nil)
             }
             SettingsPageGroup(title: "Voices you've named") {
-                SettingsToggleRow(icon: "person.2", tint: Ink.petalTint, art: .iconVoice, title: "Recognize voices I\u{2019}ve named",
+                SettingsToggleRow(title: "Recognize voices I\u{2019}ve named",
                                   subtitle: "Suggests a name when a new speaker sounds like someone you named. The voices stay on this iPhone and are never synced.",
                                   isOn: $recognizeVoices)
                     .settingsSearchTarget("recognizeVoices", flash: nil)
                 SettingsDivider()
                 Button { confirmClear = true } label: {
-                    SettingsRow(icon: "trash", tint: Ink.petalTint, art: .iconDeleteAll, title: "Clear saved voices",
+                    SettingsRow(hue: .petal, art: .iconDeleteAll, title: "Clear saved voices",
                                 subtitle: savedVoices == 0 ? "No saved voices" : "\(savedVoices) saved voice\(savedVoices == 1 ? "" : "s"), on this iPhone only", danger: true) { EmptyView() }
                 }
                 .buttonStyle(SettingsRowPress())
@@ -165,11 +141,11 @@ struct MoreTranscriptionScreen: View {
     var body: some View {
         SettingsPageScaffold(title: "More options") {
             SettingsPageGroup(title: "Transcripts", first: true) {
-                SettingsToggleRow(icon: "eye.slash", tint: Ink.petalTint, art: .iconFiller, title: "Hide filler lines",
+                SettingsToggleRow(title: "Hide filler lines",
                                   subtitle: "Lines that are only \u{201C}um\u{201D} or \u{201C}uh\u{201D} stay out of view, never deleted", isOn: $hideFiller)
                     .settingsSearchTarget("hideFiller", flash: nil)
                 SettingsDivider()
-                SettingsToggleRow(icon: "checkmark", tint: Ink.sageTint, art: .iconApplyDictionary, title: "Apply Dictionary",
+                SettingsToggleRow(title: "Apply Dictionary",
                                   subtitle: "Fixes words listed under \u{201C}Heard as\u{201D} in new transcripts", isOn: $app.applyDictionary)
                     .settingsSearchTarget("applyDictionary", flash: nil)
                 SettingsDivider()
@@ -178,11 +154,11 @@ struct MoreTranscriptionScreen: View {
                         ForEach(AudioTracksPreference.allCases) { Text($0.title).tag($0.rawValue) }
                     }
                 } label: {
-                    SettingsRow(icon: "square.stack.3d.up", tint: Ink.petalTint, art: .iconMultitrack, title: "Files with several audio tracks",
+                    SettingsRow(hue: .petal, art: .iconMultitrack, title: "Files with several audio tracks",
                                 subtitle: audioTracks == AudioTracksPreference.separate.rawValue
                                     ? "Each track is transcribed on its own as a speaker you can rename"
                                     : "Every track is mixed into one transcript",
-                                subtitleLines: nil, bounce: audioTracks) {
+                                subtitleLines: nil) {
                         SettingsValue(audioTracks == AudioTracksPreference.separate.rawValue ? "Separate" : "Mix"); SettingsMenuMark()
                     }
                 }
@@ -190,7 +166,7 @@ struct MoreTranscriptionScreen: View {
                 .settingsSearchTarget("audioTracks", flash: nil)
             }
             SettingsPageGroup(title: "Playback") {
-                SettingsToggleRow(icon: "tag", tint: Ink.butterTint, art: .iconSponsor, title: "Skip sponsor reads",
+                SettingsToggleRow(title: "Skip sponsor reads",
                                   subtitle: "In podcasts and videos, playback jumps past sponsor reads, and they fold into a line", isOn: $skipSponsors)
                     .settingsSearchTarget("skipSponsors", flash: nil)
             }
@@ -221,12 +197,12 @@ struct WelcomeTourScreen: View {
         SettingsPageScaffold(title: "Welcome tour") {
             SettingsPageGroup(footer: "A short walk through recording, the keyboard, and the Action button.", first: true) {
                 Button { app.showOnboarding = true } label: {
-                    SettingsRow(icon: "play.rectangle", tint: Ink.sageTint, art: .iconTour, title: "Show Tour") { SettingsChevron() }
+                    SettingsRow(hue: .sage, art: .iconTour, title: "Show Tour") { SettingsChevron() }
                 }
                 .buttonStyle(SettingsRowPress())
                 .settingsSearchTarget("tour", flash: nil)
                 SettingsDivider()
-                SettingsToggleRow(icon: "sparkles", tint: Ink.petalTint, art: .iconTour, title: "Show it when Verbose opens",
+                SettingsToggleRow(title: "Show it when Verbose opens",
                                   isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0; app.objectWillChange.send() }))
                     .settingsSearchTarget("tourOnLaunch", flash: nil)
             }
@@ -271,7 +247,7 @@ struct WidgetsInfoScreen: View {
         VStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.offset) { i, item in
                 if i > 0 { SettingsDivider() }
-                SettingsRow(icon: icon, tint: Ink.sageTint, art: art, title: item.0, subtitle: item.1, subtitleLines: nil) { EmptyView() }
+                SettingsRow(hue: .sage, art: art, title: item.0, subtitle: item.1, subtitleLines: nil) { EmptyView() }
                     .accessibilityElement(children: .combine)
             }
         }
@@ -297,7 +273,7 @@ struct ShortcutsInfoScreen: View {
                 VStack(spacing: 0) {
                     ForEach(Array(Self.shortcuts.enumerated()), id: \.offset) { i, item in
                         if i > 0 { SettingsDivider() }
-                        SettingsRow(icon: "bolt.circle", tint: Ink.sageTint, art: .iconAI, title: item.0, subtitle: item.1, subtitleLines: nil) { EmptyView() }
+                        SettingsRow(hue: .sage, art: .iconAI, title: item.0, subtitle: item.1, subtitleLines: nil) { EmptyView() }
                             .accessibilityElement(children: .combine)
                     }
                 }
@@ -305,7 +281,7 @@ struct ShortcutsInfoScreen: View {
             }
             SettingsPageGroup {
                 Button { if let u = URL(string: "shortcuts://") { openURL(u) } } label: {
-                    SettingsRow(icon: "arrow.up.forward.app", tint: Ink.butterTint, art: .iconLinks, title: "Open Shortcuts") { SettingsChevron() }
+                    SettingsRow(hue: .butter, art: .iconLinks, title: "Open Shortcuts") { SettingsChevron() }
                 }
                 .buttonStyle(SettingsRowPress())
             }

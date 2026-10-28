@@ -1,11 +1,10 @@
 import SwiftUI
 
-// brand: web style
-//
-// The You page on iPhone (Settings › You, and Home's This week card): who you are, About me, your voice, your week of
-// dictation, and cleanup, in the website style. The iPhone's keyboard can't tell which app a dictation went to, so
-// there's no "Where you dictate" here, and it keeps no separate activity log, so there's nothing to reset: the week
-// is counted from your dictations, the same as Home's This week card.
+// The You page on iPhone (Settings › You, and Home's This week card) in the refined look (DESIGN.md §13), one layout in
+// both look settings: who you are, your week of dictation, About me, your voice, and cleanup, built from the kit. The
+// iPhone's keyboard can't tell which app a dictation went to, so there's no "Where you dictate" here (the Mac's You
+// page lists apps and websites), and it keeps no separate activity log, so there's nothing to reset: the week is
+// counted from your dictations, the same as Home's This week card.
 
 extension Notification.Name {
     /// UI tour: opens About me from the You page (`true`), or closes the You page (`false`).
@@ -25,7 +24,7 @@ struct YouScreen: View {
     @AppStorage(CloudCleanup.enabledKey) private var cloudCleanup = false
     @ObservedObject private var flow = FlowSettings.shared
     @ObservedObject private var voice = VoiceProfileStatus.shared
-    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.look) private var look
     @State private var editingAbout = false
     @State private var showVoice = false
     @State private var editingName = false
@@ -33,160 +32,54 @@ struct YouScreen: View {
     @FocusState private var nameFocused: Bool
     @State private var now = Date()
 
-    @ScaledMetric(relativeTo: .largeTitle) private var nameSize: CGFloat = 34
-    @ScaledMetric(relativeTo: .title2) private var cardTitle: CGFloat = 22
-    @ScaledMetric(relativeTo: .title2) private var voiceSize: CGFloat = 24
-    @ScaledMetric(relativeTo: .title) private var statSize: CGFloat = 30
-    @ScaledMetric(relativeTo: .body) private var body15: CGFloat = 15
-    @ScaledMetric(relativeTo: .footnote) private var small: CGFloat = 13
-    @ScaledMetric(relativeTo: .caption) private var label: CGFloat = 12.5
-    @ScaledMetric(relativeTo: .caption) private var monoSize: CGFloat = 12
-    @ScaledMetric(relativeTo: .largeTitle) private var avatar: CGFloat = 60
-
     /// Whether the You page is on screen, for the UI tour's checks.
     static var visible = false
-
-    @Environment(\.look) private var look
+    /// The looks the You page is on screen in (the self-test checks each look draws this one layout).
+    static var onScreen = Set<AppLook>()
 
     var body: some View {
         let week = app.store.dictationWeek(now: now)
-        Group {
-            if look.isNative { premiumScroll(week) } else { verboseScroll(week) }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                weekSection(week).padding(.top, 26)
+                aboutSection.padding(.top, 26)
+                voiceSection.padding(.top, 26)
+                cleanupSection.padding(.top, 26)
+                footer.padding(.top, 18)
+            }
+            .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 32)
         }
         .scrollDismissesKeyboard(.immediately)
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
         .navigationTitle("You")
-        .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
-        .toolbar {
-            if !look.isNative { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
-        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
         .navigationDestination(isPresented: $editingAbout) { AboutMeScreen() }
         .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: false) }
-        .onAppear { Self.visible = true; now = Date(); voice.refresh() }
-        .onDisappear { Self.visible = false; commitName() }
+        .onAppear { Self.visible = true; Self.onScreen.insert(look); now = Date(); voice.refresh() }
+        .onDisappear { Self.visible = false; Self.onScreen.remove(look); commitName() }
         .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimYouPage)) { note in
             if note.object as? Bool == true { editingAbout = true }
         }
     }
 
-    private func verboseScroll(_ week: HomeWeek) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                aboutCard.padding(.top, 22)
-                voicePanel.padding(.top, 14)
-                weekCard(week).padding(.top, 14)
-                cleanupCard.padding(.top, 14)
-                footer.padding(.top, 18)
-            }
-            .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 32)
-        }
-    }
-
-    // MARK: Premium Native
-    // brand: native begin
-
-    /// Premium Native: the week, the year, two stat cards, and the month calendar (PremiumYou.swift), then your name,
-    /// About me, your voice, and cleanup as one grouped section.
-    private func premiumScroll(_ week: HomeWeek) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                PremiumYouStats(week: week, now: now)
-                NativeGroup(header: "Profile", footer: privacyLine) {
-                    premiumNameRow
-                    NativeDivider()
-                    premiumRow("About me", value: aboutMe.isEmpty ? "Add" : nil, detail: aboutMe.isEmpty ? nil : aboutMe) { commitName(); editingAbout = true }
-                    NativeDivider()
-                    premiumRow("Your voice", value: nil, detail: voice.line) { commitName(); showVoice = true }
-                    NativeDivider()
-                    Picker(selection: $flow.cleanup) {
-                        ForEach(CleanupLevel.allCases) { Text($0.title).tag($0) }
-                    } label: {
-                        Text("Cleanup").font(.system(size: 17)).foregroundStyle(NativeInk.label)
-                    }
-                    .pickerStyle(.menu)
-                    .padding(.horizontal, 16).frame(minHeight: 46)
-                    NativeDivider()
-                    premiumRow("Cloud cleanup", value: cloudCleanup ? "On" : "Off", detail: nil) { commitName(); openSettingsRow("cloudCleanup") }
-                }
-                .padding(.top, 28)
-                footer.padding(.top, 14)
-            }
-            .padding(.horizontal, 20).padding(.bottom, 32)
-        }
-    }
-
-    /// Your name, changed in place.
-    private var premiumNameRow: some View {
-        HStack(spacing: 10) {
-            Text("Name").font(.system(size: 17)).foregroundStyle(NativeInk.label)
-            Spacer(minLength: 8)
-            TextField("Add your name", text: Binding(get: { editingName ? nameDraft : storedName },
-                                                     set: { if !editingName { editingName = true }; nameDraft = $0 }))
-                .multilineTextAlignment(.trailing)
-                .font(.system(size: 17)).foregroundStyle(NativeInk.secondary)
-                .textContentType(.name).submitLabel(.done)
-                .focused($nameFocused)
-                .onSubmit { commitName() }
-                .onChange(of: nameFocused) { _, focused in
-                    if focused, !editingName { nameDraft = storedName; editingName = true }
-                    if !focused { commitName() }
-                }
-                .accessibilityLabel("Your name")
-        }
-        .padding(.horizontal, 16).frame(minHeight: 46)
-    }
-
-    private func premiumRow(_ title: String, value: String?, detail: String?, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.system(size: 17)).foregroundStyle(NativeInk.label)
-                    if let detail {
-                        Text(detail).font(.system(size: 13)).foregroundStyle(NativeInk.secondary).lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                    }
-                }
-                Spacer(minLength: 8)
-                if let value { Text(value).font(.system(size: 17)).foregroundStyle(NativeInk.secondary) }
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
-                    .accessibilityHidden(true)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 10).frame(minHeight: 46)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(NativeRowPress())
-    }
-    // brand: native end
-
     // MARK: Header
 
-    /// Your initial on the record color with an ink outline, the mono eyebrow, and your name in the serif with the last
-    /// name in italic. Tap the name to change it in place.
+    /// Your initial on persimmon, "You", and your name in the large serif (tap it to change it in place), then where
+    /// these settings live.
     private var header: some View {
         let name = storedName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parts = Self.nameParts(name)
-        let circle = min(avatar, 96)
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 14) {
-                ZStack {
-                    Circle().fill(PhoneInk.record)
-                    Circle().strokeBorder(Ink.inkFixed, lineWidth: 1.5)
-                    if let first = name.first {
-                        Text(String(first).uppercased()).lookSerif(circle * 0.47).foregroundStyle(Ink.inkFixed)
-                    } else {
-                        IconGlyph(art: .iconAboutMe, size: circle * 0.42, color: Ink.inkFixed)
-                    }
-                }
-                .frame(width: circle, height: circle)
-                .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 4) {
-                    PhoneEyebrow(text: "You")
+                InitialBadge(name: name, size: 60)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("You").refinedFont(.meta).foregroundStyle(Refined.mute)
                     if editingName {
                         TextField("Your name", text: $nameDraft)
-                            .lookSerif(nameSize).foregroundStyle(.lookInk)
-                            .tint(look.isNative ? NativeInk.accent : Ink.accentText)
+                            .refinedFont(.largeTitle).foregroundStyle(Refined.ink)
+                            .tint(Refined.accentText)
                             .textContentType(.name)
                             .submitLabel(.done)
                             .focused($nameFocused)
@@ -195,21 +88,13 @@ struct YouScreen: View {
                             .accessibilityLabel("Your name")
                     } else {
                         Button { beginName(name) } label: {
-                            Group {
-                                if name.isEmpty {
-                                    Text("Add your name").italic().foregroundStyle(.lookMute)
-                                } else if let last = parts.1 {
-                                    Text(parts.0 + " ") + Text(last).italic()
-                                } else {
-                                    Text(parts.0)
-                                }
-                            }
-                            .lookSerif(nameSize).tracking(-0.6)
-                            .foregroundStyle(.lookInk)
-                            .lineLimit(3).minimumScaleFactor(0.7)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                            Text(name.isEmpty ? "Add your name" : name)
+                                .refinedFont(.largeTitle)
+                                .foregroundStyle(name.isEmpty ? Refined.mute : Refined.ink)
+                                .lineLimit(3).minimumScaleFactor(0.7)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(name.isEmpty ? "Add your name" : name)
@@ -219,9 +104,7 @@ struct YouScreen: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            // A sentence, so sans (mono is for data, DESIGN.md §2).
-            Text(privacyLine).font(.system(size: 13)).foregroundStyle(.lookDim)
-                .lineSpacing(2)
+            Text(privacyLine).refinedFont(.meta).foregroundStyle(Refined.mute)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -245,174 +128,48 @@ struct YouScreen: View {
         editingName = false
     }
 
-    /// "Tim Medina" → ("Tim", "Medina"); one word → (word, nil). The last word is the italic one.
-    static func nameParts(_ name: String) -> (String, String?) {
-        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let space = n.lastIndex(of: " ") else { return (n, nil) }
-        let first = n[..<space].trimmingCharacters(in: .whitespaces)
-        let last = n[n.index(after: space)...].trimmingCharacters(in: .whitespaces)
-        return last.isEmpty || first.isEmpty ? (n, nil) : (first, last)
-    }
-
-    // MARK: About me
-
-    static let aboutPlaceholder = "A line or two about you and your work, and the names you use often."
-
-    /// A paper card with an ink outline. The whole card opens the About me editor (300 characters, with its counter).
-    private var aboutCard: some View {
-        Button { commitName(); editingAbout = true } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("About me").lookSerif(cardTitle).foregroundStyle(.lookInk)
-                    Spacer(minLength: 8)
-                    Text(aboutMe.isEmpty ? "Add" : "Edit")
-                        .font(.system(size: small + 1, weight: .semibold)).foregroundStyle(.lookAccentText)
-                }
-                Text(aboutMe.isEmpty ? Self.aboutPlaceholder : aboutMe)
-                    .font(.system(size: body15)).lineSpacing(3)
-                    .foregroundStyle(aboutMe.isEmpty ? Ink.mute : Ink.ink)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("Verbose uses this to spell names correctly and to write titles and summaries.")
-                    .font(.system(size: small)).foregroundStyle(.lookMute)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .phoneOutlined(radius: Radius.record)
-            .contentShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-        }
-        .buttonStyle(PhoneCardPress())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(aboutMe.isEmpty ? "Add About me" : "Edit About me")
-        .accessibilityValue(aboutMe.isEmpty ? Self.aboutPlaceholder : aboutMe)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Verbose uses this to spell names correctly and to write titles and summaries.")
-    }
-
-    // MARK: Your voice
-
-    /// A neutral outlined reader card (Your voice is a setting, not a capture mode, so no brand hue) with the rings in
-    /// the bottom-right corner. The corner is kept clear in the layout, so the drawing never sits under text. The whole
-    /// card opens Your voice.
-    private var voicePanel: some View {
-        let known = voice.isEnrolled || voice.isPartial
-        let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
-        return Button { commitName(); showVoice = true } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                PhoneEyebrow(text: "Your voice")
-                Text(voice.line).lookSerif(voiceSize).foregroundStyle(.lookInk)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                HStack(alignment: .bottom, spacing: 0) {
-                    HStack(spacing: 5) {
-                        Text(known ? "Read more passages" : "Set up your voice")
-                        Image(systemName: "arrow.right").font(.system(size: small, weight: .semibold))
-                            .accessibilityHidden(true)
-                    }
-                    .font(.system(size: small + 1, weight: .semibold)).foregroundStyle(.lookInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 8)
-                    // The rings' corner (the drawing shows about 90 × 92 pt of it, less the padding).
-                    Color.clear.frame(width: 74, height: 76).accessibilityHidden(true)
-                }
-            }
-            .padding(.horizontal, 18).padding(.top, 16).padding(.bottom, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                ZStack(alignment: .bottomTrailing) {
-                    shape.fill(Ink.reader)
-                    PhonePanelArt(kind: .rings, color: Ink.ink).frame(width: 124, height: 124).offset(x: 32, y: 30)
-                }
-                .clipShape(shape)
-                .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
-            }
-            .contentShape(shape)
-        }
-        .buttonStyle(PhoneCardPress())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Your voice")
-        .accessibilityValue(voice.line)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint(known ? "Read more passages so Verbose knows your voice better." : "Set up your voice.")
-    }
-
     // MARK: Your week
 
-    /// The week's words, the time saved against typing, and your speaking pace, then a bar for each day: today in
-    /// butter with an ink outline, earlier days in ink, days still to come as stubs. The same count as Home.
-    private func weekCard(_ week: HomeWeek) -> some View {
-        let saved = HomeScreen.savedLabel(week.secondsSaved(typingWPM: flow.typingWPM))
+    /// The week (the same count as Home): This week's card with its words, the time saved, and seven bars, today's in
+    /// persimmon; then your typing speed, which the time saved compares against, and your pace.
+    private func weekSection(_ week: HomeWeek) -> some View {
+        let saved = HomeWeek.savedText(week.secondsSaved(typingWPM: flow.typingWPM))
         let pace = Self.pace(words: week.words, seconds: week.seconds)
-        return VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text("Your week").lookSerif(cardTitle).foregroundStyle(.lookInk)
-                    .accessibilityAddTraits(.isHeader)
-                Text(Self.rangeLabel(week)).lookMono(monoSize).foregroundStyle(.lookMute)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                Spacer(minLength: 0)
+        return VStack(alignment: .leading, spacing: 10) {
+            SerifSectionTitle(title: "Your week") {
+                Text(Self.rangeLabel(week)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1)
             }
-            let layout = typeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 14))
-                : AnyLayout(HStackLayout(alignment: .top, spacing: 14))
-            layout {
-                stat(week.words.formatted(), "words dictated")
-                    .accessibilityElement(children: .combine)
-                VStack(alignment: .leading, spacing: 2) {
-                    statValue(saved)
-                    VStack(alignment: .leading, spacing: 0) {
-                        // Two lines, never cut: "saved" over "vs. typing at" and the speed.
-                        Text("saved").font(.system(size: label)).foregroundStyle(.lookDim)
-                        Text("vs. typing at").font(.system(size: label)).foregroundStyle(.lookDim)
-                            .lineLimit(1).minimumScaleFactor(0.85)
-                        Menu {
-                            Picker("Your typing speed", selection: $flow.typingWPM) {
-                                ForEach(Self.typingSpeeds(flow.typingWPM), id: \.self) { w in Text("\(w) wpm").tag(w) }
-                            }
-                        } label: {
-                            Text("\(flow.typingWPM) wpm").font(.system(size: label, weight: .semibold)).underline()
-                                .foregroundStyle(.lookInk)
-                                .frame(minHeight: 28, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel("Typing speed")
-                        .accessibilityValue("\(flow.typingWPM) words per minute")
-                        .accessibilityHint("Time saved compares dictating with typing at this speed.")
+            WeekCard(words: week.words, detail: week.words == 1 ? "word dictated" : "words dictated", saved: "\(saved) saved", days: week.cardDays)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")) dictated, \(saved) saved typing.")
+                .accessibilityIdentifier("you.week")
+            PaperCard {
+                Menu {
+                    Picker("Your typing speed", selection: $flow.typingWPM) {
+                        ForEach(Self.typingSpeeds(flow.typingWPM), id: \.self) { w in Text("\(w) wpm").tag(w) }
+                    }
+                } label: {
+                    SettingsRow(hue: RefinedRules.settingsHue(0), art: .iconFeedback, title: "Typing speed",
+                                subtitle: "Time saved compares dictating with typing at this speed") {
+                        SettingsValue("\(flow.typingWPM) wpm"); SettingsMenuMark()
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityElement(children: .contain)
-                stat(pace.map { "\($0)" } ?? "–", "words per minute")
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(pace.map { "\($0) words per minute" } ?? "Words per minute: not enough dictation yet")
+                .buttonStyle(SettingsRowPress())
+                .accessibilityHint("Shows the speeds")
+                PaperDivider(leading: 56)
+                SettingsRow(hue: RefinedRules.settingsHue(1), art: .iconVoice, title: "Your pace",
+                            subtitle: pace == nil ? "After 20 seconds of dictation" : nil) {
+                    SettingsValue(pace.map { "\($0) wpm" } ?? "–")
+                }
+                .accessibilityLabel(pace.map { "Your pace, \($0) words per minute" } ?? "Your pace: not enough dictation yet")
             }
-            YouWeekBars(week: week)
-                .frame(height: 132)
             if week.words == 0 {
                 Text("Dictate with the Verbose keyboard or the Action button. Your totals show up here.")
-                    .font(.system(size: small)).foregroundStyle(.lookMute)
+                    .refinedFont(.meta).foregroundStyle(Refined.mute)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .phoneOutlined(radius: Radius.record)
-    }
-
-    private func stat(_ value: String, _ caption: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            statValue(value)
-            Text(caption).font(.system(size: label)).foregroundStyle(.lookDim)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func statValue(_ value: String) -> some View {
-        Text(value).lookSerif(statSize).foregroundStyle(.lookInk)
-            .lineLimit(1).minimumScaleFactor(0.55)
     }
 
     /// Words per minute while talking, once there's 20 seconds of dictation to judge by (the Mac's rule).
@@ -436,56 +193,90 @@ struct YouScreen: View {
         return "\(a) – \(b)"
     }
 
+    // MARK: About me
+
+    static let aboutPlaceholder = "A line or two about you and your work, and the names you use often."
+
+    /// About me in a card: what you wrote (or a suggestion), and what Verbose does with it. The whole card opens the
+    /// editor (300 characters, with its counter).
+    private var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SerifSectionTitle("About me", link: aboutMe.isEmpty ? "Add" : "Edit") { commitName(); editingAbout = true }
+            Button { commitName(); editingAbout = true } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(aboutMe.isEmpty ? Self.aboutPlaceholder : aboutMe)
+                        .refinedFont(.body)
+                        .foregroundStyle(aboutMe.isEmpty ? Refined.mute : Refined.ink)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Verbose uses this to spell names correctly and to write titles and summaries.")
+                        .refinedFont(.meta).foregroundStyle(Refined.mute)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 16).padding(.vertical, 14)
+                .frame(maxWidth: .infinity, minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
+                .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+                .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
+            }
+            .buttonStyle(RefinedPress())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(aboutMe.isEmpty ? "Add About me" : "Edit About me")
+            .accessibilityValue(aboutMe.isEmpty ? Self.aboutPlaceholder : aboutMe)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Verbose uses this to spell names correctly and to write titles and summaries.")
+        }
+    }
+
+    // MARK: Your voice
+
+    /// Your voice: how well Verbose knows it, and a row that sets it up or reads more passages.
+    private var voiceSection: some View {
+        let known = voice.isEnrolled || voice.isPartial
+        return VStack(alignment: .leading, spacing: 10) {
+            SerifSectionTitle("Your voice")
+            PaperCard {
+                Button { commitName(); showVoice = true } label: {
+                    SettingsRow(hue: RefinedRules.settingsHue(2), art: .iconVoice, title: known ? "Read more passages" : "Set up your voice",
+                                subtitle: voice.line, subtitleLines: nil) {
+                        SettingsChevron()
+                    }
+                }
+                .buttonStyle(SettingsRowPress())
+                .accessibilityHint(known ? "Read more passages so Verbose knows your voice better." : "Set up your voice.")
+            }
+        }
+    }
+
     // MARK: Cleanup
 
     /// The cleanup level (the same setting as Settings › Cleanup), what it does, and a link to Cloud cleanup.
-    private var cleanupCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Cleanup").lookSerif(cardTitle).foregroundStyle(.lookInk)
-                    .accessibilityAddTraits(.isHeader)
-                ViewThatFits(in: .horizontal) {
-                    PhoneSegmented(options: CleanupLevel.allCases.map { ($0, $0.title) }, selection: $flow.cleanup)
-                        .accessibilityElement(children: .contain)
-                        .accessibilityLabel("Cleanup level")
-                    Picker("Cleanup level", selection: $flow.cleanup) {
-                        ForEach(CleanupLevel.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.menu).tint(Ink.ink)
+    private var cleanupSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SerifSectionTitle("Cleanup")
+            PaperCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    RefinedSegmented(label: "Cleanup level", options: CleanupLevel.allCases.map { ($0, $0.title) }, selection: $flow.cleanup)
+                    Text(SettingsScreen.cleanupNote(flow.cleanup))
+                        .refinedFont(.meta).foregroundStyle(Refined.mute)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(SettingsScreen.cleanupNote(flow.cleanup))
-                    .font(.system(size: small)).foregroundStyle(.lookMute)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(16)
-            Rectangle().fill(.lookHairline).frame(height: 1)
-            Button { commitName(); openSettingsRow("cloudCleanup") } label: {
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Cloud cleanup").font(.system(size: body15 + 1)).foregroundStyle(.lookInk)
-                        Text(cloudCleanup ? "On, with your own key" : "Off. Cleanup runs on this iPhone.")
-                            .font(.system(size: small)).foregroundStyle(.lookMute)
-                            .fixedSize(horizontal: false, vertical: true)
+                .padding(14)
+                PaperDivider(leading: 14)
+                Button { commitName(); openSettingsRow("cloudCleanup") } label: {
+                    SettingsRow(hue: RefinedRules.settingsHue(3), art: .iconServer, title: "Cloud cleanup",
+                                subtitle: cloudCleanup ? "On, with your own key" : "Off. Cleanup runs on this iPhone.") {
+                        SettingsValue("Settings"); SettingsChevron()
                     }
-                    .multilineTextAlignment(.leading)
-                    Spacer(minLength: 8)
-                    Text("Settings").font(.system(size: body15)).foregroundStyle(.lookMute)
-                    SettingsChevron()
                 }
-                .padding(.horizontal, 16).padding(.vertical, 12)
-                .frame(minHeight: 50)
-                .contentShape(Rectangle())
+                .buttonStyle(SettingsRowPress())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Cloud cleanup")
+                .accessibilityValue(cloudCleanup ? "On" : "Off")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Opens it in Settings.")
             }
-            .buttonStyle(SettingsRowPress())
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Cloud cleanup")
-            .accessibilityValue(cloudCleanup ? "On" : "Off")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityHint("Opens it in Settings.")
         }
-        .background(.lookCard, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.record, style: .continuous).strokeBorder(.lookHairline))
     }
 
     // MARK: Footer
@@ -497,9 +288,9 @@ struct YouScreen: View {
         return Group {
             if !files.isEmpty {
                 Text("You've also transcribed \(Self.total(seconds)) across \(files.count) \(files.count == 1 ? "recording or link" : "recordings and links").")
-                    .font(.system(size: small)).foregroundStyle(.lookMute)
+                    .refinedFont(.meta).foregroundStyle(Refined.mute)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 14)
             }
         }
     }
@@ -510,67 +301,5 @@ struct YouScreen: View {
         let m = Int((s / 60).rounded())
         if m < 60 { return "\(m) min" }
         return m % 60 == 0 ? "\(m / 60) h" : "\(m / 60) h \(m % 60) min"
-    }
-}
-
-// MARK: - Week bars
-
-/// Seven day bars over mono day letters. Today is butter with an ink outline, earlier days ink, and days still to
-/// come a short stub. Scaled to the week's busiest day.
-struct YouWeekBars: View {
-    var week: HomeWeek
-    @ScaledMetric(relativeTo: .caption) private var monoSize: CGFloat = 12
-
-    var body: some View {
-        let peak = CGFloat(max(1, week.peak))
-        let letters = Calendar.current.veryShortStandaloneWeekdaySymbols
-        HStack(alignment: .bottom, spacing: 8) {
-            ForEach(Array(week.days.enumerated()), id: \.offset) { _, day in
-                VStack(spacing: 6) {
-                    GeometryReader { g in
-                        let full = g.size.height
-                        let h: CGFloat = day.isFuture || day.words == 0 ? 3 : max(6, full * CGFloat(day.words) / peak)
-                        VStack(spacing: 0) {
-                            Spacer(minLength: 0)
-                            bar(day, height: day.isToday ? max(h, 8) : h)
-                        }
-                        .frame(width: g.size.width, height: full)
-                    }
-                    Text(letters[(Calendar.current.component(.weekday, from: day.start) - 1) % letters.count])
-                        .lookMono(monoSize, weight: day.isToday ? .semibold : .regular)
-                        .foregroundStyle(day.isToday ? Ink.ink : Ink.mute)
-                        .lineLimit(1).minimumScaleFactor(0.6)
-                }
-                .frame(maxWidth: .infinity)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Words by day")
-        .accessibilityValue(summary)
-    }
-
-    @ViewBuilder private func bar(_ day: HomeWeek.Day, height: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 3, style: .continuous)
-        if day.isToday {
-            shape.fill(PhoneInk.butter)
-                .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
-                .frame(maxWidth: 30).frame(height: height)
-        } else if day.isFuture || day.words == 0 {
-            shape.fill(Ink.ink.opacity(day.isFuture ? 0.18 : 0.32))
-                .frame(maxWidth: 30).frame(height: height)
-        } else {
-            shape.fill(Ink.ink).frame(maxWidth: 30).frame(height: height)
-        }
-    }
-
-    /// "Monday 120 words, Tuesday none, Wednesday (today) 40 words, Thursday to come…"
-    private var summary: String {
-        week.days.map { day in
-            let name = Formats.pattern("EEEE").string(from: day.start)
-            if day.isFuture { return "\(name), to come" }
-            let words = day.words == 0 ? "no words" : HomeCounts.countLabel(day.words, "word", "words")
-            return day.isToday ? "\(name), today, \(words)" : "\(name), \(words)"
-        }
-        .joined(separator: "; ")
     }
 }

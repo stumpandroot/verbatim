@@ -14,7 +14,7 @@ struct CloudCleanupRows: View {
     private var provider: CloudCleanup.Provider { CloudCleanup.Provider(rawValue: providerRaw) ?? .anthropic }
 
     var body: some View {
-        SettingsToggleRow(icon: "cloud", tint: Ink.sageTint, art: .iconSync, title: "Cloud cleanup",
+        SettingsToggleRow(title: "Cloud cleanup",
                           subtitle: on ? CloudCleanup.privacyNote(provider) : "Off. Cleanup runs on this iPhone.", isOn: $on)
             .settingsSearchTarget("cloudCleanup", flash: searchFlash)
             .onAppear(perform: load)
@@ -26,7 +26,7 @@ struct CloudCleanupRows: View {
                     ForEach(CloudCleanup.Provider.allCases) { p in Text(p.title).tag(p.rawValue) }
                 }
             } label: {
-                SettingsRow(icon: "server.rack", tint: Ink.sageTint, art: .iconServer, title: "Provider", bounce: providerRaw) {
+                SettingsRow(hue: .sage, art: .iconServer, title: "Provider") {
                     SettingsValue(provider.title); SettingsMenuMark()
                 }
             }

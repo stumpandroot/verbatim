@@ -138,12 +138,12 @@ struct VoiceProfileScreen: View {
     /// The switches that use the profile and Delete voice profile, confirmed in place.
     private var controls: some View {
         VStack(spacing: 0) {
-            SettingsToggleRow(icon: "waveform", tint: Ink.persimmonTint, art: .iconVoice, title: "Only keep my voice in dictation",
+            SettingsToggleRow(title: "Only keep my voice in dictation",
                               subtitle: status.isEnrolled ? "Other voices nearby are left out." : "Available once Verbose knows your voice.",
                               isOn: $onlyMyVoice)
                 .disabled(!status.isEnrolled)
             SettingsDivider()
-            SettingsToggleRow(icon: "person", tint: Ink.petalTint, art: .iconSpeakers, title: "Label my lines as “You”",
+            SettingsToggleRow(title: "Label my lines as “You”",
                               subtitle: "New transcripts name your speaker You.", isOn: $labelYou)
                 .disabled(!status.isEnrolled)
             if status.isEnrolled || status.isPartial {
@@ -170,7 +170,7 @@ struct VoiceProfileScreen: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     Button { confirmingDelete = true } label: {
-                        SettingsRow(icon: "trash", tint: Ink.persimmonTint, art: .iconDeleteAll, title: "Delete voice profile", danger: true) { EmptyView() }
+                        SettingsRow(hue: .persimmon, art: .iconDeleteAll, title: "Delete voice profile", danger: true) { EmptyView() }
                     }
                     .buttonStyle(SettingsRowPress())
                 }

@@ -329,61 +329,47 @@ final class SettingsSearchModel: ObservableObject {
     var isActive: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 }
 
-// MARK: - Field
-
-/// The search field under the Settings title: the website's wash capsule (`PhoneSearchField`).
-struct SettingsSearchField: View {
-    @Binding var text: String
-    var onSubmit: () -> Void = {}
-
-    var body: some View {
-        PhoneSearchField(text: $text, prompt: "Search settings", onSubmit: onSubmit)
-    }
-}
-
 // MARK: - Results
 
-/// Results grouped by section ("◇ KEYBOARD · 3"), each group a card of rows with the query highlighted.
+/// Results grouped by section ("Dictation and keyboard · 3"), each group a card of rows with the query highlighted
+/// (the refined kit's `PaperSection`).
 struct SettingsSearchResults: View {
     var query: String
     var value: (String) -> String?
     var onPick: (SettingsSearchEntry) -> Void
-    @ScaledMetric(relativeTo: .caption) private var overline: CGFloat = 11
 
     var body: some View {
         let groups = SettingsSearchIndex.search(query)
         VStack(alignment: .leading, spacing: 0) {
             if groups.isEmpty {
                 Text("No settings match \u{201C}\(query.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}.")
-                    .font(.body).foregroundStyle(.lookDim)
+                    .refinedFont(.body).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 14)
                     .padding(.top, 24)
             }
             ForEach(groups) { group in
                 VStack(alignment: .leading, spacing: 8) {
                     Text("\(group.section) \u{00B7} \(group.entries.count)")
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim)
-                        .padding(.horizontal, 4)
+                        .refinedFont(.meta).foregroundStyle(Refined.mute)
+                        .padding(.horizontal, 14)
                         .accessibilityLabel("\(group.section), \(group.entries.count) \(group.entries.count == 1 ? "result" : "results")")
                         .accessibilityAddTraits(.isHeader)
-                    VStack(spacing: 0) {
+                    PaperCard {
                         ForEach(Array(group.entries.enumerated()), id: \.element.id) { i, entry in
-                            if i > 0 { Rectangle().fill(.lookHairline).frame(height: 1).padding(.leading, 14) }
+                            if i > 0 { PaperDivider(leading: 14) }
                             Button { onPick(entry) } label: {
                                 SettingsSearchResultRow(entry: entry, query: query, value: value(entry.id))
                             }
                             .buttonStyle(SettingsRowPress())
                         }
                     }
-                    .cardSurface(radius: Radius.row)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 }
                 .padding(.top, 22)
             }
             Text("Clear the search to see every setting.")
-                .font(.footnote).foregroundStyle(.lookMute)
+                .refinedFont(.meta).foregroundStyle(Refined.mute)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 30)
@@ -396,23 +382,22 @@ struct SettingsSearchResultRow: View {
     var entry: SettingsSearchEntry
     var query: String
     var value: String?
-    @Environment(\.look) private var look
 
     var body: some View {
-        let labelHit = Self.highlighted(entry.label, query: query, native: look.isNative)
-        let descHit = entry.description.map { Self.highlighted($0, query: query, native: look.isNative) }
+        let labelHit = Self.highlighted(entry.label, query: query)
+        let descHit = entry.description.map { Self.highlighted($0, query: query) }
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(labelHit.text).font(.body).foregroundStyle(.lookInk)
+                Text(labelHit.text).refinedFont(.body).foregroundStyle(Refined.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 if !labelHit.matched, let descHit, descHit.matched {
-                    Text(descHit.text).font(.footnote).foregroundStyle(.lookMute)
+                    Text(descHit.text).refinedFont(.meta).foregroundStyle(Refined.mute)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .multilineTextAlignment(.leading)
             Spacer(minLength: 8)
-            if let value { Text(value).font(.body).foregroundStyle(.lookMute).lineLimit(1) }
+            if let value { SettingsValue(value) }
             SettingsChevron()
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
@@ -431,10 +416,8 @@ struct SettingsSearchResultRow: View {
         }
     }
 
-    /// `text` with each occurrence of the whole query (or else of each query word) on a persimmon tint.
-    /// The matches in bold on the persimmon tint (Verbose style), or in bold label color on the system's yellow
-    /// find highlight (Native, as Safari's and Notes' find do).
-    static func highlighted(_ text: String, query: String, native: Bool = false) -> (text: AttributedString, matched: Bool) {
+    /// `text` with each occurrence of the whole query (or else of each query word) in ink on the persimmon tint.
+    static func highlighted(_ text: String, query: String) -> (text: AttributedString, matched: Bool) {
         var out = AttributedString(text)
         let full = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let needles = text.localizedStandardContains(full) ? [full] : full.split(whereSeparator: \.isWhitespace).map(String.init)
@@ -443,8 +426,8 @@ struct SettingsSearchResultRow: View {
             var from = out.startIndex
             while from < out.endIndex,
                   let r = out[from...].range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) {
-                out[r].backgroundColor = native ? NativeFind.highlight : Ink.persimmonTint
-                out[r].foregroundColor = native ? NativeInk.label : Ink.ink
+                out[r].backgroundColor = Refined.persimmonTint
+                out[r].foregroundColor = Refined.ink
                 matched = true
                 from = r.upperBound
             }
@@ -460,7 +443,7 @@ extension View {
     /// counts itself on screen while it's laid out (SettingsRowRegistry), for the self-test.
     func settingsSearchTarget(_ id: String, flash: String?) -> some View {
         self
-            .background(Rectangle().fill(.lookWash).opacity(flash == id ? 1 : 0).allowsHitTesting(false))
+            .background(Rectangle().fill(Refined.persimmonTint).opacity(flash == id ? 1 : 0).allowsHitTesting(false))
             .animation(Motion.fade, value: flash == id)
             .id(id)
             .onAppear { SettingsRowRegistry.appeared(id) }

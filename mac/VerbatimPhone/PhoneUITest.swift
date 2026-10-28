@@ -308,13 +308,14 @@ enum PhoneUITest {
                 app.libraryFilterRequest = "all"
                 app.tab = .settings
                 await show("\(prefix)09-settings")
+                if prefix == "p" { lookCheck("Settings draws the refined layout in \(AppLook.current.label)", SettingsScreen.onScreen.contains(AppLook.current)) }
                 // The seven groups run long: the middle (Dictation and keyboard) and the end (Features and the version).
                 await settingsScrollShots(prefix: prefix, suffix: "")
                 if prefix == "p" { await settingsSearchResolves(app, native: false) }
                 SettingsSearchModel.shared.query = "keyboard"
                 await show("\(prefix)09b-settings-search")
                 SettingsSearchModel.shared.query = ""
-                // Settings › Appearance: the look picker, light or dark, and Limit animation.
+                // Settings › Appearance: the look as a plain row, the palette, and light or dark.
                 SettingsPage.open("appearance")
                 await show("\(prefix)09m-appearance")
                 if prefix == "p" { lookCheck("Settings opens Appearance", AppearanceScreen.visible) }
@@ -331,6 +332,7 @@ enum PhoneUITest {
                 HomeScreen.openProfile(app)
                 await show("\(prefix)09f-you")
                 if prefix == "p" { youCheck("This week opens the You page", app.tab == .settings && YouScreen.visible) }
+                if prefix == "p" { youCheck("the You page draws the refined layout in \(AppLook.current.label)", YouScreen.onScreen.contains(AppLook.current)) }
                 NotificationCenter.default.post(name: .verbatimYouPage, object: true)
                 await show("\(prefix)09g-you-about-me")
                 if prefix == "p" { youCheck("the You page opens About me", AboutMeScreen.visible) }
@@ -466,7 +468,7 @@ enum PhoneUITest {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 HomeScreen.openProfile(app)
                 await show("\(prefix)09f-you-native")
-                if prefix == "p" { youCheck("You in Native shows the week, year, and calendar cards", YouScreen.visible && PremiumYouStats.visible) }
+                if prefix == "p" { youCheck("You in Native draws the same refined page", YouScreen.visible && YouScreen.onScreen.contains(.native)) }
                 NotificationCenter.default.post(name: .verbatimYouPage, object: false)
                 try? await Task.sleep(nanoseconds: 900_000_000)
                 app.openMarked()
@@ -474,6 +476,7 @@ enum PhoneUITest {
                 app.libraryFilterRequest = "all"
                 app.tab = .settings
                 await show("\(prefix)09-settings-native")
+                if prefix == "p" { lookCheck("Settings in Native draws the same refined layout", SettingsScreen.onScreen.contains(.native)) }
                 await settingsScrollShots(prefix: prefix, suffix: "-native")
                 if prefix == "p" { await settingsSearchResolves(app, native: true) }
                 SettingsPage.open("appearance")
@@ -1947,9 +1950,10 @@ enum PhoneUITest {
             if ok { pass += 1 } else { fail += 1 }
             Log.note("UITEST \(ok ? "PASS" : "FAIL") review A: \(name)")
         }
-        // P-01: every settings square is the neutral wash, whatever tint a row passes.
-        check("settings tiles are neutral (P-01)", [Ink.persimmonTint, Ink.butterTint, Ink.sageTint, Ink.petalTint, PhoneInk.wash]
-            .allSatisfy { SettingsLabel.square(for: $0) == PhoneInk.wash })
+        // P-01, superseded by the refined look (DESIGN.md §13): Settings' squares take the four hues in turn down a card,
+        // and a destructive row's square is neutral.
+        check("settings squares cycle persimmon, butter, sage, petal (refined, was P-01)",
+              (0..<5).map { RefinedRules.settingsHue($0) } == [.persimmon, .butter, .sage, .petal, .persimmon])
         // P-04: one switch for haptics, on by default, and searchable.
         let hapticsKey = Haptics.enabledKey
         let hapticsStore = Haptics.store
@@ -1980,7 +1984,7 @@ enum PhoneUITest {
         check("Recent recordings run newest first (P-15)", zip(recent, recent.dropFirst()).allSatisfy { $0.createdAt >= $1.createdAt }
               && !recent.contains(where: \.isDictation))
         // P-16: no "?" for a missing name.
-        check("no name means no initials, never \"?\" (P-16)", HomeScreen.initials("") == "" && HomeScreen.initials("Tim Medina") == "TM")
+        check("no name means no initial, never \"?\" (P-16)", RefinedRules.initial("") == nil && RefinedRules.initial("Tim Medina") == "T")
         // P-21: an item with nothing to play carries its length in the date line.
         var silent = Transcript(title: "Self-test silent", source: .file, sourceLabel: "MP3 file", duration: 1920, audioFileName: nil, model: "")
         silent.status = .ready
@@ -2029,8 +2033,9 @@ enum PhoneUITest {
         let chrome: [Color] = [NativeInk.accent, NativeInk.record, NativeInk.paper, NativeInk.plain, NativeInk.card, NativeInk.fill, NativeInk.onAccent]
         check("no persimmon in Native's chrome", !chrome.contains { c in persimmons.contains { sameColor(c, UIColor(Color(hex: $0))) } })
         check("Native's recorder clock shows hundredths", NativeRules.recorderClock(138.41) == "02:18.41")
-        check("no Settings square is red: red means recording", !NativeRules.Square.allCases.contains { sameColor($0.color, .systemRed) })
-        check("Settings' Appearance square is blue, as in Apple's Settings", sameColor(NativeRules.square(for: "circle.lefthalf.filled").color, .systemBlue))
+        check("Settings' squares take the four hues, never red: red means recording", !RefinedRules.settingsRotation.contains(.neutral)
+              && RefinedRules.settingsHue(0, destructive: true) == .neutral)
+        check("Settings' Appearance square is persimmon, as in the mockup", RefinedRules.settingsHue(0) == .persimmon)
         Log.note("UITEST premium checks: \(pass) passed, \(fail) failed")
     }
 
