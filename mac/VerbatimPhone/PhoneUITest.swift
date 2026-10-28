@@ -776,9 +776,11 @@ enum PhoneUITest {
             check("By day opens on Thoughts with a dot on each day this month that has one",
                   ByDayScreen.shown?.kind == .idea && ByDayScreen.shown?.dots == dots(.idea) && dots(.idea) > 0)
         }
-        var path = NavigationPath()
-        path.append(ByDayRoute(kind: .journal))
-        app.libraryPath = path
+        // Pop to the Library first: swapping one By day for another in place keeps the first one's view and its kind
+        // (build 238 showed Thoughts for Journal).
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        app.libraryPath.append(ByDayRoute(kind: .journal))
         await show("\(prefix)04h-by-day-journal\(suffix)")
         if checks {
             check("By day shows Journal the same way", ByDayScreen.shown?.kind == .journal && ByDayScreen.shown?.dots == dots(.journal) && dots(.journal) > 0)
