@@ -299,6 +299,158 @@ enum WatchInk {
     static let onToast = Color(hex: Ink.inkHex)
 }
 
+// MARK: - The look (refined)
+
+// The one look that replaces Verbose style and Native (DESIGN.md §13; approved mockup "Verbose Refined Look", October
+// 28, 2026). Apple draws the chrome; these values draw the content. Every value has a light and a dark value, and an
+// Increase Contrast value where the plain one is too faint. The table is plain Swift between the two markers, so
+// mac/tools/test-refined.sh lifts it out and checks every text pair the kit draws against 4.5:1 on Linux.
+//
+// Changes from the mockup's colors, for contrast: a persimmon fill is #FB7350 (ink on the mockup's #FA6B47 measures
+// 4.45:1), and dark mode's persimmon fill is #F27A57 (ink on the deeper #E2694B measures 3.9:1). The other three fills
+// in dark are the color panels' deeper values (§1.7).
+
+// refined-table begin
+/// The refined look's values as 0xRRGGBB, read by `Refined` (below) and by the pure rules (Views/RefinedRules.swift).
+enum RefinedHex {
+    /// One color: light, dark, and the two Increase Contrast values (the plain ones unless given).
+    struct Tone: Equatable {
+        let light: UInt32, dark: UInt32, hcLight: UInt32, hcDark: UInt32
+        init(_ light: UInt32, _ dark: UInt32, hc: (light: UInt32, dark: UInt32)? = nil) {
+            self.light = light; self.dark = dark
+            hcLight = hc?.light ?? light; hcDark = hc?.dark ?? dark
+        }
+        func value(dark isDark: Bool, increased: Bool) -> UInt32 {
+            isDark ? (increased ? hcDark : dark) : (increased ? hcLight : light)
+        }
+    }
+
+    /// A tone laid over whatever is under it at an opacity: light, dark, and the two Increase Contrast opacities.
+    struct Wash: Equatable {
+        let base: Tone
+        let light: Double, dark: Double, hcLight: Double, hcDark: Double
+        init(_ base: Tone, _ light: Double, _ dark: Double, hc: (light: Double, dark: Double)? = nil) {
+            self.base = base; self.light = light; self.dark = dark
+            hcLight = hc?.light ?? light; hcDark = hc?.dark ?? dark
+        }
+        func alpha(dark isDark: Bool, increased: Bool) -> Double {
+            isDark ? (increased ? hcDark : dark) : (increased ? hcLight : light)
+        }
+    }
+
+    // Surfaces
+    /// The page.
+    static let paper = Tone(0xF5F0E6, 0x18241F)
+    /// Off-white cards and grouped containers, and the neutral tile. No outline; a hairline under Increase Contrast.
+    static let card = Tone(0xFFFDF9, 0x202F28)
+    /// Search fields on the page.
+    static let field = Tone(0xEBE5D9, 0x24332C)
+    /// A segmented control's track.
+    static let track = Tone(0xE8E2D6, 0x2A3A33)
+    /// The Mac player's scrub rail and an off switch on the Mac.
+    static let rail = Tone(0xE0D9CB, 0x33433B)
+
+    // Text
+    static let ink = Tone(0x26352E, 0xF5F0E6)
+    static let dim = Tone(0x545E56, 0xD4CDC0, hc: (0x26352E, 0xF5F0E6))
+    static let mute = Tone(0x606962, 0xA1A29A, hc: (0x3E4A43, 0xD4CDC0))
+    /// Chevrons and other marks that repeat a word beside them; never text.
+    static let faint = Tone(0x8E938A, 0x6F7A72, hc: (0x606962, 0xA1A29A))
+    /// Persimmon for text and glyphs: links, the selected tab, a selected filter chip, the Mac's switches.
+    static let accentText = Tone(0xB23F24, 0xFF8A6B)
+    /// Sage for text: a playing line's time.
+    static let sageText = Tone(0x4F6440, 0xB9CDA3)
+    /// Ink on a Full fill, in both modes: the fills stay light in dark mode, so their text stays ink.
+    static let onFill = Tone(0x26352E, 0x26352E)
+    /// Reader white in both modes: the ready chip's lift on the Record card.
+    static let lift = Tone(0xFFFDF9, 0xFFFDF9)
+
+    // Fills (the Full palette): the Record card, tiles, kind badges, speaker and kind chips, and icon squares.
+    static let persimmon = Tone(0xFB7350, 0xF27A57)
+    static let butter = Tone(0xF4C76B, 0xDDB563)
+    static let sage = Tone(0xAFC398, 0x9DB088)
+    static let petal = Tone(0xEFB6C8, 0xD9A3B5)
+
+    // Tints (the Soft palette's Record card and tiles; a selected filter chip or row)
+    static let persimmonTint = Tone(0xFDE4DA, 0x3A2A22)
+    static let butterTint = Tone(0xFCF0D2, 0x332E20)
+    static let sageTint = Tone(0xE9EFE0, 0x26322A)
+    static let petalTint = Tone(0xFAE6EC, 0x33282D)
+    /// An icon square with no hue (Settings rows that aren't one of the four).
+    static let neutralSquare = Tone(0xE6DFD1, 0x2E3B34)
+
+    // Playback (sage means playback)
+    static let played = Tone(0x6E8A58, 0x9DB088)
+    static let waveRest = Tone(0xCFC8BA, 0x56665D)
+
+    /// A switch that's on, on the Mac (iPhone switches stay the system's green). Dark is the deeper panel persimmon,
+    /// so the white knob still reads on it (3.3:1; the light accent text measures 2.3:1).
+    static let macSwitch = Tone(0xB23F24, 0xE2694B)
+
+    // Washes
+    /// Hairline separators inside cards, and a card's edge under Increase Contrast.
+    static let separator = Wash(ink, 0.10, 0.12, hc: (0.40, 0.30))
+    /// Quiet buttons and chips at rest (filter chips, the recorder's Mark and Pause).
+    static let neutral = Wash(ink, 0.07, 0.08, hc: (0.12, 0.14))
+    /// The line being played.
+    static let playing = Wash(Tone(0xAFC398, 0x93A87C), 0.32, 0.20, hc: (0.45, 0.30))
+    /// The Record card's rings on a Full fill, and on a Soft tint.
+    static let ringFull = Wash(onFill, 0.28, 0.28, hc: (0.45, 0.45))
+    static let ringSoft = Wash(accentText, 0.35, 0.35, hc: (0.55, 0.55))
+    /// The ready chip on a Full fill: reader white at 30% (ink on it 6.3:1; the mockup's ink at 10% measures 4.1:1).
+    static let chipFull = Wash(lift, 0.30, 0.30, hc: (0.45, 0.45))
+    /// The ready chip on a Soft tint.
+    static let chipSoft = Wash(ink, 0.10, 0.12)
+    /// The player bar where system glass isn't available (before macOS 26 and iOS 26).
+    static let glassFallback = Wash(card, 0.92, 0.92, hc: (1, 1))
+}
+// refined-table end
+
+/// The refined look's colors (DESIGN.md §13), built once from `RefinedHex`. They never turn into the Mac's Native
+/// system colors: the kit draws only the refined look. Palette-dependent fills come from `RefinedRules`.
+enum Refined {
+    static func color(_ t: RefinedHex.Tone) -> Color {
+        Ink.make { dark, hc in PColor(hex: t.value(dark: dark, increased: hc)) }
+    }
+    static func color(_ w: RefinedHex.Wash) -> Color {
+        Ink.make { dark, hc in
+            PColor(hex: w.base.value(dark: dark, increased: hc)).withAlphaComponent(CGFloat(w.alpha(dark: dark, increased: hc)))
+        }
+    }
+
+    static let paper = color(RefinedHex.paper)
+    static let card = color(RefinedHex.card)
+    static let field = color(RefinedHex.field)
+    static let track = color(RefinedHex.track)
+    static let rail = color(RefinedHex.rail)
+    static let ink = color(RefinedHex.ink)
+    static let dim = color(RefinedHex.dim)
+    static let mute = color(RefinedHex.mute)
+    static let faint = color(RefinedHex.faint)
+    static let accentText = color(RefinedHex.accentText)
+    static let sageText = color(RefinedHex.sageText)
+    static let onFill = color(RefinedHex.onFill)
+    static let persimmon = color(RefinedHex.persimmon)
+    static let butter = color(RefinedHex.butter)
+    static let sage = color(RefinedHex.sage)
+    static let petal = color(RefinedHex.petal)
+    static let persimmonTint = color(RefinedHex.persimmonTint)
+    static let butterTint = color(RefinedHex.butterTint)
+    static let sageTint = color(RefinedHex.sageTint)
+    static let petalTint = color(RefinedHex.petalTint)
+    static let neutralSquare = color(RefinedHex.neutralSquare)
+    static let played = color(RefinedHex.played)
+    static let waveRest = color(RefinedHex.waveRest)
+    static let macSwitch = color(RefinedHex.macSwitch)
+    static let separator = color(RefinedHex.separator)
+    static let neutral = color(RefinedHex.neutral)
+    static let playing = color(RefinedHex.playing)
+    static let glassFallback = color(RefinedHex.glassFallback)
+    /// The record disc's dot and the stop square: the system's red (it adapts to dark mode and Increase Contrast),
+    /// and nowhere else.
+    static let recordRed = Color.red
+}
+
 // MARK: - Look switch card
 
 /// Verbose style's paper, card, ink, and hard shadow, which never turn into Native's system colors on the Mac (`dyn`

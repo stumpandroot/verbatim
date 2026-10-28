@@ -1,0 +1,244 @@
+import Foundation
+
+// The refined look's pure rules (DESIGN.md §13): the Palette setting, which fill each hue gets in each palette and
+// what sits on it, the kinds' colors, the speakers' fixed rotation, the type sizes and radii on each device, and the
+// WCAG contrast math. Foundation only, so mac/tools/test-refined.sh compiles it on Linux with the `RefinedHex` table
+// it lifts out of Views/Tokens.swift. The SwiftUI kit (Views/RefinedKit.swift, Views/RefinedPlayback.swift) reads
+// everything here; it never picks a fill on its own.
+
+/// Settings › Personalization › Palette: how much color the refined look puts on its big surfaces. Stored per device
+/// with the other appearance settings (`AppLook.store`: the App Group on iPhone, the Mac's own defaults), never synced.
+enum AppPalette: String, CaseIterable, Identifiable, Sendable {
+    /// The brand fills: the persimmon Record card, butter, sage, and petal tiles. The default.
+    case full
+    /// Light tints of the same four, with ink on them.
+    case soft
+
+    var id: String { rawValue }
+    static let key = "appearance.palette"
+
+    var label: String {
+        switch self {
+        case .full: return "Full"
+        case .soft: return "Soft"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .full: return "A persimmon Record card and bright tiles"
+        case .soft: return "Light tints on the Record card and tiles"
+        }
+    }
+
+    /// The stored value; nothing stored (a new install) or anything unknown reads as Full.
+    init(stored: String?) { self = stored.flatMap(AppPalette.init(rawValue:)) ?? .full }
+}
+
+/// The four brand hues, plus neutral (the off-white card). One color, one meaning holds by place: on Home's tiles a
+/// hue says which action; on a kind badge it says which kind; on a speaker chip it only tells speakers apart.
+enum RefinedHue: String, CaseIterable, Sendable {
+    case persimmon, butter, sage, petal, neutral
+}
+
+enum RefinedRules {
+    // MARK: Palette
+
+    /// The fill of a palette surface (the Record card and Home's tiles). Full uses the brand fills, Soft their tints;
+    /// neutral is the card in both.
+    static func fill(_ hue: RefinedHue, palette: AppPalette) -> RefinedHex.Tone {
+        switch (hue, palette) {
+        case (.neutral, _): return RefinedHex.card
+        case (_, .full): return badgeFill(hue)
+        case (.persimmon, .soft): return RefinedHex.persimmonTint
+        case (.butter, .soft): return RefinedHex.butterTint
+        case (.sage, .soft): return RefinedHex.sageTint
+        case (.petal, .soft): return RefinedHex.petalTint
+        }
+    }
+
+    /// Text and glyphs on a palette surface: ink fixed on a Full fill (the fills stay light in dark mode), the
+    /// reading ink on a Soft tint or the card (they turn dark in dark mode).
+    static func onFill(_ hue: RefinedHue, palette: AppPalette) -> RefinedHex.Tone {
+        hue != .neutral && palette == .full ? RefinedHex.onFill : RefinedHex.ink
+    }
+
+    /// The Record card's fill, its rings, and its ready chip.
+    static func recordFill(_ palette: AppPalette) -> RefinedHex.Tone { fill(.persimmon, palette: palette) }
+    static func recordInk(_ palette: AppPalette) -> RefinedHex.Tone { onFill(.persimmon, palette: palette) }
+    static func rings(_ palette: AppPalette) -> RefinedHex.Wash { palette == .full ? RefinedHex.ringFull : RefinedHex.ringSoft }
+    static func readyChip(_ palette: AppPalette) -> RefinedHex.Wash { palette == .full ? RefinedHex.chipFull : RefinedHex.chipSoft }
+
+    /// Which surfaces follow the palette. Kind badges, speaker and kind chips, and icon squares are small and keep
+    /// the Full fills in both palettes, as in the mockup.
+    static let paletteSurfaces = ["Record card", "tiles", "recorder clock panel"]
+
+    // MARK: Badges, chips, and squares
+
+    /// The Full fill for a hue (kind badges, chips, icon squares). Neutral is the icon square's quiet fill.
+    static func badgeFill(_ hue: RefinedHue) -> RefinedHex.Tone {
+        switch hue {
+        case .persimmon: return RefinedHex.persimmon
+        case .butter: return RefinedHex.butter
+        case .sage: return RefinedHex.sage
+        case .petal: return RefinedHex.petal
+        case .neutral: return RefinedHex.neutralSquare
+        }
+    }
+
+    /// The glyph or text on a badge: ink fixed on a hue, the reading ink on the neutral square.
+    static func onBadge(_ hue: RefinedHue) -> RefinedHex.Tone { hue == .neutral ? RefinedHex.ink : RefinedHex.onFill }
+
+    /// A kind's color, by `RecordingKind` raw value (nil is a voice note: a recording Verbose hasn't given a kind).
+    /// Meeting and voice note persimmon, interview and talk sage, audio and journal petal, thought and brain dump
+    /// butter. The kinds the mockup doesn't show follow what they are: a note is a voice note, a dictation is
+    /// butter (Dictate), a podcast petal (listening), a video sage (imported).
+    static func kindHue(_ raw: String?) -> RefinedHue {
+        switch raw {
+        case nil, "note", "meeting": return .persimmon
+        case "interview", "talk", "video": return .sage
+        case "audio", "journal", "podcast": return .petal
+        case "idea", "brainDump", "dictation": return .butter
+        default: return .persimmon
+        }
+    }
+
+    /// Speakers in a transcript take the four hues in a fixed order by speaker order, and around again. The name is
+    /// always on the chip; the hue only tells speakers apart.
+    static let speakerRotation: [RefinedHue] = [.persimmon, .petal, .sage, .butter]
+    static func speakerHue(_ index: Int) -> RefinedHue {
+        let n = speakerRotation.count
+        return speakerRotation[((index % n) + n) % n]
+    }
+
+    // MARK: Type and size
+
+    /// The kit's type roles. Serif (New York) for large titles, section titles, the Record card's title, and the
+    /// transcript's reading text; SF Pro for everything else.
+    enum TextRole: CaseIterable, Sendable {
+        case largeTitle, transcriptTitle, sectionTitle, recordTitle, reading, body, rowTitle, hint, meta, chip, tileName, caption, clock
+
+        var serif: Bool {
+            switch self {
+            case .largeTitle, .transcriptTitle, .sectionTitle, .recordTitle, .reading: return true
+            default: return false
+            }
+        }
+
+        /// Point size at the default text size (iPhone) or on the Mac. iPhone sizes scale with Dynamic Type.
+        func size(mac: Bool) -> Double {
+            switch self {
+            case .largeTitle: return mac ? 36 : 34
+            case .transcriptTitle: return mac ? 32 : 28
+            case .sectionTitle: return mac ? 20 : 22
+            case .recordTitle: return mac ? 34 : 32
+            case .reading: return mac ? 18 : 19
+            case .body: return mac ? 13.5 : 16
+            case .rowTitle: return mac ? 13.5 : 16
+            case .hint: return mac ? 13.5 : 14
+            case .meta: return mac ? 12.5 : 13
+            case .chip: return mac ? 12 : 13
+            case .tileName: return mac ? 15 : 16
+            case .caption: return mac ? 11 : 12
+            case .clock: return mac ? 34 : 60
+            }
+        }
+
+        /// Line height as a multiple of the size (the mockup's CSS line-height); only reading text sets it.
+        func lineHeight(mac: Bool) -> Double {
+            self == .reading ? (mac ? 1.55 : 1.45) : 1.2
+        }
+    }
+
+    /// SwiftUI's `lineSpacing` (the space added between lines) for a role: the line height less the font's own
+    /// line, which is about 1.2 times its size.
+    static func lineSpacing(_ role: TextRole, mac: Bool) -> Double {
+        max(0, (role.lineHeight(mac: mac) - 1.2) * role.size(mac: mac))
+    }
+
+    /// The smallest tap target (Apple's 44 pt).
+    static let minTapTarget: Double = 44
+
+    enum RadiusRole: CaseIterable, Sendable {
+        /// Grouped cards (Library rows, Settings groups, Recent).
+        case card
+        /// Home's tiles.
+        case tile
+        /// The Record card and the recorder's clock panel.
+        case record
+        /// Icon squares.
+        case square
+        /// Search fields.
+        case field
+    }
+
+    static func radius(_ role: RadiusRole, mac: Bool) -> Double {
+        switch role {
+        case .card: return mac ? 12 : 14
+        case .tile: return mac ? 14 : 16
+        case .record: return mac ? 18 : 22
+        case .square: return mac ? 6 : 8
+        case .field: return mac ? 8 : 10
+        }
+    }
+
+    /// An icon square's side and the glyph inside it.
+    static func squareSize(mac: Bool) -> (side: Double, glyph: Double) { mac ? (22, 16) : (30, 18) }
+
+    // MARK: Times
+
+    /// A time or length as the player and rows show it: "0:07", "12:30", "1:02:14".
+    static func time(_ seconds: Double) -> String {
+        let s = max(0, Int(seconds.isFinite ? seconds.rounded(.down) : 0))
+        let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
+    }
+
+    /// The recorder's clock, with hundredths: "01:12.48", and "1:01:12.48" past an hour.
+    static func clock(_ seconds: Double) -> String {
+        let total = max(0, Int((seconds.isFinite ? seconds : 0) * 100))
+        let cs = total % 100, s = total / 100
+        let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
+        return h > 0 ? String(format: "%d:%02d:%02d.%02d", h, m, sec, cs) : String(format: "%02d:%02d.%02d", m, sec, cs)
+    }
+
+    /// A length read aloud: "1 minute 12 seconds".
+    static func spokenTime(_ seconds: Double) -> String {
+        let s = max(0, Int(seconds.isFinite ? seconds.rounded(.down) : 0))
+        let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
+        func unit(_ n: Int, _ one: String) -> String? { n == 0 ? nil : "\(n) \(one)\(n == 1 ? "" : "s")" }
+        let parts = [unit(h, "hour"), unit(m, "minute"), unit(sec, "second")].compactMap { $0 }
+        return parts.isEmpty ? "0 seconds" : parts.joined(separator: " ")
+    }
+
+    // MARK: Contrast (WCAG 2.x)
+
+    /// Relative luminance of an sRGB color given as 0xRRGGBB.
+    static func luminance(_ hex: UInt32) -> Double {
+        func channel(_ v: UInt32) -> Double {
+            let c = Double(v & 0xFF) / 255
+            return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(hex >> 16) + 0.7152 * channel(hex >> 8) + 0.0722 * channel(hex)
+    }
+
+    /// The contrast ratio between two opaque colors, 1...21.
+    static func contrast(_ a: UInt32, _ b: UInt32) -> Double {
+        let la = luminance(a), lb = luminance(b)
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+    }
+
+    /// A wash laid over an opaque color, as the opaque color you see.
+    static func over(_ wash: RefinedHex.Wash, _ under: UInt32, dark: Bool, increased: Bool) -> UInt32 {
+        blend(wash.base.value(dark: dark, increased: increased), wash.alpha(dark: dark, increased: increased), under)
+    }
+
+    static func blend(_ top: UInt32, _ alpha: Double, _ under: UInt32) -> UInt32 {
+        var out: UInt32 = 0
+        for shift in [16, 8, 0] as [UInt32] {
+            let t = Double((top >> shift) & 0xFF), u = Double((under >> shift) & 0xFF)
+            out |= UInt32((t * alpha + u * (1 - alpha)).rounded()) << shift
+        }
+        return out
+    }
+}

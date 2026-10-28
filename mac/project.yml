@@ -401,6 +401,11 @@ targets:
       - Verbatim/Views/Look.swift
       # Switching looks: the card, the rebuild behind it, and its timing (shared with the Mac).
       - Verbatim/Views/LookSwitch.swift
+      # The refined look's rules and kit (DESIGN.md §13), shared with the Mac: the Palette setting, the Record card,
+      # tiles, cards, kind badges, chips, icon squares, titles, reading text, the player bar, and the clock panel.
+      - Verbatim/Views/RefinedRules.swift
+      - Verbatim/Views/RefinedKit.swift
+      - Verbatim/Views/RefinedPlayback.swift
       - Verbatim/Views/Brand.swift
       - Verbatim/Views/ThumbCache.swift
       - Verbatim/Views/HomeKit.swift

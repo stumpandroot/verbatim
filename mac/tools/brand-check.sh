@@ -2,7 +2,9 @@
 # Brand check: fails when Swift code breaks the [checked] rules in mac/DESIGN.md.
 #   1. SF Symbols outside the allowlist (DESIGN.md §3); system surfaces may mark a line `// brand: system surface`
 #   2. Colors outside Tokens.swift: hex literals in color calls and system color names (§1)
-#   3. Materials or glass (§5): allowed only on a line marked `// brand: glass ok (no text)`
+#   3. Materials or glass (§5): allowed only on a line marked `// brand: glass ok (no text)`. The refined look's
+#      player bar (Views/RefinedPlayback.swift, DESIGN.md §13) is the one place text sits on glass, as in Apple's own
+#      players; its line says `// brand: glass ok (the refined player, text allowed by DESIGN.md §13)`.
 #   4. The retired V mark, BrandArt.mark (§4)
 #   5. Mono under 12 pt in files marked `// brand: web style` (§2.2, §11)
 # Native look code (DESIGN.md §13) is stock Apple: checks 1, 2's system color names, 3, and 5 skip it. Mark a whole
