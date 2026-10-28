@@ -33,35 +33,32 @@ enum HomeCardSize: String, CaseIterable, Sendable {
 }
 
 /// A section of Home. The header (greeting and date) and the What's new note aren't sections: they always lead.
+///
+/// The consolidation (October 28, 2026) took Home from eleven sections to these six. Queue (the sidebar's Queue row on
+/// the Mac, the tab badge on iPhone), Projects (the sidebar and the Library), Moments (the Library's Marked filter),
+/// Last dictation (Dictations and Recall), and the Mac Native's Stats (This week and You) left. A stored layout that
+/// names them is read without them (`HomeLayout.from` skips what it doesn't know), so nothing else changes.
 enum HomeSection: String, CaseIterable, Sendable {
-    case record, tiles, week, stats, recent, lastDictation, projects, moments, queue, thoughts, journal
+    case record, tiles, week, recent, thoughts, journal
+
+    /// The raw values of the sections that left, for the tests and for reading an older layout.
+    static let retired: Set<String> = ["stats", "lastDictation", "projects", "moments", "queue"]
 
     var title: String {
         switch self {
         case .record: return "Record"
         case .tiles: return "Tiles"
         case .week: return "This week"
-        case .stats: return "Stats"
         case .recent: return "Recent recordings"
-        case .lastDictation: return "Last dictation"
-        case .projects: return "Projects"
-        case .moments: return "Moments"
-        case .queue: return "Queue"
         case .thoughts: return "Today's thoughts"
         case .journal: return "Journal"
         }
     }
 
-    /// The app this section is limited to, if any. Stats is the Mac's pair of cards beside This week (Native only);
-    /// every other section is on both apps.
-    var platformOnly: HomePlatform? { self == .stats ? .mac : nil }
+    /// The app this section is limited to, if any: every section is on both apps.
+    var platformOnly: HomePlatform? { nil }
 
-    func isAvailable(on platform: HomePlatform, look: HomeLook) -> Bool {
-        switch self {
-        case .stats: return platform == .mac && look == .native
-        default: return true
-        }
-    }
+    func isAvailable(on platform: HomePlatform, look: HomeLook) -> Bool { true }
 
     /// Edit Home's second line for the section (the tiles row names its tiles instead).
     func detail(on platform: HomePlatform, look: HomeLook) -> String {
@@ -70,23 +67,20 @@ enum HomeSection: String, CaseIterable, Sendable {
         case .record: return look == .verbose ? "The Record panel" : (platform == .mac ? "A Record row; Record is also in the toolbar" : "Record is in the tab bar")
         case .tiles: return "Four shortcuts"
         case .week: return "Words, time saved, and recordings"
-        case .stats: return "Recordings and time saved"
         case .recent: return "Your latest recordings"
-        case .lastDictation: return "With a Copy button"
-        case .projects: return "Each project and how much is in it"
-        case .moments: return "Your latest saved moment"
-        case .queue: return "Shows while something transcribes"
         case .thoughts: return "Today's last few thoughts, with New thought"
         case .journal: return "Your latest entry and this week's days"
         }
     }
 }
 
-/// A shortcut tile. Home shows exactly four, in the order picked.
+/// A shortcut tile. Home shows exactly four, in the order picked. The consolidation (October 28, 2026) dropped Search
+/// (⌘K, or the Library's field), Moments (the Library's Marked filter), Queue, and Paste a link (Import takes a link);
+/// a stored pick of one is replaced from the defaults (`HomeLayout.from`).
 enum HomeTile: String, CaseIterable, Sendable {
     case dictate
     case importMedia = "import"
-    case whatsPlaying, appAudio, captions, pasteLink, thoughtPad, search, moments, queue, dictations, dictionary, projects
+    case whatsPlaying, appAudio, captions, thoughtPad, dictations, dictionary, projects
     case newThought, journal
     /// Brain dump (October 27, 2026): records one on iPhone, opens the Brain dump window on the Mac. Offered in Edit
     /// Home, never picked by default.
@@ -99,11 +93,7 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .whatsPlaying: return "What's playing"
         case .appAudio: return "App audio"
         case .captions: return "Live captions"
-        case .pasteLink: return "Paste a link"
         case .thoughtPad: return "Today's page"
-        case .search: return "Search"
-        case .moments: return "Moments"
-        case .queue: return "Queue"
         case .dictations: return "Dictations"
         case .dictionary: return "Dictionary"
         case .projects: return "Projects"
@@ -121,11 +111,7 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .whatsPlaying: return "Sound from any app"
         case .appAudio: return "Another app's sound"
         case .captions: return "Words as they're said"
-        case .pasteLink: return "Transcribe a video"
         case .thoughtPad: return "Your thoughts, floating"
-        case .search: return "Find the line you need"
-        case .moments: return "Lines you saved"
-        case .queue: return "What's transcribing"
         case .dictations: return "Everything you dictated"
         case .dictionary: return "Words to spell your way"
         case .projects: return "Your projects"
@@ -151,12 +137,12 @@ enum HomeTile: String, CaseIterable, Sendable {
     static func available(on platform: HomePlatform) -> [HomeTile] { allCases.filter { $0.isAvailable(on: platform) } }
 
     /// The capture mode's hue a tile wears in Verbose style, by what it does, never by its slot (DESIGN.md §1, review
-    /// P-14): Dictate butter, Import and Paste a link sage, What's playing and App audio petal. Everything else (Live
-    /// captions, New thought, Journal, the tools) is a card with an ink outline.
+    /// P-14): Dictate butter, Import sage, What's playing and App audio petal. Everything else (Live captions, New
+    /// thought, Journal, the tools) is a card with an ink outline.
     var hue: HomeTileHue? {
         switch self {
         case .dictate: return .butter
-        case .importMedia, .pasteLink: return .sage
+        case .importMedia: return .sage
         case .whatsPlaying, .appAudio: return .petal
         default: return nil
         }
@@ -212,26 +198,31 @@ struct HomeLayout: Equatable, Sendable {
         func off(_ s: HomeSection, _ size: HomeCardSize) -> Item { Item(section: s, visible: false, size: size) }
         let items: [Item]
         switch (platform, look) {
-        case (.phone, .verbose):
+        case (.phone, .verbose), (.mac, .verbose):
             items = [on(.record, .large), on(.tiles, .large), on(.week, .compact), on(.recent, .large),
-                     off(.lastDictation, .compact), off(.projects, .compact), off(.moments, .large), off(.queue, .compact),
                      off(.thoughts, .large), off(.journal, .large)]
         case (.phone, .native):
             items = [on(.week, .large), off(.record, .large), on(.tiles, .compact), on(.recent, .large),
-                     off(.lastDictation, .compact), off(.projects, .compact), off(.moments, .large), off(.queue, .compact),
                      off(.thoughts, .large), off(.journal, .large)]
-        case (.mac, .verbose):
-            items = [on(.record, .large), on(.tiles, .large), on(.week, .compact), on(.recent, .large), on(.lastDictation, .large),
-                     off(.projects, .compact), off(.moments, .large), off(.queue, .compact), off(.thoughts, .large), off(.journal, .large)]
         case (.mac, .native):
             // The Native redesign (October 27, 2026): quick actions, This week as one stat cell, and Recent recordings,
-            // as the iPhone's Home; Stats repeats This week and Record is in the toolbar, so both start hidden.
-            items = [on(.tiles, .large), on(.week, .large), on(.recent, .large), off(.stats, .large),
-                     off(.lastDictation, .compact), off(.record, .large), off(.projects, .compact), off(.moments, .large), off(.queue, .compact),
+            // as the iPhone's Home; Record is in the toolbar, so it starts hidden.
+            items = [on(.tiles, .large), on(.week, .large), on(.recent, .large), off(.record, .large),
                      off(.thoughts, .large), off(.journal, .large)]
         }
-        let tiles: [HomeTile] = platform == .phone ? [.dictate, .importMedia, .whatsPlaying, .captions] : [.dictate, .importMedia, .appAudio, .captions]
-        return HomeLayout(items: items, tiles: tiles)
+        return HomeLayout(items: items, tiles: defaultTiles(platform))
+    }
+
+    /// The four tiles a new install starts with (consolidation, October 28, 2026): Dictate, Import, What's playing (iPhone)
+    /// or App audio (Mac), and New thought. Live captions left the four and stays in the catalog, the menus, and the
+    /// shortcuts.
+    static func defaultTiles(_ platform: HomePlatform) -> [HomeTile] {
+        platform == .phone ? [.dictate, .importMedia, .whatsPlaying, .newThought] : [.dictate, .importMedia, .appAudio, .newThought]
+    }
+
+    /// The four every install had before, which an install from before keeps when it never picked its own.
+    static func earlierTiles(_ platform: HomePlatform) -> [HomeTile] {
+        platform == .phone ? [.dictate, .importMedia, .whatsPlaying, .captions] : [.dictate, .importMedia, .appAudio, .captions]
     }
 
     /// The settings Edit Home replaced, read once when a look has no stored layout yet.
@@ -240,6 +231,8 @@ struct HomeLayout: Equatable, Sendable {
         var showWeek: Bool? = nil
         /// iPhone, Native: Settings › Appearance › Show the Record card (`home.premium.recordCard`).
         var nativeRecordCard: Bool? = nil
+        /// An install from before the consolidation (`Consolidation.wasExistingInstall`): it keeps the four tiles it had.
+        var keepsEarlierTiles = false
     }
 
     /// The first layout for a look: the defaults, with the older settings carried over.
@@ -248,6 +241,7 @@ struct HomeLayout: Equatable, Sendable {
         // In place: the Record card comes back where it used to sit, under This week.
         if legacy.showWeek == false { l.setVisible(.week, false, inPlace: true) }
         if platform == .phone, look == .native, legacy.nativeRecordCard == true { l.setVisible(.record, true, inPlace: true) }
+        if legacy.keepsEarlierTiles { l.tiles = earlierTiles(platform) }
         return l
     }
 
@@ -437,18 +431,16 @@ enum HomeJournalWeek {
 
 // MARK: - The Mac's grid
 
-/// A band of the Mac's Home: one section across the grid, or two side by side (7 / 5 columns; This week and Stats
-/// split as the Native mockup does).
+/// A band of the Mac's Home: one section across the grid, or two side by side (7 / 5 columns).
 struct HomeRow: Identifiable, Equatable, Sendable {
     var items: [HomeLayout.Item]
     var id: HomeSection { items[0].section }
 }
 
 enum HomeRows {
-    /// Large sections that make sense in half the grid. Queue never pairs (it comes and goes with the work), and
-    /// a Compact section is a strip across the whole width.
+    /// Large sections that make sense in half the grid; a Compact section is a strip across the whole width.
     static func pairable(_ item: HomeLayout.Item) -> Bool {
-        item.size == .large && item.section != .queue
+        item.size == .large
     }
 
     /// Pairs neighbors that can share a band, left to right, when the window is wide enough; otherwise one per band.
@@ -501,10 +493,16 @@ final class HomeLayoutStore: ObservableObject {
         self.defaults = defaults
         self.persist = persist
         let old = HomeLayout.Legacy(showWeek: legacy.object(forKey: "home.showWeek") as? Bool,
-                                    nativeRecordCard: legacy.object(forKey: "home.premium.recordCard") as? Bool)
+                                    nativeRecordCard: legacy.object(forKey: "home.premium.recordCard") as? Bool,
+                                    keepsEarlierTiles: Consolidation.wasExistingInstall(legacy))
         func load(_ look: HomeLook) -> HomeLayout {
             if persist, let data = defaults.data(forKey: HomeLayout.key(look)), let l = HomeLayout.decode(data, platform, look) { return l }
-            return persist ? HomeLayout.initial(platform, look, legacy: old) : HomeLayout.defaults(platform, look)
+            guard persist else { return HomeLayout.defaults(platform, look) }
+            // Saved at once, so the tiles an install starts with stay its tiles (the consolidation's new defaults
+            // reach only installs that start from them).
+            let first = HomeLayout.initial(platform, look, legacy: old)
+            if let data = first.encoded() { defaults.set(data, forKey: HomeLayout.key(look)) }
+            return first
         }
         verbose = load(.verbose)
         native = load(.native)

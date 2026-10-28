@@ -20,7 +20,6 @@ final class PhoneState: ObservableObject {
     /// Each tab keeps its own navigation stack.
     @Published var homePath = NavigationPath()
     @Published var libraryPath = NavigationPath()
-    @Published var momentsPath = NavigationPath()
     @Published var thoughtsPath = NavigationPath()
     @Published var journalPath = NavigationPath()
     @Published var dictationsPath = NavigationPath()

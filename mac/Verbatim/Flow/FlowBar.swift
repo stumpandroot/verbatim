@@ -630,7 +630,6 @@ final class FlowBarController {
         menu.open(next: rect, edge: edge, screen: screen, actions: .init(
             hide: { FlowSettings.shared.hiddenUntil = Date().addingTimeInterval(3600) },
             settings: { [weak dictation] in dictation?.openSettings() },
-            history: { [weak dictation] in dictation?.openHistory() },
             pasteLast: { [weak dictation] in dictation?.pasteLast() },
             copyLast: { [weak dictation] in dictation?.copyLast() },
             editByVoice: { [weak dictation] in dictation?.startFromBar(command: true) },

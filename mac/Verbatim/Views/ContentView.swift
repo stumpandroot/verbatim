@@ -164,8 +164,6 @@ struct ContentView: View {
         case .home: return "home"
         case .library: return "library"
         case .queue: return "queue"
-        case .links: return "links"
-        case .moments: return "moments"
         case .trash: return "trash"
         case .dictionary: return "dict"
         case .dictations: return "dictations"
@@ -187,8 +185,6 @@ struct ContentView: View {
         case .home: HomeView()
         case .library: if look == .native { NativeLibraryView() } else { LibraryView() }
         case .queue: QueueView()
-        case .links: LinksView()
-        case .moments: MomentsView()
         case .trash: TrashView()
         case .dictionary: DictionaryView()
         case .dictations: DictationsView()

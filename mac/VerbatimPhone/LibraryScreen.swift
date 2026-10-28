@@ -252,8 +252,12 @@ struct LibraryScreen: View {
         }
     }
 
-    /// Puts the Library on a chip from a request: "working", "project:<id>", a kind's raw value, or anything else for All.
+    /// Puts the Library on a chip from a request: "working", "project:<id>", "source:<type>" (Marked, Links), a kind's
+    /// raw value, or anything else for All.
     private func applyRequest(_ r: String) {
+        if r.hasPrefix("source:"), let s = LibrarySource(rawValue: String(r.dropFirst("source:".count))) {
+            filter = .all; setType(LibraryFilter(source: s)); return
+        }
         if r == "working" {
             filter = .working
         } else if r.hasPrefix("project:"), let id = UUID(uuidString: String(r.dropFirst("project:".count))) {
@@ -545,14 +549,10 @@ extension LibraryScreen {
     }
 
     /// Dictations, Projects, By day, Templates, and Ask, like Mail's mailboxes: a blue symbol, the name, a count, and a
-    /// chevron. Moments joins them when it isn't a tab.
+    /// chevron. Moments left them in the consolidation: it's the filter's Marked type.
     @ViewBuilder private var mailboxes: some View {
-        let moments = app.store.memo("moments-saved") { HomeCounts.momentsSaved(app.store.live) }
         let today = app.store.todaysThoughts().count
         mailbox("Dictations", symbol: "text.bubble", value: "\(dictations.count)", id: "library.dictations") { app.pushHere(DictationsRoute()) }
-        if !app.tabBar.contains(.moments) {
-            mailbox("Moments", symbol: "bookmark", value: "\(moments)", id: "library.moments") { app.go(.moments) }
-        }
         mailbox("Projects", symbol: "folder", value: "\(app.store.projects.count)", id: "library.projects") { nativeShowProjects = true }
         mailbox("By day", symbol: "calendar", value: today > 0 ? "\(today) today" : nil, id: "library.byDay") { app.pushHere(ByDayRoute(kind: .idea)) }
         mailbox("Templates", symbol: "doc.text", value: "\(app.store.allTemplates.count)", id: "library.templates") { app.pushHere(TemplatesRoute()) }

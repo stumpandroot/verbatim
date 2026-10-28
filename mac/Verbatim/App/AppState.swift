@@ -7,10 +7,9 @@ import os
 enum Screen: Equatable {
     case home
     case library
-    case links
+    /// Shown in the sidebar only while something is queued or transcribing (`queueShowsInSidebar`).
     case queue
     case trash
-    case moments
     case transcript(UUID)
     case dictionary
     case dictations
@@ -260,7 +259,7 @@ final class AppState: ObservableObject {
 
     // MARK: Navigation
 
-    private static let order: [String: Int] = ["home": 0, "library": 1, "links": 2, "moments": 3, "queue": 4, "dictations": 5, "activity": 6, "dictionary": 7, "trash": 8, "byday-thoughts": 8, "byday-journal": 8]
+    private static let order: [String: Int] = ["home": 0, "library": 1, "queue": 4, "dictations": 5, "activity": 6, "dictionary": 7, "trash": 8, "byday-thoughts": 8, "byday-journal": 8]
 
     func go(_ next: Screen) {
         guard next != screen else { return }
@@ -291,6 +290,20 @@ final class AppState: ObservableObject {
 
     func goHome() { go(.home) }
 
+    /// File › Import… (⌘O) and New Transcript (⌘N): Home's Import panel, with the link field ready (CaptureBar.swift).
+    func openImport() {
+        mainWindow?.makeKeyAndOrderFront(nil)
+        goHome()
+        focusLink.toggle()
+    }
+
+    /// The Library on one of its type chips (Marked took the Moments screen's place, Links the Links screen's).
+    func goLibrary(_ source: LibrarySource) {
+        projectFilter = nil
+        libraryFilter = LibraryFilter(source: source)
+        go(.library)
+    }
+
     /// Ends the "Navigate" signpost; ContentView calls it from the new screen's root `onAppear`.
     func screenAppeared() {
         guard let open = navInterval else { return }
@@ -306,7 +319,7 @@ final class AppState: ObservableObject {
     }
 
     private func key(_ s: Screen) -> String {
-        switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .links: return "links"; case .trash: return "trash"; case .moments: return "moments"; case .dictionary: return "dictionary"; case .dictations: return "dictations"; case .activity: return "activity"; case .transcript: return "transcript"
+        switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .trash: return "trash"; case .dictionary: return "dictionary"; case .dictations: return "dictations"; case .activity: return "activity"; case .transcript: return "transcript"
         case .byDay(let k): return k == .journal ? "byday-journal" : "byday-thoughts"
         case .templates: return "templates"
         case .ask: return "ask" }

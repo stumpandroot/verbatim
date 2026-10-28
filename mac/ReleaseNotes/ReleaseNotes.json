@@ -48,6 +48,77 @@
           ],
           "text": "Templates holds your text actions too, each marked with where it works.",
           "detail": "The actions that ran on selected text from Settings › Actions are in Templates, marked Selected text and recordings. Edit, add, and reorder them there."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Moments became the Library's Marked filter.",
+          "detail": "Marked lists every recording with a bookmark, a mark, or a note at a time. If Moments was one of your iPhone tabs, Library or Thoughts takes its place."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Links became the Library's Links filter, and the sidebar's Links row is gone."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The sidebar shows Queue only while something is queued or transcribing."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Home has six sections: Record, tiles, This week, Recent, Thoughts, and Journal.",
+          "detail": "Queue, Projects, Moments, Last dictation, and Stats left Home. The sidebar, the Library, Dictations, and You keep what they showed."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "New installs start with New thought in place of the Live captions tile.",
+          "detail": "Live captions stays in Edit Home, the menus, and its shortcut. If you never changed your tiles, you keep the ones you had."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Home's tiles drop Search, Moments, Queue, and Paste a link.",
+          "detail": "Import takes a file or a link. Search with ⌘K on the Mac, or in the Library."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The Ribbon and the menu bar no longer list dictations. The menu bar opens Dictations.",
+          "detail": "Your dictations are in Dictations, and Recall (⌥⌘V) brings back recent ones."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "⌘F opens the same search as ⌘K.",
+          "detail": "Find in Transcripts opens Search or ask on Search. The Library's field still filters the Library."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "⌘O opens Import, which takes files, a folder, or a link. ⌘N opens it too."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Today's page has a note mode, Write or dictate, in place of the Brain dump window.",
+          "detail": "Choose File › Today's Note. Hold ⌃⌥ and talk, or type, then Plan my day. Notes from the Brain dump window are on their day's page."
         }
       ]
     },

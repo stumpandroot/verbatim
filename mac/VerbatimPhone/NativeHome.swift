@@ -59,14 +59,9 @@ struct NativeHome: View {
         case .tiles: return "home-tiles"
         case .week: return "home-week"
         case .recent: return "home-recent"
-        case .lastDictation: return "home-dictation"
-        case .projects: return "home-projects"
-        case .moments: return "home-moments"
-        case .queue: return "home-queue"
         case .thoughts: return "home-thoughts"
         case .journal: return "home-journal"
         case .record: return "home-record"
-        case .stats: return "home-stats"
         }
     }
 
@@ -85,14 +80,10 @@ struct NativeHome: View {
         case .tiles: tiles(layout.tiles, large: item.size == .large)
         case .week: week(large: item.size == .large)
         case .recent: recent(item.size)
-        case .lastDictation: embedded("home-dictation") { HomeLastDictationSection(size: item.size, now: now) }
-        case .projects: embedded("home-projects") { HomeProjectsSection(size: item.size) }
-        case .moments: embedded("home-moments") { HomeMomentsSection(size: item.size) }
-        case .queue: embedded("home-queue") { HomeQueueSection(size: item.size) }
         case .thoughts: embedded("home-thoughts") { HomeThoughtsSection(size: item.size) }
         case .journal: embedded("home-journal") { HomeJournalSection(size: item.size, now: now) }
-        // Record retired from Native's Home: it's in the tab bar's accessory. Stats is the Mac's.
-        case .record, .stats: EmptyView()
+        // Record retired from Native's Home: it's in the tab bar's accessory.
+        case .record: EmptyView()
         }
     }
 

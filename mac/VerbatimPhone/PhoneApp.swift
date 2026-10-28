@@ -17,6 +17,9 @@ struct VerbatimPhoneApp: App {
         // The self-test's big library goes in before the Store loads, so launch is timed with it (LibraryLoading.swift).
         if PhoneUITest.enabled { BigLibrarySeed.write() }
         LaunchClock.markStart()
+        // The consolidation (October 28, 2026): settings for merged or retired features move once, before What's new
+        // writes anything, so a new install is never taken for an existing one (PhoneConsolidation.swift).
+        PhoneConsolidation.migrateSettings()
         // What's new: a new install starts at its own build, so Home's note waits for the next update.
         ReleaseNotes.settleLastSeen(ranBefore: Onboarding.finishedBefore)
     }
@@ -31,7 +34,7 @@ struct VerbatimPhoneApp: App {
     }
 }
 
-/// The tabs in the system tab bar (Liquid Glass on iOS 26): Home, up to three you pick (Library and Moments unless you
+/// The tabs in the system tab bar (Liquid Glass on iOS 26): Home, up to three you pick (Library and Thoughts unless you
 /// change them in Settings › Personalization and preferences › Tab bar), and Settings. Paper underneath. In Verbose
 /// style the recorder covers the screen until you minimize it; then a bar above the tab bar carries the recording on
 /// every tab (MiniRecorder.swift). In Native, Record and the live recording live in the tab bar's bottom accessory
@@ -114,7 +117,6 @@ struct PhoneRoot: View {
         case .thoughts: DayPageScreen(kind: .idea, day: app.todayPage)
         // Journal By day (Thoughts phase B).
         case .journal: ByDayScreen(kind: .journal, fixed: true)
-        case .moments: MomentsScreen()
         case .dictations: DictationsListScreen()
         case .projects: ProjectsScreen()
         case .settings: SettingsScreen()
@@ -262,7 +264,6 @@ final class PhoneHolder: ObservableObject {
 enum LookKeep {
     static var librarySearch = ""
     static var libraryFilter: LibraryScreen.Filter = .all
-    static var momentsShow: MomentsScreen.Show = .all
 }
 
 private extension View {

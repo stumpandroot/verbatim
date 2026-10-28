@@ -70,20 +70,15 @@ extension HomeView {
     @ViewBuilder private func nativeContent(_ item: HomeLayout.Item, layout: HomeLayout) -> some View {
         switch item.section {
         case .week: nativeWeek(large: item.size == .large)
-        case .stats: nativeStats(large: item.size == .large)
         case .tiles: nativeTiles(layout.tiles, large: item.size == .large)
         case .recent: nativeRecent(compact: item.size == .compact)
         case .record: NativeHomeRecord(size: item.size, status: recordStatus, recording: recording)
-        case .lastDictation: NativeHomeLastDictation(size: item.size)
-        case .projects: HomeProjectsMac(size: item.size)
-        case .moments: HomeMomentsMac(size: item.size)
-        case .queue: HomeQueueMac(size: item.size)
         case .thoughts: HomeThoughtsMac(size: item.size)
         case .journal: HomeJournalMac(size: item.size)
         }
     }
 
-    // MARK: This week and the stats
+    // MARK: This week
 
     private var nativeWeekData: HomeWeek {
         log.week(now: now)
@@ -105,24 +100,6 @@ extension HomeView {
         .accessibilityHint("Opens You: your week, cleanup, and where you dictate.")
         .accessibilityAddTraits(.isButton)
         .uiTarget("home-week")
-    }
-
-    /// Stats: recordings, time saved typing, and moments this week, as plain rows (This week already leads with
-    /// words). Compact puts them on one line.
-    @ViewBuilder private func nativeStats(large: Bool) -> some View {
-        let n = weekNumbers(nativeWeekData)
-        let saved = WebFormat.compactDuration(n.saved)
-        NativeSection(title: "Stats") {
-            if large {
-                NativeStatRow(title: "Recordings", value: n.recordings.formatted(), detail: "This week")
-                NativeRowSeparator(leading: 14)
-                NativeStatRow(title: "Saved typing", value: saved, detail: "This week")
-                NativeRowSeparator(leading: 14)
-                NativeStatRow(title: "Moments", value: n.moments.formatted(), detail: "This week")
-            } else {
-                NativeStatsStrip(recordings: n.recordings, saved: saved)
-            }
-        }
     }
 
     // MARK: Quick actions
@@ -158,7 +135,7 @@ extension HomeView {
                 }
             }
             .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
-        case .importMedia, .pasteLink:
+        case .importMedia:
             if importAnchor {
                 base.popover(isPresented: $importOpen, arrowEdge: .bottom) { ImportPanel(done: { importOpen = false }).environmentObject(app) }
                     .contextMenu { ImportMenu(openPanel: { importOpen = true }) }

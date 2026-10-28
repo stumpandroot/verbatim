@@ -101,7 +101,7 @@ struct TemplateResultsSection: View {
                     .font(.system(size: 11.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
             }
             if DayPlan.isPlan(r) {
-                // Plan my day: the plan, with Send to Reminders (BrainDumpWindow.swift's MacRemindersSend).
+                // Plan my day: the plan, with Send to Reminders (DayNote.swift's MacRemindersSend).
                 MacPlanResult(transcript: transcript, result: r, inline: inline)
             } else {
                 TemplateResultBody(text: r.text, heading: Ink.serif(inline ? 19 : 17), textFont: .system(size: 13),

@@ -39,7 +39,7 @@ struct Sidebar: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 2) {
                     // The main items, in your order (SidebarLayout): drag to move, right-click to hide or customize.
-                    ForEach(layout.visible) { id in
+                    ForEach(layout.visible.filter { $0 != .queue || app.queueShowsInSidebar }) { id in
                         mainItem(id)
                             .onDrag { layout.itemProvider(id) }
                             .onDrop(of: [SidebarLayout.dragType], delegate: SidebarReorderDrop(target: id, layout: layout, animation: limitMotion ? nil : .spring(duration: 0.3, bounce: 0)))
@@ -171,12 +171,6 @@ struct Sidebar: View {
         case .library:
             SideItem(label: id.title, art: id.art, selected: app.screen == .library && app.projectFilter == nil, onDropIDs: { app.move($0, to: nil) }) { app.projectFilter = nil; app.go(.library) }
                 .uiTarget("side-library")
-        case .links:
-            SideItem(label: id.title, art: id.art, selected: app.screen == .links) { app.go(.links) }
-                .uiTarget("side-links")
-        case .moments:
-            SideItem(label: id.title, art: id.art, selected: app.screen == .moments) { app.go(.moments) }
-                .uiTarget("side-moments")
         case .queue:
             // Links on their way in count too, once their "link added" card has landed here (AppState+LinkCard).
             let queued = app.queueBadgeCount

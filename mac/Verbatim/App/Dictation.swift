@@ -98,7 +98,8 @@ final class DictationController: ObservableObject {
     private var escapeCancels: Bool { isListening || writingSession != nil }
     @Published private(set) var handsFree = false
     @Published private(set) var targetAppName = ""
-    /// This dictation is going into Verbose's brain dump window (BrainDumpWindow.swift): it isn't kept in Dictations.
+    /// This dictation is going into today's page's note (Views/DayNote.swift, the Brain dump window's place since the
+    /// consolidation): it's inserted there, not pasted, and isn't kept in Dictations.
     private(set) var intoBrainDump = false
     /// The last dictation's final text. Kept (never cleared by a paste, a failed paste, or today's page's
     /// Send) so ⌃⌘V (or Copy last dictation in the floating menu) can always bring it back.
@@ -636,10 +637,10 @@ final class DictationController: ObservableObject {
             return
         }
         target = NSWorkspace.shared.frontmostApplication
-        // Dictating into Verbose's own brain dump window: the words stay only in the brain dump (decision 11), so this
-        // dictation isn't kept in Dictations, and the Ribbon says where they're going.
-        intoBrainDump = target?.processIdentifier == ProcessInfo.processInfo.processIdentifier && BrainDumpWindow.isKey
-        targetAppName = intoBrainDump ? "Brain dump" : (target?.localizedName ?? "the front app")
+        // Today's page is open on its note: the words go into the note only (decision 11), so this dictation isn't kept
+        // in Dictations, and the Ribbon says where they're going.
+        intoBrainDump = !wantCommand && DayNote.isTarget
+        targetAppName = intoBrainDump ? "Today's note" : (target?.localizedName ?? "the front app")
         siteProbe = SiteCapture.probe(bundleID: target?.bundleIdentifier)
         // The mic starts first: reading the app's text through Accessibility can take a moment, and the
         // first word must not be lost to it.
@@ -654,7 +655,7 @@ final class DictationController: ObservableObject {
         }
         startedAt = Date()
         session += 1
-        toPad = !wantCommand && ThoughtPadController.shared.isOpen
+        toPad = !wantCommand && ThoughtPadController.shared.isOpen && !intoBrainDump
         self.handsFree = handsFree
         isListening = true
         if showWords { liveWords.start(format: Recorder.targetFormat) }
@@ -959,7 +960,8 @@ final class DictationController: ObservableObject {
                         ActivityLog.shared.add(ActivityLog.event(id: id, date: Date(), info: flowInfo, seconds: duration, fixes: fixes.count, transcribe: transcribeTime, cleanup: cleanupTime))
                         SiteLog.shared.attach(id, site)
                     }
-                    self?.deliver(finalText, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw, correction: correction, session: mine, timing: timing)
+                    self?.deliver(finalText, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw, correction: correction, session: mine, timing: timing,
+                                  intoNote: toBrainDump)
                 }
             } catch {
                 Log.note("dictation transcribe failed: \(error)")
@@ -985,10 +987,10 @@ final class DictationController: ObservableObject {
 
     private func keep(url: URL, duration: Double, env: [Float], original: [Segment], segments: [Segment], fixes: [Correction], result: EngineResult, info: FlowInfo, cleaned: Bool, project: UUID? = nil, brainDump: Bool = false) -> UUID? {
         guard let app else { return nil }
-        // Into the brain dump window: the words are in the note, and nothing goes to Dictations (decision 11).
+        // Into today's note: the words are in the note, and nothing goes to Dictations (decision 11).
         if brainDump {
             try? FileManager.default.removeItem(at: url)
-            Log.note("dictation into the brain dump window: kept in the note only")
+            Log.note("dictation into today's note: kept in the note only")
             return nil
         }
         let name = app.store.adoptRecording(url) ?? url.lastPathComponent
@@ -1024,7 +1026,7 @@ final class DictationController: ObservableObject {
     }
 
     private func deliver(_ text: String, transcriptID: UUID?, note: String?, raw: String = "", correction: SpokenCorrectionNotice? = nil,
-                         session mine: Int, timing: DeliveryTiming) {
+                         session mine: Int, timing: DeliveryTiming, intoNote: Bool = false) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             mistake(raw: raw, transcriptID: transcriptID)
             endWriting(mine)
@@ -1036,6 +1038,23 @@ final class DictationController: ObservableObject {
         let atLimit = stoppedAtLimit
         command = false
         toPad = false
+        // Into today's note: inserted at its cursor, never pasted (the page's panel doesn't make Verbose the active app,
+        // so a paste would reach the app behind it).
+        if intoNote, !wasCommand {
+            let needsSpace = DayNote.textView.map { tv in
+                let r = tv.selectedRange(), ns = tv.string as NSString
+                guard r.location > 0, r.location <= ns.length else { return false }
+                let prev = ns.substring(with: NSRange(location: r.location - 1, length: 1))
+                return !prev.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            } ?? false
+            DayNote.insert((needsSpace ? " " : "") + text)
+            lastPasteConfirmed = true
+            Sounds.done()
+            bar?.setPhase(.idle)
+            Log.note("dictation: inserted into today's note")
+            endWriting(mine)
+            return
+        }
         // Never into a password field: the field focused now decides, or the one focused when dictation started.
         let secureNow = tgt.flatMap { AppContext.focusedSecure(pid: $0.processIdentifier) }
         if DictationTiming.blocksPaste(secureAtStart: ctx?.secureField ?? false, secureNow: secureNow) {

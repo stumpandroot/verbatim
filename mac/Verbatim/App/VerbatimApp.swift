@@ -50,9 +50,11 @@ struct VerbatimApp: App {
                 CheckForUpdatesButton()
             }
             CommandGroup(replacing: .newItem) {
-                Button("New Transcript") { app.goHome(); app.focusLink.toggle() }
+                // One Import (consolidation, October 28, 2026): files, a folder, or a link, in one panel. ⌘O opens it
+                // with the link field ready; ⌘N (New Transcript) is a second way to the same panel.
+                Button("New Transcript") { app.openImport() }
                     .keyboardShortcut("n", modifiers: .command)
-                Button("Import Files…") { app.chooseFiles() }
+                Button("Import…") { app.openImport() }
                     .keyboardShortcut("o", modifiers: .command)
                 Button("Import Multi-track Recording…") { app.chooseMultitrack() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
@@ -62,8 +64,9 @@ struct VerbatimApp: App {
                 // AutoLabel leaves it and Run automatically uses it (Templates.swift). Meeting… is the meeting capture,
                 // which files its transcript as a Meeting; Stop Meeting and Pause Meeting show below while one runs.
                 Menu("Record As") { RecordKindMenuItems(titles: \.commandTitle).environmentObject(app) }
-                // Brain dump (BrainDumpWindow.swift): today's note, where ⌃⌥ dictation types, and Make a Plan.
-                Button("New Brain Dump") { BrainDumpWindow.open(app) }
+                // Today's page in note mode (Views/DayNote.swift): the day's note, where ⌃⌥ dictation goes, and Plan my
+                // day. It took the Brain dump window's place (consolidation, October 28, 2026).
+                Button("Today's Note") { DayNote.open() }
                 Button("Live Captions") { app.toggleLiveCaptions() }
                     .keyboardShortcut("c", modifiers: [.option, .command])
                 // Meeting capture (App/MeetingCoordinator.swift): every start goes through the consent sheet. Its
@@ -75,8 +78,12 @@ struct VerbatimApp: App {
                 Button("Export Library as Markdown…") { MarkdownBulkExport.run(MarkdownBulkExport.all(app), app: app) }
             }
             CommandGroup(after: .textEditing) {
-                Button("Find in Transcripts") { app.goHome() }
-                    .keyboardShortcut("f", modifiers: .command)
+                // One search field (consolidation, October 28, 2026): ⌘F opens the same panel as ⌘K, on Search.
+                Button("Find in Transcripts") {
+                    app.mainWindow?.makeKeyAndOrderFront(nil)
+                    AskNav.shared.open(mode: .search)
+                }
+                .keyboardShortcut("f", modifiers: .command)
                 // Search or ask: the panel over the main window (Views/AskViews.swift).
                 Button("Search or Ask…") {
                     app.mainWindow?.makeKeyAndOrderFront(nil)
@@ -99,7 +106,7 @@ struct VerbatimApp: App {
             // Live captions sits below the panel's own rows (kept out of SettingsView.swift).
             VStack(spacing: 0) {
                 MenuBarPanel()
-                RecallMenuSection().padding(.horizontal, 12).padding(.bottom, 10)
+                DictationsMenuRow().padding(.horizontal, 12).padding(.bottom, 10)
                 LiveCaptionsMenuRow().padding(.horizontal, 12).padding(.bottom, 12)
             }
             .frame(width: 320).background(Ink.paper)

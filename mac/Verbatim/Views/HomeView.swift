@@ -21,7 +21,6 @@ struct HomeView: View {
     private static let minute = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
     @EnvironmentObject var app: AppState
     @ObservedObject var log = ActivityLog.shared
-    @ObservedObject var sites = SiteLog.shared
     @ObservedObject var captions = LiveCaptions.shared
     @ObservedObject var flow = FlowSettings.shared
     /// Edit Home's layouts (both looks) and whether Home is being edited.
@@ -126,17 +125,14 @@ struct HomeView: View {
 
     // MARK: Layout
 
-    /// The shown sections Home draws: Queue only while something is transcribing.
-    func drawn(_ layout: HomeLayout) -> [HomeLayout.Item] {
-        let working = app.store.isWorking
-        return layout.shown.filter { $0.section != .queue || working }
-    }
+    /// The shown sections Home draws (Queue left Home in the consolidation; the sidebar shows it while it works).
+    func drawn(_ layout: HomeLayout) -> [HomeLayout.Item] { layout.shown }
 
     /// Sections with a heading of their own get more room above them.
     static func headed(_ item: HomeLayout.Item) -> Bool {
         switch item.section {
         case .recent: return true
-        case .lastDictation, .projects, .moments, .queue, .thoughts, .journal: return item.size == .large
+        case .thoughts, .journal: return item.size == .large
         default: return false
         }
     }
@@ -176,13 +172,8 @@ struct HomeView: View {
             if item.size == .large { tiles(layout, large: true).frame(height: Self.startHeight) } else { tiles(layout, large: false) }
         case .week: if item.size == .compact { weekStrip } else { weekCard }
         case .recent: recentRecordings(item.size)
-        case .lastDictation: lastDictation(item.size)
-        case .projects: HomeProjectsMac(size: item.size)
-        case .moments: HomeMomentsMac(size: item.size)
-        case .queue: HomeQueueMac(size: item.size)
         case .thoughts: HomeThoughtsMac(size: item.size)
         case .journal: HomeJournalMac(size: item.size)
-        case .stats: EmptyView()
         }
     }
 
@@ -203,8 +194,8 @@ struct HomeView: View {
         }
     }
 
-    /// Where the Dictate and Import panels open when their tiles aren't on Home (the menu's New Transcript and Dictate
-    /// still open them): an anchor under the greeting. With the tile on Home, the tile is the anchor.
+    /// Where the Dictate and Import panels open when their tiles aren't on Home (File › Import… and New Transcript, and
+    /// Dictate, still open them): an anchor under the greeting. With the tile on Home, the tile is the anchor.
     @ViewBuilder func popoverAnchors(_ layout: HomeLayout) -> some View {
         let shown = layout.isVisible(.tiles) ? layout.tiles : []
         Color.clear
@@ -213,15 +204,15 @@ struct HomeView: View {
             }
             .background {
                 Color.clear
-                    .popover(isPresented: shown.contains(.importMedia) || shown.contains(.pasteLink) ? .constant(false) : $importOpen, arrowEdge: .bottom) {
+                    .popover(isPresented: shown.contains(.importMedia) ? .constant(false) : $importOpen, arrowEdge: .bottom) {
                         ImportPanel(done: { importOpen = false }).environmentObject(app)
                     }
             }
     }
 
-    /// The tile that anchors the Import panel: Import, else Paste a link.
+    /// The tile that anchors the Import panel: Import, when it's on Home (Paste a link merged into it).
     func importAnchor(_ tiles: [HomeTile]) -> HomeTile? {
-        tiles.contains(.importMedia) ? .importMedia : tiles.contains(.pasteLink) ? .pasteLink : nil
+        tiles.contains(.importMedia) ? .importMedia : nil
     }
 
     // MARK: Header
@@ -389,19 +380,16 @@ struct HomeView: View {
     func runTile(_ t: HomeTile) {
         switch t {
         case .dictate: app.captureMode = app.captureMode == "dictate" ? "voice" : "dictate"
-        case .importMedia, .pasteLink: importOpen = true
+        case .importMedia: importOpen = true
         case .appAudio: app.pickApp()
         case .captions: app.toggleLiveCaptions()
         case .thoughtPad: ThoughtPadController.shared.toggle()
-        case .search: HomeTileSearch.open(app)
-        case .moments: app.go(.moments)
-        case .queue: app.go(.queue)
         case .dictations: app.go(.dictations)
         case .dictionary: app.go(.dictionary)
         case .projects: app.projectFilter = nil; app.go(.library)
         case .newThought: ThoughtCapture.shared.toggle()
         case .journal: HomeDayPages.openJournal(app)
-        case .brainDump: BrainDumpWindow.open(app)
+        case .brainDump: DayNote.open()
         case .whatsPlaying: break
         }
     }
@@ -422,17 +410,13 @@ struct HomeView: View {
         case .importMedia: return "Choose files, or paste a link to transcribe."
         case .appAudio: return "Choose an app to record its sound, like a call or a video."
         case .captions: return "Shows captions in a floating panel, from your microphone or an app's sound."
-        case .pasteLink: return "Paste a YouTube, Vimeo, or podcast link to transcribe."
         case .thoughtPad: return "Opens today's Thoughts page as the floating page, for thoughts you speak or type."
-        case .search: return "Opens the Library with the search field ready."
-        case .moments: return "Opens Moments."
-        case .queue: return "Opens the Queue."
         case .dictations: return "Opens every dictation."
         case .dictionary: return "Opens your dictionary."
         case .projects: return "Opens the Library, with your projects in the sidebar."
         case .newThought: return "Records a thought for today's page without leaving Home. Click again to stop."
         case .journal: return "Opens Journal by day."
-        case .brainDump: return "Opens today's brain dump. Hold your dictation keys and talk, then make a plan."
+        case .brainDump: return "Opens today's note. Hold your dictation keys and talk, then plan your day."
         case .whatsPlaying: return ""
         }
     }
@@ -508,7 +492,7 @@ struct HomeView: View {
                 }
             }
             .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
-        case .importMedia, .pasteLink:
+        case .importMedia:
             if importAnchor {
                 base.popover(isPresented: $importOpen, arrowEdge: .bottom) { ImportPanel(done: { importOpen = false }).environmentObject(app) }
                     .contextMenu { ImportMenu(openPanel: { importOpen = true }) }
@@ -619,48 +603,6 @@ struct HomeView: View {
     func openCleaned(_ t: Transcript) {
         app.go(.transcript(t.id))
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { NotificationCenter.default.post(name: .verbatimShowMode, object: "Document") }
-    }
-
-    /// Large: one card on a butter panel under its heading. Compact: one strip with where it went and its length;
-    /// a click copies.
-    @ViewBuilder private func lastDictation(_ size: HomeCardSize) -> some View {
-        let last = app.store.lastDictation
-        if size == .compact {
-            if let t = last {
-                LastDictationCard(transcript: t, place: sites.hosts[t.id] ?? t.flow?.app, copy: { Paster.copy($0) }, strip: true)
-                    .uiTarget("home-dictation-0")
-            } else {
-                lastDictationEmpty.padding(.horizontal, 12).padding(.vertical, 6).colorPanel(Ink.panelButter, radius: Radius.record)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
-                SectionTitle(title: "Last", italic: "dictation", link: "All", linkLabel: "All dictations", linkHint: "Opens every dictation.") { app.go(.dictations) }
-                    .padding(.bottom, 12)
-                VStack(spacing: 0) {
-                    if let t = last {
-                        LastDictationCard(transcript: t, place: sites.hosts[t.id] ?? t.flow?.app, copy: { Paster.copy($0) })
-                            .uiTarget("home-dictation-0")
-                    } else {
-                        lastDictationEmpty
-                    }
-                }
-                .padding(12)
-                .colorPanel(Ink.panelButter, radius: Radius.record)
-                .animation(Motion.settle, value: last?.id)
-            }
-            .uiTarget("home-dictations")
-        }
-    }
-
-    private var lastDictationEmpty: some View {
-        let key = app.dictation.hotkey.shortTitle
-        return HStack(spacing: 10) {
-            IconGlyph(art: .iconDictations, size: 18, color: Ink.inkFixed)
-            Text("\(key.prefix(1).uppercased() + String(key.dropFirst())) in any app and speak. What you say shows up here.")
-                .font(.system(size: 13.5)).foregroundStyle(Ink.inkFixed).fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 6).padding(.vertical, 8)
     }
 }
 
@@ -904,106 +846,6 @@ private struct RecentRow: View {
             out = Text("\(out)\(i > 0 ? " · " : "")\(piece)")
         }
         return out
-    }
-}
-
-/// Home's last dictation: one white card with an ink outline on the butter panel. The app and time and the word count
-/// in mono, the words on one run (three lines at most), what cleanup did as plain status, and a Copy pill. A click anywhere on
-/// the card copies; the pill turns into "✓ Copied" for 1.6 s. VoiceOver hears "Copied".
-private struct LastDictationCard: View {
-    var transcript: Transcript
-    var place: String?
-    var copy: (String) -> Void
-    /// Compact: one strip on the butter panel, "Last dictation" with where it went, its length, and the pill.
-    var strip = false
-    @Environment(\.limitMotion) private var limitMotion
-    @State private var copied = false
-    @State private var copies = 0
-    @State private var down = false
-
-    var body: some View {
-        let _ = LookSwitch.mark("home-dictation")
-        let failed = transcript.status == .failed
-        let text = HomeDictationText.pasted(transcript)
-        let canCopy = !failed && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        HomeCard(tilt: 1.5, radius: strip ? Radius.record : Radius.tile, enabled: canCopy, shadow: false, onPress: { down = $0 }, action: { copyNow(text) }) { hovering in
-            if strip { stripFace(canCopy: canCopy, hovering: hovering) } else { face(failed: failed, canCopy: canCopy, hovering: hovering) }
-        }
-        .accessibilityLabel(HomeDictationText.body(transcript))
-        .accessibilityValue(copied ? "Copied" : head)
-        .accessibilityHint(canCopy ? "Copies the dictation." : "")
-    }
-
-    private func stripFace(canCopy: Bool, hovering: Bool) -> some View {
-        HStack(spacing: 14) {
-            AppIconView(bundleID: transcript.flow?.bundleID).frame(width: 18, height: 18)
-            Text("Last dictation").font(Ink.serif(22)).foregroundStyle(Ink.inkFixed).lineLimit(1)
-            Text(HomeDictationText.preview(transcript)).font(.system(size: 14)).foregroundStyle(Ink.inkFixed).lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text("\(HomeCounts.countLabel(HomeCounts.words(transcript), "word", "words")) · \(head)").font(Ink.mono(12)).foregroundStyle(Ink.inkFixed).lineLimit(1)
-            if canCopy { copyPill }
-        }
-        .padding(.horizontal, 18)
-        .frame(maxWidth: .infinity, minHeight: 64, maxHeight: 64, alignment: .leading)
-        .colorPanel(Ink.panelButter, radius: Radius.record)
-        .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: down), radius: Radius.record, color: Ink.inkFixed)
-    }
-
-    private func face(failed: Bool, canCopy: Bool, hovering: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                HStack(spacing: 6) {
-                    AppIconView(bundleID: transcript.flow?.bundleID).frame(width: 16, height: 16)
-                    Text(head).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                Text(HomeCounts.countLabel(HomeCounts.words(transcript), "word", "words")).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
-            }
-            Text(HomeDictationText.preview(transcript)).font(.system(size: 15.5)).lineSpacing(4)
-                .foregroundStyle(failed ? Ink.danger : Ink.ink)
-                .lineLimit(3).frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 10) {
-                if let status = WebStatus.dictationCleanup(transcript) { StatusText(text: status, check: true) }
-                Spacer(minLength: 8)
-                if canCopy { copyPill }
-            }
-        }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: down), radius: Radius.tile, color: Ink.inkFixed)
-    }
-
-    /// "Mail · 10:16 AM": where it went, then when.
-    private var head: String {
-        let d = transcript.createdAt
-        let when = Calendar.current.isDateInToday(d) ? Formats.style(date: .none, time: .short).string(from: d) : HomeRecentStyle.day(d)
-        guard let place, !place.isEmpty else { return when }
-        return "\(place) · \(when)"
-    }
-
-    private var copyPill: some View {
-        ZStack(alignment: .trailing) {
-            PillLabel(title: "Copy", kind: .line, size: .mini, icon: .iconCopy, fixedInk: strip)
-                .opacity(copied ? 0 : 1)
-                .offset(y: copied && !limitMotion ? -4 : 0)
-            PillLabel(title: "Copied", kind: .dark, size: .mini, icon: .homeCheck, fixedInk: strip)
-                .opacity(copied ? 1 : 0)
-                .offset(y: copied || limitMotion ? 0 : 4)
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func copyNow(_ text: String) {
-        copy(text)
-        copies += 1
-        let token = copies
-        withAnimation(limitMotion ? Motion.fade : HomeMotion.morph) { copied = true }
-        HomeAnnounce.say("Copied")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-            guard copies == token else { return }
-            withAnimation(limitMotion ? Motion.fade : HomeMotion.morph) { copied = false }
-        }
     }
 }
 

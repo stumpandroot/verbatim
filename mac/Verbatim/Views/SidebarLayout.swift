@@ -6,17 +6,17 @@ import UniformTypeIdentifiers
 // sidebar… for the whole list. Saved in UserDefaults ("sidebar.order", "sidebar.hidden"). Settings always shows
 // and never moves, and at least one item always stays.
 
-/// A main sidebar item. Raw values persist in "sidebar.order" and "sidebar.hidden"; never change them.
+/// A main sidebar item. Raw values persist in "sidebar.order" and "sidebar.hidden"; never change them. Links and Moments
+/// left the sidebar in the consolidation (October 28, 2026) for the Library's Links and Marked filters; a stored order
+/// that names them is read without them (`SidebarRules.merge`). Queue shows only while something works.
 enum SidebarItemID: String, CaseIterable, Identifiable {
-    case home, library, links, moments, queue, dictations, you, dictionary
+    case home, library, queue, dictations, you, dictionary
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .home: return "Home"
         case .library: return "Library"
-        case .links: return "Links"
-        case .moments: return "Moments"
         case .queue: return "Queue"
         case .dictations: return "Dictations"
         case .you: return "You"
@@ -28,8 +28,6 @@ enum SidebarItemID: String, CaseIterable, Identifiable {
         switch self {
         case .home: return .iconHome
         case .library: return .iconLibrary
-        case .links: return .iconLinks
-        case .moments: return .iconMoments
         case .queue: return .iconQueue
         case .dictations: return .iconDictations
         case .you: return .iconAboutMe

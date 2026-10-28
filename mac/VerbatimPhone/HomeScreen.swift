@@ -108,13 +108,8 @@ struct HomeScreen: View {
         case .tiles: tiles(picks, size: item.size)
         case .week: if item.size == .compact { weekCard } else { weekLarge }
         case .recent: recent(item.size).id("home-recent")
-        case .lastDictation: HomeLastDictationSection(size: item.size, now: now)
-        case .projects: HomeProjectsSection(size: item.size)
-        case .moments: HomeMomentsSection(size: item.size)
-        case .queue: HomeQueueSection(size: item.size)
         case .thoughts: HomeThoughtsSection(size: item.size).id("home-thoughts")
         case .journal: HomeJournalSection(size: item.size, now: now)
-        case .stats: EmptyView()
         }
     }
 

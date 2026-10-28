@@ -368,10 +368,10 @@ struct ThoughtsMenuSection: View {
                 ThoughtPadController.shared.open()
             }
             .uiTarget("menu-open-page")
-            // Brain dump (BrainDumpWindow.swift): today's note for ⌃⌥ dictation, and Make a plan.
-            row("Brain dump", keys: nil, art: .iconBrainDump) {
+            // Today's note (Views/DayNote.swift): today's page in note mode, for ⌃⌥ dictation and Plan my day.
+            row("Today's note", keys: nil, art: .iconBrainDump) {
                 dismiss()
-                BrainDumpWindow.open(capture.app)
+                DayNote.open()
             }
             .uiTarget("menu-brain-dump")
             row("Show the bubble", keys: nil, art: nil, checked: showBubble) {

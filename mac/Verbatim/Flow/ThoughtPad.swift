@@ -9,6 +9,13 @@ import SwiftUI
 // right-click to copy or delete it. No Clear: each day keeps its own page. While the panel is open, a dictation lands
 // on today's page as a thought. The panel never makes Verbose the active app and becomes key only while you edit a
 // thought, so the app you were in keeps its place and Send can paste straight into it.
+//
+// Since the consolidation (October 28, 2026) the page has a second mode, Write or dictate: the day's note, which took
+// the Brain dump window's place (Views/DayNote.swift). In it the panel takes the keyboard so you can type, ⌃⌥
+// dictation goes into the note, Copy and Send use the note, and Plan my day sorts it.
+
+/// Today's page shows the day's thoughts, or the day's note (Write or dictate).
+enum TodayPageMode: Hashable { case thoughts, note }
 
 /// The page's day, which thought is being edited, and whether the panel may take the keyboard.
 @MainActor
@@ -22,6 +29,8 @@ final class ThoughtPageState: ObservableObject {
     /// Whether the page is open. Closed, the panel holds an empty view, so nothing in it observes anything (see
     /// `ThoughtPadRoot`).
     @Published var shown = false
+    /// The day's thoughts, or the day's note.
+    @Published var mode: TodayPageMode = .thoughts
 
     var today: Date { DayPages.today(hour: Thoughts.newPageHour) }
     var isToday: Bool { day >= today }
@@ -51,6 +60,7 @@ final class ThoughtPadController {
         if panel == nil { build() }
         guard let p = panel else { return }
         state.editing = nil
+        state.mode = .thoughts
         state.day = state.today
         let today = state.today
         let empty = ThoughtCapture.shared.app?.store.page(.idea, day: today, hour: Thoughts.newPageHour).isEmpty ?? true
@@ -58,6 +68,24 @@ final class ThoughtPadController {
         if !state.shown { state.shown = true }
         p.allowsKey = false
         p.orderFrontRegardless()
+    }
+
+    /// File › Today's Note: today's page on its note, with the keyboard, so you can type or hold ⌃⌥ and talk.
+    func openNote() {
+        open()
+        setMode(.note)
+    }
+
+    /// Switches the page between the day's thoughts and its note. The note takes the keyboard; the thoughts give it back.
+    func setMode(_ mode: TodayPageMode) {
+        state.editing = nil
+        if state.mode != mode { state.mode = mode }
+        if mode == .note {
+            beginEditing()
+            DispatchQueue.main.async { DayNote.focus() }
+        } else {
+            endEditing()
+        }
     }
 
     func close() {
@@ -183,6 +211,10 @@ struct ThoughtPageView: View {
     @Environment(\.look) private var look
     @State private var working = false
     @State private var frontApp = ""
+    /// The note as you type it, and the day it belongs to; kept with that day a moment after you stop.
+    @State private var note = ""
+    @State private var noteDay: Date? = nil
+    @State private var saveNote: DispatchWorkItem? = nil
 
     private var hour: Int { Thoughts.newPageHour }
     private var page: [Transcript] { capture.app?.store.page(.idea, day: state.day, hour: hour) ?? [] }
@@ -191,17 +223,52 @@ struct ThoughtPageView: View {
         let items = page
         Group {
             if look == .native {
-                NativeThoughtPage(state: state, items: items, frontApp: frontApp, working: working, actionID: $state.actionID,
+                NativeThoughtPage(state: state, items: items, note: $note, frontApp: frontApp, working: working, actionID: $state.actionID,
                                   copy: { copy(items) }, send: { send(items) })
             } else {
                 verbose(items)
             }
         }
-        .onAppear { updateFront() }
+        .onAppear { updateFront(); loadNote() }
+        .onChange(of: state.day) { _, _ in loadNote() }
+        .onChange(of: state.mode) { _, _ in loadNote() }
+        .onChange(of: note) { _, new in
+            guard let d = noteDay, let store = capture.app?.store else { return }
+            saveNote?.cancel()
+            let w = DispatchWorkItem { DayPlanCenter.shared.saveNote(day: d, note: new, store: store) }
+            saveNote = w
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: w)
+        }
+        .onDisappear { flushNote() }
         // Follows app switches as they happen, for "Send to <app>".
         .onReceive(Self.activations) { note in
             updateFront(note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)
         }
+    }
+
+    // MARK: The note
+
+    /// Saves the note you were writing (to its own day), then reads the page's day's note.
+    private func loadNote() {
+        flushNote()
+        let d = state.day
+        noteDay = d
+        let stored = capture.app?.store.dayPlan(d, source: .note)?.note ?? ""
+        if note != stored { note = stored }
+    }
+
+    private func flushNote() {
+        saveNote?.cancel(); saveNote = nil
+        guard let d = noteDay, let store = capture.app?.store else { return }
+        DayPlanCenter.shared.saveNote(day: d, note: note, store: store)
+    }
+
+    /// The mode switch under the title: Thoughts | Write or dictate.
+    private var modeSwitch: some View {
+        SegmentedCapsule(label: "Today's page shows", options: [TodayPageMode.thoughts, .note],
+                         selection: Binding(get: { state.mode }, set: { controller.setMode($0) }),
+                         title: { $0 == .thoughts ? "Thoughts" : "Write or dictate" }, small: true,
+                         target: { $0 == .thoughts ? "page-mode-thoughts" : "page-mode-note" })
     }
 
     // MARK: Verbose
@@ -211,12 +278,13 @@ struct ThoughtPageView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
-                    Text("Thoughts").font(Ink.mono(12)).foregroundStyle(Ink.dim)
+                    Text(state.mode == .note ? "Note" : "Thoughts").font(Ink.mono(12)).foregroundStyle(Ink.dim)
                     DottedRule().frame(height: 1)
-                    Text(DayPages.count(items.count, "thought", "thoughts")).font(Ink.mono(12)).monospacedDigit().foregroundStyle(Ink.mute)
+                    Text(state.mode == .note ? DayPages.count(noteWords, "word", "words") : DayPages.count(items.count, "thought", "thoughts"))
+                        .font(Ink.mono(12)).monospacedDigit().foregroundStyle(Ink.mute)
                 }
                 HStack(alignment: .center) {
-                    WebText.serif("Thoughts ·", italic: DayPages.dateTitle(state.day), size: 22).foregroundStyle(Ink.ink)
+                    WebText.serif(state.mode == .note ? "Note ·" : "Thoughts ·", italic: DayPages.dateTitle(state.day), size: 22).foregroundStyle(Ink.ink)
                         .lineLimit(1).minimumScaleFactor(0.8)
                         .accessibilityAddTraits(.isHeader)
                         .uiTarget("page-title")
@@ -224,10 +292,13 @@ struct ThoughtPageView: View {
                     DayArrow(back: true, enabled: true) { state.move(-1) }.uiTarget("page-prev")
                     DayArrow(back: false, enabled: !state.isToday) { state.move(1) }.uiTarget("page-next")
                 }
+                modeSwitch
             }
             .padding(.horizontal, 18).padding(.top, 26).padding(.bottom, 8)
 
-            if items.isEmpty {
+            if state.mode == .note {
+                DayNoteView(day: state.day, note: $note).padding(.horizontal, 14).padding(.bottom, 8)
+            } else if items.isEmpty {
                 ThoughtEmptyPage(isToday: state.isToday, play: state.playEmpty && state.isToday)
                 Spacer(minLength: 0)
             } else {
@@ -253,9 +324,17 @@ struct ThoughtPageView: View {
         .background(Ink.paper)
     }
 
+    private var noteWords: Int { note.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count }
+
+    /// Copy and Send have something to work with: the day's thoughts, or the note.
+    private func hasText(_ items: [Transcript]) -> Bool {
+        state.mode == .note ? !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty : !items.isEmpty
+    }
+
     private func bottomBar(_ items: [Transcript]) -> some View {
         HStack(spacing: 8) {
-            ThoughtMicDisc(size: 38).uiTarget("page-mic")
+            // The note fills from ⌃⌥ dictation and typing; the mic records thoughts.
+            if state.mode == .thoughts { ThoughtMicDisc(size: 38).uiTarget("page-mic") }
             Picker("Action", selection: $state.actionID) {
                 Text("As is").tag(FlowAction.ID?.none)
                 ForEach(flow.actions) { a in Text(a.name).tag(FlowAction.ID?.some(a.id)) }
@@ -264,9 +343,9 @@ struct ThoughtPageView: View {
             .help("Run a saved action on the whole page before sending")
             Spacer(minLength: 4)
             if working { ProgressView().controlSize(.small) }
-            PillButton(title: "Copy", kind: .line, size: .mini, enabled: !items.isEmpty && !working) { copy(items) }
+            PillButton(title: "Copy", kind: .line, size: .mini, enabled: hasText(items) && !working) { copy(items) }
                 .uiTarget("page-copy")
-            PillButton(title: frontApp.isEmpty ? "Send" : "Send to \(frontApp)", kind: .dark, size: .mini, enabled: !items.isEmpty && !working) { send(items) }
+            PillButton(title: frontApp.isEmpty ? "Send" : "Send to \(frontApp)", kind: .dark, size: .mini, enabled: hasText(items) && !working) { send(items) }
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .background(Ink.bar)
@@ -276,16 +355,17 @@ struct ThoughtPageView: View {
     // MARK: Copy and Send
 
     private func copy(_ items: [Transcript]) {
-        Task { if let t = await result(items) { Paster.copy(t); controller.dictation?.bar?.flash("Today's thoughts copied", seconds: 2) } }
+        let what = state.mode == .note ? "Today's note copied" : "Today's thoughts copied"
+        Task { if let t = await result(items) { Paster.copy(t); controller.dictation?.bar?.flash(what, seconds: 2) } }
     }
 
     private func send(_ items: [Transcript]) {
         Task { if let t = await result(items) { controller.send(t) } }
     }
 
-    /// The day's words, a blank line between thoughts, through the chosen action if there is one.
+    /// The day's words, a blank line between thoughts (or the note), through the chosen action if there is one.
     private func result(_ items: [Transcript]) async -> String? {
-        let text = Thoughts.joined(items)
+        let text = state.mode == .note ? note.trimmingCharacters(in: .whitespacesAndNewlines) : Thoughts.joined(items)
         guard !text.isEmpty else { return nil }
         guard let id = state.actionID, let action = flow.actions.first(where: { $0.id == id }) else { return text }
         working = true
@@ -519,6 +599,7 @@ private struct ThoughtEditor: View {
 private struct NativeThoughtPage: View {
     @ObservedObject var state: ThoughtPageState
     var items: [Transcript]
+    @Binding var note: String
     var frontApp: String
     var working: Bool
     @Binding var actionID: FlowAction.ID?
@@ -530,9 +611,9 @@ private struct NativeThoughtPage: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Thoughts · \(DayPages.dateTitle(state.day))").font(.system(size: 18, weight: .bold)).lineLimit(1).minimumScaleFactor(0.8)
+                    Text("\(state.mode == .note ? "Note" : "Thoughts") · \(DayPages.dateTitle(state.day))").font(.system(size: 18, weight: .bold)).lineLimit(1).minimumScaleFactor(0.8)
                         .accessibilityAddTraits(.isHeader)
-                    Text("\(state.isToday ? "Today" : DayPages.listDay(state.day)) · \(DayPages.count(items.count, "thought", "thoughts"))")
+                    Text("\(state.isToday ? "Today" : DayPages.listDay(state.day)) · \(state.mode == .note ? DayPages.count(note.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count, "word", "words") : DayPages.count(items.count, "thought", "thoughts"))")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
@@ -547,9 +628,18 @@ private struct NativeThoughtPage: View {
                 .font(.system(size: 12, weight: .semibold))
                 .background(Capsule().fill(PremiumInk.card))
             }
-            .padding(.horizontal, 16).padding(.top, 30).padding(.bottom, 10)
+            .padding(.horizontal, 16).padding(.top, 30).padding(.bottom, 6)
+            Picker("Show", selection: Binding(get: { state.mode }, set: { ThoughtPadController.shared.setMode($0) })) {
+                Text("Thoughts").tag(TodayPageMode.thoughts)
+                Text("Write or Dictate").tag(TodayPageMode.note)
+            }
+            .pickerStyle(.segmented).labelsHidden()
+            .padding(.horizontal, 16).padding(.bottom, 8)
+            .uiTarget("page-mode")
 
-            if items.isEmpty {
+            if state.mode == .note {
+                DayNoteView(day: state.day, note: $note).padding(.horizontal, 14).padding(.bottom, 8)
+            } else if items.isEmpty {
                 ThoughtEmptyPage(isToday: state.isToday, play: state.playEmpty && state.isToday)
                 Spacer(minLength: 0)
             } else {
@@ -568,7 +658,7 @@ private struct NativeThoughtPage: View {
                 ThoughtPadOrganizeRow(day: state.day, items: items).padding(.horizontal, 14)
             }
             HStack(spacing: 8) {
-                ThoughtMicDisc(size: 36).uiTarget("page-mic")
+                if state.mode == .thoughts { ThoughtMicDisc(size: 36).uiTarget("page-mic") }
                 Picker("Action", selection: $actionID) {
                     Text("As Is").tag(FlowAction.ID?.none)
                     ForEach(flow.actions) { a in Text(a.name).tag(FlowAction.ID?.some(a.id)) }
@@ -576,9 +666,10 @@ private struct NativeThoughtPage: View {
                 .labelsHidden().pickerStyle(.menu).frame(maxWidth: 110)
                 Spacer(minLength: 4)
                 if working { ProgressView().controlSize(.small) }
-                Button("Copy", action: copy).buttonStyle(.bordered).disabled(items.isEmpty || working).uiTarget("page-copy")
+                let empty = state.mode == .note ? note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty : items.isEmpty
+                Button("Copy", action: copy).buttonStyle(.bordered).disabled(empty || working).uiTarget("page-copy")
                 Button(frontApp.isEmpty ? "Send" : "Send to \(frontApp)", action: send).buttonStyle(.borderedProminent)
-                    .disabled(items.isEmpty || working).lineLimit(1).fixedSize()
+                    .disabled(empty || working).lineLimit(1).fixedSize()
             }
             .padding(10)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(PremiumInk.card))

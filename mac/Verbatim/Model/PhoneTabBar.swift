@@ -4,7 +4,9 @@ import Combine
 #endif
 
 // The iPhone's tab bar (Settings › Personalization and preferences › Tab bar): Home first and Settings last, and up to
-// three tabs between them that you pick and order. The default is Library and Moments, the bar every build had before.
+// three tabs between them that you pick and order. The default is Library and Thoughts: Moments left the bar in the
+// consolidation (October 28, 2026) and became the Library's Marked filter, so a stored Moments tab becomes Library, or
+// Thoughts when Library is already there (`PhoneTabBar.replacingMoments`).
 // Kept per device in the App Group, like the look (`appearance.tabBar`); nothing syncs.
 //
 // Plain Foundation, so mac/tools/test-home-layout.sh runs it on Linux: the default, tolerant decoding, picking and
@@ -12,7 +14,10 @@ import Combine
 
 /// A tab the iPhone's bar can show.
 enum PhoneTab: String, CaseIterable, Hashable, Sendable {
-    case home, library, thoughts, journal, moments, dictations, projects, settings
+    case home, library, thoughts, journal, dictations, projects, settings
+
+    /// The Moments tab's stored value, from builds before the consolidation.
+    static let retiredMoments = "moments"
 
     var title: String {
         switch self {
@@ -20,7 +25,6 @@ enum PhoneTab: String, CaseIterable, Hashable, Sendable {
         case .library: return "Library"
         case .thoughts: return "Thoughts"
         case .journal: return "Journal"
-        case .moments: return "Moments"
         case .dictations: return "Dictations"
         case .projects: return "Projects"
         case .settings: return "Settings"
@@ -34,7 +38,6 @@ enum PhoneTab: String, CaseIterable, Hashable, Sendable {
         case .library: return "Everything you've kept"
         case .thoughts: return "Today's page, and By day"
         case .journal: return "Your journal, by day"
-        case .moments: return "Lines you saved"
         case .dictations: return "Everything you dictated"
         case .projects: return "Each project and what's in it"
         case .settings: return "Always last"
@@ -42,15 +45,16 @@ enum PhoneTab: String, CaseIterable, Hashable, Sendable {
     }
 
     /// The tabs you can pick for the middle of the bar, in the picker's order.
-    static let pickable: [PhoneTab] = [.library, .thoughts, .journal, .moments, .dictations, .projects]
+    static let pickable: [PhoneTab] = [.library, .thoughts, .journal, .dictations, .projects]
 }
 
 /// The bar: Home, the picked tabs in order, and Settings.
 struct PhoneTabBar: Equatable, Sendable {
     /// How many tabs fit between Home and Settings.
     static let maxMiddle = 3
-    /// The bar every build had before you could change it.
-    static let defaultMiddle: [PhoneTab] = [.library, .moments]
+    /// The bar a new install starts with, and one that never picked its tabs (Library and Moments before the
+    /// consolidation).
+    static let defaultMiddle: [PhoneTab] = [.library, .thoughts]
     static let `default` = PhoneTabBar(middle: defaultMiddle)
     /// The App Group key (a list of raw values for the middle tabs).
     static let key = "appearance.tabBar"
@@ -114,7 +118,18 @@ struct PhoneTabBar: Equatable, Sendable {
     /// empty list is a bar with only Home and Settings.
     static func decode(_ stored: Any?) -> PhoneTabBar {
         guard let raw = stored as? [String] else { return .default }
-        return PhoneTabBar(middle: raw.compactMap(PhoneTab.init(rawValue:)))
+        return PhoneTabBar(middle: replacingMoments(raw).compactMap(PhoneTab.init(rawValue:)))
+    }
+
+    /// A stored bar with the retired Moments tab in its place replaced: by Library when the bar lacks it, else by
+    /// Thoughts when the bar lacks that, else dropped.
+    static func replacingMoments(_ raw: [String]) -> [String] {
+        guard let i = raw.firstIndex(of: PhoneTab.retiredMoments) else { return raw }
+        var out = raw
+        if !raw.contains(PhoneTab.library.rawValue) { out[i] = PhoneTab.library.rawValue }
+        else if !raw.contains(PhoneTab.thoughts.rawValue) { out[i] = PhoneTab.thoughts.rawValue }
+        else { out.remove(at: i) }
+        return out.filter { $0 != PhoneTab.retiredMoments }
     }
 }
 

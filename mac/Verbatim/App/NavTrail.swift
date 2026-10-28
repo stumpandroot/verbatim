@@ -94,7 +94,7 @@ final class NavTrail: ObservableObject {
         }
     }
 
-    /// The name on the back pill: where Back goes ("Library", "Home", "Moments", "Thoughts", "Search").
+    /// The name on the back pill: where Back goes ("Library", "Home", "Dictations", "Thoughts", "Search").
     func backName(_ app: AppState) -> String {
         guard let s = backStop else { return "Library" }
         switch s.screen {
@@ -103,10 +103,8 @@ final class NavTrail: ObservableObject {
             if !app.search.trimmingCharacters(in: .whitespaces).isEmpty { return "Search" }
             if let p = s.project, let name = app.store.projects.first(where: { $0.id == p })?.name { return name }
             return "Library"
-        case .links: return "Links"
         case .queue: return "Queue"
         case .trash: return "Recently Deleted"
-        case .moments: return "Moments"
         case .dictionary: return "Dictionary"
         case .dictations: return "Dictations"
         case .activity: return "You"

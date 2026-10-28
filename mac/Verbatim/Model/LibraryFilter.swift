@@ -53,9 +53,11 @@ enum Platform {
     }
 }
 
-/// The Library's type filter: what a transcript is, from where it came. Instant, combines with search and kinds.
+/// The Library's type filter: what a transcript is, from where it came, and Marked (recordings with a moment). Instant,
+/// combines with search and kinds. Marked took the Moments screen's place, and Links the Mac's Links screen's, in the
+/// consolidation (October 28, 2026); it comes last, so the other chips keep their ⌘1 to ⌘7.
 enum LibrarySource: String, CaseIterable, Identifiable, Codable {
-    case all, voiceMemos, videos, audioFiles, links, appAudio, dictations
+    case all, voiceMemos, videos, audioFiles, links, appAudio, dictations, marked
     var id: String { rawValue }
 
     var label: String {
@@ -67,8 +69,12 @@ enum LibrarySource: String, CaseIterable, Identifiable, Codable {
         case .links: return "Links"
         case .appAudio: return "App audio"
         case .dictations: return "Dictations"
+        case .marked: return "Marked"
         }
     }
+
+    /// A recording with a moment: a bookmark, a mark made while recording, or a note pinned to a time.
+    static func isMarked(_ t: Transcript) -> Bool { t.notes.contains { $0.at != nil } }
 
     /// Videos and links break down by platform.
     var hasPlatforms: Bool { self == .videos || self == .links }
@@ -95,6 +101,7 @@ enum LibrarySource: String, CaseIterable, Identifiable, Codable {
             if Self.isVideoFile(t) { return true }
             return Self.isLink(t) && Platform.of(t).map { Platform.video.contains($0) } == true
         case .audioFiles: return !t.isDictation && t.source == .file && !Self.isLink(t) && !Self.isVideoFile(t)
+        case .marked: return !t.isDictation && Self.isMarked(t)
         }
     }
 }

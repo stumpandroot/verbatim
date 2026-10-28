@@ -743,11 +743,7 @@ extension HomeTile {
         case .importMedia: return .iconDownload
         case .whatsPlaying, .appAudio: return .iconVoice
         case .captions: return .iconCaptions
-        case .pasteLink: return .iconLinks
         case .thoughtPad: return .iconThought
-        case .search: return .search
-        case .moments: return .iconMoments
-        case .queue: return .iconQueue
         case .dictionary: return .iconDictionary
         case .projects: return .iconProject
         case .newThought: return .iconThought
@@ -764,11 +760,7 @@ extension HomeTile {
         case .importMedia: return "square.and.arrow.down"
         case .whatsPlaying, .appAudio: return "speaker.wave.2"
         case .captions: return "captions.bubble"
-        case .pasteLink: return "link"
         case .thoughtPad: return "doc.text"
-        case .search: return "magnifyingglass"
-        case .moments: return "bookmark"
-        case .queue: return "list.bullet"
         case .dictations: return "text.bubble"
         case .dictionary: return "character.book.closed"
         case .projects: return "folder"

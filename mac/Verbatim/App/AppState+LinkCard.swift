@@ -49,6 +49,12 @@ extension AppState {
         startLinkFetch(id, link: link, keepVideo: false)
     }
 
+    /// The sidebar's Queue row shows only while something is queued, transcribing, or downloading (consolidation, October
+    /// 28, 2026), and while you're on it; links whose card hasn't landed count, so the card has a row to land on.
+    var queueShowsInSidebar: Bool {
+        !queue.isEmpty || runningID != nil || linkCardID != nil || linkImports.values.contains { !$0.isFinished } || screen == .queue
+    }
+
     /// Queue's badge: what's queued or running, plus links still downloading, less links whose card hasn't landed.
     var queueBadgeCount: Int {
         var ids = Set(queue)
@@ -237,7 +243,7 @@ extension AppState {
 
     // MARK: ⌘V
 
-    /// ⌘V on Home, Library, or Links with a link on the clipboard adds it, unless you're typing in a field.
+    /// ⌘V on Home or the Library with a link on the clipboard adds it, unless you're typing in a field.
     func installLinkPasteMonitor() {
         guard linkPasteMonitor == nil else { return }
         linkPasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
@@ -245,7 +251,7 @@ extension AppState {
                   e.charactersIgnoringModifiers?.lowercased() == "v",
                   let window = e.window, window === self.mainWindow, window.attachedSheet == nil,
                   !(window.firstResponder is NSText),
-                  [Screen.home, .library, .links].contains(self.screen),
+                  [Screen.home, .library].contains(self.screen),
                   let link = AppState.clipboardLink else { return e }
             self.transcribeLink(link)
             return nil

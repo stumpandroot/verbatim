@@ -2,12 +2,8 @@ import SwiftUI
 
 // The iPhone's tabs (Settings › Personalization and preferences › Tab bar, PhoneTabBar.swift): Home first, Settings
 // last, and up to three you pick between them, each with its own navigation stack. A screen asked for whose tab isn't in
-// the bar (a Moments link, Home's Journal tile with no Journal tab) opens pushed inside Library, or inside Home when
-// Library isn't in the bar either, rather than failing. With the default bar (Library, Moments) every path is the one
-// it always was.
-
-/// Moments pushed inside another tab, when Moments isn't in the bar.
-struct MomentsRoute: Hashable {}
+// the bar (Home's Journal tile with no Journal tab) opens pushed inside Library, or inside Home when Library isn't in the
+// bar either, rather than failing. Moments became the Library's Marked filter in the consolidation (October 28, 2026).
 
 /// The Library pushed inside another tab: when Library isn't in the bar, or a project from the Projects tab. `request`
 /// is a `libraryFilterRequest` ("working", "project:<id>", or a kind's raw value).
@@ -21,7 +17,6 @@ extension PhoneTab {
         case .library: return .iconLibrary
         case .thoughts: return .iconThought
         case .journal: return .iconNotes
-        case .moments: return .iconMoments
         case .dictations: return .iconDictations
         case .projects: return .iconProject
         case .settings: return .iconSettings
@@ -36,7 +31,6 @@ extension PhoneTab {
         case .library: return "books.vertical"
         case .thoughts: return "lightbulb"
         case .journal: return "book"
-        case .moments: return "bookmark"
         case .dictations: return "text.bubble"
         case .projects: return "folder"
         case .settings: return "gearshape"
@@ -53,7 +47,6 @@ extension PhoneState {
         switch t {
         case .home: return homePath
         case .library: return libraryPath
-        case .moments: return momentsPath
         case .thoughts: return thoughtsPath
         case .journal: return journalPath
         case .dictations: return dictationsPath
@@ -66,7 +59,6 @@ extension PhoneState {
         switch t {
         case .home: homePath = p
         case .library: libraryPath = p
-        case .moments: momentsPath = p
         case .thoughts: thoughtsPath = p
         case .journal: journalPath = p
         case .dictations: dictationsPath = p
@@ -110,6 +102,10 @@ extension PhoneState {
 
     // MARK: Going places
 
+    /// The Library on its Marked chip: the recordings with a moment (the Moments screen's place since the
+    /// consolidation).
+    func openMarked() { go(.library, filter: "source:" + LibrarySource.marked.rawValue) }
+
     /// Opens a tab's screen: the tab itself when it's in the bar; otherwise its screen pushed inside Library, or Home.
     /// `filter` opens the Library on a chip (`libraryFilterRequest`).
     func go(_ t: Tab, filter: String? = nil) {
@@ -125,10 +121,6 @@ extension PhoneState {
                 push(LibraryRoute(request: filter), on: .home)
                 tab = .home
             }
-        case .moments:
-            let host = bar.host(for: .moments)
-            if host != .moments { push(MomentsRoute(), on: host) }
-            tab = host
         case .dictations:
             let host = bar.host(for: .dictations)
             if host == .dictations {
@@ -162,7 +154,6 @@ extension View {
             .navigationDestination(for: ByDayRoute.self) { r in ByDayScreen(kind: r.kind) }
             .navigationDestination(for: DayPageRoute.self) { r in DayPageScreen(kind: r.kind, day: r.day).id(r) }
             .navigationDestination(for: ThoughtsPlanRoute.self) { r in ThoughtsPlanScreen(day: r.day) }
-            .navigationDestination(for: MomentsRoute.self) { _ in MomentsScreen(pushed: true) }
             .navigationDestination(for: LibraryRoute.self) { r in LibraryScreen(route: r) }
             .navigationDestination(for: TemplatesRoute.self) { _ in TemplatesScreen() }
             .navigationDestination(for: TemplateDetailRoute.self) { r in TemplateDetailScreen(id: r.id) }

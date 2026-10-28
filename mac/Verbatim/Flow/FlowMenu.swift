@@ -9,7 +9,6 @@ final class FlowMenuController {
     struct Actions {
         var hide: () -> Void
         var settings: () -> Void
-        var history: () -> Void
         var pasteLast: () -> Void
         var copyLast: () -> Void
         var editByVoice: () -> Void
@@ -143,8 +142,8 @@ struct FlowMenuView: View {
             rule
             item("Edit selection by voice", .iconFeedback, keys: "⇧ + key") { actions.editByVoice(); close() }
                 .onHover { if $0 { sub = nil } }
-            item("Dictation history", .iconRecent) { actions.history(); close() }
-                .onHover { if $0 { sub = nil } }
+            // Dictation history left the Ribbon's menu in the consolidation (October 28, 2026): Dictations in the main
+            // window and Recall (⌥⌘V) keep it.
             item("Paste last dictation", .iconPaste, keys: "⌃⌘V") { actions.pasteLast(); close() }
                 .onHover { if $0 { sub = nil } }
             item("Copy last dictation", .iconCopy) { actions.copyLast(); close() }

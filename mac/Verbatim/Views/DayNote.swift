@@ -3,239 +3,133 @@ import AppKit
 
 // brand: web style
 //
-// The Mac's brain dump (approved mockup "Verbose Brain Dump", sections 8 and 9, October 27, 2026; decision 9): its own
-// window, opened from File › New Brain Dump, the menu bar panel, or Home's Brain dump tile, with one note for today.
-// The note is a plain text view, so ⌃⌥ dictation types into it with the existing insertion path (the paste), and you
-// can type and fix things between takes; dictations into it stay in the note and aren't listed in Dictations
-// (decision 11, Dictation.swift). Make a plan runs Plan my day on the note's paragraphs; each task links to the
-// paragraph it came from. Verbose style: the reader sheet with the plan column on the right and Send to Reminders in a
-// popover. Native: a document window with Make a Plan as the prominent button, the plan in the inspector, and Send to
-// Reminders in a sheet. The note and its plan are kept with the day (`plans.json`), so they sync.
+// Today's page's note (consolidation, October 28, 2026): the Mac's Brain dump window became a mode of Today's page,
+// "Write or dictate" (Flow/ThoughtPad.swift). File › Today's Note, the menu bar's Today's note, and Home's Brain dump
+// tile open the page in that mode. The note is a plain text view, so you type and fix between takes; while the page
+// shows the note, ⌃⌥ dictation goes straight into it at the cursor (`DayNote.insert`) and isn't listed in Dictations
+// (decision 11, Dictation.swift). Plan my day runs on the note's paragraphs; each task links to its paragraph. The
+// note and its plan are the day's (`DayPlanRecord`, source note, in `plans.json`), so they sync, and a note the Brain
+// dump window kept is that day's page note as it is: nothing is copied, and an older build still opens it in its window.
 
+/// The page's note while it's on screen: where dictation inserts, and where a plan task's ¶ link lands.
 @MainActor
-enum BrainDumpWindow {
-    private static var window: NSWindow?
-    /// The note's text view, while the window is open (the self-test inserts into it as a paste would).
+enum DayNote {
+    /// The note's text view, while the page shows it.
     static weak var textView: NSTextView?
-    private static weak var app: AppState?
 
-    /// The brain dump window has the keyboard: a dictation now goes into its note.
-    static var isKey: Bool { window?.isKeyWindow == true }
-    static var isOpen: Bool { window?.isVisible == true }
-
-    /// Opens (or brings forward) today's brain dump.
-    static func open(_ app: AppState?) {
-        if let app { self.app = app }
-        NSApp.activate(ignoringOtherApps: true)
-        if let w = window { w.makeKeyAndOrderFront(nil); focusNote(); return }
-        guard let app = app ?? self.app else { return }
-        let root = BrainDumpView().environmentObject(app).limitMotionRoot().lookRoot()
-        let host = NSHostingController(rootView: root)
-        // Sized here, never from the content (NSHostingController sizing rules, DESIGN.md).
-        host.sizingOptions = []
-        let w = NSWindow(contentViewController: host)
-        w.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        w.title = "Brain Dump"
-        w.isReleasedWhenClosed = false
-        w.setContentSize(NSSize(width: 980, height: 640))
-        w.minSize = NSSize(width: 640, height: 420)
-        w.setFrameAutosaveName("VerbatimBrainDump")
-        w.center()
-        window = w
-        w.makeKeyAndOrderFront(nil)
-        DispatchQueue.main.async { focusNote() }
+    /// Today's page is open on its note: a dictation goes into it, not into the front app or Dictations.
+    static var isTarget: Bool {
+        let pad = ThoughtPadController.shared
+        return pad.isOpen && pad.state.mode == .note
     }
 
-    static func close() { window?.orderOut(nil) }
+    /// File › Today's Note: today's page, in note mode, ready to type.
+    static func open() { ThoughtPadController.shared.openNote() }
 
-    static func focusNote() {
+    static func focus() {
         guard let tv = textView else { return }
         tv.window?.makeFirstResponder(tv)
     }
 
-    /// Text at the note's cursor, as a paste puts it there (the self-test, and anything that inserts).
+    /// Text at the note's cursor (a dictation, the self-test).
     static func insert(_ text: String) {
         guard let tv = textView else { return }
         tv.insertText(text, replacementRange: tv.selectedRange())
     }
 
-    /// Selects a paragraph of the note (a plan task's ¶ link).
-    static func select(paragraph text: String) {
-        guard let tv = textView else { return }
-        let ns = tv.string as NSString
-        let r = ns.range(of: text.components(separatedBy: " ").prefix(6).joined(separator: " "))
-        guard r.location != NSNotFound else { return }
-        let para = ns.paragraphRange(for: r)
-        tv.setSelectedRange(para)
-        tv.scrollRangeToVisible(para)
-        tv.window?.makeFirstResponder(tv)
+    /// Selects a paragraph of the note (a plan task's ¶ link), opening the page on its day first.
+    static func select(paragraph text: String, day: Date) {
+        let pad = ThoughtPadController.shared
+        if !(pad.isOpen && pad.state.mode == .note) { pad.openNote() }
+        if pad.state.day != day { pad.state.day = day }
+        DispatchQueue.main.async {
+            guard let tv = textView else { return }
+            let ns = tv.string as NSString
+            let r = ns.range(of: text.components(separatedBy: " ").prefix(6).joined(separator: " "))
+            guard r.location != NSNotFound else { return }
+            let para = ns.paragraphRange(for: r)
+            tv.setSelectedRange(para)
+            tv.scrollRangeToVisible(para)
+            tv.window?.makeFirstResponder(tv)
+        }
     }
 }
 
-/// The window's content.
-struct BrainDumpView: View {
-    @EnvironmentObject var app: AppState
-    @Environment(\.look) private var look
+/// The page's note in either look: the text view, the ⌃⌥ hint, and Plan my day (its plan opens in its own window,
+/// `ThoughtsPlanWindow`, as Organize's does).
+struct DayNoteView: View {
+    var day: Date
+    @Binding var note: String
     @ObservedObject private var center = DayPlanCenter.shared
-    @State private var note = ""
-    @State private var loaded = false
-    @State private var inspector = true
-    @State private var save: DispatchWorkItem? = nil
+    @ObservedObject private var capture = ThoughtCapture.shared
+    @Environment(\.look) private var look
 
-    private var day: Date { Calendar.current.startOfDay(for: Date()) }
-    private var record: DayPlanRecord? { app.store.dayPlan(day, source: .note) }
-    private var words: Int { note.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count }
+    private var record: DayPlanRecord? { capture.app?.store.dayPlan(day, source: .note) }
 
     var body: some View {
-        Group {
-            if look == .native { native } else { verbose }
-        }
-        .onAppear {
-            guard !loaded else { return }
-            loaded = true
-            note = record?.note ?? ""
-        }
-        .onChange(of: note) { _, new in
-            // Kept with the day a moment after you stop typing or dictating.
-            save?.cancel()
-            let d = day, store = app.store
-            let w = DispatchWorkItem { DayPlanCenter.shared.saveNote(day: d, note: new, store: store) }
-            save = w
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: w)
-        }
-        .onDisappear { DayPlanCenter.shared.saveNote(day: day, note: note, store: app.store) }
-    }
-
-    private func makePlan() {
-        DayPlanCenter.shared.saveNote(day: day, note: note, store: app.store)
-        DayPlanCenter.shared.planNote(day: day, note: note, store: app.store)
-        inspector = true
-    }
-
-    private func copyNote() {
-        Paster.copy(note)
-        app.toast = Toast("Copied")
-    }
-
-    private var hint: some View {
-        HStack(spacing: 6) {
-            Keycap(keys: "⌃", size: 12); Keycap(keys: "⌥", size: 12)
-            Text("Hold to dictate here, or type. Your words stay in this note.")
-        }
-        .font(.system(size: 12.5)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.mute))
-    }
-
-    // MARK: Verbose
-
-    private var verbose: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                Eyebrow(text: "Brain dump · \(DayPlan.shortDay(day))")
-                HStack(alignment: .firstTextBaseline, spacing: 14) {
-                    WebText.serif("Brain", italic: "dump", size: 34).foregroundStyle(Ink.ink)
-                    Text(DayPages.count(words, "word", "words")).font(Ink.mono(12.5)).foregroundStyle(Ink.mute)
-                    Spacer()
-                    PillButton(title: "Copy", kind: .line, size: .mini, icon: .iconCopy) { copyNote() }
-                    if record?.hasPlan == true {
-                        PillButton(title: "Run again", kind: .line, size: .mini, icon: .iconRecent, enabled: !center.isRunning(day, .note)) { makePlan() }
-                            .uiTarget("braindump-run-again")
-                    } else {
-                        PillButton(title: "Make a plan", kind: .dark, size: .mini, icon: .iconPlanDay, enabled: !center.isRunning(day, .note)) { makePlan() }
-                            .uiTarget("braindump-make-plan")
-                    }
-                }
-            }
-            HStack(alignment: .top, spacing: 18) {
-                VStack(alignment: .leading, spacing: 10) {
-                    BrainDumpTextView(text: $note, serif: false)
-                        .padding(14)
+        VStack(alignment: .leading, spacing: 8) {
+            Group {
+                if look == .native {
+                    DayNoteTextView(text: $note)
+                        .padding(8)
+                        .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 10, style: .continuous))   // brand: native
+                } else {
+                    DayNoteTextView(text: $note)
+                        .padding(10)
                         .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5))
-                    hint
                 }
-                .frame(maxWidth: .infinity)
-                planColumn
-                    .frame(width: 340)
             }
+            .uiTarget("page-note")
+            HStack(spacing: 6) {
+                Keycap(keys: "⌃", size: 12); Keycap(keys: "⌥", size: 12)
+                Text("Hold to dictate here, or type. Your words stay in this note.")
+            }
+            .font(.system(size: 12)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.mute))
+            planRow
         }
-        .padding(24)
-        .background(Ink.paper)
     }
 
-    @ViewBuilder private var planColumn: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                if let r = record, r.hasPlan {
-                    MacPlanPanel(source: .note, day: day)
-                } else if center.isRunning(day, .note) {
-                    HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Making a plan\u{2026}").foregroundStyle(Ink.dim) }
-                } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        WebText.serif("Your plan", italic: "shows here", size: 23).foregroundStyle(Ink.ink)
-                        Text("Make a plan sorts this note into Top three, Today, Tomorrow, This week, Someday, and Ideas, using only what you said.")
-                            .font(.system(size: 13)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
-                        Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
-                    }
-                    .padding(18)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4])))
-                }
+    @ViewBuilder private var planRow: some View {
+        let running = center.isRunning(day, .note)
+        HStack(spacing: 8) {
+            if let r = record, r.hasPlan {
+                let at = r.madeAt.map { Formats.style(date: .none, time: .short).string(from: $0) } ?? ""
+                Text("Plan \u{00B7} made \(at)").font(.system(size: 12)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.mute)).lineLimit(1)
+                Spacer(minLength: 4)
+                PillButton(title: "Open Plan", kind: .line, size: .mini) { openPlan() }
+                    .uiTarget("note-open-plan")
+                PillButton(title: "Run again", kind: .line, size: .mini, icon: .iconRecent, enabled: !running) { plan() }
+            } else {
                 if let why = center.failure(day, .note) {
-                    Text(why).font(.system(size: 12.5)).foregroundStyle(Ink.danger).fixedSize(horizontal: false, vertical: true)
+                    Text(why).font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(2)
                 }
+                Spacer(minLength: 4)
+                if running { ProgressView().controlSize(.small) }
+                // One plan maker, Plan my day, everywhere (Make a plan merged into it).
+                PillButton(title: "Plan my day", kind: .line, size: .mini, icon: .iconPlanDay,
+                           enabled: !running && !DayPlan.paragraphs(note).isEmpty) { plan() }
+                    .uiTarget("note-plan-my-day")
             }
         }
     }
 
-    // MARK: Native
-    // brand: native begin
-
-    private var native: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Brain Dump").font(.system(size: 15, weight: .bold))
-                    Text("\(Formats.style(date: .full, time: .none).string(from: day)) · \(DayPages.count(words, "word", "words"))")
-                        .font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button { copyNote() } label: { Label("Copy", systemImage: "doc.on.doc") }
-                if record?.hasPlan == true {
-                    Button { inspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.right") }
-                } else {
-                    Button { makePlan() } label: { Label("Make a Plan", systemImage: "calendar.badge.checkmark") }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(center.isRunning(day, .note))
-                        .uiTarget("braindump-make-plan")
-                }
-            }
-            .padding(.horizontal, 16).padding(.top, 10)
-            VStack(alignment: .leading, spacing: 8) {
-                BrainDumpTextView(text: $note, serif: false)
-                hint
-            }
-            .padding(.horizontal, 16).padding(.bottom, 12)
-        }
-        .background(Color(nsColor: .textBackgroundColor))
-        .inspector(isPresented: Binding(get: { inspector && (record?.hasPlan == true || center.isRunning(day, .note)) }, set: { inspector = $0 })) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    if record?.hasPlan == true { MacPlanPanel(source: .note, day: day) }
-                    else { HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Making a plan\u{2026}").foregroundStyle(.secondary) } }
-                    if let why = center.failure(day, .note) { Text(why).font(.system(size: 12)).foregroundStyle(NativeInk.danger) }
-                }
-                .padding(14)
-            }
-            .inspectorColumnWidth(min: 280, ideal: 310, max: 420)
-        }
+    private func plan() {
+        guard let app = capture.app else { return }
+        DayPlanCenter.shared.saveNote(day: day, note: note, store: app.store)
+        DayPlanCenter.shared.planNote(day: day, note: note, store: app.store)
+        ThoughtsPlanWindow.open(day: day, source: .note, app: app)
     }
-    // brand: native end
+
+    private func openPlan() {
+        guard let app = capture.app else { return }
+        ThoughtsPlanWindow.open(day: day, source: .note, app: app)
+    }
 }
 
 /// The note: a plain NSTextView (no rich text), so a paste, typing, and ⌃⌥ dictation all land at the cursor.
-struct BrainDumpTextView: NSViewRepresentable {
+struct DayNoteTextView: NSViewRepresentable {
     @Binding var text: String
-    var serif: Bool
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSTextView.scrollableTextView()
@@ -250,23 +144,23 @@ struct BrainDumpTextView: NSViewRepresentable {
         tv.isAutomaticQuoteSubstitutionEnabled = true
         tv.delegate = context.coordinator
         tv.string = text
-        tv.setAccessibilityLabel("Brain dump note")
-        BrainDumpWindow.textView = tv
+        tv.setAccessibilityLabel("Today's note")
+        DayNote.textView = tv
         return scroll
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let tv = scroll.documentView as? NSTextView else { return }
         if tv.string != text, !context.coordinator.editing { tv.string = text }
-        BrainDumpWindow.textView = tv
+        DayNote.textView = tv
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
-        var parent: BrainDumpTextView
+        var parent: DayNoteTextView
         var editing = false
-        init(_ p: BrainDumpTextView) { parent = p }
+        init(_ p: DayNoteTextView) { parent = p }
         func textDidChange(_ n: Notification) {
             guard let tv = n.object as? NSTextView else { return }
             editing = true
@@ -278,7 +172,7 @@ struct BrainDumpTextView: NSViewRepresentable {
 
 // MARK: - The plan beside a note or a day's thoughts
 
-/// A day's plan (the brain dump's note, or Organize today's thoughts): what it was made from, Send to Reminders
+/// A day's plan (the page's note, or Organize today's thoughts): what it was made from, Send to Reminders
 /// (a popover in Verbose style, a sheet in Native), Run again, the sections, and the footer.
 struct MacPlanPanel: View {
     @EnvironmentObject var app: AppState
@@ -354,7 +248,7 @@ struct MacPlanPanel: View {
     private func jump(_ item: DayPlan.Item, _ r: DayPlanRecord) {
         switch source {
         case .note:
-            if let i = DayPlan.index(of: item, count: r.paragraphs.count) { BrainDumpWindow.select(paragraph: r.paragraphs[i]) }
+            if let i = DayPlan.index(of: item, count: r.paragraphs.count) { DayNote.select(paragraph: r.paragraphs[i], day: day) }
         case .thoughts:
             if let i = DayPlan.index(of: item, count: r.thoughtIDs.count) {
                 ThoughtPadController.shared.open()
@@ -468,16 +362,16 @@ struct MacRemindersSend: View {
     }
 }
 
-/// Organize on the Mac's today's page: the plan from the day's thoughts in its own window, which you can keep open
-/// while you work.
+/// The Mac's today's page's plans (Organize on the day's thoughts, Plan my day on the note) in their own window, which
+/// you can keep open while you work.
 @MainActor
 enum ThoughtsPlanWindow {
     private static var window: NSWindow?
     static var isOpen: Bool { window?.isVisible == true }
     static func close() { window?.orderOut(nil) }
 
-    static func open(day: Date, app: AppState) {
-        let root = ScrollView { MacPlanPanel(source: .thoughts, day: day).padding(18) }
+    static func open(day: Date, source: DayPlanRecord.Source = .thoughts, app: AppState) {
+        let root = ScrollView { MacPlanPanel(source: source, day: day).padding(18) }
             .frame(minWidth: 360, minHeight: 360)
             .background(Ink.paper)
             .environmentObject(app).limitMotionRoot().lookRoot()

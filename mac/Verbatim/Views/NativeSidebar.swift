@@ -24,7 +24,7 @@ struct NativeSidebar: View {
         let library = counts.library, trash = counts.trash, perProject = counts.perProject
         return List(selection: selection) {
             Section {
-                ForEach(layout.visible) { id in
+                ForEach(shownItems) { id in
                     row(id, library: library)
                         .contextMenu {
                             Button("Hide from Sidebar") { withAnimation(limitMotion ? nil : .smooth(duration: 0.3)) { layout.setHidden(id, true) } }
@@ -110,8 +110,6 @@ struct NativeSidebar: View {
         case .dictionary:
             label.badge(app.store.dictionary.count).uiTarget("side-dict")
         case .home: label.uiTarget("side-home").uiWindowTarget("side-home")
-        case .links: label.uiTarget("side-links")
-        case .moments: label.uiTarget("side-moments")
         case .dictations: label.uiTarget("side-dictations")
         case .you: label.uiTarget("side-you")
         }
@@ -124,8 +122,6 @@ struct NativeSidebar: View {
         switch app.screen {
         case .home: return .main(.home)
         case .library: return app.projectFilter.map { .project($0) } ?? .main(.library)
-        case .links: return .main(.links)
-        case .moments: return .main(.moments)
         case .queue: return .main(.queue)
         case .dictations: return .main(.dictations)
         case .activity: return .main(.you)
@@ -148,8 +144,6 @@ struct NativeSidebar: View {
             switch id {
             case .home: app.go(.home)
             case .library: app.projectFilter = nil; app.go(.library)
-            case .links: app.go(.links)
-            case .moments: app.go(.moments)
             case .queue: app.go(.queue)
             case .dictations: app.go(.dictations)
             case .you: app.go(.activity)
@@ -171,9 +165,12 @@ struct NativeSidebar: View {
 
     // MARK: Order and projects
 
-    /// A drag among the visible rows, applied to the saved order (hidden rows keep their places).
+    /// The main rows on screen: the visible ones, with Queue only while something works.
+    private var shownItems: [SidebarItemID] { layout.visible.filter { $0 != .queue || app.queueShowsInSidebar } }
+
+    /// A drag among the rows on screen, applied to the saved order (hidden rows keep their places).
     private func move(from: IndexSet, to: Int) {
-        let visible = layout.visible
+        let visible = shownItems
         guard let i = from.first, visible.indices.contains(i) else { return }
         let id = visible[i]
         let target = to >= visible.count ? visible.last : visible[to > i ? to - 1 : to]

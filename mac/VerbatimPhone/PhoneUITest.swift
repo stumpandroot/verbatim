@@ -55,7 +55,7 @@ enum PhoneUITest {
             Log.note("UITEST TIMING \(name) settled=\(Int(ms.rounded()))")
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
-        for tab in [PhoneState.Tab.library, .moments, .settings, .home, .library] {
+        for tab in [PhoneState.Tab.library, .thoughts, .settings, .home, .library] {
             await timed("tab-\(tab)") { app.tab = tab }
         }
         if let big = seeded.first?.id {
@@ -293,8 +293,10 @@ enum PhoneUITest {
                     await show("\(prefix)07-link-transcript")
                     app.libraryPath = NavigationPath()
                 }
-                app.tab = .moments
-                await show("\(prefix)08-moments")
+                // Moments is the Library's Marked filter since the consolidation (October 28, 2026).
+                app.openMarked()
+                await show("\(prefix)08-library-marked")
+                app.libraryFilterRequest = "all"
                 app.tab = .settings
                 await show("\(prefix)09-settings")
                 // The seven groups run long: the middle (Dictation and keyboard) and the end (Features and the version).
@@ -452,8 +454,9 @@ enum PhoneUITest {
                 if prefix == "p" { youCheck("You in Native shows the week, year, and calendar cards", YouScreen.visible && PremiumYouStats.visible) }
                 NotificationCenter.default.post(name: .verbatimYouPage, object: false)
                 try? await Task.sleep(nanoseconds: 900_000_000)
-                app.tab = .moments
-                await show("\(prefix)08-moments-native")
+                app.openMarked()
+                await show("\(prefix)08-library-marked-native")
+                app.libraryFilterRequest = "all"
                 app.tab = .settings
                 await show("\(prefix)09-settings-native")
                 await settingsScrollShots(prefix: prefix, suffix: "-native")
@@ -1536,7 +1539,7 @@ enum PhoneUITest {
         NotificationCenter.default.post(name: .verbatimHomeTilePicker, object: false)
         try? await Task.sleep(nanoseconds: 800_000_000)
         let dropped = before.tiles[HomeLayout.tileCount - 1]
-        store.update(hl) { l in l.tiles = HomeLayout.toggle(.search, in: HomeLayout.toggle(dropped, in: l.tiles)) }
+        store.update(hl) { l in l.tiles = HomeLayout.toggle(.dictionary, in: HomeLayout.toggle(dropped, in: l.tiles)) }
         NotificationCenter.default.post(name: .verbatimEditHome, object: false)
         try? await Task.sleep(nanoseconds: 900_000_000)
         await show("p13d-home-edited\(suffix)")
@@ -1548,7 +1551,7 @@ enum PhoneUITest {
         check("Home draws only the shown sections (\(onScreen.keys.map(\.rawValue).sorted().joined(separator: ", ")))",
               Set(onScreen.keys) == Set(HomeSpacing.drawn(after, working: working(), native: look.isNative).map(\.section)))
         check("a size change reaches Home (tiles \(tileSize.rawValue))", onScreen[.tiles] == tileSize)
-        check("a new tile reaches Home (Search for \(dropped.title))", HomeProbe.tiles.contains(.search) && !HomeProbe.tiles.contains(dropped))
+        check("a new tile reaches Home (Dictionary for \(dropped.title))", HomeProbe.tiles.contains(.dictionary) && !HomeProbe.tiles.contains(dropped))
         check("the other look keeps its own layout", store.layout(other) == HomeLayout.defaults(.phone, other))
         store.reset(hl)
         try? await Task.sleep(nanoseconds: 1_200_000_000)
@@ -1586,8 +1589,8 @@ enum PhoneUITest {
     }
 
     /// Settings › Personalization and preferences › Tab bar (TabBarSettings.swift, PhoneTabBar.swift): the default on a
-    /// fresh install, Thoughts and Journal in place of Moments, each tab opening its own root, a Moments link and
-    /// today's page with the bar changed, reordering, removing the selected tab, Dictations and Projects as roots, and a
+    /// fresh install (Library and Thoughts since Moments left), Journal added, each tab opening its own root, a Marked
+    /// link (the Library's filter) and today's page with the bar changed, reordering, removing the selected tab, Dictations and Projects as roots, and a
     /// Library link with no Library tab. Screenshots of the picker and the new tabs in each look; the checks in the
     /// first. The bar store starts from the default in UI test mode and never writes the simulator's bar.
     private static func tabBarTour(_ app: PhoneState, suffix: String) async {
@@ -1603,25 +1606,26 @@ enum PhoneUITest {
         app.homePath = NavigationPath()
         if checks {
             if let fresh = UserDefaults(suiteName: "uitest.tabbar.\(UUID().uuidString)") {
-                check("a fresh install's bar is Home, Library, Moments, Settings",
-                      PhoneTabBarStore(defaults: fresh, persist: true).bar.tabs == [.home, .library, .moments, .settings])
+                check("a fresh install's bar is Home, Library, Thoughts, Settings",
+                      PhoneTabBarStore(defaults: fresh, persist: true).bar.tabs == [.home, .library, .thoughts, .settings])
+                fresh.set(["library", "moments"], forKey: PhoneTabBar.key)
+                check("a stored Moments tab becomes Thoughts (Moments left the bar)",
+                      PhoneTabBarStore(defaults: fresh, persist: true).bar.tabs == [.home, .library, .thoughts, .settings])
             }
             check("the self-test starts from the default bar", app.tabBar == .default)
-            titles([.home, .library, .moments, .settings], "the default bar is unchanged")
+            titles([.home, .library, .thoughts, .settings], "the default bar")
         }
         app.tab = .settings
         SettingsPage.open("tabBar")
         await show("p09p-settings-tab-bar\(suffix)")
         if checks { check("Settings › Personalization and preferences › Tab bar opens the picker", TabBarSettingsScreen.visible) }
         var picks = app.tabBar.middle
-        picks = PhoneTabBar.toggle(.moments, in: picks)
-        picks = PhoneTabBar.toggle(.thoughts, in: picks)
         picks = PhoneTabBar.toggle(.journal, in: picks)
         app.setTabBar(picks)
         await settle()
         await show("p09q-settings-tab-bar-thoughts-journal\(suffix)")
         if checks {
-            check("Thoughts and Journal in place of Moments: Home, Library, Thoughts, Journal, Settings",
+            check("Journal added: Home, Library, Thoughts, Journal, Settings",
                   app.tabBar.tabs == [.home, .library, .thoughts, .journal, .settings])
             check("the picker's preview shows the new bar", TabBarPreview.shown == app.tabBar.tabs)
             check("Settings stays on screen while you change the bar", app.tab == .settings && TabBarSettingsScreen.visible)
@@ -1642,9 +1646,10 @@ enum PhoneUITest {
             app.tab = .library
             await settle()
             check("the Library tab still opens the Library", app.libraryPath.isEmpty && visibleStackDepth() == 1)
-            app.go(.moments)
+            app.openMarked()
             await settle()
-            check("Moments without its tab opens inside Library", app.tab == .library && app.libraryPath.count == 1)
+            check("Marked (Moments' place) opens the Library tab on its filter", app.tab == .library && app.libraryPath.isEmpty)
+            app.libraryFilterRequest = "all"
             app.libraryPath = NavigationPath()
             app.tab = .home
             await settle()
@@ -1677,7 +1682,7 @@ enum PhoneUITest {
         await settle()
         if checks {
             check("back to the default bar", app.tabBar == .default && app.tab == .home)
-            titles([.home, .library, .moments, .settings], "the default bar comes back")
+            titles([.home, .library, .thoughts, .settings], "the default bar comes back")
         }
     }
 

@@ -88,7 +88,12 @@ enum UITest {
             await step("app tile opens the picker", window, target: "tile-app", check: { app.showAppPicker })
             app.showAppPicker = false
             try? await Task.sleep(nanoseconds: 400_000_000)
-            await step("captions tile opens the live captions panel", window, target: "tile-captions", check: { LiveCaptions.shared.isOpen })
+            // Live captions left the four default tiles (consolidation, October 28, 2026); its menu item and ⌥⌘C remain.
+            check("Live captions isn't a default tile, and still opens from its command",
+                  !HomeLayout.defaults(.mac, .verbose).tiles.contains(.captions) && HomeTile.available(on: .mac).contains(.captions))
+            app.toggleLiveCaptions()
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            check("Live captions opens from File › Live Captions (⌥⌘C)", LiveCaptions.shared.isOpen)
             LiveCaptions.shared.close(force: true)
             try? await Task.sleep(nanoseconds: 400_000_000)
             // This week is one button: a click anywhere on it opens You.
@@ -96,15 +101,10 @@ enum UITest {
             oneScreen("This week opens You", app: app)
             await step("sidebar Home goes home from You", window, target: "side-home", check: { app.screen == .home })
             oneScreen("sidebar Home from You", app: app)
-            // A Recent dictations row copies its words wherever it's clicked.
+            // Last dictation left Home in the consolidation (October 28, 2026); Dictations and Recall keep them.
             seedDictations(app)
             try? await Task.sleep(nanoseconds: 900_000_000)
-            let newest = app.store.live.filter { $0.source == .dictation }.max { $0.createdAt < $1.createdAt }
-            let expected = newest.map { HomeDictationText.pasted($0) } ?? ""
-            NSPasteboard.general.clearContents()
-            await step("clicking a recent dictation copies its text", window, target: "home-dictation-0",
-                       check: { !expected.isEmpty && NSPasteboard.general.string(forType: .string) == expected })
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            check("Home has no Last dictation section", HomeSection(rawValue: "lastDictation") == nil && HomeProbe.sections.count > 0)
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
             timingSummary("clicks")
             // Back: the Library comes back where you left it, ⌘[ and the View menu, and Back to Home (App/NavTrail.swift).
@@ -522,9 +522,6 @@ enum UITest {
         await show("02-home-dictate")
         app.captureMode = "voice"
         try? await Task.sleep(nanoseconds: 500_000_000)
-        // Home's Dictations section (seeded above), scrolled into view.
-        await reveal("home-dictations", in: window)
-        await show("02b-home-dictations")
         // The This week strip under the tiles.
         await reveal("home-week", in: window)
         await show("02c-home-week")
@@ -584,10 +581,12 @@ enum UITest {
         app.linkImports[card.id] = card; app.linkBadgeHeld.insert(card.id); app.linkCardID = card.id
         await show("05j-link-card")
         app.linkCardID = nil; app.linkBadgeHeld.remove(card.id); app.linkImports[card.id] = nil
-        app.go(.links)
-        await show("05c-links")
-        app.go(.moments)
-        await show("05f-moments")
+        // Links and Moments are Library filters since the consolidation.
+        app.goLibrary(.links)
+        await show("05c-library-links")
+        app.goLibrary(.marked)
+        await show("05f-library-marked")
+        app.libraryFilter = .all
         if let link = app.store.live.first(where: { $0.title == "Folding wagon walkthrough" }) {
             app.go(.transcript(link.id))
             await show("05g-link-kept")
@@ -719,7 +718,7 @@ enum UITest {
         // Dark appearance pass
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
         await show("11-dark-home")
-        await reveal("home-dictations", in: window)
+        await reveal("row-0", in: window)
         await show("11c-dark-home-recent")
         app.toggleLiveCaptions()
         await show("11b-dark-live-captions")
@@ -729,8 +728,9 @@ enum UITest {
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         await show("13-dark-document")
-        app.go(.links)
-        await show("14-dark-links")
+        app.goLibrary(.links)
+        await show("14-dark-library-links")
+        app.libraryFilter = .all
         app.libraryKind = .journal
         app.go(.library)
         await show("15-dark-library")
@@ -741,8 +741,9 @@ enum UITest {
         await show("17-dark-you")
         app.go(.dictionary)
         await show("18-dark-dictionary")
-        app.go(.moments)
-        await show("19-dark-moments")
+        app.goLibrary(.marked)
+        await show("19-dark-library-marked")
+        app.libraryFilter = .all
         app.go(.trash)
         await show("20-dark-trash")
         UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
@@ -878,19 +879,19 @@ enum UITest {
         session.pickingTiles = false
         try? await Task.sleep(nanoseconds: 500_000_000)
         let dropped = before.tiles[HomeLayout.tileCount - 1]
-        store.update(hl) { l in l.tiles = HomeLayout.toggle(.search, in: HomeLayout.toggle(dropped, in: l.tiles)) }
+        store.update(hl) { l in l.tiles = HomeLayout.toggle(.dictionary, in: HomeLayout.toggle(dropped, in: l.tiles)) }
         try? await Task.sleep(nanoseconds: 700_000_000)
         await show("02g-edit-home-edited\(suffix)")
         await step("edit home\(suffix): Done closes the inspector", window, target: "home-edit-done", check: { !session.editing })
         let after = store.layout(hl)
         let onScreen = HomeProbe.sections
-        let drawn = after.shown.filter { $0.section != .queue || app.store.transcripts.contains { $0.deletedAt == nil && $0.status == .processing } }
+        let drawn = after.shown
         check("edit home\(suffix): a hidden section leaves Home (This week)", !after.isVisible(.week) && onScreen[.week] == nil)
         check("edit home\(suffix): two sections swap places", order.count >= 2 && after.shown.prefix(2).map(\.section) == [order[1], order[0]])
         check("edit home\(suffix): Home draws only the shown sections (\(onScreen.keys.map(\.rawValue).sorted().joined(separator: ", ")))",
               Set(onScreen.keys) == Set(drawn.map(\.section)))
         check("edit home\(suffix): a size change reaches Home (tiles \(tileSize.rawValue))", onScreen[.tiles] == tileSize)
-        check("edit home\(suffix): a new tile reaches Home (Search for \(dropped.title))", HomeProbe.tiles.contains(.search) && !HomeProbe.tiles.contains(dropped))
+        check("edit home\(suffix): a new tile reaches Home (Dictionary for \(dropped.title))", HomeProbe.tiles.contains(.dictionary) && !HomeProbe.tiles.contains(dropped))
         check("edit home\(suffix): the other look keeps its own layout", store.layout(other) == HomeLayout.defaults(.mac, other))
         store.reset(hl)
         try? await Task.sleep(nanoseconds: 900_000_000)
@@ -1996,7 +1997,7 @@ enum UITest {
                 try? await Task.sleep(nanoseconds: 250_000_000)
             }
         }
-        var screens: [Screen] = [.library, .home, .links, .moments, .queue, .dictations, .activity, .trash]
+        var screens: [Screen] = [.library, .home, .queue, .dictations, .activity, .trash]
         if let big = seeded.first?.id { screens += [.transcript(big), .library] }
         screens.append(.home)
         for screen in screens {
@@ -2220,7 +2221,14 @@ extension UITest {
         seedThoughts(app, withTranscribing: true)
         ThoughtPadController.shared.open()
         await show("08b-thoughts-page\(suffix)")
+        // Write or dictate: the day's note, in the Brain dump window's place.
+        let today = ThoughtPadController.shared.state.today
+        let savedNote = app.store.dayPlan(today, source: .note)
+        app.store.updateDayPlan(today, source: .note) { $0.note = "Send the bakery invoice today.\n\nTomorrow, book the drone pilot for the farm shoot. Ask about the second camera." }
+        ThoughtPadController.shared.setMode(.note)
+        await show("08k-today-note\(suffix)")
         ThoughtPadController.shared.close()
+        if let savedNote { app.store.updateDayPlan(today, source: .note) { $0 = savedNote } } else { app.store.plans.removeAll { $0.source == .note && $0.day == DayPlanRecord.dayKey(today) } }
         guard suffix.isEmpty else { return }
         let capture = ThoughtCapture.shared
         capture.simulate = true
@@ -2429,26 +2437,34 @@ extension UITest {
         app.pickKind(.meeting, for: call.id)
         check("brain dump: and back to Meeting, every line kept", app.store.transcript(call.id)?.kind == .meeting && app.store.transcript(call.id)?.segments == lines)
 
-        // The brain dump window: text inserted at the cursor lands in the note, which is kept with the day; Make a plan
-        // (canned) sorts it, and each task links to its paragraph.
-        let today = Calendar.current.startOfDay(for: Date())
+        // Today's note (the Brain dump window's place since the consolidation): File › Today's Note opens today's page
+        // in note mode with the keyboard; text inserted at the cursor lands in the note, which is kept with the day; a
+        // dictation now goes into it; Plan my day (canned) sorts it, and each task links to its paragraph.
+        let pad = ThoughtPadController.shared
+        let today = pad.state.today
         let savedNote = app.store.dayPlan(today, source: .note)
-        BrainDumpWindow.open(app)
+        DayNote.open()
         try? await Task.sleep(nanoseconds: 900_000_000)
-        check("brain dump: File › New Brain Dump opens the window with its note", BrainDumpWindow.isOpen && BrainDumpWindow.textView != nil)
-        BrainDumpWindow.textView?.string = ""
-        BrainDumpWindow.insert("Send the bakery invoice today.\n\nTomorrow, book the drone pilot for the farm shoot.")
+        check("today's note: File › Today's Note opens today's page on its note", pad.isOpen && pad.state.mode == .note
+              && pad.state.day == today && DayNote.textView != nil && frames["page-note"] != nil)
+        check("today's note: a dictation now goes into the note, not the front app", DayNote.isTarget)
+        DayNote.textView?.string = ""
+        DayNote.insert("Send the bakery invoice today.\n\nTomorrow, book the drone pilot for the farm shoot.")
         try? await Task.sleep(nanoseconds: 1_200_000_000)
         let noted = app.store.dayPlan(today, source: .note)?.note ?? ""
-        check("brain dump: the window receives inserted text and keeps it with the day", noted.contains("bakery invoice") && noted.contains("drone pilot"))
+        check("today's note: inserted text is kept with the day", noted.contains("bakery invoice") && noted.contains("drone pilot"))
+        check("today's note: one plan maker, named Plan my day", frames["note-plan-my-day"] != nil)
         DayPlanCenter.shared.canned = { lines in "## Today\n- [ ] Send the bakery invoice [00:00]\n## Tomorrow\n- [ ] Book the drone pilot [01:00]" }
         DayPlanCenter.shared.planNote(day: today, note: noted, store: app.store)
         DayPlanCenter.shared.canned = nil
         let plan = app.store.dayPlan(today, source: .note)
-        check("brain dump: Make a plan sorts the note, each task linked to its paragraph", plan?.hasPlan == true && plan?.paragraphs.count == 2
+        check("today's note: Plan my day sorts the note, each task linked to its paragraph", plan?.hasPlan == true && plan?.paragraphs.count == 2
               && plan.map { r in DayPlan.parse(r.text).tomorrow.first.flatMap { DayPlan.index(of: $0, count: r.paragraphs.count) } } == 1)
         try? await Task.sleep(nanoseconds: 600_000_000)
-        BrainDumpWindow.close()
+        pad.setMode(.thoughts)
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        check("today's note: back on the thoughts, dictation goes to today's thoughts again", !DayNote.isTarget && pad.state.mode == .thoughts)
+        pad.close()
         if let savedNote { app.store.updateDayPlan(today, source: .note) { $0 = savedNote } } else { app.store.plans.removeAll { $0.source == .note && $0.day == DayPlanRecord.dayKey(today) } }
 
         // Organize on today's page (canned), in its own window.
@@ -3027,9 +3043,18 @@ extension UITest {
         // Moments
         var mark = Note(text: "", at: 12, isBookmark: true); mark.markSource = MarkSource.lockScreen.rawValue
         let plain = Note(text: "Mine", at: 3, isBookmark: false)
-        check("\(name): Moments has a Marked chip, and marks count as bookmarks (M-55)",
-              MomentFilter.kinds.contains("Marked") && MomentFilter.matches("Marked", mark) && MomentFilter.matches("Bookmarks", mark)
-              && !MomentFilter.matches("Marked", plain) && MomentFilter.matches("Notes", plain))
+        // The consolidation (October 28, 2026): Moments became the Library's Marked filter.
+        var marked = TemplateChecks.recording(.meeting, picked: true); marked.notes = [mark]
+        var unmarked = TemplateChecks.recording(.meeting, picked: true); unmarked.notes = [Note(text: "No time")]
+        var pinned = TemplateChecks.recording(.meeting, picked: true); pinned.notes = [plain]
+        check("\(name): the Library's Marked filter holds recordings with a moment, a mark, or a note at a time",
+              LibrarySource.marked.matches(marked) && LibrarySource.marked.matches(pinned) && !LibrarySource.marked.matches(unmarked)
+              && LibrarySource.allCases.last == .marked && LibrarySource.marked.label == "Marked")
+        check("\(name): Links and Moments left the sidebar; Queue shows only while something works",
+              SidebarItemID(rawValue: "links") == nil && SidebarItemID(rawValue: "moments") == nil
+              && SidebarRules.merge(saved: ["moments", "home", "links"], known: SidebarLayout.known) == ["home", "library", "queue", "dictations", "you", "dictionary"]
+              && app.queueShowsInSidebar == (!app.queue.isEmpty || app.runningID != nil || app.linkCardID != nil
+                                             || app.linkImports.values.contains { !$0.isFinished } || app.screen == .queue))
         check("\(name): one short form for where a mark came from (M-56)",
               MarkSource.macHotkey.short() == "Mac · \(Marks.defaultHotkey)" && Marks.shortSource(mark) == "Lock Screen")
         // UI copy in the new strings: no em dashes or exclamation points.

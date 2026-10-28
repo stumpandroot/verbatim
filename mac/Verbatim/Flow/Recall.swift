@@ -607,61 +607,23 @@ private struct RecallHUDView: View {
 
 // MARK: - Menu bar
 
-/// The menu bar panel's Recent dictations: tap to show the last 10 (text, app, and time); click one to copy it.
-struct RecallMenuSection: View {
+/// The menu bar panel's Dictations… row: opens the Dictations screen. The list of recent dictations that sat here left
+/// in the consolidation (October 28, 2026); Dictations and Recall (⌥⌘V) keep your dictation history.
+struct DictationsMenuRow: View {
     @EnvironmentObject var app: AppState
-    @ObservedObject private var sites = SiteLog.shared
-    @State private var expanded = false
-    @State private var copied: UUID?
-
     var body: some View {
-        let items = Recall.items(from: app.store.live, sites: sites.hosts, limit: Recall.cap)
-        if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                Button { expanded.toggle() } label: {
-                    HStack(spacing: 8) {
-                        ArtIcon(art: .iconRecent, size: 16).foregroundStyle(Ink.iris).frame(width: 26)
-                        Text("Recent dictations").font(.system(size: 12.5, weight: .medium))
-                        Spacer()
-                        if RecallShortcut.current != .off {
-                            Text(RecallShortcut.current.title).font(Ink.mono(11)).foregroundStyle(Ink.mute)
-                        }
-                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 10, weight: .semibold)).foregroundStyle(Ink.mute)
-                    }
-                    .padding(10).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(expanded ? "Hide recent dictations" : "Show recent dictations")
-                if expanded {
-                    Rectangle().fill(Ink.hairline).frame(height: 1).padding(.horizontal, 10)
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(items) { item in
-                            Button { copy(item) } label: {
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(Recall.truncate(item.text)).font(.system(size: 12.5)).foregroundStyle(Ink.ink).lineLimit(1)
-                                    Text(copied == item.id ? "Copied" : [item.source, Recall.when(item.date)].filter { !$0.isEmpty }.joined(separator: " · "))
-                                        .font(.system(size: 11)).foregroundStyle(copied == item.id ? Ink.sageText : Ink.mute).lineLimit(1)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 10).padding(.vertical, 5)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityHint("Copies this dictation")
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
+        Button { app.dictation.openHistory() } label: {
+            HStack(spacing: 10) {
+                IconGlyph(art: .iconDictations, size: 18, color: Ink.ink).frame(width: 26)
+                Text("Dictations…").font(.system(size: 13, weight: .medium))
+                Spacer()
             }
-            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
         }
-    }
-
-    private func copy(_ item: RecallItem) {
-        Paster.copy(item.text)
-        copied = item.id
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { if copied == item.id { copied = nil } }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Dictations")
+        .accessibilityHint("Opens every dictation in Verbose.")
+        .uiTarget("menubar-dictations")
     }
 }
 

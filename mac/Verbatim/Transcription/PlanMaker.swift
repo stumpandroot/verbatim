@@ -46,7 +46,7 @@ final class DayPlanCenter: ObservableObject {
         }
     }
 
-    /// Make a plan in the Mac's brain dump window: Plan my day over the note's paragraphs.
+    /// Plan my day on the Mac's today's note (Views/DayNote.swift): over the note's paragraphs.
     func planNote(day: Date, note: String, store: Store) {
         let paragraphs = DayPlan.paragraphs(note)
         let rid = DayPlanRecord.id(day: DayPlanRecord.dayKey(day), source: .note)

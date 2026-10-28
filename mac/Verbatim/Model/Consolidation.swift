@@ -17,12 +17,22 @@ enum Consolidation {
         d.integer(forKey: "onboarding.seenVersion") > 0 || d.object(forKey: "releaseNotes.lastSeenBuild") != nil
     }
 
-    /// Runs `moves` once per device, with whether this is an existing install. Later launches skip it.
+    /// Whether this device ran a build from before the consolidation, as `once` found it at its first launch with it.
+    static let existingKey = "consolidation.v1.existing"
+
+    /// Runs `moves` once per device, with whether this is an existing install, and keeps that answer for later readers
+    /// (`wasExistingInstall`). Later launches skip it. Call it early at launch, before the welcome tour or What's new
+    /// writes anything.
     static func once(_ d: UserDefaults, _ moves: (_ existing: Bool) -> Void) {
         guard !d.bool(forKey: doneKey) else { return }
-        moves(isExistingInstall(d))
+        let existing = isExistingInstall(d)
+        d.set(existing, forKey: existingKey)
+        moves(existing)
         d.set(true, forKey: doneKey)
     }
+
+    /// An install from before the consolidation, as found at its first launch with it (false before `once` runs).
+    static func wasExistingInstall(_ d: UserDefaults) -> Bool { d.bool(forKey: existingKey) }
 }
 
 // MARK: - Templates and text actions
