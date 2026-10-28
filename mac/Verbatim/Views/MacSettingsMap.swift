@@ -34,7 +34,6 @@ enum MacSettingsMap {
         Pane(raw: "general", title: "Personalization and preferences", sections: [
             Section(nil, [
                 Setting("general.look", keys: ["appearance.look"]),
-                Setting("general.palette", keys: ["appearance.palette"]),
                 Setting("general.appearance", keys: ["appearance"]),
                 Setting("general.limitMotion", keys: ["motion.limited"]),
                 Setting("general.menuBar"),

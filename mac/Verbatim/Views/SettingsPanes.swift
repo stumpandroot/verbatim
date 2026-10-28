@@ -15,8 +15,6 @@ struct PersonalizationSettingsPane: View {
     @AppStorage(MotionPreference.key) private var motionLimited = false
     @AppStorage(BuiltInVocabulary.enabledKey) private var builtInVocabulary = true
     @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
-    /// The refined look's palette (DESIGN.md §13), stored with the look.
-    @AppStorage(AppPalette.key, store: AppLook.store) private var palette: AppPalette = .full
 
     var body: some View {
         SettingsPane(tab: .personalization) {
@@ -24,12 +22,6 @@ struct PersonalizationSettingsPane: View {
                 // The look: Verbose style or Native, as two live thumbnails. Applies at once, with a crossfade.
                 SettingsRow("general.look") {
                     LookPicker(thumbnail: 128, captions: false).padding(.vertical, 4)
-                }
-                SettingsRow("general.palette") {
-                    Picker("Palette", selection: $palette) {
-                        ForEach(AppPalette.allCases) { Text($0.label).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
                 }
                 SettingsRow("general.appearance") {
                     Picker("Appearance", selection: Binding(get: { app.appearance }, set: { app.appearance = $0; app.applyAppearance() })) {
