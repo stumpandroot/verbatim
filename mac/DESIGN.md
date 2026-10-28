@@ -48,7 +48,7 @@ Rules:
 1. Sentence case everywhere. No uppercase tracked labels except `Overline`, at most one per screen.
 2. Metadata lines are sans, not mono: "Voice note · 7:50 · Today". Use `.monospacedDigit()` for numbers that change. **[checked]** In files marked `// brand: web style`, mono text is never smaller than 12 pt (`Ink.mono` sizes, `Keycap` sizes, no `Overline`).
 3. Shortcuts render as keycaps: mono inside an outlined rectangle with the button radius (4).
-4. Never set reading text in the serif.
+4. Never set reading text in the serif, except on screens built on the refined kit, where transcript reading text is serif (§13).
 5. Button names: SF Pro semibold (13.5 pt in a regular pill, 12 pt in a mini). Mac Home's tile names are serif 21 pt with a 12 pt sans detail (§6.5).
 
 ## 3. Icons
@@ -138,6 +138,8 @@ The marketing site and the link transcriber (`link-transcriber/static`) use the 
 
 ## 11. Website style (Mac)
 
+**Superseded for the apps by §13 (the refined look).** Screens that haven't moved to the refined kit still follow this section; it goes when the last Mac screen moves.
+
 The Mac app wears the website's clothes (mockup "The app, in the website's clothes", October 23, 2026, `notes/web-style/playful.src.html`). Home and Library are done; every other Mac screen follows these rules when it's next touched. Build with the kit in `mac/Verbatim/Views/WebStyle.swift` and mark the file `// brand: web style` (brand-check then holds its mono text to 12 pt or larger).
 
 **Titles**
@@ -185,7 +187,125 @@ Settings › Ribbon and notch › Show dictation in picks one of two styles (moc
 
 The hotkey picker (Settings › Dictation › Hotkey) shows each choice's keys as raised keycaps (`KeyChip`: mono 12.5, ink outline, a 2 pt ink floor).
 
-## 13. Native look
+## 13. The look
+
+One look replaces both Verbose style and Native on the Mac and iPhone (approved by Tim, October 28, 2026; Design canvas "Verbose Refined Look", with Palette Full as the default). Apple draws the chrome; Verbose draws the content. Screens move to it one family at a time, built from the refined kit below; a screen that hasn't moved keeps drawing Verbose style or Native as described under "Superseded: Verbose style and Native" at the end of this section, and §11 still describes the Mac's Verbose style until then. Where §1 to §12 differ from this section, this section wins for every screen built on the refined kit.
+
+### The layer rule
+
+- **Apple draws the chrome:** the system tab bar with Liquid Glass, toolbars, the Mac's sidebar, sheets, menus and context menus, alerts, switches, and segmented controls. Don't restyle them; tint them with the accent only. iPhone switches stay the system's green, as in Apple's own apps; Mac switches take `macSwitch` (`refinedSwitchTint()`).
+- **Verbose draws the content:** the warm paper page, off-white cards with no outlines and no hard shadows, the persimmon Record card with its rings, the butter, sage, and petal tiles, colored kind badges, speaker and kind chips, colored icon squares in Settings and the Library, serif titles, and serif reading text. Content surfaces are opaque. Grain and illustration never go under glass.
+- **Text on glass** only where Apple puts it: the system's own chrome and the player bar (`GlassPlayerBar`, like Apple's players). Reduce Transparency and Increase Contrast make the player the solid card with a hairline. Lists, cards, and reading surfaces stay opaque. Keep scroll edge effects on.
+- **Color:** persimmon is the accent. Text and glyphs take `accentText` (#B23F24; the selected tab, links, a selected filter chip, the Mac's switches); fills take `persimmon` (#FB7350; the Record card, meeting and voice-note badges, the first speaker). System red (`recordRed`) appears only on the record disc and the stop square. Sage means playback (`played`, `playing`).
+
+### Tokens
+
+`Refined` in `Views/Tokens.swift`, built from the `RefinedHex` table there; the pure rules that choose between them are `RefinedRules` (`Views/RefinedRules.swift`). Use them through the kit; never a hex value, and never a Verbose-style `Ink` token in refined code (those turn into Native's system colors on the Mac).
+
+| Token | Light | Dark | Increase Contrast (light, dark) | Use |
+|---|---|---|---|---|
+| `paper` | `#F5F0E6` | `#18241F` | | The page |
+| `card` | `#FFFDF9` | `#202F28` | | Cards, grouped containers, the neutral tile |
+| `field` | `#EBE5D9` | `#24332C` | | Search fields |
+| `track` | `#E8E2D6` | `#2A3A33` | | A segmented control's track |
+| `rail` | `#E0D9CB` | `#33433B` | | The Mac player's rail |
+| `ink` | `#26352E` | `#F5F0E6` | | Text |
+| `dim` | `#545E56` | `#D4CDC0` | `#26352E`, `#F5F0E6` | Secondary text, player times |
+| `mute` | `#606962` | `#A1A29A` | `#3E4A43`, `#D4CDC0` | Metadata, dates, counts |
+| `faint` | `#8E938A` | `#6F7A72` | `#606962`, `#A1A29A` | Chevrons; never text |
+| `accentText` | `#B23F24` | `#FF8A6B` | | Links, the selected tab and chip |
+| `sageText` | `#4F6440` | `#B9CDA3` | | The playing line's time |
+| `onFill` | `#26352E` | `#26352E` | | Text and glyphs on a Full fill |
+| `lift` | `#FFFDF9` | `#FFFDF9` | | Under the ready chip (`chipFull`) |
+| `persimmon` | `#FB7350` | `#F27A57` | | The Record card, persimmon badges and chips |
+| `butter` | `#F4C76B` | `#DDB563` | | Dictate's tile, butter badges and chips |
+| `sage` | `#AFC398` | `#9DB088` | | Import's tile, sage badges and chips |
+| `petal` | `#EFB6C8` | `#D9A3B5` | | What's playing and App audio, petal badges |
+| `persimmonTint` | `#FDE4DA` | `#3A2A22` | | Soft Record card; a selected chip or row |
+| `butterTint` | `#FCF0D2` | `#332E20` | | Soft butter tile |
+| `sageTint` | `#E9EFE0` | `#26322A` | | Soft sage tile |
+| `petalTint` | `#FAE6EC` | `#33282D` | | Soft petal tile |
+| `neutralSquare` | `#E6DFD1` | `#2E3B34` | | An icon square with no hue |
+| `played` | `#6E8A58` | `#9DB088` | | The played part of a waveform or rail |
+| `waveRest` | `#CFC8BA` | `#56665D` | | The rest of the waveform |
+| `macSwitch` | `#B23F24` | `#E2694B` | | An on switch on the Mac |
+| `separator` | ink 10% | paper 12% | 40%, 30% | Hairlines in cards; a card's edge under Increase Contrast |
+| `neutral` | ink 7% | paper 8% | 12%, 14% | Quiet chips and buttons at rest |
+| `playing` | sage 32% | sage 20% | 45%, 30% | The line being played |
+| `ringFull` | ink 28% | ink 28% | 45% | The Record card's rings on Full |
+| `ringSoft` | accent text 35% | accent text 35% | 55% | The rings on Soft |
+| `chipFull` | reader white 30% | reader white 30% | 45% | The ready chip on Full |
+| `chipSoft` | ink 10% | paper 12% | | The ready chip on Soft |
+| `glassFallback` | card 92% | card 92% | solid | The player bar before macOS 26 and iOS 26 |
+| `recordRed` | system red | system red | system | The record disc and the stop square only |
+
+Radii (`RefinedRules.radius`): cards 14 on iPhone and 12 on the Mac, tiles 16 and 14, the Record card and the recorder's clock panel 22 and 18, icon squares 8 and 6, search fields 10 and 8. Chips are capsules. Don't round everything the same.
+
+### Palette
+
+Settings › Appearance › Palette on iPhone, and Settings › Personalization and preferences › Palette on the Mac: **Full** (the default) or **Soft**. `AppPalette` (`Views/RefinedRules.swift`), stored as `appearance.palette` in `AppLook.store` with the other appearance settings (the App Group on iPhone, the Mac's defaults), per device, never synced. The kit reads it live (`@CurrentPalette`); `paletteOverride` in the environment draws a preview in either.
+
+- **Full:** the Record card and the recorder's clock panel are `persimmon` with `onFill` ink and `ringFull` rings; the tiles are `butter`, `sage`, and `petal` with `onFill` ink.
+- **Soft:** the same surfaces in `persimmonTint`, `butterTint`, `sageTint`, and `petalTint`, with `ink` text and `ringSoft` rings, so dark mode turns them dark.
+- Kind badges, speaker and kind chips, and icon squares are small and keep the Full fills in both palettes.
+
+### Kinds and speakers
+
+Kinds have colors again (this replaces §1's neutral kinds for refined screens), always with their glyph and name: meeting and voice note `persimmon`; interview and talk `sage`; audio only and journal `petal`; thought and brain dump `butter`. The kinds the mockup doesn't show follow what they are: a note is a voice note, a dictation is butter (Dictate), a podcast petal, a video sage (`RefinedRules.kindHue`). Speaker chips rotate `persimmon`, `petal`, `sage`, and `butter` by speaker order and around again; the name is always on the chip. Text on every fill is `onFill` ink.
+
+### Type
+
+1. **Serif** (New York) for large titles (34 pt on iPhone, 36 on the Mac), a transcript's title (28, 32), section titles (22, 20), "Record" on the Record card (32, 34), and **transcript reading text**: 19 pt with a 1.45 line height on iPhone, 18 pt with 1.55 on the Mac (`ReadingText`, `readingStyle()`). This reverses §2.4 for refined screens.
+2. **SF Pro** for everything else: rows (16 semibold on iPhone, 13.5 on the Mac), metadata (13, 12.5), chips (13 and 12 semibold), tile names (16 and 15 semibold), and the recorder's clock (SF Pro Ultralight with hundredths). Times and counts use `.monospacedDigit()`. SF Mono and mono eyebrows retire with the old looks.
+3. Every role scales with Dynamic Type on iPhone (`refinedFont`), and tap targets are 44 pt or larger. Sentence case everywhere (§8).
+
+### Components
+
+| Component | File | API |
+|---|---|---|
+| `RecordCard` | `Views/RefinedKit.swift` | `RecordCard(status:hint:actions:action:)`: the card as one VoiceOver button, with each way to record as a named action; `RecordCardFace` is the drawing for a custom gesture (touch and hold for Record as) |
+| `ColorTile` | `Views/RefinedKit.swift` | `ColorTile(title:art:hue:shortcut:action:)`: a Home tile on its hue's palette fill |
+| `PaperCard` | `Views/RefinedKit.swift` | `PaperCard { rows }` with `PaperDivider(leading:trailing:)`, or `PaperList(data, id:, inset:) { row }` |
+| `KindBadge` | `Views/RefinedKit.swift` | `KindBadge(kind:size:)`: a colored circle with the kind's ink glyph (nil is a voice note); under 16 pt a dot |
+| `SpeakerChip` | `Views/RefinedKit.swift` | `SpeakerChip(name:index:)` |
+| `KindColorChip` | `Views/RefinedKit.swift` | `KindColorChip(kind:)` or `KindColorChip(title:hue:)` (a project) |
+| `IconSquare` | `Views/RefinedKit.swift` | `IconSquare(art:hue:)`: 30 pt on iPhone, 22 on the Mac |
+| `SerifSectionTitle` | `Views/RefinedKit.swift` | `SerifSectionTitle("Recent")`, or with `link: "See all"` (`RefinedLink`) |
+| `LargeSerifTitle` | `Views/RefinedKit.swift` | `LargeSerifTitle(title:eyebrow:count:)` |
+| `ReadingText` | `Views/RefinedPlayback.swift` | `ReadingText("…")`, or `.readingStyle()` on any text |
+| `GlassPlayerBar` | `Views/RefinedPlayback.swift` | `GlassPlayerBar(isPlaying:elapsed:duration:levels:moments:speed:onPlayPause:onSeek:onSpeed:)` |
+| `RecorderClockPanel` | `Views/RefinedPlayback.swift` | `RecorderClockPanel(status:elapsed:levels:momentsAgo:)`: the iPhone recorder's persimmon clock |
+
+Also in the kit: `ReadyChip`, `RecordDiscMark`, `RecordRings`, `RefinedPress` (the press style), `refinedSurface(_:radius:)`, and `refinedFont(_:weight:)`. The names `KindColorChip` and `SerifSectionTitle` avoid Verbose style's `KindChip` and `SectionTitle`; they take the short names once those retire.
+
+### Motion
+
+The Record card's rings breathe slowly (5.2 s, a few percent) on one `LoopTimeline` per card that pauses off screen; Limit animation and Reduce Motion hold them still, and presses dim instead of scaling (`RefinedPress`). The recorder's waveform moves only with your voice. §7's other rules hold: screens arrive at once, keyboard and frequent actions don't animate, and haptics are unchanged.
+
+### Contrast
+
+Every text pair the kit draws reaches 4.5:1 in light, dark, and both with Increase Contrast, and the marks that carry meaning reach 3:1 (`mac/tools/test-refined.sh`). Where the mockup's colors fell short, the kit changed them:
+
+- A persimmon fill is #FB7350, not the mockup's #FA6B47 (ink on it measures 4.45:1); in dark it's #F27A57, because ink on the panels' deeper #E2694B measures 3.9:1.
+- The Record card's hint and the Mac recorder's secondary line are full ink: ink at 80% measures 3.6:1 and #3E4A43 measures 3.4:1 on the fill.
+- The ready chip lightens the fill (`chipFull`, 6.3:1) instead of darkening it (ink at 10% measures 4.1:1).
+- On the Mac, an on switch in dark is #E2694B, so its white knob reads (the light accent text measures 2.3:1 there).
+- The recorder's older words use `mute`, never `faint` (2.8:1).
+- Under Increase Contrast, cards take a `separator` edge (an off-white card on paper is about 1.1:1), and the player turns solid.
+
+### What retires
+
+As each screen family moves: ink outlines and hard offset shadows (`Ink.hard`), color panels with grain, the website style's kit (`WebStyle.swift`, §11), pills as primary buttons (actions use the system's button styles; text links use `RefinedLink`), mono eyebrows and SF Mono labels, neutral kinds, the custom tab bar and the floating record disc, and each screen's Native layout. When the last screen has moved: the look switch (`AppLook`, `LookSwitch.swift`, Settings' Look, onboarding's Pick a look, the keyboard's look), the Native files (`NativeLook.swift`, `NativeKit.swift`, `NativeHome.swift`, `NativeChrome.swift`, and the rest) and the Premium files (`PremiumLook.swift`, `PremiumItems.swift`, `PremiumRules.swift`, `PremiumYou.swift`), the old tokens (`Ink`'s Verbose-style values, `PremiumInk`, `NativeInk`), and the Superseded part of this section with §11.
+
+### QA
+
+Check every refined screen on a device in light and dark, at both ends of the glass slider, with Reduce Transparency, Increase Contrast, Limit animation, and larger text, in both palettes.
+
+### Superseded: Verbose style and Native
+
+Everything from here to §14 describes the two looks the refined look replaces. Screens that haven't moved still follow it; it goes when the last screen moves.
+
+#### The Native look
 
 Each device has a second look, Native (mockup "Verbose, in a native look", October 25, 2026), that reads like one of Apple's own apps. `AppLook` (`Views/Look.swift`) holds the choice per device, never synced: the App Group on iPhone (key `appearance.look`, values `verbose` and `native`), so the keyboard follows it with no setting of its own. New installs start in Verbose style; onboarding's Pick a look step and Settings › Appearance change it. A pick shows a small centered card in the new look ("Switching to Native…", its thumbnail, and a spinner) over a scrim of the new look's background; the look is stored once the card is up, everything rebuilds behind it, and the card fades out over the result (`Views/LookSwitch.swift`; under Limit animation the card appears at once and leaves with a fade, with no scaling). Everything in sections 1 to 12 describes Verbose style; Native replaces it as follows.
 
