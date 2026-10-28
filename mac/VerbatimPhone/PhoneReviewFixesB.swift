@@ -1,5 +1,8 @@
 import SwiftUI
 
+// Self-test builds only (VERBOSE_SELFTEST: Debug, and CI's tour and bench builds). Shipping builds leave these
+// iPhone review-fix checks out with PhoneUITest.swift, which runs them.
+#if VERBOSE_SELFTEST
 // Self-test checks for the build 228 review fixes on iPhone, group B (Library, Dictations, Add from Library, Thoughts,
 // Templates, the transcript, Moments, Settings and You, the session screens, and Ask). Pure checks run with the
 // others at the start of the tour (`reviewFixesPhoneB`); the Journal tab's check runs in the tab bar tour, where the
@@ -96,3 +99,4 @@ extension PhoneUITest {
         Log.note("UITEST \(ByDayScreen.switchShown == false ? "PASS" : "FAIL") review fixes B: the Journal tab has no Thoughts switch")
     }
 }
+#endif

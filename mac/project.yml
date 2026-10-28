@@ -56,7 +56,16 @@ settings:
     VERBATIM_PHONE_CONDITIONS_YES: APP_STORE
     VERBATIM_EXTENSION_CONDITIONS_NO: ""
     VERBATIM_EXTENSION_CONDITIONS_YES: APP_STORE
+    # The self-test switch: VERBOSE_SELFTEST=YES compiles the UI self-test and the speech bench into the Mac app
+    # (App/UITest.swift, App/Bench.swift) and the screenshot tour into the iPhone app (PhoneUITest.swift). Debug
+    # builds have it, and CI sets it for the builds its tours and bench run (build.sh with SELFTEST=1). Release and
+    # AppStore builds, which ship, leave it off; App/SelfTestOff.swift and PhoneSelfTestOff.swift stand in.
+    VERBOSE_SELFTEST: "NO"
+    VERBOSE_SELFTEST_CONDITIONS_NO: ""
+    VERBOSE_SELFTEST_CONDITIONS_YES: VERBOSE_SELFTEST
   configs:
+    Debug:
+      VERBOSE_SELFTEST: "YES"
     AppStore:
       VERBATIM_APP_STORE: "YES"
 
@@ -264,6 +273,7 @@ targets:
     settings:
       base:
         SWIFT_OBJC_BRIDGING_HEADER: Verbatim/Bridging.h
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(VERBOSE_SELFTEST_CONDITIONS_$(VERBOSE_SELFTEST))"
         LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Vendor/harper"
         OTHER_LDFLAGS: "$(inherited) -lharper_ffi"
         HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Vendor/harper $(SRCROOT)/Vendor/ffmpeg/include"
@@ -548,7 +558,7 @@ targets:
         # (VERBATIM_APP_STORE=YES) define APP_STORE instead: YouTube links then go to the Mac, like any other
         # site the iPhone can't fetch. YouTubeKit stays linked but nothing calls it; remove the dependency above
         # to drop it from the binary too.
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(VERBATIM_PHONE_CONDITIONS_$(VERBATIM_APP_STORE))"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(VERBATIM_PHONE_CONDITIONS_$(VERBATIM_APP_STORE)) $(VERBOSE_SELFTEST_CONDITIONS_$(VERBOSE_SELFTEST))"
         PRODUCT_NAME: Verbatim
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"

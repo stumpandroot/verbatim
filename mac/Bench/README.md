@@ -16,7 +16,7 @@ Each model loads first (download on first run, Core ML compile, and one throwawa
 
 ## Launch it
 
-On your Mac, after building Verbatim:
+On your Mac, after building Verbatim with the self-test switch on: a Debug build from Xcode, or `SELFTEST=1 bash mac/build.sh` after `bash mac/build.sh`. Release builds, which ship, leave the bench out (`VERBOSE_SELFTEST` in `mac/project.yml`), and `-bench` does nothing in them. CI's bench runs the self-test build of the same run.
 
 ```bash
 bash mac/Bench/make-clips.sh /tmp/verbatim-clips

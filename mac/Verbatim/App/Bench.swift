@@ -2,6 +2,9 @@ import Foundation
 import AppKit
 import AVFoundation
 
+// Self-test builds only (VERBOSE_SELFTEST: Debug, and CI's tour and bench builds). Shipping builds leave the
+// speech bench out; SelfTestOff.swift stands in for what other files call.
+#if VERBOSE_SELFTEST
 /// Accuracy and latency bench (Mac only).
 ///
 /// Launch with `-bench <clips dir> -benchOut <report.json>`. Verbatim then runs every WAV in the folder through
@@ -1056,3 +1059,4 @@ enum BenchMarkdown {
         return flat.count > 120 ? String(flat.prefix(117)) + "…" : flat
     }
 }
+#endif

@@ -3,6 +3,9 @@ import AVFoundation
 import UIKit
 import ActivityKit
 
+// Self-test builds only (VERBOSE_SELFTEST: Debug, and CI's tour and bench builds). Shipping builds leave the
+// iPhone screenshot tour out; PhoneSelfTestOff.swift stands in for what other files call.
+#if VERBOSE_SELFTEST
 /// Screenshot tour for CI. With VERBATIM_UITEST=1 the app seeds sample transcripts, walks its screens, and
 /// writes each screen's name to Documents/show.txt; the CI job captures the simulator when the name changes.
 @MainActor
@@ -2489,3 +2492,4 @@ enum PhoneUITest {
         try? file.write(from: buf)
     }
 }
+#endif

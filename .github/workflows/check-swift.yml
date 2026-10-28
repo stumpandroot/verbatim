@@ -194,6 +194,30 @@ jobs:
             echo "Apple Watch app in the iPhone app: $(du -sh "$W" | cut -f1)"
           fi
 
+      # The self-test switch (VERBOSE_SELFTEST, mac/project.yml): Debug compiles in the UI self-test and the speech
+      # bench (App/UITest.swift, App/Bench.swift); Release, which ships, leaves them out and App/SelfTestOff.swift
+      # stands in. This compiles the Mac app that way too, in the same derived data, so only Verbatim's own target
+      # recompiles, and proves the self-test was in the first build and is gone from this one.
+      - name: Compile without the self-test
+        if: matrix.target == 'Mac'
+        run: |
+          set -o pipefail
+          APP=build/dd/Build/Products/Debug/Verbatim.app
+          MARK="UITEST note: no big library"
+          grep -r -a -q -- "$MARK" "$APP/Contents/MacOS" || { echo "::error::the Debug build doesn't contain the self-test"; exit 1; }
+          LOG="$RUNNER_TEMP/noselftest.log"
+          if ! xcodebuild -project Verbatim.xcodeproj -scheme Verbatim -destination 'generic/platform=macOS' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+              -configuration Debug -derivedDataPath build/dd -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
+              CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO VERBOSE_SELFTEST=NO build > "$LOG" 2>&1; then
+            grep -E "error:" "$LOG" | sort -u | head -n 20 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
+            tail -n 30 "$LOG"
+            exit 1
+          fi
+          for s in "$MARK" "BENCH requested dir="; do
+            if grep -r -a -q -- "$s" "$APP/Contents/MacOS"; then echo "::error::the build without VERBOSE_SELFTEST still contains \"$s\""; exit 1; fi
+          done
+          echo "The Mac app compiles without the self-test and the bench."
+
       # Every Swift package version comes from mac/Package.resolved; a build that resolved anything else fails.
       - name: Swift package versions match Package.resolved
         run: bash tools/package-resolved.sh check
@@ -207,10 +231,15 @@ jobs:
         run: |
           set -o pipefail
           LOG="$RUNNER_TEMP/appstore.log"
+          APP=build/dd/Build/Products/Debug-iphonesimulator/Verbatim.app
+          # The self-test switch (VERBOSE_SELFTEST, mac/project.yml): the Debug build above has the screenshot tour;
+          # App Store and TestFlight builds don't, so this pass leaves it out too (PhoneSelfTestOff.swift stands in).
+          MARK="UITEST note: no big library"
+          grep -r -a -l -- "$MARK" "$APP" | grep -v '\.swiftmodule\|\.swiftdoc\|\.abi\.json' | grep -q . || { echo "::error::the Debug build doesn't contain the screenshot tour"; exit 1; }
           if ! xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -destination 'generic/platform=iOS Simulator' \
               ARCHS=arm64 ONLY_ACTIVE_ARCH=YES -configuration Debug -derivedDataPath build/dd \
               -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
-              CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO VERBATIM_APP_STORE=YES build > "$LOG" 2>&1; then
+              CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO VERBATIM_APP_STORE=YES VERBOSE_SELFTEST=NO build > "$LOG" 2>&1; then
             grep -E "error:" "$LOG" | sort -u | head -n 20 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
             tail -n 30 "$LOG"
             exit 1
@@ -224,7 +253,9 @@ jobs:
             echo "$c" | grep -qw APP_STORE || { echo "::error::$t doesn't define APP_STORE in the App Store build"; exit 1; }
             if echo "$c" | grep -qw YOUTUBE_ON_DEVICE; then echo "::error::$t still defines YOUTUBE_ON_DEVICE"; exit 1; fi
           done
-          APP=build/dd/Build/Products/Debug-iphonesimulator/Verbatim.app
+          if grep -r -a -l -- "$MARK" "$APP" | grep -v '\.swiftmodule\|\.swiftdoc\|\.abi\.json' | grep .; then
+            echo "::error::The App Store build still contains the screenshot tour"; exit 1
+          fi
           for s in _hostBundleID _hostApplicationBundleIdentifier _systemNavigationAction LSApplicationWorkspace openApplicationWithBundleID; do
             if grep -r -a -l -- "$s" "$APP" | grep -v '\.swiftmodule\|\.swiftdoc\|\.abi\.json' | grep .; then
               echo "::error::The App Store build still contains $s"; exit 1

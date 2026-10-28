@@ -269,6 +269,15 @@ jobs:
             cat "$RUNNER_TEMP/build.log" build/xcodebuild.log 2>/dev/null | grep -E "error(\[E[0-9]+\])?:" | grep -v "Compiling\|Downloaded\|thiserror" | sort -u | head -n 4 | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
             exit 1
           fi
+          # The self-test build (build.sh, SELFTEST=1): the same app again with VERBOSE_SELFTEST=YES, which compiles in
+          # the UI self-test (App/UITest.swift) and the speech bench (App/Bench.swift). It replaces the app in
+          # build/Build/Products/Release, signed the same way, after the DMG above was made from the shipping app, so
+          # the DMG and the update ship without them and the screenshot tour and the bench below run as before.
+          if ! SELFTEST=1 bash build.sh 2>&1 | tee "$RUNNER_TEMP/build-selftest.log"; then
+            tail -n 6 "$RUNNER_TEMP/build-selftest.log" | cut -c1-400 | while IFS= read -r line; do echo "::error::self-test build: ${line}"; done
+            cat build/xcodebuild-selftest.log 2>/dev/null | grep -E "error:" | sort -u | head -n 4 | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
+            exit 1
+          fi
 
       # The Apple ID credentials exist only in this step, in a temporary keychain it deletes when it ends.
       - name: Notarize and staple
@@ -421,6 +430,18 @@ jobs:
           name: Verbatim-universal
           path: mac/dist/Verbatim-universal.dmg
           if-no-files-found: error
+
+      # The bench job runs the self-test app (it has the bench; the DMG's shipping app doesn't).
+      - name: Upload the self-test app for the bench
+        if: steps.changes.outputs.bench == 'true'
+        run: ditto -c -k --keepParent build/Build/Products/Release/Verbatim.app "$RUNNER_TEMP/Verbatim-selftest.zip"
+      - if: steps.changes.outputs.bench == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Verbatim-selftest
+          path: ${{ runner.temp }}/Verbatim-selftest.zip
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Upload screenshot
         continue-on-error: true
@@ -659,7 +680,7 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${TAG}" -f sha="$GITHUB_SHA" > /dev/null
           echo "::notice::Tagged ${GITHUB_SHA::7} as $TAG"
 
-  # Accuracy and latency bench (mac/Bench/README.md), on its own runner with no secrets, from this build's DMG.
+  # Accuracy and latency bench (mac/Bench/README.md), on its own runner with no secrets, from this build's self-test app.
   # A bench problem never blocks a build. bench-<run>.json and bench-<run>.md go to this build's ci-screens commit
   # (the publish-bench job); the bench's logs and any crash report go to a workflow artifact.
   bench:
@@ -677,16 +698,16 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+      # The self-test build of this run's app (build.sh, SELFTEST=1): the shipping app in the DMG has no bench.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: Verbatim-universal
-          path: ${{ runner.temp }}/dmg
-      - name: "Bench: copy the app out of the DMG"
+          name: Verbatim-selftest
+          path: ${{ runner.temp }}/selftest
+      - name: "Bench: unpack the self-test app"
         run: |
-          M="$RUNNER_TEMP/mnt"; mkdir -p "$M" "$RUNNER_TEMP/app"
-          hdiutil attach -nobrowse -readonly -mountpoint "$M" "$RUNNER_TEMP/dmg/Verbatim-universal.dmg"
-          ditto "$M/Verbatim.app" "$RUNNER_TEMP/app/Verbatim.app"
-          hdiutil detach "$M" || hdiutil detach -force "$M"
+          mkdir -p "$RUNNER_TEMP/app"
+          ditto -x -k "$RUNNER_TEMP/selftest/Verbatim-selftest.zip" "$RUNNER_TEMP/app"
+          test -d "$RUNNER_TEMP/app/Verbatim.app"
 
       - name: "Bench: restore speech models"
         id: benchcache

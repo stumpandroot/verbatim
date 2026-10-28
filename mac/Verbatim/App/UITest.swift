@@ -2,6 +2,9 @@ import SwiftUI
 import AppKit
 import AVFoundation
 
+// Self-test builds only (VERBOSE_SELFTEST: Debug, and CI's tour and bench builds). Shipping builds leave the
+// in-app UI self-test out; SelfTestOff.swift stands in for what other files call.
+#if VERBOSE_SELFTEST
 /// In-app UI self-test. With VERBATIM_UITEST=1 in the environment, the app seeds a transcript, synthesizes
 /// real mouse events at the recorded positions of key controls, and logs PASS/FAIL per step to native.log.
 /// CI runs it on a macOS 26 runner, so hit-testing regressions are caught before a build ships.
@@ -3187,3 +3190,4 @@ extension UITest {
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 }
+#endif

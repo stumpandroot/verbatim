@@ -6,7 +6,10 @@
 # Env:   VERSION (default: project.yml's MARKETING_VERSION), VERBOSE_CHANNEL (default: project.yml's; set it empty
 #        for a release with no channel), BUILD (default 1), DMG_SUFFIX (e.g. -universal), NOTARY_PROFILE,
 #        PROVISION_PROFILE (path to a Developer ID provisioning profile with iCloud; turns on iCloud sync),
-#        SKIP_NOTARIZE=1 (build and sign only; run notarize.sh afterward)
+#        SKIP_NOTARIZE=1 (build and sign only; run notarize.sh afterward),
+#        SELFTEST=1 (after a shipping build: build the same app again with VERBOSE_SELFTEST=YES, which compiles in the
+#        UI self-test and the speech bench, into the same build folder, signed the same way, with no DMG. CI's
+#        screenshot tour and bench run this app; the DMG already made keeps the shipping app.)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -63,7 +66,17 @@ fi
 bash ffmpeg/build.sh
 
 # 2. Build
-rm -rf build dist && mkdir -p dist build
+SELFTEST_ARGS=()
+XCODEBUILD_LOG=build/xcodebuild.log
+if [ "${SELFTEST:-0}" = "1" ]; then
+  # Builds on top of the shipping build: only the targets that read VERBOSE_SELFTEST compile again.
+  mkdir -p dist build
+  SELFTEST_ARGS=(VERBOSE_SELFTEST=YES)
+  XCODEBUILD_LOG=build/xcodebuild-selftest.log
+  echo "Self-test build: VERBOSE_SELFTEST=YES (no DMG)"
+else
+  rm -rf build dist && mkdir -p dist build
+fi
 SIGN=()
 if [ -n "$IDENTITY" ]; then
   TEAM="$(echo "$IDENTITY" | grep -o '([A-Z0-9]*)' | tr -d '()')"
@@ -75,7 +88,7 @@ xcodebuild -project Verbatim.xcodeproj -scheme Verbatim -configuration Release \
   -derivedDataPath build -destination 'generic/platform=macOS' \
   -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
   ${VERSION_ARGS[@]+"${VERSION_ARGS[@]}"} CURRENT_PROJECT_VERSION="$BUILD" \
-  "${SIGN[@]}" build 2>&1 | tee build/xcodebuild.log | grep -E "error:|warning: unre|BUILD|Compiling|Linking" | tail -n 40
+  "${SIGN[@]}" ${SELFTEST_ARGS[@]+"${SELFTEST_ARGS[@]}"} build 2>&1 | tee "$XCODEBUILD_LOG" | grep -E "error:|warning: unre|BUILD|Compiling|Linking" | tail -n 40
 
 APP="build/Build/Products/Release/Verbatim.app"
 test -d "$APP"
@@ -160,6 +173,11 @@ else
   # again with its own (the group has no team prefix here, as in the Info.plists), then seal it into the app.
   codesign --force --sign - --entitlements "$WIDGET_ENTITLEMENTS" "$WIDGETS"
   codesign --force --sign - "$APP"
+fi
+
+if [ "${SELFTEST:-0}" = "1" ]; then
+  echo "Self-test app: $APP"
+  exit 0
 fi
 
 # 4. DMG
