@@ -46,6 +46,12 @@ enum PhoneTab: String, CaseIterable, Hashable, Sendable {
 
     /// The tabs you can pick for the middle of the bar, in the picker's order.
     static let pickable: [PhoneTab] = [.library, .thoughts, .journal, .dictations, .projects]
+
+    /// The tabs the picker offers: Journal only once Journal entry is on in Record as or there's a journal entry
+    /// (consolidation, October 28, 2026; `RecordAsRows.showsJournal`), or while it's already in the bar.
+    static func offered(showJournal: Bool, in bar: [PhoneTab]) -> [PhoneTab] {
+        pickable.filter { $0 != .journal || showJournal || bar.contains(.journal) }
+    }
 }
 
 /// The bar: Home, the picked tabs in order, and Settings.

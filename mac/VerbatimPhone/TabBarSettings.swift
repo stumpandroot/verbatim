@@ -8,6 +8,7 @@ struct TabBarSettingsScreen: View {
     /// Done, when presented as a sheet (from Edit Home). Nil when pushed from Settings.
     var onDone: (() -> Void)? = nil
     @ObservedObject private var store = PhoneTabBarStore.shared
+    @ObservedObject private var recordAs = RecordAsStore.shared
     @Environment(\.look) private var look
     @Environment(\.limitMotion) private var limitMotion
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 34
@@ -16,7 +17,9 @@ struct TabBarSettingsScreen: View {
 
     var body: some View {
         let bar = store.bar
-        let more = PhoneTab.pickable.filter { !bar.middle.contains($0) }
+        // Journal is offered once Journal entry is on in Record as or you have an entry (consolidation, item 16).
+        let offered = PhoneTab.offered(showJournal: recordAs.rows.showsJournal(hasEntries: app.store.hasJournalEntries), in: bar.middle)
+        let more = offered.filter { !bar.middle.contains($0) }
         List {
             Section {
                 intro

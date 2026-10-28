@@ -287,6 +287,9 @@ check("a screen whose tab is in the bar opens in its tab", tim.host(for: .though
 check("a Dictations link without the Dictations tab opens inside Library", tim.host(for: .dictations) == .library)
 check("without Library either, inside Home", PhoneTabBar(middle: [.thoughts]).host(for: .dictations) == .home && PhoneTabBar(middle: [.thoughts]).host(for: .library) == .home)
 check("the pickable tabs, in order", PhoneTab.pickable == [.library, .thoughts, .journal, .dictations, .projects])
+check("Journal is offered once it's on in Record as or there's an entry", !PhoneTab.offered(showJournal: false, in: [.library]).contains(.journal)
+      && PhoneTab.offered(showJournal: true, in: [.library]).contains(.journal))
+check("a Journal tab you have stays offered", PhoneTab.offered(showJournal: false, in: [.journal]).contains(.journal))
 
 // Home tiles wear their capture mode's hue, never their slot's (build 228 review, P-14).
 check("tile hues: Dictate butter, Import sage, What's playing and App audio petal",

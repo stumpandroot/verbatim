@@ -13,4 +13,10 @@ enum ConsolidationMac {
             if existing, d.object(forKey: Thoughts.bubbleKey) == nil { d.set(true, forKey: Thoughts.bubbleKey) }
         }
     }
+
+    /// Once the library has loaded: Record As's starting rows (five; an install from before keeps a hidden kind it
+    /// recorded in the last 30 days).
+    static func afterLibraryLoaded(_ store: Store, _ d: UserDefaults = .standard) {
+        RecordAsStore.shared.seedIfNeeded(existing: Consolidation.wasExistingInstall(d), library: store.transcripts)
+    }
 }

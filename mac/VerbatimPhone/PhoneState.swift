@@ -61,6 +61,8 @@ final class PhoneState: ObservableObject {
     @Published var showPlayingSheet = false
     /// Native: Record as's Import asks where from (Photos, files, or a link) (RecordAccessory.swift).
     @Published var showImportChoices = false
+    /// Edit Record as (the tray's foot, the Native Record menu's last item): which ways to record the tray shows.
+    @Published var showRecordAsEditor = false
     /// Transcript screens on screen, one token each, so a second onAppear can't leave Record's accessory off after you
     /// leave (build 233). The Native tab bar's Record accessory turns off while you read (RecordAccessory.swift).
     @Published var readingScreens: Set<UUID> = []
@@ -163,6 +165,8 @@ final class PhoneState: ObservableObject {
 
     /// What launch starts once the library has loaded (`Store.whenLoaded`), in the order it always ran.
     private func resumeAfterLoad() {
+        // The consolidation: Record as's rows a device starts with, once (RecordAsRows.seeded; PhoneConsolidation.swift).
+        PhoneConsolidation.afterLibraryLoaded(store)
         // Home's numbers for the keyboard's Home screen (KeyboardBridge.Stats): the same counts as This week. Worked
         // out on a background queue a second after the library or the typing pace changes (progress ticks don't change
         // the library; they go to the StageClock), and written only when the numbers differ. Comparing the numbers,

@@ -161,3 +161,11 @@ enum RecipeSuggestions {
         return out
     }
 }
+
+/// Whether Ask shows recipes (consolidation, October 28, 2026): hidden by default; the Recipes switch (Settings ›
+/// Features › Templates on iPhone, Ask's More menu on both apps) shows them. Recipes you have keep running and keep the
+/// section shown. Kept per device (`ask.showRecipes`), like other settings.
+enum RecipesSetting {
+    static let key = "ask.showRecipes"
+    static func shows(stored: Bool, hasRecipes: Bool) -> Bool { stored || hasRecipes }
+}

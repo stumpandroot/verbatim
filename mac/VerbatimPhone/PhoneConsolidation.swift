@@ -9,4 +9,10 @@ enum PhoneConsolidation {
             Log.note("consolidation: first launch with it, \(existing ? "an existing install" : "a new install")")
         }
     }
+
+    /// Once the library has loaded: Record as's starting rows (five; an install from before keeps a hidden kind it
+    /// recorded in the last 30 days).
+    @MainActor static func afterLibraryLoaded(_ store: Store, _ d: UserDefaults = .standard) {
+        RecordAsStore.shared.seedIfNeeded(existing: Consolidation.wasExistingInstall(d), library: store.transcripts)
+    }
 }

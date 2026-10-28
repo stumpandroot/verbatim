@@ -138,6 +138,7 @@ enum PhoneSettingsMap {
                 Setting("templatesSkipShort", keys: ["templates.skipShort"]),
                 Setting("templatesShowFirst", keys: ["templates.showFirst"]),
                 Setting("templatesNotify", keys: ["templates.notify"]),
+                Setting("askRecipes", keys: ["ask.showRecipes"]),
             ]),
             Row(id: "widgetsRow", page: "widgets", settings: [Setting("widgets")]),
             Row(id: "shortcutsRow", page: "shortcuts", settings: [Setting("shortcuts")]),

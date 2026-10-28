@@ -99,7 +99,11 @@ extension Store {
         memo("last-dictation") { transcripts.lazy.filter { $0.deletedAt == nil && $0.source == .dictation }.max { $0.createdAt < $1.createdAt } }
     }
 
-    /// Whether anything live is transcribing or importing (Home shows its Queue section only then).
+    /// Whether the library has a journal entry (a live recording of the Journal kind): By day's Journal shows then, or
+    /// when Record as shows Journal entry (`RecordAsRows.showsJournal`).
+    var hasJournalEntries: Bool { memo("has-journal") { transcripts.contains { $0.deletedAt == nil && $0.kind == .journal && !$0.isDictation } } }
+
+    /// Whether anything live is transcribing or importing.
     var isWorking: Bool { memo("working") { transcripts.contains { $0.deletedAt == nil && $0.status == .processing } } }
 
     /// `make()` for one transcript, kept until that transcript changes. `make` must work from the Store's own copy

@@ -532,10 +532,13 @@ enum PhoneUITest {
         // Touch and hold on Home's Record card, then slide to Meeting and lift.
         tray.tourHold(.card)
         await show("p01t-record-tray\(suffix)")
-        let ys = RecordChoice.all.compactMap { tray.rowFrames[$0]?.minY }
-        check("touch and hold opens the tray with eight rows", tray.isOpen && tray.rowFrames.count == 8)
-        check("the rows run Voice note, Meeting, Interview, Journal entry, Talk, Thought, Brain dump, Audio only",
-              ys.count == 8 && zip(ys, ys.dropFirst()).allSatisfy { $0 < $1 }
+        // Five rows by default since the consolidation (October 28, 2026); the others come back from Edit Record as.
+        let shownRows = RecordAsStore.shared.visible
+        let ys = shownRows.compactMap { tray.rowFrames[$0]?.minY }
+        check("touch and hold opens the tray with the rows you show (\(shownRows.count))", tray.isOpen && tray.rowFrames.count == shownRows.count)
+        check("the rows keep Record as's order: Voice note, Meeting, Thought, Brain dump, Audio only by default",
+              ys.count == shownRows.count && zip(ys, ys.dropFirst()).allSatisfy { $0 < $1 }
+              && RecordAsRows().visible.map(\.name) == ["Voice note", "Meeting", "Thought", "Brain dump", "Audio only"]
               && RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought", "Brain dump", "Audio only"])
         check("Audio only's line never names a template, and Brain dump's names Plan my day when it's on",
               RecordChoice.kind(.audio).hint(settings: shown, templates: app.store.allTemplates) == "Keeps the sound, no transcript"
@@ -560,6 +563,21 @@ enum PhoneUITest {
         picked = []
         tray.choose(.kind(.talk))
         check("tapping a row starts it", picked == [.kind(.talk)] && !tray.isOpen)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+
+        // Edit Record as (the tray's foot): a hidden row comes back, and goes again.
+        let rowsBefore = RecordAsStore.shared.rows
+        app.showRecordAsEditor = true
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        await show("p01v-edit-record-as\(suffix)")
+        check("Edit Record as opens its list", PhoneRecordAsEditor.visible)
+        RecordAsStore.shared.set(.kind(.talk), shown: true)
+        check("turning Talk on puts it back in Record as, in its place", RecordAsStore.shared.visible.contains(.kind(.talk))
+              && RecordAsStore.shared.visible.firstIndex(of: .kind(.talk)).map { $0 < RecordAsStore.shared.visible.firstIndex(of: .thought) ?? 0 } == true)
+        RecordAsStore.shared.set(.voiceNote, shown: false)
+        check("Voice note always shows", RecordAsStore.shared.visible.first == .voiceNote)
+        RecordAsStore.shared.set(.kind(.talk), shown: !rowsBefore.hidden.contains(RecordChoice.kind(.talk).id))
+        app.showRecordAsEditor = false
         try? await Task.sleep(nanoseconds: 600_000_000)
 
         // A quick tap on Record (lifted before the hold): the plain voice note.

@@ -54,6 +54,8 @@ struct AskScreen: View {
     var route = AskRoute()
     @State private var query = ""
     @State private var scope = AskScope.all
+    /// Recipes are hidden until you show them, or while you have one (consolidation, `RecipesSetting`).
+    @AppStorage(RecipesSetting.key) private var showRecipes = false
     @State private var editing: PhoneRecipeDraft? = nil
     @State private var applied = false
     @FocusState private var focused: Bool
@@ -76,6 +78,7 @@ struct AskScreen: View {
                 if let r = center.result, center.phase == .done, r.state == .answered {
                     passages(r)
                 }
+                if RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty) {
                 NavigationLink(value: RecipesRoute()) {
                     HStack(spacing: 10) {
                         if look.isNative {
@@ -98,6 +101,7 @@ struct AskScreen: View {
                 .buttonStyle(PhoneCardPress())
                 .accessibilityIdentifier("ask.recipes")
                 .padding(.top, 8)
+                }
             }
             .padding(.horizontal, 20).padding(.bottom, 40)
         }
@@ -109,11 +113,17 @@ struct AskScreen: View {
             if !look.isNative { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    let recipesShown = RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty)
                     if let r = center.result, center.phase == .done {
                         Button { UIPasteboard.general.string = r.copyText; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", systemImage: "doc.on.doc") }   // brand: system surface (menu)
-                        Button { editing = PhoneRecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as Recipe", systemImage: "bookmark") }   // brand: system surface (menu)
+                        if recipesShown {
+                            Button { editing = PhoneRecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as Recipe", systemImage: "bookmark") }   // brand: system surface (menu)
+                        }
                     }
-                    Button { app.pushHere(RecipesRoute()) } label: { Label("Recipes", systemImage: "calendar") }   // brand: system surface (menu)
+                    if recipesShown {
+                        Button { app.pushHere(RecipesRoute()) } label: { Label("Recipes", systemImage: "calendar") }   // brand: system surface (menu)
+                    }
+                    Toggle("Show Recipes", isOn: $showRecipes).disabled(!app.store.recipes.isEmpty)
                     if !center.history.isEmpty {
                         Menu("Recent Questions") {
                             ForEach(center.history) { h in Button(h.question) { query = h.question; scope = h.scope; center.show(h) } }

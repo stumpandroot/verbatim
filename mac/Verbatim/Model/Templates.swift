@@ -834,6 +834,67 @@ enum RecordChoice: Hashable, Identifiable {
     }
 }
 
+/// Which Record as rows show (consolidation, October 28, 2026): five by default (Voice note, Meeting, Thought, Brain
+/// dump, and Audio only). Interview, Journal entry, and Talk stay kinds, reachable from Change kind, and come back
+/// from Edit Record as (the iPhone tray's foot, the Mac menu's last item), where any row but Voice note turns on or off.
+/// Kept per device (`recordAs.hidden`, the hidden rows' IDs), like other settings. An install from before keeps a
+/// hidden kind showing when it recorded one in the last 30 days (`seeded`). VoiceOver's actions follow the rows.
+struct RecordAsRows: Equatable, Sendable {
+    static let key = "recordAs.hidden"
+    /// Hidden on a new install.
+    static let defaultHidden: Set<String> = [RecordChoice.kind(.interview).id, RecordChoice.kind(.journal).id, RecordChoice.kind(.talk).id]
+    /// How far back a recording of a hidden kind keeps it showing for an install from before.
+    static let recentDays: Double = 30
+
+    /// The hidden rows' IDs (`RecordChoice.id`). Voice note never hides: it's the plain Record.
+    private(set) var hidden: Set<String>
+
+    init(hidden: Set<String> = RecordAsRows.defaultHidden) {
+        self.hidden = hidden.subtracting([RecordChoice.voiceNote.id]).intersection(RecordChoice.all.map(\.id))
+    }
+
+    /// The rows to show, in Record as's order.
+    var visible: [RecordChoice] { RecordChoice.all.filter { !hidden.contains($0.id) } }
+    func isShown(_ c: RecordChoice) -> Bool { !hidden.contains(c.id) }
+    /// Voice note always shows; every other row can be turned off.
+    static func canHide(_ c: RecordChoice) -> Bool { c != .voiceNote }
+
+    /// By day's Journal (the Mac's sidebar row, the iPhone's Journal tab option) shows once Journal entry is on in
+    /// Record as, or once the library has a journal entry. Hidden on a new install with neither.
+    func showsJournal(hasEntries: Bool) -> Bool { hasEntries || isShown(.kind(.journal)) }
+
+    mutating func set(_ c: RecordChoice, shown: Bool) {
+        guard Self.canHide(c) else { return }
+        if shown { hidden.remove(c.id) } else { hidden.insert(c.id) }
+    }
+
+    /// The kinds an install from before used in the last 30 days among the ones that now start hidden: recordings you
+    /// filed as Interview, Journal entry, or Talk yourself (a kind AutoLabel guessed doesn't count).
+    static func recentHiddenKinds(_ list: [Transcript], now: Date = Date()) -> Set<String> {
+        let since = now.addingTimeInterval(-recentDays * 24 * 3600)
+        var out: Set<String> = []
+        for t in list where t.deletedAt == nil && !t.kindIsAuto && t.createdAt >= since {
+            if let k = t.kind, defaultHidden.contains(RecordChoice.kind(k).id) { out.insert(RecordChoice.kind(k).id) }
+        }
+        return out
+    }
+
+    /// The rows a device starts with: the default five, plus, on an install from before, the hidden kinds it used lately.
+    static func seeded(existing: Bool, recent: Set<String>) -> RecordAsRows {
+        RecordAsRows(hidden: existing ? defaultHidden.subtracting(recent) : defaultHidden)
+    }
+
+    /// What's stored, or the default five when nothing is (before the first launch's seeding).
+    static func load(_ d: UserDefaults) -> RecordAsRows {
+        guard let raw = d.stringArray(forKey: key) else { return RecordAsRows() }
+        return RecordAsRows(hidden: Set(raw))
+    }
+
+    static func isSeeded(_ d: UserDefaults) -> Bool { d.object(forKey: key) != nil }
+
+    func save(_ d: UserDefaults) { d.set(hidden.sorted(), forKey: Self.key) }
+}
+
 /// The Record as tray's gesture (iPhone), pure so the Linux tests and the self-test check it: touch and hold 0.4 s to
 /// open; moving more than 10 pt first cancels (the scroll view takes it); lifting sooner is a plain Record. With the
 /// tray open, sliding more than 10 pt and lifting on a row starts it; lifting without sliding keeps the tray open for a
@@ -902,3 +963,39 @@ extension Transcript {
         if wantsSuggestedKind { kind = k }
     }
 }
+
+#if canImport(Combine)
+import Combine
+
+/// This device's Record as rows, read once and written on each change; the tray, the menus, and VoiceOver's actions
+/// observe it.
+@MainActor
+final class RecordAsStore: ObservableObject {
+    static let shared = RecordAsStore(defaults: .standard)
+    private let defaults: UserDefaults
+    @Published private(set) var rows: RecordAsRows
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+        rows = RecordAsRows.load(defaults)
+    }
+
+    var visible: [RecordChoice] { rows.visible }
+
+    func set(_ c: RecordChoice, shown: Bool) {
+        var r = rows
+        r.set(c, shown: shown)
+        guard r != rows else { return }
+        rows = r
+        r.save(defaults)
+    }
+
+    /// Once the library has loaded at the first launch with Record as rows: the starting rows (`RecordAsRows.seeded`).
+    func seedIfNeeded(existing: Bool, library: [Transcript]) {
+        guard !RecordAsRows.isSeeded(defaults) else { return }
+        let r = RecordAsRows.seeded(existing: existing, recent: RecordAsRows.recentHiddenKinds(library))
+        r.save(defaults)
+        if r != rows { rows = r }
+    }
+}
+#endif

@@ -118,6 +118,7 @@ struct NativeRecordMenu: View {
     @EnvironmentObject var app: PhoneState
     var settings: AutoRunSettings
     var templates: [TranscriptTemplate]
+    @ObservedObject private var rows = RecordAsStore.shared
 
     var body: some View {
         ControlGroup {
@@ -126,7 +127,7 @@ struct NativeRecordMenu: View {
             Button { app.showImportChoices = true } label: { Label("Import", systemImage: "square.and.arrow.down") }
         }
         Section("Record as") {
-            ForEach(RecordChoice.all) { c in
+            ForEach(rows.visible) { c in
                 // A menu item's second Text is its subtitle.
                 Button { app.startRecordChoice(c) } label: {
                     Label(c.name, systemImage: c.nativeSymbol)
@@ -134,6 +135,8 @@ struct NativeRecordMenu: View {
                 }
             }
         }
+        // The rows you hid (Interview, Journal entry, and Talk start hidden) come back here.
+        Button { app.showRecordAsEditor = true } label: { Label("Edit Record as", systemImage: "slider.horizontal.3") }
     }
 
     /// The line under a kind: what runs when it finishes, or what it does (`RecordChoice.hint`). Voice note says that

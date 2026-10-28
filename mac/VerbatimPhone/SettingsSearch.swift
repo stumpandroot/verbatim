@@ -222,6 +222,8 @@ enum SettingsSearchIndex {
               description: "Transcripts open on a template's automatic result", target: .page(.templates)),
         .init(id: "templatesNotify", section: features, label: "Notify me when it's done", keywords: ["templates", "notification", "long recordings"],
               description: "A notification when a template finishes on a recording over 20 minutes", target: .page(.templates)),
+        .init(id: "askRecipes", section: features, label: "Recipes", keywords: ["recipes", "ask", "saved questions", "digest", "weekly", "schedule"],
+              description: "Show recipes in Ask: questions you save and run again", target: .page(.templates)),
         .init(id: "widgets", section: features, label: "Widgets and controls", keywords: ["widget", "home screen", "lock screen", "control center", "controls", "this week", "recent recordings", "quick capture"],
               description: "Which widgets and controls Verbose has, and how to add them", target: .page(.widgets)),
         .init(id: "shortcuts", section: features, label: "Shortcuts and Siri", keywords: ["shortcuts", "siri", "app intents", "automation", "voice command", "hey siri"],

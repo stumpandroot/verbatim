@@ -302,12 +302,12 @@ struct KeyboardSetupScreen: View {
         "In any app, touch and hold the globe key, and then choose Verbose.",
     ]
 
-    /// Ways to start a session: the keyboard's Start a session, and the ways that work without the keyboard.
+    /// The suggested ways to start a session: the keyboard's Start a session and the Action button (consolidation,
+    /// October 28, 2026). The Control Center switch and the Start dictation session widget stay available (Settings ›
+    /// Features › Widgets and controls) but aren't suggested here.
     private let startWays: [(symbol: String, text: String)] = [
         ("keyboard", "The Verbose keyboard: tap Start a session. Verbose opens and turns on the microphone."),
-        ("square.grid.2x2", "Control Center: tap Edit, then Add a Control, and choose Verbose session."),
         ("button.horizontal.top.press", "Action button: in Settings › Action Button, choose Controls › Verbose action. The first press starts a session and a take; see Verbose › Settings › Action button."),
-        ("lock", "Lock Screen: touch and hold the Lock Screen, tap Customize, and add the Verbose widget."),
         ("mic", "Here: tap Start keyboard session above."),
     ]
 

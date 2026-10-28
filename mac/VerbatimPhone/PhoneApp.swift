@@ -209,6 +209,7 @@ struct PhoneRoot: View {
                 .lookSwitchLayer().phoneLookRoot().lookRoot()
         }
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
+        .sheet(isPresented: $app.showRecordAsEditor) { PhoneRecordAsEditor() }
         .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet().environmentObject(app) }
         .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }
         // Native: Saved to Library, after Stop (NativeRecorder.swift).

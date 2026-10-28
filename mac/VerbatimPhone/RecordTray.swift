@@ -85,6 +85,8 @@ final class RecordTray: ObservableObject {
         }
         self.source = source
         if case .floating(let tab) = source { buttonFrame = floatingFrames[tab] ?? frame } else { buttonFrame = frame }
+        // Only the rows on screen this time count (a row hidden since stays out of the slide).
+        rowFrames = [:]
         highlighted = nil
         fingerDown = true
         slid = false
@@ -237,20 +239,16 @@ extension View {
         modifier(RecordTrayPress(source: source, onPhase: onPhase, tap: tap))
     }
 
-    /// VoiceOver's named actions on Record, one for each way to record, so a kind can be picked from the actions rotor
-    /// without opening the tray.
+    /// VoiceOver's named actions on Record, one for each way to record that Record as shows (`RecordAsStore`), so a
+    /// kind can be picked from the actions rotor without opening the tray.
     func recordChoiceActions(_ app: PhoneState) -> some View {
-        accessibilityActions {
-            ForEach(RecordChoice.all) { c in
-                Button(c.actionName) { app.startRecordChoice(c) }
-            }
-        }
+        modifier(RecordChoiceActions(app: app))
     }
 
     /// Record as one button for VoiceOver: activating it is the plain Record, the actions rotor has each way to
     /// record, and a double-tap and hold opens the tray as a modal.
     func recordCardAccessibility(_ app: PhoneState, value: String = "", id: String,
-                                 hint: String = "Starts a voice note. Touch and hold to record a meeting, an interview, a journal entry, a talk, a thought, a brain dump, or audio only.",
+                                 hint: String = "Starts a voice note. Touch and hold to choose another way to record.",
                                  before: @escaping () -> Void = {}) -> some View {
         accessibilityElement(children: .ignore)
             .accessibilityAddTraits(.isButton)
@@ -325,8 +323,23 @@ private struct RecordTrayPress: ViewModifier {
 
 /// The tray over everything, the tab bar included: the scrim, the tray in the look, and (from the floating button)
 /// the button kept lit above the scrim. Put once at the root, above the tab view.
+/// VoiceOver's actions on Record, following the rows Record as shows.
+private struct RecordChoiceActions: ViewModifier {
+    let app: PhoneState
+    @ObservedObject private var rows = RecordAsStore.shared
+    func body(content: Content) -> some View {
+        content.accessibilityActions {
+            ForEach(rows.visible) { c in
+                Button(c.actionName) { app.startRecordChoice(c) }
+            }
+        }
+    }
+}
+
 struct RecordTrayLayer: View {
     @EnvironmentObject var app: PhoneState
+    /// The rows you show (consolidation, October 28, 2026: five by default; Edit Record as turns the others on).
+    @ObservedObject private var recordAs = RecordAsStore.shared
     @ObservedObject private var tray = RecordTray.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @Environment(\.look) private var look
@@ -403,6 +416,7 @@ struct RecordTrayLayer: View {
                 .contentShape(Rectangle())
                 .gesture(dismissDrag)
             rows(maxHeight: maxHeight)
+            editRow
             if look.isNative, case .floating(let tab) = tray.source { footer(tab) }
         }
         if look.isNative {
@@ -470,10 +484,11 @@ struct RecordTrayLayer: View {
 
     /// The rows; when they're taller than the room (80% of the screen, less the header), they scroll and the header stays.
     @ViewBuilder private func rows(maxHeight: CGFloat) -> some View {
+        let shown = recordAs.visible
         let list = VStack(spacing: 0) {
-            ForEach(Array(RecordChoice.all.enumerated()), id: \.element) { i, c in
+            ForEach(Array(shown.enumerated()), id: \.element) { i, c in
                 TrayRow(choice: c, first: i == 0, highlighted: tray.highlighted == c,
-                        neighborHighlighted: i > 0 && tray.highlighted == RecordChoice.all[i - 1],
+                        neighborHighlighted: i > 0 && tray.highlighted == shown[i - 1],
                         hint: c.hint(settings: auto.settings, templates: app.store.allTemplates)) { tray.choose(c) }
             }
         }
@@ -484,6 +499,23 @@ struct RecordTrayLayer: View {
         }
         .frame(maxHeight: room)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { tray.listFrame = $0 }
+    }
+
+    /// The tray's foot: Edit Record as, where the rows you hid (Interview, Journal entry, and Talk start hidden) come back.
+    private var editRow: some View {
+        Button {
+            tray.close()
+            app.showRecordAsEditor = true
+        } label: {
+            Text(look.isNative ? "Edit Record as" : "Edit Record as…")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(look.isNative ? NativeInk.accent : Ink.ink)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Choose which ways to record show here.")
+        .accessibilityIdentifier("tray.editRecordAs")
     }
 
     @ViewBuilder private func listBox<L: View>(_ list: L, scrolls: Bool) -> some View {
@@ -736,3 +768,42 @@ struct NativeRecordKindChip: View {
     }
 }
 // brand: native end
+
+/// Edit Record as (consolidation, October 28, 2026): every way to record with a switch, in Record as's order, so a row
+/// you hid comes back. Interview, Journal entry, and Talk start hidden; Voice note always shows. A standard sheet in both
+/// looks: a grouped list with system switches, which Verbose style draws on paper.
+struct PhoneRecordAsEditor: View {
+    @ObservedObject private var rows = RecordAsStore.shared
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.look) private var look
+    /// On screen, for the self-test.
+    static var visible = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(RecordChoice.all) { c in
+                        Toggle(isOn: Binding(get: { rows.rows.isShown(c) }, set: { rows.set(c, shown: $0) })) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(c.name).font(.system(size: 17)).foregroundStyle(.lookInk)
+                                Text(c.fallbackHint).font(.system(size: 13)).foregroundStyle(.lookMute)
+                            }
+                        }
+                        .disabled(!RecordAsRows.canHide(c))
+                        .accessibilityIdentifier("recordAs.\(c.id)")
+                    }
+                } footer: {
+                    Text("The ways you turn off stay kinds you can pick with Change kind.")
+                }
+            }
+            .phoneGroupedList()
+            .navigationTitle("Edit Record as")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+        .presentationDragIndicator(.visible)
+        .onAppear { Self.visible = true }
+        .onDisappear { Self.visible = false }
+    }
+}

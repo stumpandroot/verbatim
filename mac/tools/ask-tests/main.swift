@@ -256,5 +256,9 @@ let digestsAfter = AskCleanup.pruned(digestsBefore, removing: [callID])
 check("delete: digests that cite a deleted recording drop those citations", digestsAfter.first?.result.answer?.citations.contains { $0.transcriptId == callID } == false
       && digestsAfter.first?.result.answer?.citations.isEmpty == false)
 
+// Recipes are hidden until you show them, and show while you have one (consolidation, October 28, 2026).
+check("recipes: hidden by default, shown by the switch or while you have one", !RecipesSetting.shows(stored: false, hasRecipes: false)
+      && RecipesSetting.shows(stored: true, hasRecipes: false) && RecipesSetting.shows(stored: false, hasRecipes: true) && RecipesSetting.key == "ask.showRecipes")
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

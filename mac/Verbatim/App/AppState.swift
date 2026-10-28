@@ -192,6 +192,8 @@ final class AppState: ObservableObject {
     /// What launch starts once the library has loaded (`Store.whenLoaded`), in the order it always ran.
     private func resumeAfterLoad() {
         Log.note("library loaded; transcripts=\(store.transcripts.count)")
+        // The consolidation: Record as's rows this Mac starts with, once (ConsolidationMac.swift).
+        ConsolidationMac.afterLibraryLoaded(store)
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
         // Only jobs this Mac started: the iPhone's jobs show as "Transcribing on iPhone" and stay its own.
         coordinator.resume(includeUnowned: true)

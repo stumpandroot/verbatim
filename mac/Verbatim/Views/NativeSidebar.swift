@@ -12,6 +12,7 @@ import AppKit
 struct NativeSidebar: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var layout = SidebarLayout.shared
+    @ObservedObject private var recordAs = RecordAsStore.shared
     @State private var customizing = false
     @Environment(\.limitMotion) private var limitMotion
 
@@ -42,9 +43,12 @@ struct NativeSidebar: View {
                 Label { Text("Thoughts") } icon: { ThoughtGlyph(color: NativeInk.accent, lineWidth: 1.4).frame(width: 16, height: 16) }
                     .badge(app.store.todaysThoughts().count)
                     .tag(Item.byDay(.idea)).uiTarget("side-thoughts")
-                Label { Text("Journal") } icon: { Image(systemName: RecordingKind.journal.nativeSymbol).foregroundStyle(NativeInk.accent) }
-                    .badge(app.store.journalThisWeek())
-                    .tag(Item.byDay(.journal)).uiTarget("side-journal")
+                // Journal shows once Journal entry is on in Record As or you have an entry (consolidation, item 16).
+                if recordAs.rows.showsJournal(hasEntries: app.store.hasJournalEntries) || app.screen == .byDay(.journal) {
+                    Label { Text("Journal") } icon: { Image(systemName: RecordingKind.journal.nativeSymbol).foregroundStyle(NativeInk.accent) }
+                        .badge(app.store.journalThisWeek())
+                        .tag(Item.byDay(.journal)).uiTarget("side-journal")
+                }
             }
             // Make: Templates, and Ask (questions about your library, and recipes).
             Section("Make") {

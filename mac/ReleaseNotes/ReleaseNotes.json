@@ -119,6 +119,37 @@
           ],
           "text": "Today's page has a note mode, Write or dictate, in place of the Brain dump window.",
           "detail": "Choose File › Today's Note. Hold ⌃⌥ and talk, or type, then Plan my day. Notes from the Brain dump window are on their day's page."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Record as shows five rows: Voice note, Meeting, Thought, Brain dump, and Audio only.",
+          "detail": "Turn Interview, Journal entry, or Talk back on with Edit Record as. If you recorded one in the last 30 days, it stays."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Journal shows in By day once you have an entry or turn on Journal entry.",
+          "detail": "On iPhone, Journal is offered as a tab under the same rule."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Ask hides recipes until you turn on Recipes. Recipes you have keep running.",
+          "detail": "Turn them on in Ask's More menu, or on iPhone in Settings › Features › Templates."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Keyboard settings suggest the keyboard and the Action button to start a session.",
+          "detail": "The Control Center switch and the session widget still work. Find them in Settings › Features › Widgets and controls."
         }
       ]
     },

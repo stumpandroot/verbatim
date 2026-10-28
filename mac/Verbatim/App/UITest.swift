@@ -442,7 +442,14 @@ enum UITest {
         check("record as: the right-click menu lists eight choices in the tray's order",
               RecordChoice.all.map(\.menuTitle) == ["Record", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought",
                                                     "Record a brain dump", "Record audio only"])
-        check("record as: File has New Brain Dump", NSApp.mainMenu?.items.first(where: { $0.title == "File" })?.submenu?.items.contains { $0.title == "New Brain Dump" } ?? true)
+        check("record as: File has Today's Note in New Brain Dump's place", NSApp.mainMenu?.items.first(where: { $0.title == "File" })?.submenu?.items
+              .contains { $0.title == "Today's Note" } ?? true)
+        // Five rows show by default (consolidation, October 28, 2026); Interview, Journal entry, and Talk come back
+        // from Edit Record As….
+        check("record as: five rows by default", RecordAsRows().visible == [.voiceNote, .kind(.meeting), .thought, .kind(.brainDump), .kind(.audio)])
+        EditRecordAsWindow.open()
+        check("record as: Edit Record As… opens its window", EditRecordAsWindow.isOpen)
+        EditRecordAsWindow.close()
         let missing = RecordChoice.all.filter { NSImage(symbolName: $0.symbolName, bundle: .main, variableValue: 1) == nil }.map(\.symbolName)
         check("record as: each choice's icon is a custom symbol in the app\(missing.isEmpty ? "" : " (missing \(missing.joined(separator: ", ")))")", missing.isEmpty)
         let template = RecordChoice.all.compactMap { NSImage(symbolName: $0.symbolName, bundle: .main, variableValue: 1) }.allSatisfy(\.isTemplate)
@@ -457,9 +464,9 @@ enum UITest {
         recordAs.update()
         let items = recordAs.items.filter { !$0.isSeparatorItem }
         if items.isEmpty { Log.note("UITEST note: File › Record As builds its items when opened; not counted"); return }
-        check("record as: File › Record As lists the same eight (\(items.map(\.title).joined(separator: ", ")))",
-              items.map(\.title) == RecordChoice.all.map(\.commandTitle))
-        check("record as: every File › Record As item has its icon", items.allSatisfy { $0.image != nil })
+        check("record as: File › Record As lists the rows you show, then Edit Record As… (\(items.map(\.title).joined(separator: ", ")))",
+              items.map(\.title) == RecordAsStore.shared.visible.map(\.commandTitle) + ["Edit Record As…"])
+        check("record as: every File › Record As row has its icon", items.dropLast().allSatisfy { $0.image != nil })
         check("record as: File has no separate Record Meeting… beside Record As › Meeting…", !file.items.contains { $0.title == "Record Meeting…" })
     }
 
@@ -2558,6 +2565,12 @@ extension UITest {
         try? await Task.sleep(nanoseconds: 500_000_000)
         await step("ask: the sidebar's Ask opens Make › Ask", window, target: "side-ask", check: { app.screen == .ask })
         oneScreen("sidebar Ask", app: app)
+        // Recipes are hidden until you show them, or while you have one (consolidation, October 28, 2026).
+        let showedRecipes = UserDefaults.standard.bool(forKey: RecipesSetting.key)
+        check("ask: recipes start hidden, and show while you have one", !RecipesSetting.shows(stored: false, hasRecipes: false)
+              && RecipesSetting.shows(stored: false, hasRecipes: true) && RecipesSetting.shows(stored: true, hasRecipes: false))
+        UserDefaults.standard.set(true, forKey: RecipesSetting.key)
+        try? await Task.sleep(nanoseconds: 600_000_000)
         await step("ask: Recipes shows the recipes", window, target: "ask-pane-recipes", check: { nav.pane == .recipes })
         if app.store.recipes.isEmpty {
             await step("ask: a suggestion saves a recipe, with its weekly time on this Mac", window, target: "ask-suggestion-0",
@@ -2609,6 +2622,7 @@ extension UITest {
         nav.close(); nav.scope = .all; nav.query = ""; center.clear()
         await askDeleteChecks(app: app, recordings: seeded.1, device: "Mac") { check("ask: " + $0, $1) }
         for r in app.store.recipes where !before.contains(r.id) { AskRecipeCenter.shared.delete(r.id) }
+        UserDefaults.standard.set(showedRecipes, forKey: RecipesSetting.key)
         unseedAsk(app, seeded)
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)

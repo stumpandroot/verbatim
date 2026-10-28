@@ -183,6 +183,35 @@ check("record kind titles", RecordingKind.recordChoices.map(\.recordTitle) == ["
 
 check("eight choices in one order: Voice note, the four kinds, Thought, Brain dump, Audio only",
       RecordChoice.all == [.voiceNote, .kind(.meeting), .kind(.interview), .kind(.journal), .kind(.talk), .thought, .kind(.brainDump), .kind(.audio)])
+// Record as shows five rows by default (consolidation, October 28, 2026).
+let defaultRows = RecordAsRows()
+check("Record as: five rows by default, in order", defaultRows.visible == [.voiceNote, .kind(.meeting), .thought, .kind(.brainDump), .kind(.audio)])
+var editedRows = defaultRows
+editedRows.set(.kind(.journal), shown: true)
+editedRows.set(.voiceNote, shown: false)
+editedRows.set(.kind(.audio), shown: false)
+check("Edit Record as: a hidden row comes back in its place; Voice note never hides; any other row can",
+      editedRows.visible == [.voiceNote, .kind(.meeting), .kind(.journal), .thought, .kind(.brainDump)])
+let rowsSuite = UserDefaults(suiteName: "templates-tests-rows-\(UUID().uuidString)")!
+check("nothing stored: the default five, not yet seeded", RecordAsRows.load(rowsSuite) == defaultRows && !RecordAsRows.isSeeded(rowsSuite))
+editedRows.save(rowsSuite)
+check("the rows round-trip", RecordAsRows.load(rowsSuite) == editedRows && RecordAsRows.isSeeded(rowsSuite))
+rowsSuite.set(["talk", "hologram", "voiceNote"], forKey: RecordAsRows.key)
+check("unknown IDs and Voice note are ignored when read", RecordAsRows.load(rowsSuite).hidden == ["talk"])
+func picked(_ k: RecordingKind, daysAgo: Double, auto: Bool = false, deleted: Bool = false) -> Transcript {
+    var t = Transcript(title: "x", source: .voiceMemo, sourceLabel: "", duration: 60, audioFileName: nil, model: "")
+    t.kind = k; t.kindIsAuto = auto; t.createdAt = now.addingTimeInterval(-daysAgo * 86_400)
+    if deleted { t.deletedAt = now }
+    return t
+}
+let recentRows = RecordAsRows.recentHiddenKinds([picked(.interview, daysAgo: 3), picked(.talk, daysAgo: 40), picked(.journal, daysAgo: 2, auto: true),
+                                                 picked(.journal, daysAgo: 1, deleted: true), picked(.meeting, daysAgo: 1)], now: now)
+check("a hidden kind you recorded in the last 30 days counts; older, guessed, or deleted ones don't", recentRows == ["interview"])
+check("an install from before keeps it showing", RecordAsRows.seeded(existing: true, recent: recentRows).visible
+      == [.voiceNote, .kind(.meeting), .kind(.interview), .thought, .kind(.brainDump), .kind(.audio)])
+check("a new install starts with five", RecordAsRows.seeded(existing: false, recent: recentRows) == defaultRows)
+check("By day's Journal hides on a new install with no entries, and shows with an entry or Journal entry on",
+      !defaultRows.showsJournal(hasEntries: false) && defaultRows.showsJournal(hasEntries: true) && editedRows.showsJournal(hasEntries: false))
 check("row names", RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought", "Brain dump", "Audio only"])
 check("serif names put the last word in italic", RecordChoice.voiceNote.serifParts == ("Voice ", "note") && RecordChoice.kind(.talk).serifParts == ("Talk", nil)
       && RecordChoice.kind(.journal).serifParts == ("Journal ", "entry"))

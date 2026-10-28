@@ -445,6 +445,8 @@ struct AskResultView: View {
     var context: AskContext
     @EnvironmentObject var app: AppState
     @Environment(\.look) private var look
+    @AppStorage(RecipesSetting.key) private var showRecipes = false
+    private var hasRecipes: Bool { !app.store.recipes.isEmpty }
     @State private var copied = false
 
     var body: some View {
@@ -481,7 +483,7 @@ struct AskResultView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { copied = false }
             }
             .uiTarget("ask-copy")
-            if context != .digest {
+            if context != .digest, RecipesSetting.shows(stored: showRecipes, hasRecipes: hasRecipes) {
                 PillButton(title: "Save as recipe", kind: .line, size: .mini) { AskNav.shared.saveAsRecipe(result) }
                     .uiTarget("ask-save-recipe")
             }
@@ -677,22 +679,41 @@ struct AskFlow: Layout {
 struct AskView: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var nav = AskNav.shared
+    /// Recipes are hidden until you show them, or while you have one (consolidation, `RecipesSetting`).
+    @AppStorage(RecipesSetting.key) private var showRecipes = false
 
     var body: some View {
         LookSwitch.mark("ask")
+        let recipes = RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty)
+        let pane: AskPane = recipes ? nav.pane : .questions
         return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                PageTitle(title: "Ask", count: AskResult.plural(app.store.recipes.count, "recipe", "recipes"),
-                          lede: nav.pane == .questions ? "Ask about your recordings. Verbose finds the passages first, then answers on this Mac."
-                                                       : "Questions you ask again. Run one now, or schedule it weekly.") {
+                PageTitle(title: "Ask", count: recipes ? AskResult.plural(app.store.recipes.count, "recipe", "recipes") : nil,
+                          lede: pane == .questions ? "Ask about your recordings. Verbose finds the passages first, then answers on this Mac."
+                                                   : "Questions you ask again. Run one now, or schedule it weekly.") {
                     HStack(spacing: 6) {
-                        FilterChip(title: "Questions", selected: nav.pane == .questions) { nav.pane = .questions }.uiTarget("ask-pane-questions")
-                        FilterChip(title: "Recipes", selected: nav.pane == .recipes) { nav.pane = .recipes }.uiTarget("ask-pane-recipes")
-                        PillButton(title: "New recipe", kind: .dark, size: .mini, icon: .webPlus) { nav.editing = RecipeDraft(question: "", scope: nav.scope) }
-                            .uiTarget("ask-new-recipe")
+                        if recipes {
+                            FilterChip(title: "Questions", selected: pane == .questions) { nav.pane = .questions }.uiTarget("ask-pane-questions")
+                            FilterChip(title: "Recipes", selected: pane == .recipes) { nav.pane = .recipes }.uiTarget("ask-pane-recipes")
+                            PillButton(title: "New recipe", kind: .dark, size: .mini, icon: .webPlus) { nav.editing = RecipeDraft(question: "", scope: nav.scope) }
+                                .uiTarget("ask-new-recipe")
+                        }
+                        Menu {
+                            Toggle("Show Recipes", isOn: $showRecipes)
+                                .disabled(!app.store.recipes.isEmpty)
+                        } label: {
+                            Image(systemName: "ellipsis").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.ink)
+                                .frame(width: 28, height: 28)
+                                .overlay(Circle().strokeBorder(Ink.ink, lineWidth: 1.5))
+                                .contentShape(Circle())
+                        }
+                        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+                        .help("Recipes: questions you save and run again, now or every week")
+                        .accessibilityLabel("More")
+                        .uiTarget("ask-more")
                     }
                 }
-                switch nav.pane {
+                switch pane {
                 case .questions: AskQuestionsPane()
                 case .recipes: AskRecipesPane()
                 }

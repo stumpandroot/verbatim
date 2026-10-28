@@ -198,6 +198,8 @@ struct PhoneTryOn: Identifiable {
 struct TemplatesAutoScreen: View {
     @EnvironmentObject var app: PhoneState
     @ObservedObject private var auto = TemplateSettingsModel.shared
+    /// Ask's recipes, hidden until you show them (consolidation, `RecipesSetting`).
+    @AppStorage(RecipesSetting.key) private var showRecipes = false
 
     var body: some View {
         let all = app.store.allTemplates
@@ -231,6 +233,13 @@ struct TemplatesAutoScreen: View {
                 SettingsToggleRow(icon: "bell", tint: Ink.sageTint, art: .iconAttention, title: "Notify me when it\u{2019}s done", subtitle: "For recordings over 20 minutes",
                                   isOn: $auto.settings.notify)
                     .settingsSearchTarget("templatesNotify", flash: nil)
+            }
+            SettingsPageGroup(footer: app.store.recipes.isEmpty ? "Questions you save in Ask and run again, now or every week."
+                                                                : "Ask shows your recipes while you have one.") {
+                SettingsToggleRow(icon: "calendar", tint: Ink.sageTint, art: .iconCalendar, title: "Recipes", subtitle: "Show them in Ask",
+                                  isOn: Binding(get: { RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty) }, set: { showRecipes = $0 }))
+                    .disabled(!app.store.recipes.isEmpty)
+                    .settingsSearchTarget("askRecipes", flash: nil)
             }
         }
     }

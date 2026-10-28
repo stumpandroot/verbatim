@@ -40,14 +40,73 @@ struct RecordKindMenuItems: View {
     var titles: KeyPath<RecordChoice, String> = \.menuTitle
     var activate = false
     @ObservedObject private var meeting = MeetingSession.shared
+    /// The rows you show (consolidation, October 28, 2026: five by default; Edit Record As… turns the others on).
+    @ObservedObject private var rows = RecordAsStore.shared
     var body: some View {
-        ForEach(RecordChoice.all) { c in
+        ForEach(rows.visible) { c in
             Button {
                 if activate, c != .thought { NSApp.activate(ignoringOtherApps: true) }
                 app.startRecordChoice(c)
             } label: { Label(c[keyPath: titles], image: c.symbolName) }
             .disabled(c == .kind(.meeting) && meeting.isActive)
         }
+        Divider()
+        Button("Edit Record As…") { EditRecordAsWindow.open() }
+    }
+}
+
+/// Edit Record As (the last item of every Record As menu on the Mac): every way to record with a switch, so a row you
+/// hid (Interview, Journal entry, and Talk start hidden) comes back. Voice note always shows. A small window of its
+/// own, sized here and never from its content.
+@MainActor
+enum EditRecordAsWindow {
+    private static var window: NSWindow?
+
+    static func open() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let w = window { w.makeKeyAndOrderFront(nil); return }
+        let host = NSHostingController(rootView: RecordAsEditor().limitMotionRoot().lookRoot())
+        host.sizingOptions = []
+        let w = NSWindow(contentViewController: host)
+        w.styleMask = [.titled, .closable]
+        w.title = "Edit Record As"
+        w.isReleasedWhenClosed = false
+        w.setContentSize(NSSize(width: 380, height: 440))
+        w.center()
+        window = w
+        w.makeKeyAndOrderFront(nil)
+    }
+
+    static func close() { window?.orderOut(nil) }
+    static var isOpen: Bool { window?.isVisible == true }
+}
+
+/// The rows of Record As with a switch each, in its order, and what each one does.
+struct RecordAsEditor: View {
+    @ObservedObject private var rows = RecordAsStore.shared
+    @Environment(\.look) private var look
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Choose the ways to record that Record As shows. The others stay kinds you can pick with Change kind.")
+                .font(.system(size: 12.5)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.dim))
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 0) {
+                ForEach(RecordChoice.all) { c in
+                    Toggle(isOn: Binding(get: { rows.rows.isShown(c) }, set: { rows.set(c, shown: $0) })) {
+                        Label(c.name, image: c.symbolName).font(.system(size: 13))
+                    }
+                    .toggleStyle(.switch).controlSize(.small)
+                    .disabled(!RecordAsRows.canHide(c))
+                    .padding(.vertical, 7)
+                    .uiTarget("record-as-edit-\(c.id)")
+                    if c != RecordChoice.all.last { Rectangle().fill(look == .native ? Color.primary.opacity(0.1) : Ink.hairline).frame(height: 1) }   // brand: native
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(look == .native ? Color.clear : Ink.paper)
     }
 }
 

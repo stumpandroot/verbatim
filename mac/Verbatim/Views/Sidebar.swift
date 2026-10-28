@@ -8,6 +8,7 @@ struct Sidebar: View {
     @State private var newProject = false
     @State private var projectName = ""
     @ObservedObject private var layout = SidebarLayout.shared
+    @ObservedObject private var recordAs = RecordAsStore.shared
     @State private var customizing = false
     /// A short window: the rows and headers tighten so the Make group (Templates and Ask) stays in view (`compactBelow`).
     @State private var compact = false
@@ -59,9 +60,12 @@ struct Sidebar: View {
                     SideItem(label: "Thoughts", art: .iconThought, selected: app.screen == .byDay(.idea),
                              badge: SideBadge.count(app.store.todaysThoughts().count)) { app.go(.byDay(.idea)) }
                         .uiTarget("side-thoughts")
-                    SideItem(label: "Journal", art: .iconNotes, selected: app.screen == .byDay(.journal),
-                             badge: SideBadge.count(app.store.journalThisWeek())) { app.go(.byDay(.journal)) }
-                        .uiTarget("side-journal")
+                    // Journal shows once Journal entry is on in Record As or you have an entry (consolidation, item 16).
+                    if recordAs.rows.showsJournal(hasEntries: app.store.hasJournalEntries) || app.screen == .byDay(.journal) {
+                        SideItem(label: "Journal", art: .iconNotes, selected: app.screen == .byDay(.journal),
+                                 badge: SideBadge.count(app.store.journalThisWeek())) { app.go(.byDay(.journal)) }
+                            .uiTarget("side-journal")
+                    }
 
                     // Make: what Apple Intelligence makes from your recordings: Templates, and Ask (questions and recipes).
                     Text("Make").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityAddTraits(.isHeader)
