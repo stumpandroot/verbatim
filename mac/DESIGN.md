@@ -286,7 +286,7 @@ Also in the kit: `ReadyChip`, `RecordDiscMark`, `RecordRings`, `RefinedPress` (t
 
 ### Motion
 
-The Record card's rings breathe slowly (5.2 s, a few percent) on one `LoopTimeline` per card that pauses off screen; Limit animation and Reduce Motion hold them still, and presses dim instead of scaling (`RefinedPress`, and `RefinedActionStyle`'s buttons). The recorder's waveform, and the Mac recording card's, move only with your voice; the recording card's rings hold still. §7's other rules hold: screens arrive at once, keyboard and frequent actions don't animate, and haptics are unchanged.
+The Record card's rings breathe slowly (5.2 s, a few percent) on one `LoopTimeline` per card that pauses off screen; Limit animation and Reduce Motion hold them still, and presses dim instead of scaling (`RefinedPress`, and `RefinedActionStyle`'s buttons). The recorder's waveform, and the Mac recording card's, move only with your voice; the recording card draws no rings. §7's other rules hold: screens arrive at once, keyboard and frequent actions don't animate, and haptics are unchanged.
 
 ### Contrast
 

@@ -260,11 +260,6 @@ struct RecordingCard<Words: View, Controls: View>: View {
         .foregroundStyle(ink)
         .padding(.horizontal, 24).padding(.vertical, 20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(alignment: .topTrailing) {
-            RecordRings(color: Refined.rings(palette), lineWidth: 2.2, breathing: false)
-                .frame(width: 240, height: 240)
-                .offset(x: 60, y: -70)
-        }
         .refinedSurface(Refined.fill(.persimmon, palette), radius: RefinedPlatform.radius(.record))
         .accessibilityElement(children: .contain)
     }
