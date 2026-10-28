@@ -496,15 +496,15 @@ struct PhoneTemplateResults: View {
             }
             if let m = transcript.autoRun, m.state == .failed, busy == nil, !results.contains(where: { $0.templateId == m.templateId }) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("\(m.name) didn\u{2019}t run").font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookInk)
-                    if let note = m.note { Text(note).font(.system(size: 14)).foregroundStyle(.lookMute) }
+                    Text("\(m.name) didn\u{2019}t run").refinedFont(.body, weight: .semibold).foregroundStyle(Refined.ink)
+                    if let note = m.note { Text(note).refinedFont(.hint).foregroundStyle(Refined.mute) }
                     if TemplateLibrary.current(m.templateId) != nil {
-                        Button("Run again") { center.run(m.templateId, on: transcript.id, store: app.store, kind: m.kind) }.buttonStyle(.phoneSecondary)
+                        Button("Run again") { center.run(m.templateId, on: transcript.id, store: app.store, kind: m.kind) }.buttonStyle(RefinedActionStyle())
                     }
                 }
             }
             if let why = center.failures[transcript.id] {
-                Text(why).font(.system(size: 14)).foregroundStyle(.lookAccentText)
+                Text(why).refinedFont(.hint).foregroundStyle(Refined.accentText)
             }
             ForEach(results) { r in card(r, templates) }
         }
@@ -517,23 +517,23 @@ struct PhoneTemplateResults: View {
 
     private func card(_ r: TemplateResult, _ templates: [TranscriptTemplate]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            PhoneEyebrow(text: "Template")
-            Text(r.name).lookSerif(26).foregroundStyle(.lookInk).accessibilityAddTraits(.isHeader)
+            Text("Template").refinedFont(.meta).foregroundStyle(Refined.mute)
+            Text(r.name).refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
             if let reason = AutoRunRules.reason(r) {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.counterclockwise").font(.system(size: 11, weight: .semibold)).accessibilityHidden(true)
                     Text(reason)
                 }
-                .font(.system(size: 14)).foregroundStyle(.lookMute)
+                .refinedFont(.hint).foregroundStyle(Refined.mute)
             }
             HStack(spacing: 8) {
                 // A cut template's result (Key points) has no Run again; a retired one's runs its replacement.
                 if TemplateLibrary.runAgain(r) != nil {
-                    Button { runAgain(r) } label: { Label("Run again", systemImage: "arrow.counterclockwise") }
-                        .buttonStyle(.phoneSecondary).disabled(center.busyTemplate(transcript.id) != nil)
+                    Button { runAgain(r) } label: { Text("Run again") }
+                        .buttonStyle(RefinedActionStyle()).disabled(center.busyTemplate(transcript.id) != nil)
                         .accessibilityIdentifier("result.runAgain")
                 }
-                Button("Edit") { draft = r.text; editing = r }.buttonStyle(.phoneSecondary)
+                Button("Edit") { draft = r.text; editing = r }.buttonStyle(RefinedActionStyle())
                     .accessibilityIdentifier("result.edit")
                 Menu {
                     Menu("Run another template") {
@@ -549,61 +549,59 @@ struct PhoneTemplateResults: View {
                     }
                     Button("Delete result", role: .destructive) { app.store.update(transcript.id) { $0.removeTemplateResult(r.id) } }
                 } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookInk)
-                        .frame(width: 36, height: 36).contentShape(Rectangle())
+                    Image(systemName: "ellipsis").font(.system(size: 15, weight: .semibold)).foregroundStyle(Refined.ink)
+                        .frame(width: 44, height: 44).background(Refined.neutral, in: Circle()).contentShape(Circle())
                 }
                 .accessibilityLabel("More")
             }
-            .labelStyle(.titleAndIcon)
-            .font(.system(size: 14, weight: .semibold))
             .lineLimit(1)
             if let offer = AutoRunRules.offer(transcript, settings: auto.settings, templates: templates), offer.result == r.id {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(offer.text).font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookInk)
+                    Text(offer.text).refinedFont(.body, weight: .semibold).foregroundStyle(Refined.ink)
                     HStack(spacing: 8) {
                         Button("Run") { center.run(offer.template, on: transcript.id, store: app.store, replacing: offer.result, kind: offer.kind) }
-                            .buttonStyle(.phonePrimary).accessibilityIdentifier("result.offer.run")
+                            .buttonStyle(RefinedActionStyle(kind: .strong)).accessibilityIdentifier("result.offer.run")
                         Button("Not now") {
                             app.store.update(transcript.id) { x in
                                 if let i = x.templateResults?.firstIndex(where: { $0.id == offer.result }) { x.templateResults?[i].offerDismissed = offer.kind.rawValue }
                             }
                         }
-                        .buttonStyle(.phoneSecondary).accessibilityIdentifier("result.offer.dismiss")
+                        .buttonStyle(RefinedActionStyle()).accessibilityIdentifier("result.offer.dismiss")
                     }
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(look.isNative ? NativeInk.fill : Ink.chip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .background(Refined.neutral, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
             }
             if r.skippedParts > 0 {
                 Text("Apple Intelligence declined \(r.skippedParts) of \(r.totalParts) parts, so their words aren\u{2019}t in this result.")
-                    .font(.system(size: 13)).foregroundStyle(.lookMute)
+                    .refinedFont(.meta).foregroundStyle(Refined.mute)
             }
             if DayPlan.isPlan(r) {
                 // Plan my day: the plan, with Send to Reminders (PhonePlanViews.swift).
                 PhonePlanResult(transcript: transcript, result: r, onJump: onJump).padding(.top, 4)
             } else {
-                TemplateResultBody(text: r.text, heading: look.serif(20), textFont: .system(size: 16),
-                                   ink: AnyShapeStyle(.lookInk), dim: AnyShapeStyle(.lookMute))
+                TemplateResultBody(text: r.text, heading: .system(size: 20, design: .serif), textFont: .system(size: 16),
+                                   ink: AnyShapeStyle(Refined.ink), dim: AnyShapeStyle(Refined.mute))
                     .padding(.top, 4)
             }
-            Rectangle().fill(.lookHairline).frame(height: 1)
-            Text(TemplateCopy.footer(madeOn: r.madeOn, here: TemplateCenter.here)).font(.system(size: 13)).foregroundStyle(.lookMute)
+            Rectangle().fill(Refined.separator).frame(height: 1)
+            Text(TemplateCopy.footer(madeOn: r.madeOn, here: TemplateCenter.here)).refinedFont(.meta).foregroundStyle(Refined.mute)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .phoneOutlined(radius: Radius.record, line: 1.5)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
     }
 
     private func status(_ text: String) -> some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text(text).font(.system(size: 14)).foregroundStyle(.lookDim).lineLimit(2)
+            Text(text).refinedFont(.hint).foregroundStyle(Refined.dim).lineLimit(2)
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(look.isNative ? NativeInk.fill : Ink.chip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .background(Refined.neutral, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -616,9 +614,9 @@ struct PhoneTemplateResults: View {
     private func editor(_ r: TemplateResult) -> some View {
         NavigationStack {
             TextEditor(text: $draft)
-                .font(.system(size: 16)).scrollContentBackground(.hidden).focused($focused)
+                .refinedFont(.body).foregroundStyle(Refined.ink).scrollContentBackground(.hidden).focused($focused)
                 .padding(16)
-                .phonePage()
+                .background(Refined.paper.ignoresSafeArea())
                 .navigationTitle(r.name)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

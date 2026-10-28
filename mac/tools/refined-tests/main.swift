@@ -230,6 +230,11 @@ for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "K
 check("the kit reads the palette from where Settings stores it", kit.contains("AppPalette.key, store: AppLook.store"))
 check("the player bar turns solid under Reduce Transparency", kit.contains("accessibilityReduceTransparency"))
 check("cards take a hairline under Increase Contrast", kit.contains("colorSchemeContrast"))
+check("the player ticks its moments on the iPhone's waveform as on the Mac's rail",
+      kit.contains("drawMoments(ctx, size, top: 0, height: size.height)") && kit.contains("drawMoments(ctx, size, top: y - 3"))
+check("a playing turn takes the playing wash, and a marked line the accent mark, never butter",
+      kit.contains("playing ? Refined.playing") && kit.contains("art: .iconMarked, size: size, color: Refined.accentText"))
+check("the segmented control draws the track token", kit.contains("Refined.track"))
 
 let tokens = read("\(views)/Tokens.swift")
 let tableNames = Set((try! NSRegularExpression(pattern: #"static let (\w+) = (Tone|Wash)\("#)).matches(in: tokens, range: NSRange(tokens.startIndex..., in: tokens))
