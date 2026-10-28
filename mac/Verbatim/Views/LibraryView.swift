@@ -1,461 +1,655 @@
 import SwiftUI
+import AppKit
 
-// brand: web style
-//
-/// Every transcript, grouped by day (pinned first), filtered by the sidebar project, the kind and type chips, and the
-/// search field. Website style (mac/DESIGN.md §11): a compact title with a mono count and the search field on the
-/// right, soft filter chips, mono day headers, flat rows with serif titles, and the projects on color panels in a
-/// right column. Select mode picks many at once to move, export, or delete; any row (or the selection) drags onto a
-/// project. ⌘-click adds or removes a row and Shift-click selects a range, starting Select mode when it's off.
+/// The Library in the refined look (DESIGN.md §6.8 and §13; mockup "Verbose Refined Look", MacLibrary), one layout in
+/// both look settings: the serif title with the count, the quick filter chips (All, Voice notes, Meetings, Thoughts,
+/// Audio, Links, Marked) with the sort ("Newest first") at the end, and every recording as a table in a card: Name,
+/// Kind (its colored chip), People or source, Date, and Length, with alternating rows and the selected row in the
+/// persimmon tint. Every column sorts. A click selects (⌘-click adds, Shift-click a range), a double-click or Return
+/// opens, Space plays, the arrow keys move, and right-click has the row's menu (or the selection's). Rows drag onto a
+/// project in the sidebar. With more than one selected, a bar at the foot moves, exports, or deletes them. In Native
+/// the inspector previews the selection, and search is the toolbar's system field; Verbose style puts the field on the
+/// page. Back and the sidebar bring the Library back scrolled where you left it, with the row you opened selected
+/// (App/NavTrail.swift). A lazy table: a library of hundreds builds only the rows on screen.
 struct LibraryView: View {
     @EnvironmentObject var app: AppState
-    @State private var selecting = false
-    @State private var selection: Set<UUID> = []
+    @Environment(\.look) private var look
+    /// Newest, Oldest, Longest, or Title A–Z, remembered on this Mac; the table writes it when its sort is one of them.
+    @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
+    /// The table's sort: one column and its direction, started from the Library's sort.
+    @State private var column: NativeTableSort
+    @State private var descending: Bool
+    /// The selected recordings, kept across screens (ScreenPlaces).
+    @State private var selection: Set<UUID> = ScreenPlaces.shared.tableSelection
     /// Where a Shift-click range starts: the last row clicked or ⌘-clicked.
     @State private var anchor: UUID? = nil
-    /// The project card under the pointer: its drawing moves (one moving drawing per screen; otherwise the first).
-    @State private var hoveredProject: UUID? = nil
-    @State private var projectDown: UUID? = nil
-    /// Library › kind chips (nil is All), kept on AppState so the screenshot tour can choose one.
-    private var kind: RecordingKind? { app.libraryKind }
-    /// Newest, Oldest, Longest, or Title A–Z, remembered on this Mac.
-    @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
-    private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
+    @FocusState private var focused: Bool
+
+    /// The looks the Library is on screen in, and its rows' order (the self-test).
+    static var onScreen = Set<AppLook>()
+    static var shownOrder: [UUID] = []
 
     private static let margin: CGFloat = 40
     private static let maxContent: CGFloat = 1100
-    private static let sideWidth: CGFloat = 300
+
+    init() {
+        let (c, d) = NativeTableSort.column(forLibrarySort: UserDefaults.standard.string(forKey: LibrarySort.key) ?? LibrarySort.newest.rawValue)
+        _column = State(initialValue: c)
+        _descending = State(initialValue: d)
+    }
 
     var body: some View {
-        let _ = LookSwitch.mark("library-verbose")
-        // `filtered` narrowed by the type filter and kind, and the chips' counts: once per library change and filter
-        // (AppState.libraryLists). Dictations stay out unless you're searching or chose Dictations; they live in Dictations.
-        let lists = app.libraryLists(kind: kind)
-        let typeFilter = app.libraryFilter
-        let list = lists.list
-        let groups = app.store.grouped(list, sort: sort)
-        let order = groups.flatMap { $0.items.map(\.id) }
-        // Project names by ID, once per render (rows italicize after their project's name and name it outside it).
-        let projectNames = Dictionary(app.store.projects.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
-        // The row you opened last, lit when you come back (ScreenPlaces, App/NavTrail.swift); set only by navigating.
-        let current = selecting ? nil : ScreenPlaces.shared.selectedRow(app.projectFilter)
-        GeometryReader { geo in
-            let inner = min(Self.maxContent, max(320, geo.size.width - 2 * Self.margin))
-            // The projects column: on wide windows, outside a project, and not in the Journal's reading view.
-            let side = inner >= 820 && app.projectFilter == nil && kind != .journal
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    header(count: list.count, searchBelow: inner < 760).staggerIn(0)
-                    if inner < 760 {
-                        WebSearchField(text: $app.search, prompt: "Find the line you need").padding(.top, 14)
+        let _ = LookSwitch.mark("library")
+        let lists = app.libraryLists(kind: app.libraryKind)
+        let rows = ordered(lists.list)
+        let order = rows.map(\.id)
+        if UITest.enabled { Self.shownOrder = order }
+        return VStack(spacing: 0) {
+            // Verbose style's window has no search field of its own; Native's is the toolbar's.
+            if look != .native { searchBar }
+            GeometryReader { geo in
+                let margin = geo.size.width < 760 ? 24 : Self.margin
+                let width = min(Self.maxContent, max(320, geo.size.width - 2 * margin))
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        page(lists: lists, rows: rows, order: order, width: width)
+                            .frame(width: width, alignment: .leading)
+                            .padding(.horizontal, margin).padding(.top, look == .native ? 18 : 6)
+                            .padding(.bottom, selection.count > 1 ? 90 : 40)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            // Back and the sidebar bring the Library back where you left it (App/NavTrail.swift).
+                            .scrollPlace(ScreenPlaces.scrollKey(ScreenPlaces.libraryKey(app.projectFilter), look: look))
+                            .navMarkWhenLaidOut("library-laid-out")
                     }
-                    chips(lists).padding(.top, 18).staggerIn(1)
-                    HStack(alignment: .top, spacing: 20) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            if let k = kind {
-                                KindHeroCard(kind: k, meta: heroMeta(k, list), compact: true).frame(maxWidth: 760).padding(.top, 16)
-                                // Thoughts and Journal also read by day: one link there, so it's one feature with two
-                                // views, not two places (review M-21). By day's All thoughts comes back to this list.
-                                if k == .idea || k == .journal {
-                                    PillButton(title: "Read by day", kind: .line, size: .mini, trailing: .arrow,
-                                               hint: "Opens \(k.plural) as one page a day.") { app.go(.byDay(k)) }
-                                        // The target is the pill itself, not the full-width row it's aligned in, so
-                                        // a click on the target's center lands on the pill.
-                                        .uiTarget("library-read-by-day")
-                                        .frame(maxWidth: 760, alignment: .trailing)
-                                        .padding(.top, 10)
-                                }
-                            }
-                            if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
-                                PassageResults(query: app.search, list: list).padding(.top, 14)
-                            }
-                            if groups.isEmpty {
-                                emptyState(typeFilter).padding(.top, 22).staggerIn(1)
-                            }
-                            if kind == .journal && !selecting {
-                                journal(list, order: order, current: current).padding(.top, 20)
-                            } else {
-                                rows(groups, order: order, projectNames: projectNames, current: current)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        if side {
-                            projectColumn.frame(width: Self.sideWidth).padding(.top, 22).staggerIn(2)
-                        }
+                    .softScrollEdges(.top)
+                    .focusable()
+                    .focused($focused)
+                    .focusEffectDisabled()
+                    .onKeyPress(.downArrow) { step(1, order, proxy); return .handled }
+                    .onKeyPress(.upArrow) { step(-1, order, proxy); return .handled }
+                    .onKeyPress(.return) { openSelected() ? .handled : .ignored }
+                    .onKeyPress(.space) { playSelected() ? .handled : .ignored }
+                    .onKeyPress(.escape) {
+                        guard !selection.isEmpty else { return .ignored }
+                        selection = []; anchor = nil
+                        return .handled
+                    }
+                    .onKeyPress(characters: CharacterSet(charactersIn: "aA")) { press in
+                        guard press.modifiers.contains(.command) else { return .ignored }
+                        selection = Set(order)
+                        return .handled
                     }
                 }
-                .frame(width: inner, alignment: .leading)
-                .padding(.horizontal, Self.margin).padding(.top, 30).padding(.bottom, selecting ? 90 : 40)
-                .frame(maxWidth: .infinity)
-                // Back and the sidebar bring the Library back where you left it (App/NavTrail.swift).
-                .scrollPlace(ScreenPlaces.scrollKey(ScreenPlaces.libraryKey(app.projectFilter), look: .verbose))
-                .navMarkWhenLaidOut("library-laid-out")
             }
-            .animation(Motion.settle, value: lists.ids)
         }
+        .background(Refined.paper)
+        .background { typeShortcuts }
         .overlay(alignment: .bottom) {
-            if selecting { actionBar.padding(.bottom, 18).transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity)) }
+            if selection.count > 1 { actionBar(order: order).padding(.bottom, 18) }
         }
-        .onChange(of: app.projectFilter) { _, _ in selection = [] }
-        .onAppear { LookSwitch.mark("library-appear"); KeptMedia.shared.refresh() }
-    }
-
-    // MARK: Header and chips
-
-    private var projectName: String? { app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } }
-
-    /// "Library  46 transcripts", with Select, Add from Library (in a project), Import, and the search field.
-    private func header(count: Int, searchBelow: Bool) -> some View {
-        let title: (String, String?) = projectName.map { WebText.splitLastWord($0) } ?? (kind?.plural ?? "Library", nil)
-        return PageTitle(title: title.0, italic: title.1, count: count == 1 ? "1 transcript" : "\(count.formatted()) transcripts") {
-            HStack(spacing: 8) {
-                if count > 0 {
-                    Button(selecting ? "Done" : "Select") {
-                        withAnimation(Motion.snap) { selecting.toggle(); if !selecting { selection = []; anchor = nil } }
-                    }
-                    .buttonStyle(PillButtonStyle(kind: selecting ? .dark : .line, size: .mini))
-                    .keyboardShortcut(selecting ? .cancelAction : .init("s", modifiers: [.command, .shift]))
-                }
-                if let p = app.projectFilter {
-                    Button("Add from Library…") { app.addFromLibrary = p }
-                        .buttonStyle(PillButtonStyle(kind: .line, size: .mini))
-                        .keyboardShortcut("l", modifiers: [.command, .shift])
-                        .help("Add transcripts you already have to this project (⇧⌘L)")
-                        .uiTarget("add-from-library")
-                }
-                Button("Import") { app.chooseFiles() }
-                    .buttonStyle(PillButtonStyle(kind: .line, size: .mini))
-                    .help(app.projectFilter == nil ? "Import audio or video files" : "Import audio or video files into this project")
-                if !searchBelow {
-                    WebSearchField(text: $app.search, prompt: "Find the line you need").frame(width: 300)
-                }
+        .onChange(of: app.projectFilter) { _, _ in selection = []; anchor = nil; NativeNav.shared.librarySelection = nil }
+        .onChange(of: selection) { _, s in
+            ScreenPlaces.shared.tableSelection = s
+            // One row chosen: the inspector previews it, and Back comes back to it.
+            if s.count == 1, let id = s.first, NativeNav.shared.librarySelection != id { NativeNav.shared.librarySelection = id }
+        }
+        .onAppear {
+            LookSwitch.mark("library-appear")
+            KeptMedia.shared.refresh()
+            Self.onScreen.insert(look)
+            // Back and the sidebar bring the selection back with the Library.
+            if let s = NativeNav.shared.librarySelection ?? ScreenPlaces.shared.selectedRow(app.projectFilter), !selection.contains(s) {
+                selection = [s]; anchor = s
             }
         }
+        .onDisappear { Self.onScreen.remove(look) }
     }
 
-    /// One row of soft chips, as the mockup's Library (`#library .chips`): All with the full count, each type with its
-    /// source's color dot, then each kind, and the sort menu at the end. All clears both filters; a chosen chip clicked
-    /// again clears its own. Types and kinds with nothing in them stay out (unless chosen). Videos and Links add their
-    /// platforms on a second, smaller row when there's more than one. ⌥⌘1–7 choose a type (All is 1).
-    private func chips(_ lists: AppState.LibraryLists) -> some View {
-        let filter = app.libraryFilter
-        let total = lists.total
-        let sources = lists.sources
-        let kindCounts = lists.kindCounts
-        let kinds: [(RecordingKind, Int)] = RecordingKind.pickable.compactMap { k in
-            let n = kindCounts[k] ?? 0
-            return n > 0 || kind == k ? (k, n) : nil
-        }
-        let platforms = lists.platforms
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 12) {
-                FlowRow(spacing: 8, lineSpacing: 8) {
-                    FilterChip(title: "All", count: total, selected: kind == nil && filter == .all) {
-                        app.libraryKind = nil
-                        app.libraryFilter = .all
-                        selection = []
-                    }
-                    .modifier(TypeShortcut(index: 1, on: true))
-                    .uiTarget("kind-all")
-                    ForEach(sources, id: \.0) { s, n in
-                        FilterChip(title: s.label, count: n, dot: LibraryFilterBar.dot(s), ring: s == .links, selected: filter.source == s) {
-                            app.libraryFilter = filter.source == s ? .all : LibraryFilter(source: s)
-                            selection = []
+    // MARK: Page
+
+    @ViewBuilder private func page(lists: AppState.LibraryLists, rows: [Transcript], order: [UUID], width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            titleRow(count: lists.list.count)
+            chipsRow.padding(.top, 14)
+            if !lists.platforms.isEmpty {
+                RefinedChipRow(label: "Platform") {
+                    ForEach(lists.platforms, id: \.0) { p, n in
+                        RefinedChip(title: p, selected: app.libraryFilter.platform == p) {
+                            let f = app.libraryFilter
+                            app.libraryFilter = LibraryFilter(source: f.source, platform: f.platform == p ? nil : p)
                         }
-                        .modifier(TypeShortcut(index: LibrarySource.allCases.firstIndex(of: s).map { $0 + 1 }, on: true))
-                        .uiTarget("source-\(s.rawValue)")
-                    }
-                    ForEach(kinds, id: \.0) { k, n in
-                        FilterChip(title: k.plural, count: n, selected: kind == k) {
-                            app.libraryKind = kind == k ? nil : k
-                            selection = []
-                        }
-                        .uiTarget("kind-\(k.rawValue)")
-                    }
-                }
-                .accessibilityElement(children: .contain).accessibilityLabel("Filter")
-                Spacer(minLength: 0)
-                Menu {
-                    Picker("Sort by", selection: $sortRaw) {
-                        ForEach(LibrarySort.allCases) { s in Label(s.title, systemImage: s.symbol).tag(s.rawValue) }
-                    }
-                    .pickerStyle(.inline)
-                } label: {
-                    Label(sort.title, systemImage: "arrow.up.arrow.down")
-                }
-                .menuStyle(.borderlessButton).fixedSize()
-                .help("Sort the Library: newest, oldest, longest, or by title")
-                .accessibilityLabel("Sort by \(sort.title)")
-            }
-            if !platforms.isEmpty {
-                FlowRow(spacing: 8, lineSpacing: 8) {
-                    ForEach(platforms, id: \.0) { p, n in
-                        FilterChip(title: p, count: n, selected: filter.platform == p, small: true) {
-                            app.libraryFilter = LibraryFilter(source: filter.source, platform: filter.platform == p ? nil : p)
-                            selection = []
-                        }
+                        .accessibilityValue("\(n)")
                         .uiTarget("platform-\(p)")
                     }
                 }
-                .accessibilityElement(children: .contain).accessibilityLabel("Platform")
-                .transition(.opacity)
+                .padding(.top, 8)
             }
-        }
-        .animation(Motion.fade, value: platforms.isEmpty)
-    }
-
-    // MARK: Rows
-
-    /// "Today · Fri Oct 23": the group's label, with the date for Today and Yesterday.
-    private func dayLabel(_ g: (label: String, items: [Transcript])) -> String {
-        guard g.label == "Today" || g.label == "Yesterday", let first = g.items.first else { return g.label }
-        return "\(g.label) · \(Formats.pattern("EEE MMM d").string(from: first.createdAt))"
-    }
-
-    /// Lazy, so a library of hundreds builds only the rows on screen. Rows and day headers don't stagger in: they
-    /// arrive with the screen.
-    private func rows(_ groups: [(label: String, items: [Transcript])], order: [UUID], projectNames: [UUID: String], current: UUID?) -> some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(groups.enumerated()), id: \.element.label) { gi, g in
-                HStack(spacing: 12) {
-                    DayHeader(text: dayLabel(g))
-                    if selecting {
-                        let ids = Set(g.items.map(\.id))
-                        Button(ids.isSubset(of: selection) ? "Deselect" : "Select all") {
-                            if ids.isSubset(of: selection) { selection.subtract(ids) } else { selection.formUnion(ids) }
-                        }
-                        .buttonStyle(.plain).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.ink)
-                    }
-                }
-                .padding(.top, gi == 0 ? 22 : 18).padding(.bottom, 8)
-                ForEach(Array(g.items.enumerated()), id: \.element.id) { ii, t in
-                    let own = t.projectId.flatMap { projectNames[$0] }
-                    HistoryRow(transcript: t, selected: selecting ? selection.contains(t.id) : nil,
-                               current: t.id == current,
-                               project: app.projectFilter == nil ? own : nil, projectName: own,
-                               dragIDs: { selection.contains(t.id) ? Array(selection) : [t.id] },
-                               open: { click(t.id, order: order) })
-                        .contextMenu { RowMenu(transcript: t) }
-                        .padding(.top, ii == 0 ? 0 : 2)
-                        .modifier(LibraryRowTarget(id: t.id))
-                }
+            if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
+                PassageResults(query: app.search, list: lists.list).padding(.top, 16)
             }
-        }
-    }
-
-    private func emptyState(_ typeFilter: LibraryFilter) -> some View {
-        Group {
-            if !app.search.isEmpty {
-                EmptyStateCard(art: .search, title: "Nothing found",
-                               message: "Nothing matches “\(app.search)”. Search looks at titles and every transcript's text.")
-            } else if typeFilter != .all {
-                EmptyStateCard(art: .iconLibrary, title: "Nothing here",
-                               message: "Nothing here matches \(typeFilter.platform ?? typeFilter.source.label).",
-                               button: "Show all", action: { app.libraryFilter = .all })
-            } else if let p = app.projectFilter {
-                EmptyStateCard(art: .iconProject, title: "Nothing in this project yet",
-                               message: "Add transcripts from your library or import files.",
-                               button: "Add from Library…", action: { app.addFromLibrary = p })
-            } else if kind != nil {
-                EmptyStateCard(art: .iconLibrary, title: "Nothing here yet",
-                               message: "Recordings of this kind land here as you make them.",
-                               button: "Show all", action: { app.libraryKind = nil })
+            if rows.isEmpty {
+                emptyState.padding(.top, 16)
             } else {
-                EmptyStateCard(art: .iconLibrary, title: "Nothing here yet",
-                               message: "Record a voice note, import a file, or paste a link on Home. Every transcript lands here.",
-                               button: "Import files", action: { app.chooseFiles() })
+                table(rows, order: order, columns: LibraryColumns(width: width)).padding(.top, 16)
             }
         }
     }
 
-    // MARK: Projects
-
-    /// The projects on color panels, each with its drawing, and New project. Only one drawing moves: the card under
-    /// the pointer, or the first.
-    private var projectColumn: some View {
-        let projects = app.store.projects
-        let moving = hoveredProject ?? projects.first?.id
-        // Every project's transcripts in one pass, not one pass over the library per card.
-        let store = app.store
-        let members = store.memo("project-members") { () -> [UUID: [Transcript]] in
-            var members: [UUID: [Transcript]] = [:]
-            for t in store.transcripts where t.deletedAt == nil && !t.isDictation { if let p = t.projectId { members[p, default: []].append(t) } }
-            return members
-        }
-        return VStack(alignment: .leading, spacing: 14) {
-            ForEach(Array(projects.enumerated()), id: \.element.id) { i, p in
-                projectCard(p, items: members[p.id] ?? [], index: i, moving: moving == p.id)
+    /// The title (a project's name, or "Library") and the count; in a project, Add from Library; for Thoughts and
+    /// Journal, Read by day.
+    private func titleRow(count: Int) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            LargeSerifTitle(title: projectName ?? "Library", count: HomeCounts.countLabel(count, "recording", "recordings"))
+                .accessibilityElement(children: .combine)
+            Spacer(minLength: 8)
+            if let k = app.libraryKind, k == .idea || k == .journal {
+                // Thoughts and Journal also read by day: one link there, so it's one feature with two views (review
+                // M-21). By day's All thoughts comes back to this list.
+                RefinedLink(title: "Read by day") { app.go(.byDay(k)) }
+                    .help("Opens \(k.plural) as one page a day.")
+                    .uiTarget("library-read-by-day")
             }
-            PillButton(title: "New project", kind: .line, icon: .webPlus, fullWidth: true,
-                       hint: "Names a new project. Then drag transcripts onto it in the sidebar.") { app.newProjectFor = [] }
-                .uiTarget("library-new-project")
-            Text(projects.isEmpty ? "Group transcripts by client or job." : "Drag a transcript onto a project in the sidebar to file it.")
-                .font(.system(size: 12.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
+            if let p = app.projectFilter {
+                Button("Add from Library…") { app.addFromLibrary = p }
+                    .buttonStyle(RefinedActionStyle())
+                    .keyboardShortcut("l", modifiers: [.command, .shift])
+                    .help("Add transcripts you already have to this project (⇧⌘L)")
+                    .uiTarget("add-from-library")
+            }
         }
     }
 
-    private static let projectFills: [Color] = [Ink.panelButter, Ink.panelPetal, Ink.panelSage]
+    private var projectName: String? { app.projectFilter.flatMap { app.store.projectsByID[$0]?.name } }
 
-    private func projectCard(_ p: Project, items: [Transcript], index i: Int, moving: Bool) -> some View {
-        let people = Set(items.flatMap { t in t.speakers.map(\.name).filter { !$0.isEmpty && !$0.hasPrefix("Speaker ") } }).count
-        let meta = [HomeCounts.countLabel(items.count, "transcript", "transcripts"), people > 0 ? HomeCounts.countLabel(people, "person", "people") : nil]
-            .compactMap { $0 }.joined(separator: " · ")
-        let name = WebText.splitLastWord(p.name)
-        return HomeCard(tilt: 3, radius: Radius.record, shadow: false, onHover: { h in
-            if h { hoveredProject = p.id } else if hoveredProject == p.id { hoveredProject = nil }
-        }, onPress: { down in projectDown = down ? p.id : nil }, action: { app.projectFilter = p.id }) { hovering in
-            VStack(alignment: .leading, spacing: 0) {
-                Eyebrow(text: "Project", color: Ink.inkFixed)
-                Spacer(minLength: 8)
-                WebText.serif(name.0, italic: name.1, size: 28).lineLimit(2).minimumScaleFactor(0.75)
-                Spacer(minLength: 8)
-                Text(meta).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+    /// Search or ask on the page (Verbose style): the mockup's field at the top right. Return asks.
+    private var searchBar: some View {
+        HStack {
+            Spacer(minLength: 0)
+            RefinedSearchField(text: $app.search, prompt: "Search or ask", shortcut: "⌘K") {
+                AskNav.shared.open(mode: .ask, query: app.search, askNow: true)
             }
-            .foregroundStyle(Ink.inkFixed)
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 170)
-            .colorPanel(Self.projectFills[i % Self.projectFills.count], radius: Radius.record) {
-                if i % 2 == 0 {
-                    PanelArt(kind: .lines, running: moving).frame(width: 200, height: 170).offset(x: 30, y: 0)
-                } else {
-                    PanelArt(kind: .circles, running: moving).frame(width: 230, height: 200).offset(x: 70, y: -50)
+            .frame(width: 240)
+            .help("Search titles and every transcript's words. Return asks about them.")
+        }
+        .padding(.horizontal, 16).frame(height: 52)
+    }
+
+    // MARK: Chips and sort
+
+    /// The chip the current filter is, or nil when it's one the chips don't name.
+    private var currentChip: LibraryChip? { LibraryChip.matching(app.libraryFilter, kind: app.libraryKind) }
+
+    /// The mockup's seven chips, always in the same order, a chosen chip for a filter they don't name (a kind from By
+    /// day, another type), More with every type and kind, and the sort at the end. Choosing a chip clears every other
+    /// filter; the chosen one again goes back to All.
+    private var chipsRow: some View {
+        let current = currentChip
+        let other = LibraryChip.otherLabel(app.libraryFilter, kind: app.libraryKind)
+        return HStack(spacing: 12) {
+            RefinedChipRow(label: "Filter") {
+                RefinedChip(title: LibraryChip.all.label, selected: current == .all) { choose(.all) }
+                    .libraryTarget("kind-all")
+                if let other {
+                    RefinedChip(title: other, selected: true) { choose(.all) }
+                        .accessibilityHint("Clears this filter.")
+                        .libraryTarget("chip-other")
+                }
+                ForEach(LibraryChip.allCases.filter { $0 != .all }) { c in
+                    RefinedChip(title: c.label, selected: current == c) { choose(current == c ? .all : c) }
+                        .libraryTarget(Self.chipTarget(c))
+                }
+                moreFilters
+            }
+            sortMenu.fixedSize()
+        }
+    }
+
+    /// The self-test's handle on a chip: kinds as "kind-<raw>", types as "source-<raw>", as the chips were named before.
+    static func chipTarget(_ c: LibraryChip) -> String {
+        if let k = c.kind { return "kind-\(k.rawValue)" }
+        return c == .all ? "kind-all" : "source-\(c.source.rawValue)"
+    }
+
+    private func choose(_ chip: LibraryChip) {
+        app.libraryKind = chip.kind
+        app.libraryFilter = LibraryFilter(source: chip.source)
+    }
+
+    /// Every type and kind the chips don't name, as a menu at the end of the chips.
+    private var moreFilters: some View {
+        let lists = app.libraryLists(kind: app.libraryKind)
+        let chipSources = Set(LibraryChip.allCases.map(\.source))
+        let chipKinds = Set(LibraryChip.allCases.compactMap(\.kind))
+        let sources = lists.sources.map(\.0).filter { !chipSources.contains($0) }
+        let kinds = RecordingKind.pickable.filter { !chipKinds.contains($0) && ((lists.kindCounts[$0] ?? 0) > 0 || app.libraryKind == $0) }
+        return Menu {
+            ForEach(sources, id: \.self) { s in
+                Button(s.label) { app.libraryKind = nil; app.libraryFilter = LibraryFilter(source: s) }
+            }
+            if !sources.isEmpty && !kinds.isEmpty { Divider() }
+            ForEach(kinds) { k in
+                Button(k.plural) { app.libraryFilter = .all; app.libraryKind = k }
+            }
+        } label: {
+            Text("More").refinedFont(.hint).foregroundStyle(Refined.ink)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .padding(.horizontal, 12).padding(.vertical, 4)
+        .background(Refined.neutral, in: Capsule())
+        .disabled(sources.isEmpty && kinds.isEmpty)
+        .help("Show another type or kind of recording")
+    }
+
+    /// The sort, as the mockup's "Newest first" at the end of the chips; the column headers sort too.
+    private var sortMenu: some View {
+        Menu {
+            ForEach(Self.sortChoices, id: \.title) { c in
+                Button {
+                    setSort(c.column, descending: c.descending)
+                } label: {
+                    if c.column == column && c.descending == descending { Label(c.title, systemImage: "checkmark") } else { Text(c.title) }
                 }
             }
-            .inkEdge(outline: hovering, shadow: InkEdge.card(hover: hovering, pressed: projectDown == p.id), radius: Radius.record)
+        } label: {
+            Text(column.title(descending: descending)).refinedFont(.hint).foregroundStyle(Refined.dim)
         }
-        .accessibilityLabel("Project \(p.name)")
-        .accessibilityValue(meta)
-        .accessibilityHint("Shows this project's transcripts.")
+        .menuStyle(.borderlessButton)
+        .help("Sort the Library")
+        .accessibilityLabel("Sort")
+        .accessibilityValue(column.title(descending: descending))
+        .libraryTarget("library-sort")
     }
 
-    private func heroMeta(_ k: RecordingKind, _ list: [Transcript]) -> String {
-        if k == .journal {
-            let week = Date().addingTimeInterval(-7 * 86_400)
-            let n = list.filter { $0.createdAt >= week }.count
-            return "\(n) this week"
-        }
-        return list.count == 1 ? "1 saved" : "\(list.count) saved"
+    /// The sorts the menu offers, in its order.
+    static let sortChoices: [(title: String, column: NativeTableSort, descending: Bool)] = [
+        (NativeTableSort.date.title(descending: true), .date, true), (NativeTableSort.date.title(descending: false), .date, false),
+        (NativeTableSort.length.title(descending: true), .length, true), (NativeTableSort.length.title(descending: false), .length, false),
+        (NativeTableSort.name.title(descending: false), .name, false), (NativeTableSort.kind.title(descending: false), .kind, false),
+        (NativeTableSort.people.title(descending: false), .people, false),
+    ]
+
+    private func setSort(_ c: NativeTableSort, descending d: Bool) {
+        column = c; descending = d
+        // A sort the Library's other places share writes the Library's sort.
+        if let raw = NativeTableSort.librarySort(c, descending: d), raw != sortRaw { sortRaw = raw }
     }
 
-    /// Journal reads by day: "Today · Sat 17 Oct", then each entry as a flat row with its serif title, time, length,
-    /// and opening lines.
-    private func journal(_ list: [Transcript], order: [UUID], current: UUID?) -> some View {
-        LazyVStack(alignment: .leading, spacing: 22) {
-            ForEach(JournalDays.group(list)) { day in
-                VStack(alignment: .leading, spacing: 8) {
-                    DayHeader(text: day.label == day.date ? day.label : "\(day.label) · \(day.date)")
-                    VStack(spacing: 2) {
-                        ForEach(day.entries) { t in
-                            FlatRowButton(selected: t.id == current, action: { click(t.id, order: order) }) { _ in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                        WebText.serif(t.title, size: 22).foregroundStyle(Ink.ink).lineLimit(1)
-                                        Spacer(minLength: 0)
-                                        Text("\(Formats.pattern("h:mm a").string(from: t.createdAt)) · \(WebFormat.clock(t.duration))")
-                                            .font(Ink.mono(12)).foregroundStyle(Ink.dim).lineLimit(1).fixedSize()
-                                    }
-                                    Text(JournalDays.preview(t)).font(.system(size: 15)).foregroundStyle(Ink.dim).lineSpacing(3).lineLimit(2)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .padding(.horizontal, 16).padding(.vertical, 14)
-                            }
-                            .contextMenu { RowMenu(transcript: t) }
+    /// ⌥⌘1 to ⌥⌘8 choose a type (All is 1), as the type chips' shortcuts always did.
+    private var typeShortcuts: some View {
+        ZStack {
+            ForEach(Array(LibrarySource.allCases.enumerated()), id: \.element) { i, s in
+                Button(s.label) { app.libraryKind = nil; app.libraryFilter = LibraryFilter(source: s) }
+                    .modifier(TypeShortcut(index: i + 1, on: true))
+            }
+        }
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    // MARK: Table
+
+    /// The rows in the table's order: by the chosen column; sorted by date, pinned recordings come first.
+    private func ordered(_ list: [Transcript]) -> [Transcript] {
+        let column = self.column, descending = self.descending
+        let projects = app.store.projectsByID
+        let key = "refined-library|\(app.projectFilter?.uuidString ?? "-")|\(app.search.trimmingCharacters(in: .whitespaces).lowercased())|\(app.libraryFilterRaw)|\(app.libraryKind?.rawValue ?? "-")|\(column.rawValue)|\(descending)"
+        return app.store.memo(key) {
+            let cells = list.map { t in (t, (name: t.title, kind: RecordingKind.refinedName(t.refinedKind), people: Self.people(t, projects: projects),
+                                             date: t.createdAt, length: t.duration)) }
+            let sorted = cells.sorted { NativeTableSort.ordered($0.1, $1.1, by: column, descending: descending) }.map(\.0)
+            guard column == .date else { return sorted }
+            return sorted.filter(\.pinned) + sorted.filter { !$0.pinned }
+        }
+    }
+
+    private func table(_ rows: [Transcript], order: [UUID], columns: LibraryColumns) -> some View {
+        let projects = app.store.projectsByID
+        return PaperTable {
+            header(columns)
+        } rows: {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { i, t in
+                LibraryTableRow(transcript: t, columns: columns, selected: selection.contains(t.id), striped: i % 2 == 0,
+                                people: Self.people(t, projects: projects),
+                                onClick: { clicked(t.id, order: order) },
+                                dragIDs: { selection.contains(t.id) ? order.filter { selection.contains($0) } : [t.id] })
+                    .contextMenu { menu(for: t, order: order) }
+                    .id(t.id)
+                    .modifier(LibraryRowTarget(id: t.id, index: i))
+            }
+        }
+        .uiTarget("lib-table")
+    }
+
+    /// The column titles: a click sorts by that column, and again turns the order around.
+    private func header(_ columns: LibraryColumns) -> some View {
+        HStack(spacing: LibraryColumns.gap) {
+            ForEach(NativeTableSort.allCases, id: \.self) { c in
+                Button {
+                    if c == column { setSort(c, descending: !descending) } else { setSort(c, descending: c.startsDescending) }
+                } label: {
+                    HStack(spacing: 4) {
+                        if c == .length { Spacer(minLength: 0) }
+                        Text(c.header).lineLimit(1)
+                        if c == column {
+                            Image(systemName: descending ? "chevron.down" : "chevron.up").font(.system(size: 8, weight: .bold))
+                                .accessibilityHidden(true)
                         }
+                        if c != .length { Spacer(minLength: 0) }
                     }
+                    .refinedFont(.meta, weight: .semibold)
+                    .foregroundStyle(c == column ? Refined.ink : Refined.mute)
+                    .frame(width: columns.width(c))
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Sort by \(c.header)")
+                .accessibilityValue(c == column ? (descending ? "Descending" : "Ascending") : "")
+                .accessibilityAddTraits(c == column ? .isSelected : [])
+                .libraryTarget("lib-sort-\(c.rawValue)")
             }
         }
-        .frame(maxWidth: 760, alignment: .leading)
+        .padding(.horizontal, LibraryColumns.inset).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func toggle(_ id: UUID) { if selection.contains(id) { selection.remove(id) } else { selection.insert(id) } }
+    // MARK: Selection
 
-    /// A row click: ⌘ adds or removes it, Shift selects the range from the anchor (both start Select mode); a plain
-    /// click toggles in Select mode and opens the transcript otherwise.
-    private func click(_ id: UUID, order: [UUID]) {
+    /// A click: ⌘ adds or removes the row, Shift selects the range from the anchor, a plain click selects it, and a
+    /// second click within the double-click time opens it.
+    private func clicked(_ id: UUID, order: [UUID]) {
+        focused = true
         let flags = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if flags.contains(.shift), let a = anchor ?? (selecting ? selection.first : nil),
-           let i = order.firstIndex(of: a), let j = order.firstIndex(of: id) {
-            withAnimation(Motion.snap) { selecting = true }
-            selection.formUnion(order[min(i, j)...max(i, j)])
-        } else if flags.contains(.command) || flags.contains(.shift) {
-            withAnimation(Motion.snap) { selecting = true }
-            toggle(id); anchor = id
-        } else if selecting {
-            toggle(id); anchor = id
-        } else {
+        if flags.contains(.shift), let a = anchor ?? selection.first, let i = order.firstIndex(of: a), let j = order.firstIndex(of: id) {
+            selection = Set(order[min(i, j)...max(i, j)])
+        } else if flags.contains(.command) {
+            if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
+            anchor = id
+        } else if NativeNav.shared.isDoubleClick(on: id) {
             app.go(.transcript(id))
+        } else {
+            selection = [id]; anchor = id
         }
     }
 
-    private var chosen: [Transcript] { app.filtered.filter { selection.contains($0.id) } }
-
-    private var exportTitle: String {
-        let n = chosen.filter { $0.status == .ready }.count
-        return n == 1 ? "Export 1 transcript" : "Export \(n) transcripts"
+    /// The arrow keys: the next or previous row, scrolled into view.
+    private func step(_ by: Int, _ order: [UUID], _ proxy: ScrollViewProxy) {
+        guard !order.isEmpty else { return }
+        let current = anchor.flatMap { a in order.firstIndex(of: a) } ?? selection.compactMap { order.firstIndex(of: $0) }.min()
+        let next = order[current.map { max(0, min(order.count - 1, $0 + by)) } ?? 0]
+        selection = [next]; anchor = next
+        proxy.scrollTo(next)
     }
 
-    /// The export sheet for the selection, in Library order (transcripts still in progress are left out).
-    private func openExport() {
-        let ids = chosen.filter { $0.status == .ready }.map(\.id)
-        guard !ids.isEmpty else { return }
-        app.exportRequest = ExportRequest(ids: ids)
+    private var single: Transcript? {
+        guard selection.count == 1, let id = selection.first else { return nil }
+        return app.store.transcript(id)
     }
 
-    /// Glass action bar for the selection.
-    private var actionBar: some View {
-        HStack(spacing: 10) {
-            Text(selection.isEmpty ? "Select transcripts" : "\(selection.count) selected").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Ink.ink)
-                .frame(minWidth: 110, alignment: .leading)
-            Button("Select all") { selection = Set(app.filtered.map(\.id)) }.buttonStyle(.plain).foregroundStyle(Ink.iris).font(.system(size: 13, weight: .medium))
-            Divider().frame(height: 20)
-            Menu {
-                Button("No project") { app.move(Array(selection), to: nil) }
+    private func openSelected() -> Bool {
+        guard let t = single else { return false }
+        app.go(.transcript(t.id)); return true
+    }
+
+    private func playSelected() -> Bool {
+        guard let t = single, t.audioFileName != nil, t.status == .ready else { return false }
+        NativeNav.shared.play(t, app: app); return true
+    }
+
+    /// Right-click: the row's menu, or the selection's when the row is part of a selection of more than one.
+    @ViewBuilder private func menu(for t: Transcript, order: [UUID]) -> some View {
+        if selection.count > 1, selection.contains(t.id) {
+            let chosen = selectedTranscripts(order)
+            let ready = chosen.filter { $0.status == .ready }.map(\.id)
+            Button("Export \(ready.count) Transcripts…") { app.exportRequest = ExportRequest(ids: ready) }
+                .disabled(ready.isEmpty)
+            Menu("Move To") {
+                Button("No Project") { app.move(chosen.map(\.id), to: nil) }
                 if !app.store.projects.isEmpty { Divider() }
-                ForEach(app.store.projects) { p in Button(p.name) { app.move(Array(selection), to: p.id) } }
-            } label: { Label("Move to", art: .iconProject, size: 15) }
-            .menuStyle(.borderlessButton).fixedSize().disabled(selection.isEmpty)
+                ForEach(app.store.projects) { p in Button(p.name) { app.move(chosen.map(\.id), to: p.id) } }
+            }
+            Button("Export as Markdown Files…") { MarkdownBulkExport.run(chosen, app: app) }
+            Divider()
+            Button("Move to Recently Deleted", role: .destructive) { app.delete(chosen.map(\.id)); selection = [] }
+        } else {
+            RowMenu(transcript: t)
+        }
+    }
+
+    private func selectedTranscripts(_ order: [UUID]) -> [Transcript] { order.filter { selection.contains($0) }.compactMap { app.store.transcript($0) } }
+
+    /// The selection's bar at the foot: how many, Select all, Move to, Export, and Delete. Opaque: text never sits on
+    /// a blur.
+    private func actionBar(order: [UUID]) -> some View {
+        let chosen = selectedTranscripts(order)
+        let ready = chosen.filter { $0.status == .ready }
+        let exportTitle = ready.count == 1 ? "Export 1 transcript" : "Export \(ready.count) transcripts"
+        return HStack(spacing: 12) {
+            Text("\(selection.count) selected").refinedFont(.body, weight: .semibold).foregroundStyle(Refined.ink)
+                .monospacedDigit()
+            Button("Select all") { selection = Set(order) }
+                .buttonStyle(.plain).foregroundStyle(Refined.accentText)
+            Divider().frame(height: 18)
+            Menu("Move to") {
+                Button("No project") { app.move(chosen.map(\.id), to: nil) }
+                if !app.store.projects.isEmpty { Divider() }
+                ForEach(app.store.projects) { p in Button(p.name) { app.move(chosen.map(\.id), to: p.id) } }
+            }
+            .menuStyle(.borderlessButton).fixedSize()
             Menu {
-                Button(exportTitle + "…") { openExport() }
+                Button(exportTitle + "…") { app.exportRequest = ExportRequest(ids: ready.map(\.id)) }
                 Divider()
                 Button("Copy all to clipboard") {
-                    let text = Exporter.clipboard(chosen.filter { $0.status == .ready }, as: .txt, options: .saved)
+                    let text = Exporter.clipboard(ready, as: .txt, options: .saved)
                     NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
-                    app.toast = Toast("Copied \(chosen.count) transcripts")
+                    app.toast = Toast("Copied \(ready.count) transcripts")
                 }
                 Divider()
                 // One Markdown note per transcript, with properties Obsidian reads (Views/TrustViews.swift).
                 Button("Export as Markdown files…") { MarkdownBulkExport.run(chosen, app: app) }
                 Button("Export all as Markdown files…") { MarkdownBulkExport.run(MarkdownBulkExport.all(app), app: app) }
-            } label: { Label(exportTitle + "…", systemImage: "square.and.arrow.up") } primaryAction: { openExport() }
-            .menuStyle(.borderlessButton).fixedSize().disabled(selection.isEmpty)
+            } label: { Text(exportTitle + "…") } primaryAction: { app.exportRequest = ExportRequest(ids: ready.map(\.id)) }
+            .menuStyle(.borderlessButton).fixedSize().disabled(ready.isEmpty)
             .help("Choose a format and options, then a folder: one file per transcript")
-            Button(role: .destructive) {
-                app.delete(Array(selection)); selection = []
-            } label: { Label("Delete", systemImage: "trash") }
-            .help("Moves to Recently Deleted for 30 days")
-            .buttonStyle(.plain).foregroundStyle(selection.isEmpty ? Ink.mute : Ink.danger).disabled(selection.isEmpty)
+            Button("Delete") { app.delete(chosen.map(\.id)); selection = [] }
+                .buttonStyle(.plain).foregroundStyle(Refined.accentText)
+                .help("Moves to Recently Deleted for 30 days")
         }
-        .font(.system(size: 13))
-        .padding(.horizontal, 16).padding(.vertical, 10)
-        // Opaque: text never sits on a blur (DESIGN.md §5.1).
-        .background(Ink.bar, in: Capsule())
-        .overlay(Capsule().strokeBorder(Ink.hairline))
-        .shadow(color: Ink.inkFixed.opacity(0.08), radius: 3, y: 1)
+        .refinedFont(.body)
+        .padding(.horizontal, 18).padding(.vertical, 10)
+        .background(Refined.card, in: Capsule())
+        .overlay(Capsule().strokeBorder(Refined.separator))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Selection")
+    }
+
+    // MARK: Cells
+
+    /// Named people, a link's site, or where it came from ("Audio file", "Voice note"); while it transcribes, the
+    /// stage (the row adds a spinner).
+    static func people(_ t: Transcript, projects: [UUID: Project]) -> String {
+        let named = t.speakers.map(\.name).filter { !$0.isEmpty && !$0.hasPrefix("Speaker ") }
+        if !named.isEmpty { return named.count > 3 ? named.prefix(3).joined(separator: ", ") + " +\(named.count - 3)" : named.joined(separator: ", ") }
+        if LibrarySource.isLink(t) { return t.linkInfo?.site ?? (t.sourceLabel.isEmpty ? "Link" : t.sourceLabel) }
+        if t.speakers.count >= 2 { return "\(t.speakers.count) speakers" }
+        if let p = t.projectId, let name = projects[p]?.name { return name }
+        return HomeRecentStyle(t).source
+    }
+
+    // MARK: Empty
+
+    @ViewBuilder private var emptyState: some View {
+        if !app.search.isEmpty {
+            empty("Nothing found", "Nothing matches \u{201C}\(app.search)\u{201D}. Search looks at titles and every transcript's words.")
+        } else if app.libraryFilter != .all || app.libraryKind != nil {
+            empty("Nothing here", "Nothing here matches \(LibraryChip.otherLabel(app.libraryFilter, kind: app.libraryKind) ?? currentChip?.label ?? "this filter").",
+                  button: "Show all") { choose(.all) }
+        } else if let p = app.projectFilter {
+            empty("Nothing in this project yet", "Add transcripts from your library or import files.", button: "Add from Library…") { app.addFromLibrary = p }
+        } else {
+            empty("Nothing here yet", "Record a voice note, import a file, or paste a link on Home. Every transcript lands here.",
+                  button: "Import files") { app.chooseFiles() }
+        }
+    }
+
+    private func empty(_ title: String, _ message: String, button: String? = nil, action: @escaping () -> Void = {}) -> some View {
+        PaperCard {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                Text(message).refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
+                if let button {
+                    Button(button, action: action).buttonStyle(RefinedActionStyle()).padding(.top, 8)
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+        }
     }
 }
 
-/// The self-test's handle on each Library row (only while its Back steps run, `UITest.rowTargets`).
+/// The table's column widths for a card `width` points wide: the mockup's shares of 3, 1.2, 1.6, and 1 for Name, Kind,
+/// People or source, and Date, and 60 pt for Length.
+struct LibraryColumns {
+    static let length: CGFloat = 60
+    static let gap: CGFloat = 12
+    static let inset: CGFloat = 16
+    var name: CGFloat, kind: CGFloat, people: CGFloat, date: CGFloat
+
+    init(width: CGFloat) {
+        let free = max(300, width - 2 * Self.inset - Self.length - 4 * Self.gap)
+        let unit = free / 6.8
+        name = (unit * 3).rounded(.down); kind = (unit * 1.2).rounded(.down)
+        people = (unit * 1.6).rounded(.down); date = (unit * 1).rounded(.down)
+    }
+
+    func width(_ c: NativeTableSort) -> CGFloat {
+        switch c {
+        case .name: return name
+        case .kind: return kind
+        case .people: return people
+        case .date: return date
+        case .length: return Self.length
+        }
+    }
+}
+
+/// One recording in the Library's table: the title (with its pin), the kind's colored chip, the people or source (the
+/// stage and a spinner while it transcribes), the day, and the length. Selected rows take the persimmon tint, others
+/// alternate with the stripe. The row is one VoiceOver element that reads every column; its action opens it.
+private struct LibraryTableRow: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    var columns: LibraryColumns
+    var selected: Bool
+    var striped: Bool
+    var people: String
+    var onClick: () -> Void
+    var dragIDs: () -> [UUID]
+
+    var body: some View {
+        LiveStage(transcript) { t in
+            cells(t)
+                .padding(.horizontal, LibraryColumns.inset).padding(.vertical, 8)
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                .background(selected ? Refined.persimmonTint : (striped ? Refined.stripe : Color.clear))
+                .allowsHitTesting(false)
+                .overlay { hitLayer }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(label(t))
+                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+                .accessibilityHint("Selects it. Double-click or press Return to open.")
+                .accessibilityAction { app.go(.transcript(t.id)) }
+                .accessibilityAction(named: "Play") { play(t) }
+        }
+    }
+
+    private func cells(_ t: Transcript) -> some View {
+        HStack(spacing: LibraryColumns.gap) {
+            HStack(spacing: 5) {
+                if t.pinned { IconGlyph(art: .iconPin, size: 12, color: Refined.mute) }
+                Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+            }
+            .frame(width: columns.name, alignment: .leading)
+            KindColorChip(kind: t.refinedKind)
+                .frame(width: columns.kind, alignment: .leading)
+            peopleCell(t)
+                .frame(width: columns.people, alignment: .leading)
+            Text(RefinedRules.shortDay(t.createdAt)).refinedFont(.rowTitle).foregroundStyle(Refined.dim).lineLimit(1)
+                .frame(width: columns.date, alignment: .leading)
+            Text(length(t) ?? "").refinedFont(.rowTitle).monospacedDigit().foregroundStyle(Refined.dim).lineLimit(1)
+                .frame(width: LibraryColumns.length, alignment: .trailing)
+        }
+    }
+
+    @ViewBuilder private func peopleCell(_ t: Transcript) -> some View {
+        switch t.status {
+        case .processing:
+            HStack(spacing: 5) {
+                ProgressView().controlSize(.mini)
+                Text(t.stageText.isEmpty ? "Transcribing" : t.stageText).refinedFont(.rowTitle).foregroundStyle(Refined.dim).lineLimit(1)
+            }
+            .help(t.stageText)
+        case .failed:
+            Text("Didn't finish").refinedFont(.rowTitle).foregroundStyle(Refined.dim).lineLimit(1)
+        case .ready:
+            Text(t.stageText.isEmpty ? people : t.stageText).refinedFont(.rowTitle).foregroundStyle(Refined.dim).lineLimit(1)
+        }
+    }
+
+    /// A text-only thought has no length (review M-13).
+    private func length(_ t: Transcript) -> String? {
+        WebStatus.isTextOnly(t) ? nil : HomeRecentStyle.length(t.duration)
+    }
+
+    private func label(_ t: Transcript) -> String {
+        let status: String? = t.status == .processing ? (t.stageText.isEmpty ? "Transcribing" : t.stageText) : t.status == .failed ? "Didn't finish" : nil
+        let parts: [String?] = [t.pinned ? "Pinned" : nil, t.title, RecordingKind.refinedName(t.refinedKind), status ?? (people.isEmpty ? nil : people),
+                                RefinedRules.shortDay(t.createdAt), length(t).map { _ in RefinedRules.spokenTime(t.duration) }]
+        return parts.compactMap { $0 }.joined(separator: ", ")
+    }
+
+    private var hitLayer: some View {
+        Rectangle().fill(Color.white.opacity(0.001))
+            .contentShape(Rectangle())
+            .onTapGesture { onClick() }
+            .onDrag { NSItemProvider(object: TranscriptDrag.payload(dragIDs()) as NSString) }
+    }
+
+    private func play(_ t: Transcript) {
+        guard t.audioFileName != nil, t.status == .ready else { app.go(.transcript(t.id)); return }
+        NativeNav.shared.play(t, app: app)
+    }
+}
+
+/// The self-test's handles on the table's rows: the first two always (`lib-item-0`, `lib-item-1`), and every row while
+/// the Back steps run (`lib-row-<id>`, `UITest.rowTargets`), both in SwiftUI's frames and the window's.
 struct LibraryRowTarget: ViewModifier {
     var id: UUID
+    var index: Int
     func body(content: Content) -> some View {
-        if UITest.rowTargets { content.uiTarget("lib-row-\(id.uuidString)") } else { content }
+        if UITest.enabled && index < 2 {
+            rows(content.uiWindowTarget("lib-item-\(index)").uiTarget("lib-item-\(index)"))
+        } else {
+            rows(content)
+        }
+    }
+
+    @ViewBuilder private func rows<V: View>(_ v: V) -> some View {
+        if UITest.rowTargets { v.uiWindowTarget("lib-row-\(id.uuidString)").uiTarget("lib-row-\(id.uuidString)") } else { v }
     }
 }
 
+extension View {
+    /// The self-test's handle on a Library control, in SwiftUI's frames and the window's (Native's split view hosts
+    /// its detail apart from the window's content, so its clicks use the window's).
+    func libraryTarget(_ id: String) -> some View { uiWindowTarget(id).uiTarget(id) }
+}
+
+// MARK: - Passages
+
 /// Search that finds the moment, not just the file: each matching line with its speaker and time, grouped by
-/// transcript. Click a line to open the transcript there.
+/// transcript in a card. Click a line to open the transcript there.
 struct PassageResults: View {
     var query: String
     /// The library's filtered transcripts, worked out once by the caller.
@@ -481,21 +675,23 @@ struct PassageResults: View {
     var body: some View {
         let results = hits
         VStack(alignment: .leading, spacing: 10) {
-            Text(results.isEmpty ? "No passages match “\(query)”" : "Passages")
-                .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
+            if results.isEmpty {
+                Text("No passages match \u{201C}\(query)\u{201D}").refinedFont(.meta).foregroundStyle(Refined.mute)
+            } else {
+                SerifSectionTitle("Passages")
+            }
             ForEach(results, id: \.0.id) { t, segs, n in
-                VStack(alignment: .leading, spacing: 0) {
+                PaperCard {
                     HStack(spacing: 8) {
-                        Text(t.title).font(Ink.serif(16, weight: .regular)).foregroundStyle(Ink.ink).lineLimit(1)
-                        if let site = t.linkInfo?.site { Text(site).font(.system(size: 11.5)).foregroundStyle(Ink.mute) }
+                        Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                        if let site = t.linkInfo?.site { Text(site).refinedFont(.meta).foregroundStyle(Refined.mute) }
                         Spacer()
-                        Text("\(n) match\(n == 1 ? "" : "es")").font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                        Text(HomeCounts.countLabel(n, "match", "matches")).refinedFont(.meta).foregroundStyle(Refined.mute)
                     }
                     .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 6)
                     ForEach(segs) { s in PassageLine(transcript: t, segment: s, query: query) }
                 }
-                .padding(.bottom, 6)
-                .background(NoteCardBackground(hover: false))
+                .padding(.bottom, 2)
             }
         }
     }
@@ -509,33 +705,109 @@ struct PassageLine: View {
     @State private var hover = false
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(segment.start.timecode).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(Ink.iris).frame(width: 52, alignment: .leading)
+            Text(segment.start.timecode).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.accentText).frame(width: 52, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
                 if transcript.speakers.count >= 2, let sp = transcript.speakerName(segment.speaker) {
-                    Text(sp).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Ink.mute)
+                    Text(sp).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
                 }
-                Text(marked).font(.system(size: 14)).foregroundStyle(Ink.ink).lineLimit(3)
+                Text(marked).refinedFont(.body).foregroundStyle(Refined.ink).lineLimit(3)
             }
             Spacer(minLength: 8)
             if let info = transcript.linkInfo, info.supportsTimestamps, hover {
-                Button { if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) } } label: { ArtIcon(art: .iconPlay, size: 15) }
-                    .buttonStyle(.plain).foregroundStyle(Ink.iris).help("Open the video at \(segment.start.timecode)")
+                Button { if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) } } label: { IconGlyph(art: .iconPlay, size: 15, color: Refined.accentText) }
+                    .buttonStyle(.plain).help("Open the video at \(segment.start.timecode)")
+                    .accessibilityLabel("Open the video at \(segment.start.timecode)")
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 7)
-        .background(hover ? Ink.iris.opacity(0.05) : .clear)
+        .background(hover ? Refined.stripe : .clear)
         .contentShape(Rectangle())
         .onHover { hover = $0 }
         .onTapGesture { app.focusSegment = segment.id; app.go(.transcript(transcript.id)) }
+        .accessibilityAddTraits(.isButton)
     }
 
+    /// The query in the line, on the persimmon tint in semibold.
     private var marked: AttributedString {
         var a = AttributedString(segment.text)
         var start = a.startIndex
         while start < a.endIndex, let r = a[start...].range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) {
-            a[r].backgroundColor = Ink.match; a[r].font = .system(size: 14, weight: .semibold)
+            a[r].backgroundColor = Refined.persimmonTint
+            a[r].inlinePresentationIntent = .stronglyEmphasized
             start = r.upperBound
         }
         return a
     }
 }
+
+// MARK: - Preview
+// brand: native begin
+
+/// The Library's preview in Native's inspector: the selected recording (or the newest) with its kind, day, length,
+/// and people, its title, the summary, its first line, and Play, Open Transcript, and ⋯. Plain text on the inspector,
+/// as the transcript's inspector lists its parts; Apple draws the inspector.
+struct LibraryPreview: View {
+    @EnvironmentObject var app: AppState
+    @ObservedObject var nav: NativeNav
+
+    var body: some View {
+        let _ = LookSwitch.mark("library-preview")
+        let list = app.libraryLists(kind: app.libraryKind).list
+        let chosen = nav.librarySelection.flatMap { id in list.first { $0.id == id } } ?? list.max { $0.createdAt < $1.createdAt }
+        ScrollView {
+            if let t = chosen {
+                card(t).padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 24)
+            } else {
+                Text("Select a recording to see its summary.")
+                    .font(.system(size: 13)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity).padding(.top, 60)
+            }
+        }
+        .scrollIndicators(.never)
+    }
+
+    private func card(_ t: Transcript) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(t.title).font(.system(size: 17, weight: .bold)).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text(meta(t)).font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary).lineLimit(2)
+                .padding(.top, 3)
+            HStack(spacing: 8) {
+                if t.audioFileName != nil && t.status == .ready {
+                    Button { nav.play(t, app: app) } label: { Label("Play", systemImage: "play.fill") }
+                        .buttonStyle(.borderedProminent)
+                        .help("Open and play (Space)")
+                }
+                Button("Open Transcript") { app.go(.transcript(t.id)) }
+                    .buttonStyle(.bordered)
+                    .help("Open the transcript (Return)")
+                    .uiWindowTarget("lib-open")
+                Menu { RowMenu(transcript: t) } label: { Image(systemName: "ellipsis.circle") }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                    .accessibilityLabel("More for \(t.title)")
+            }
+            .controlSize(.regular)
+            .padding(.top, 12)
+            if let s = t.summary, !s.isEmpty {
+                Divider().padding(.vertical, 14)
+                NativeSummaryText(summary: s, byModel: t.summaryByModel, compact: true)
+            }
+            if let line = t.visibleSegments(hideFiller: true).first?.text, !line.isEmpty {
+                Divider().padding(.vertical, 14)
+                Text("“\(line)”").font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(3).lineLimit(5)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// "Meeting · Thu Oct 22 · 1:04:12 · Anika, Marcus".
+    private func meta(_ t: Transcript) -> String {
+        var parts = [RecordingKind.refinedName(t.refinedKind), Formats.pattern("EEE MMM d").string(from: t.createdAt)]
+        if t.duration > 0 && !WebStatus.isTextOnly(t) { parts.append(HomeRecentStyle.length(t.duration)) }
+        let people = LibraryView.people(t, projects: app.store.projectsByID)
+        if !people.isEmpty { parts.append(people) }
+        return parts.joined(separator: " · ")
+    }
+}
+// brand: native end

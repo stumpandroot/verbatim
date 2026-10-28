@@ -27,13 +27,11 @@ final class NativeNav: ObservableObject {
     @Published var follow = true
     /// The passage selected in the open transcript (a note added in the inspector links to it).
     @Published var selectedSegment: UUID?
-    /// The Library item whose preview the inspector shows.
+    /// The Library item whose preview the inspector shows, and the row Back comes back to (both looks).
     @Published var librarySelection: UUID?
-    /// The Library as a table (the default) or as a list of rows with what was said (the toolbar's Table and List).
-    @Published var libraryTable: Bool { didSet { UserDefaults.standard.set(libraryTable, forKey: Self.tableKey) } }
-    static let tableKey = "native.libraryTable"
-    /// The Library opens as a table until you pick List.
-    static func storedTable(_ d: UserDefaults = .standard) -> Bool { d.object(forKey: tableKey) as? Bool ?? true }
+    /// Native's old Table and List choice for the Library. The refined Library is the table only (DESIGN.md §6.8), so
+    /// the stored choice is removed at launch.
+    static let retiredTableKey = "native.libraryTable"
     /// An action running on the open transcript (its sheet), and why Summarize can't run here.
     @Published var runningAction: FlowAction?
     @Published var summaryUnavailable: String?
@@ -45,7 +43,12 @@ final class NativeNav: ObservableObject {
     init() {
         let d = UserDefaults.standard
         inspector = d.object(forKey: Self.inspectorKey) as? Bool ?? true
-        libraryTable = Self.storedTable(d)
+        Self.retireTableChoice(d)
+    }
+
+    /// Removes the Table and List choice: every Library is the table now, whatever was picked.
+    static func retireTableChoice(_ d: UserDefaults = .standard) {
+        if d.object(forKey: retiredTableKey) != nil { d.removeObject(forKey: retiredTableKey) }
     }
 
     // The Library list
@@ -150,7 +153,7 @@ struct NativeInspector: View {
         return ZStack {
             switch app.screen {
             case .library:
-                PremiumLibraryPreview(nav: nav)
+                LibraryPreview(nav: nav)
             case .transcript(let id):
                 if let t = app.store.transcript(id) {
                     if t.showsAudioDetail { MacAudioInspector(transcript: t) } else { PremiumTranscriptInspector(transcript: t, nav: nav) }
@@ -197,7 +200,7 @@ private struct NativeInspectorButton: View {
     }
 }
 
-/// Back and Forward on every screen, then the Library's title and count on the Library.
+/// Back and Forward on every screen. The Library draws its own serif title and count (DESIGN.md §6.8).
 private struct NativeLeadingItem: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var nav: NativeNav
@@ -206,34 +209,21 @@ private struct NativeLeadingItem: View {
     var screen: Screen
 
     var body: some View {
-        HStack(spacing: 10) {
-            // Two plain buttons (hosted as SwiftUI, so they keep their identity as the content changes).
-            HStack(spacing: 0) {
-                Button { trail.goBack(app) } label: { Image(systemName: "chevron.left").frame(width: 30, height: 28).contentShape(Rectangle()) }
-                    .buttonStyle(.borderless)
-                    .disabled(!trail.canGoBack)
-                    .help("Back (⌘[)")
-                    .accessibilityLabel("Back")
-                    .uiWindowTarget("tb-back")
-                Button { trail.goForward(app) } label: { Image(systemName: "chevron.right").frame(width: 30, height: 28).contentShape(Rectangle()) }
-                    .buttonStyle(.borderless)
-                    .disabled(!trail.canGoForward)
-                    .help("Forward (⌘])")
-                    .accessibilityLabel("Forward")
-            }
-            .font(.system(size: 14, weight: .medium))
-            if screen == .library {
-                let count = NativeLibraryScope.list(app).count
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(NativeLibraryScope.title(app)).font(.system(size: 15, weight: .bold)).lineLimit(1)
-                    Text(HomeCounts.countLabel(count, "recording", "recordings")).font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
-                }
-                .padding(.horizontal, 4)
-                .fixedSize()
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isHeader)
-            }
+        // Two plain buttons (hosted as SwiftUI, so they keep their identity as the content changes).
+        HStack(spacing: 0) {
+            Button { trail.goBack(app) } label: { Image(systemName: "chevron.left").frame(width: 30, height: 28).contentShape(Rectangle()) }
+                .buttonStyle(.borderless)
+                .disabled(!trail.canGoBack)
+                .help("Back (⌘[)")
+                .accessibilityLabel("Back")
+                .uiWindowTarget("tb-back")
+            Button { trail.goForward(app) } label: { Image(systemName: "chevron.right").frame(width: 30, height: 28).contentShape(Rectangle()) }
+                .buttonStyle(.borderless)
+                .disabled(!trail.canGoForward)
+                .help("Forward (⌘])")
+                .accessibilityLabel("Forward")
         }
+        .font(.system(size: 14, weight: .medium))
     }
 }
 
@@ -321,13 +311,11 @@ private struct NativeModePicker: View {
     }
 }
 
-/// The screen's own items, in one slot: You on Home; the scope, Table and List, and More in the Library; Share and
-/// More on a transcript.
+/// The screen's own items, in one slot: You on Home; More in the Library; Share and More on a transcript.
 private struct NativeActionsItem: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var nav: NativeNav
     var screen: Screen
-    @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
 
     var body: some View {
         switch screen {
@@ -343,50 +331,18 @@ private struct NativeActionsItem: View {
         }
     }
 
-    @ViewBuilder private var libraryActions: some View {
-        HStack(spacing: 8) {
-            scopePicker
-            Picker("View", selection: $nav.libraryTable) {
-                Label("Table", systemImage: "tablecells").labelStyle(.iconOnly).tag(true)
-                Label("List", systemImage: "list.bullet").labelStyle(.iconOnly).tag(false)
-            }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
-            .help("Show the Library as a table or as a list with what was said")
-            .uiWindowTarget("tb-library-view")
-            Menu {
-                if !nav.libraryTable {
-                    Picker("Sort By", selection: $sortRaw) {
-                        ForEach(LibrarySort.allCases) { s in Text(s.title).tag(s.rawValue) }
-                    }
-                    .pickerStyle(.inline)
-                    Divider()
-                }
-                Button("Import Files…") { app.chooseFiles() }
-                if let p = app.projectFilter { Button("Add from Library…") { app.addFromLibrary = p } }
-                Button("New Project…") { app.newProjectFor = [] }
-                Divider()
-                Button("Export Library as Markdown…") { MarkdownBulkExport.run(MarkdownBulkExport.all(app), app: app) }
-            } label: { Label("More", systemImage: "ellipsis.circle") }
-                .menuIndicator(.hidden)
-                .help("Sort, import, add from your library, start a project, or export")
-        }
-    }
-
-    /// All recordings, a kind of source, or a kind of recording: one pop-up, as the mockup's "All recordings".
-    private var scopePicker: some View {
-        let options = NativeLibraryScope.options(app)
-        let binding = Binding<NativeLibraryScope.Scope>(get: { NativeLibraryScope.current(app) }, set: { s in
-            // Only a real change clears the selection: the picker can write back the scope it already shows as the
-            // toolbar's items come back, which dropped the row Back came back to.
-            guard s != NativeLibraryScope.current(app) else { return }
-            nav.librarySelection = nil
-            NativeLibraryScope.choose(s, app: app)
-        })
-        return Picker("Show", selection: binding) {
-            ForEach(options, id: \.0) { o in Text(o.1).tag(o.0) }
-        }
-        .pickerStyle(.menu).labelsHidden().fixedSize()
-        .help("Show every recording, one kind of source, or one kind of recording")
+    /// The Library's More: Import, Add from Library (in a project), New project, and Export. Its filters and sort are
+    /// on the page (the chips), as in the refined mockup.
+    private var libraryActions: some View {
+        Menu {
+            Button("Import Files…") { app.chooseFiles() }
+            if let p = app.projectFilter { Button("Add from Library…") { app.addFromLibrary = p } }
+            Button("New Project…") { app.newProjectFor = [] }
+            Divider()
+            Button("Export Library as Markdown…") { MarkdownBulkExport.run(MarkdownBulkExport.all(app), app: app) }
+        } label: { Label("More", systemImage: "ellipsis.circle") }
+            .menuIndicator(.hidden)
+            .help("Import, add from your library, start a project, or export")
     }
 
     private func transcriptActions(_ t: Transcript) -> some View {
@@ -430,65 +386,5 @@ private struct NativeActionsItem: View {
                 .help("Mark a moment, record more, run an action, summarize, review the fixes, or change the text size")
                 .uiWindowTarget("tb-more")
         }
-    }
-}
-
-// MARK: - The Library's scope
-
-/// The Library's scope (all, a type of source, or a kind) and its title and count, shared by the toolbar and the list.
-@MainActor
-enum NativeLibraryScope {
-    enum Scope: Hashable { case all, source(LibrarySource), kind(RecordingKind) }
-
-    static func current(_ app: AppState) -> Scope {
-        if let k = app.libraryKind { return .kind(k) }
-        if app.libraryFilter.source != .all { return .source(app.libraryFilter.source) }
-        return .all
-    }
-
-    static func choose(_ s: Scope, app: AppState) {
-        switch s {
-        case .all: app.libraryKind = nil; app.libraryFilter = .all
-        case .source(let src): app.libraryKind = nil; app.libraryFilter = LibraryFilter(source: src)
-        case .kind(let k): app.libraryFilter = .all; app.libraryKind = k
-        }
-    }
-
-    static func searching(_ app: AppState) -> Bool { !app.search.trimmingCharacters(in: .whitespaces).isEmpty }
-
-    /// What the Library shows: the filtered library, then the source filter and the kind.
-    static func list(_ app: AppState) -> [Transcript] {
-        let base = app.filtered
-        let s = searching(app), filter = app.libraryFilter, kind = app.libraryKind
-        // Asked for by the Library, its toolbar, and its preview on each render: worked out once per library change.
-        return app.store.memo("native.list|\(key(app))|\(filter.raw)|\(kind?.rawValue ?? "-")") {
-            let all = filter.apply(base, searching: s)
-            return kind.map { k in all.filter { $0.kind == k } } ?? all
-        }
-    }
-
-    /// What `filtered` depends on besides the library: the project and the search.
-    private static func key(_ app: AppState) -> String {
-        "\(app.projectFilter?.uuidString ?? "-")|\(app.search.trimmingCharacters(in: .whitespaces).lowercased())"
-    }
-
-    /// "All recordings", then the sources and kinds the library has.
-    static func options(_ app: AppState) -> [(Scope, String)] {
-        let base = app.filtered
-        let s = searching(app)
-        // The sources and kinds present: one pass each per library change, not per render.
-        let (sources, kindCounts) = app.store.memo("native.options|\(key(app))") { () -> ([LibrarySource], [RecordingKind: Int]) in
-            let sources = LibraryFilter.all.sourceCounts(base, searching: s).filter { $0.0 != .all && $0.1 > 0 }.map(\.0)
-            var kindCounts: [RecordingKind: Int] = [:]
-            for t in LibraryFilter.all.apply(base, searching: s) { if let k = t.kind { kindCounts[k, default: 0] += 1 } }
-            return (sources, kindCounts)
-        }
-        let kinds = RecordingKind.pickable.filter { (kindCounts[$0] ?? 0) > 0 || app.libraryKind == $0 }
-        return [(.all, "All recordings")] + sources.map { (.source($0), $0.label) } + kinds.map { (.kind($0), $0.plural) }
-    }
-
-    static func title(_ app: AppState) -> String {
-        if let p = app.projectFilter, let name = app.store.projects.first(where: { $0.id == p })?.name { return name }
-        return app.libraryKind?.plural ?? "Library"
     }
 }

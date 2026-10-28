@@ -427,41 +427,6 @@ struct BackgroundVoicesCard: View {
 
 // MARK: - Library
 
-/// The bold block at the top of a kind's Library view, in the Home method-card form.
-struct KindHeroCard: View {
-    var kind: RecordingKind
-    var meta: String
-    var compact = false
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(kind.index).font(Ink.mono(11)).foregroundStyle(Ink.mute)
-                    Rectangle().fill(kind.onFill.opacity(0.5)).frame(width: 14, height: 1)
-                }
-                Spacer(minLength: 12)
-                Text(kind.plural).font(Ink.serif(compact ? 32 : 36)).lineLimit(1).minimumScaleFactor(0.8)
-                Text(kind.line).font(.system(size: compact ? 14 : 15)).foregroundStyle(Ink.dim).padding(.top, 4)
-                Text(meta).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute).padding(.top, 8)
-            }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 0) {
-                CornerTick().stroke(kind.onFill, lineWidth: 1.4).frame(width: 12, height: 12)
-                Spacer(minLength: 6)
-                BrandGlyph(art: kind.art, color: kind.onFill, minLineWidth: 1).frame(width: compact ? 92 : 104, height: compact ? 92 : 104)
-            }
-        }
-        .foregroundStyle(kind.onFill)
-        .padding(compact ? 16 : 18)
-        .frame(maxWidth: .infinity, minHeight: compact ? 150 : 168, alignment: .topLeading)
-        // A paper card with the kind's diagram in ink: no colored fill on a working screen.
-        .cardSurface(radius: Radius.tile)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(kind.plural). \(kind.line) \(meta)")
-    }
-}
-
 /// Journal entries grouped by day, newest first: "Today · Sat Oct 17" headings, in the same date order as every other
 /// day header (`DayHeader`; review M-15).
 enum JournalDays {

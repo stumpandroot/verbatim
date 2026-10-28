@@ -243,8 +243,8 @@ final class ScreenPlaces {
     private var offsets: [String: CGFloat] = [:]
     private var rows: [String: UUID] = [:]
     private var days: [RecordingKind: (day: Date?, month: Date?)] = [:]
-    /// Native's View as Table selection (the view clears it when the project changes).
-    var tableSelection: Set<String> = []
+    /// The Library table's selection (the view clears it when the project changes).
+    var tableSelection: Set<UUID> = []
     /// The scroll probes on screen, by key, for the self-test.
     private var live: [String: WeakProbe] = [:]
     /// The last restore: its key, the offset it put back, and whether it was in place before the screen's first frame.
@@ -260,21 +260,20 @@ final class ScreenPlaces {
     func day(_ kind: RecordingKind) -> (day: Date?, month: Date?) { days[kind] ?? (nil, nil) }
     func setDay(_ kind: RecordingKind, day: Date?, month: Date?) { days[kind] = (day, month) }
 
-    /// AppState.go, before the screen changes: the Library remembers the row you opened (or, in Native, the row
-    /// selected as you left), and Native's selection comes back with the Library.
+    /// AppState.go, before the screen changes: the Library remembers the row you opened (or the row selected as you
+    /// left), and its selection comes back with the Library, in both looks (one Library, DESIGN.md §6.8).
     func navigating(from: Screen, to next: Screen, app: AppState) {
         let nav = NativeNav.shared
-        let native = AppLook.current == .native
         if from == .library {
             let key = Self.libraryKey(app.projectFilter)
             if case .transcript(let id) = next {
                 rows[key] = id
-                if native, nav.librarySelection != id { nav.librarySelection = id }
-            } else if native, let s = nav.librarySelection {
+                if nav.librarySelection != id { nav.librarySelection = id }
+            } else if let s = nav.librarySelection {
                 rows[key] = s
             }
         }
-        if next == .library, native, let r = rows[Self.libraryKey(app.projectFilter)], nav.librarySelection != r {
+        if next == .library, let r = rows[Self.libraryKey(app.projectFilter)], nav.librarySelection != r {
             nav.librarySelection = r
         }
     }
