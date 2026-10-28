@@ -333,8 +333,8 @@ struct FillerToggle: View {
     var body: some View {
         Button { shown.toggle() } label: {
             Text(shown ? "Hide filler lines" : (count == 1 ? "1 filler line hidden · Show" : "\(count) filler lines hidden · Show"))
-                .font(.system(size: 13.5)).foregroundStyle(Ink.mute)
-                .padding(.vertical, 6).contentShape(Rectangle())
+                .refinedFont(.hint).foregroundStyle(Refined.mute)
+                .frame(minHeight: RefinedPlatform.mac ? 28 : CGFloat(RefinedRules.minTapTarget)).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -378,17 +378,17 @@ struct BackgroundVoicesCard: View {
         VStack(alignment: .leading, spacing: 0) {
             Button { withAnimation(limitMotion ? nil : Motion.settle) { open.toggle() } } label: {
                 HStack(spacing: 12) {
-                    BrandGlyph(art: .featureBackground, color: Ink.ink, minLineWidth: 1)
+                    BrandGlyph(art: .featureBackground, color: Refined.ink, minLineWidth: 1)
                         .frame(width: compact ? 18 : 28, height: compact ? 18 : 28)
                         .frame(width: compact ? 28 : 46, height: compact ? 28 : 46)
-                        .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: compact ? 7 : Radius.row, style: .continuous))
+                        .background(Refined.neutralSquare, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.square), style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Background voices").font(.system(size: compact ? 14 : 17, weight: .semibold)).foregroundStyle(Ink.ink)
+                        Text("Background voices").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
                         Text(segments.count == 1 ? "1 short line from people nearby" : "\(segments.count) short lines from people nearby")
-                            .font(.system(size: compact ? 12.5 : 14)).foregroundStyle(Ink.mute)
+                            .refinedFont(.meta).foregroundStyle(Refined.mute)
                     }
                     Spacer(minLength: 8)
-                    Image(systemName: "chevron.down").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
+                    Image(systemName: "chevron.down").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
                         .rotationEffect(.degrees(open ? 180 : 0))
                 }
                 .padding(.horizontal, 14).padding(.vertical, compact ? 9 : 10)
@@ -400,20 +400,19 @@ struct BackgroundVoicesCard: View {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(segments) { s in
                         HStack(alignment: .firstTextBaseline, spacing: 16) {
-                            Text(s.start.timecode).font(Ink.mono(compact ? 11.5 : 13)).foregroundStyle(Ink.mute).frame(width: 44, alignment: .leading)
+                            Text(RefinedRules.time(s.start)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).frame(width: 44, alignment: .leading)
                                 .onTapGesture { onPlay(s) }
-                            Text(s.text).font(.system(size: compact ? 14 : 16)).foregroundStyle(Ink.mute).frame(maxWidth: .infinity, alignment: .leading)
+                            Text(s.text).refinedFont(.body).foregroundStyle(Refined.dim).frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .contentShape(Rectangle())
                         .contextMenu { Button { onMoveBack(s) } label: { Label("This was me: move it back", systemImage: "arrow.uturn.backward") } }
                     }
-                    Text(moveHint).font(.system(size: 12.5)).foregroundStyle(Ink.mute).padding(.leading, 60)
+                    Text(moveHint).refinedFont(.meta).foregroundStyle(Refined.mute).padding(.leading, 60)
                 }
                 .padding(.horizontal, 14).padding(.bottom, 14)
             }
         }
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: compact ? Radius.row : Radius.tile, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: compact ? Radius.row : Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
     }
 
     private var moveHint: String {

@@ -184,6 +184,27 @@ check("the Library's Date column: Today, a weekday this week, the month and day,
 check("lengths read aloud", R.spokenTime(72) == "1 minute 12 seconds" && R.spokenTime(1) == "1 second" && R.spokenTime(0) == "0 seconds" &&
       R.spokenTime(3600) == "1 hour")
 
+// MARK: - The transcript
+
+check("a project's chip takes butter, sage, petal, then persimmon, and around again",
+      (0..<6).map(R.projectHue) == [.butter, .sage, .petal, .persimmon, .butter, .sage] && R.projectHue(-1) == .persimmon)
+let tz = TimeZone(identifier: "America/New_York")!
+var tcal = Calendar(identifier: .gregorian); tcal.timeZone = tz
+func at(_ y: Int, _ mo: Int, _ d: Int, _ h: Int, _ mi: Int) -> Date { tcal.date(from: DateComponents(year: y, month: mo, day: d, hour: h, minute: mi))! }
+let tnow = at(2026, 10, 28, 21, 0)
+func when(_ d: Date) -> String {
+    R.transcriptWhen(d, now: tnow, calendar: tcal, locale: Locale(identifier: "en_US"))
+        .replacingOccurrences(of: "\u{202F}", with: " ").replacingOccurrences(of: "\u{00A0}", with: " ")
+}
+check("a transcript's header says Today and Yesterday with the time, the weekday and date this year, and the year before",
+      when(at(2026, 10, 28, 20, 35)) == "Today, 8:35 PM" && when(at(2026, 10, 27, 20, 35)) == "Yesterday, 8:35 PM"
+      && when(at(2026, 10, 20, 9, 5)) == "Tuesday, Oct 20, 9:05 AM" && when(at(2025, 3, 2, 8, 0)) == "Mar 2, 2025, 8:00 AM",
+      [when(at(2026, 10, 28, 20, 35)), when(at(2026, 10, 27, 20, 35)), when(at(2026, 10, 20, 9, 5)), when(at(2025, 3, 2, 8, 0))].joined(separator: " | "))
+check("the meta line: when, the length, speakers from two, and the language; no length of zero",
+      R.transcriptMeta(when: "Today, 8:35 PM", duration: 42, speakers: 1) == "Today, 8:35 PM \u{00B7} 0:42"
+      && R.transcriptMeta(when: "Today, 8:35 PM", duration: 42, speakers: 2, language: "English") == "Today, 8:35 PM \u{00B7} 0:42 \u{00B7} 2 speakers \u{00B7} English"
+      && R.transcriptMeta(when: "Today, 8:35 PM", duration: 0, speakers: 0) == "Today, 8:35 PM")
+
 // MARK: - The sources
 
 func read(_ path: String) -> String {
@@ -202,7 +223,8 @@ for f in kitFiles {
 let kit = kitFiles.map { read("\(views)/\($0)") }.joined(separator: "\n")
 for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "KindColorChip", "IconSquare", "SerifSectionTitle",
           "LargeSerifTitle", "ReadingText", "GlassPlayerBar", "RecorderClockPanel", "PaperRow", "WeekCard", "RecordingCard",
-          "RefinedActionStyle", "RefinedChip", "RefinedSearchField", "IconSquareRow", "PaperTable", "PaperRowBackground"] {
+          "RefinedActionStyle", "RefinedChip", "RefinedSearchField", "IconSquareRow", "PaperTable", "PaperRowBackground",
+          "RefinedSegmented", "KindPickerChip", "RefinedTagChips", "RefinedCircleButton", "TurnTime", "MomentChip", "AudioPlayerCard"] {
     check("the kit has \(c) with a preview", kit.contains("struct \(c)") && kit.contains("\(c)_Previews"))
 }
 check("the kit reads the palette from where Settings stores it", kit.contains("AppPalette.key, store: AppLook.store"))

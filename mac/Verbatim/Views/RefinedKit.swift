@@ -545,6 +545,166 @@ struct SystemSearchField: UIViewRepresentable {
 }
 #endif
 
+// MARK: - Segmented control
+
+/// A transcript's views (Original, Cleaned, Summary, …) as the mockup's segmented control: the `track` with the chosen
+/// segment on the card. iPhone shares the width equally while the titles fit and scrolls sideways when they don't (a
+/// template's result adds a segment named for it); the Mac sizes each segment to its title. VoiceOver reads a group of
+/// buttons with the chosen one selected; iPhone's tap targets are 44 pt tall around the 32 pt track.
+struct RefinedSegmented<Value: Hashable>: View {
+    var label = "View"
+    var options: [(Value, String)]
+    @Binding var selection: Value
+    @Environment(\.limitMotion) private var limitMotion
+    private var mac: Bool { RefinedPlatform.mac }
+
+    init(label: String = "View", options: [(Value, String)], selection: Binding<Value>) {
+        self.label = label; self.options = options; _selection = selection
+    }
+
+    var body: some View {
+        Group {
+            if mac {
+                track(equal: false)
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    track(equal: true)
+                    ScrollView(.horizontal, showsIndicators: false) { track(equal: false) }
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(label)
+    }
+
+    private func track(equal: Bool) -> some View {
+        HStack(spacing: 0) {
+            ForEach(options, id: \.0) { value, title in
+                segment(value, title, equal: equal)
+            }
+        }
+        .padding(2)
+        .background(Refined.track, in: RoundedRectangle(cornerRadius: mac ? 8 : 9, style: .continuous))
+    }
+
+    private func segment(_ value: Value, _ title: String, equal: Bool) -> some View {
+        let on = selection == value
+        let shape = RoundedRectangle(cornerRadius: mac ? 6 : 7, style: .continuous)
+        return Button {
+            guard selection != value else { return }
+            if limitMotion { selection = value } else { withAnimation(Motion.snap) { selection = value } }
+        } label: {
+            Text(title).refinedFont(mac ? .meta : .hint, weight: .semibold).lineLimit(1)
+                .foregroundStyle(on ? Refined.ink : Refined.dim)
+                .padding(.horizontal, mac ? 14 : 12).padding(.vertical, mac ? 4 : 6)
+                .frame(maxWidth: equal ? .infinity : nil)
+                .background {
+                    if on { shape.fill(Refined.card).shadow(color: Refined.separator, radius: 1.5, y: 1) }
+                }
+                .contentShape(Rectangle().inset(by: mac ? 0 : -6))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+// MARK: - Kinds and tags in a header
+
+/// A transcript's kind as its colored chip, which opens a menu of every kind (the header's meta line): "Suggested by
+/// Verbose" while Verbose picked it. iPhone's tap target is 44 pt tall.
+struct KindPickerChip: View {
+    var kind: RecordingKind?
+    var isAuto: Bool
+    var onPick: (RecordingKind) -> Void
+
+    var body: some View {
+        Menu {
+            Section(isAuto ? "Suggested by Verbose. Pick another and it stays." : "You picked this. Verbose won\u{2019}t change it.") {
+                ForEach(RecordingKind.pickable) { k in
+                    Button { onPick(k) } label: {
+                        if k == kind { Label(k.label, systemImage: "checkmark") } else { Text(k.label) }
+                    }
+                }
+            }
+        } label: {
+            KindColorChip(kind: kind)
+                .frame(minHeight: RefinedPlatform.mac ? 0 : CGFloat(RefinedRules.minTapTarget))
+                .contentShape(Rectangle())
+        }
+        #if os(macOS)
+        .menuStyle(.button).buttonStyle(.plain)
+        #endif
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Change the kind")
+        .accessibilityLabel("Kind: \(RecordingKind.refinedName(kind)). Change")
+    }
+}
+
+/// A transcript's tags as quiet capsules (right-click or touch and hold one to remove it), then "+ Tag". Put them in a
+/// `FlowRow` with the rest of the meta line.
+struct RefinedTagChips: View {
+    var tags: [String]
+    var onAdd: (String) -> Void
+    var onRemove: (String) -> Void
+    @State private var adding = false
+    @State private var draft = ""
+
+    init(tags: [String], onAdd: @escaping (String) -> Void, onRemove: @escaping (String) -> Void) {
+        self.tags = tags; self.onAdd = onAdd; self.onRemove = onRemove
+    }
+
+    var body: some View {
+        ForEach(tags, id: \.self) { tag in
+            Text(tag).refinedFont(.chip).foregroundStyle(Refined.ink).lineLimit(1).truncationMode(.middle)
+                .padding(.horizontal, 9).padding(.vertical, 2)
+                .background(Refined.neutral, in: Capsule())
+                .contextMenu { Button(role: .destructive) { onRemove(tag) } label: { Label("Remove tag", systemImage: "xmark") } }
+                .accessibilityLabel("Tag: \(tag)")
+        }
+        Button { draft = ""; adding = true } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "plus").font(.system(size: 10, weight: .semibold))
+                Text("Tag").refinedFont(.chip)
+            }
+            .foregroundStyle(Refined.dim)
+            .padding(.horizontal, 9).padding(.vertical, 2)
+            .overlay(Capsule().strokeBorder(Refined.separator, lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Add a tag")
+        .accessibilityLabel("Add a tag")
+        .alert("Add a tag", isPresented: $adding) {
+            TextField("Tag", text: $draft)
+            Button("Cancel", role: .cancel) {}
+            Button("Add") {
+                let t = draft.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if !t.isEmpty { onAdd(t) }
+            }
+        }
+    }
+}
+
+/// A round button on the page with a glyph and no title (the Mac transcript's Back in Verbose style, where the window
+/// has no toolbar items of its own): the card in a 30 pt circle.
+struct RefinedCircleButton: View {
+    var symbol: String
+    var label: String
+    var action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 12, weight: .bold)).foregroundStyle(Refined.ink)
+                .frame(width: 30, height: 30)
+                .background(Refined.card, in: Circle())
+                .shadow(color: Refined.separator, radius: 1.5, y: 1)
+                .contentShape(Circle())
+        }
+        .buttonStyle(RefinedPress())
+        .accessibilityLabel(label)
+    }
+}
+
 // MARK: - Cards and rows
 
 /// The off-white grouped container (Recent, Library's rows, Settings' groups): no outline, no shadow, the card
@@ -1230,6 +1390,44 @@ struct PaperRowBackground_Previews: PreviewProvider {
         }
         .padding(20)
         .background(Refined.paper)
+    }
+}
+
+struct RefinedSegmented_Previews: PreviewProvider {
+    struct Demo: View {
+        @State var pick = "Original"
+        var body: some View {
+            RefinedSegmented(options: ["Original", "Cleaned", "Summary"].map { ($0, $0) }, selection: $pick)
+        }
+    }
+    static var previews: some View {
+        RefinedPreviewPage { Demo() }
+    }
+}
+
+struct KindPickerChip_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage {
+            FlowRow {
+                KindPickerChip(kind: .meeting, isAuto: false) { _ in }
+                KindColorChip(title: "Lapp Wagons", hue: .butter)
+                RefinedTagChips(tags: ["catalog", "lapp"], onAdd: { _ in }, onRemove: { _ in })
+            }
+        }
+    }
+}
+
+struct RefinedTagChips_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage {
+            FlowRow { RefinedTagChips(tags: [], onAdd: { _ in }, onRemove: { _ in }) }
+        }
+    }
+}
+
+struct RefinedCircleButton_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage { RefinedCircleButton(symbol: "chevron.left", label: "Back") {} }
     }
 }
 
