@@ -611,7 +611,7 @@ enum UITest {
         await show("05e-recently-deleted")
         if let m = memo { app.go(.transcript(m.id)) }
         await show("06-transcript")
-        if let m = memo { transcriptLayoutCheck(app, m, look: .verbose) }
+        if let m = memo { transcriptLayoutCheck(app, m.id, look: .verbose) }
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Summary")
         await show("06h-transcript-summary")
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
