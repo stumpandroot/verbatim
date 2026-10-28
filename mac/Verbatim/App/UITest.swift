@@ -1041,7 +1041,12 @@ enum UITest {
               fresh.object(forKey: NativeNav.retiredTableKey) == nil)
 
         // Record in the toolbar (decision 8): a click records a voice note (or asks for the mic); its menu has Dictate,
-        // Live captions, and Import, then Record as's six choices.
+        // Live captions, and Import, then Record as's six choices. In the 1000 pt window the open inspector and the
+        // toolbar's search field push Record into the overflow (build 239), so the inspector closes first.
+        let hadInspector = nav.inspector
+        nav.inspector = false
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        if windowFrames["tb-record"]?() == nil { Log.note("UITEST note: native: Record isn't in the toolbar with the inspector closed either") }
         check("native: Record's menu lists Dictate, Live captions, and Import, then the six ways to record",
               NativeRecordMenu.extras == ["Dictate", "Live Captions", "Import…"] && RecordChoice.all.count == 8
               && windowFrames["tb-record-menu"]?() != nil)
@@ -1053,6 +1058,7 @@ enum UITest {
             _ = app.recorder.stop()
         }
         try? await Task.sleep(nanoseconds: 600_000_000)
+        nav.inspector = hadInspector
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
