@@ -81,7 +81,14 @@ for palette in AppPalette.allCases {
     }
     pair("\(palette.label): the ready chip's text", R.recordInk(palette), .wash(R.readyChip(palette), over: R.recordFill(palette)))
     pair("\(palette.label): the record disc on the card (a mark)", palette == .full ? H.onFill : H.ink, .tone(R.recordFill(palette)), minimum: 3)
+    // The Mac's recording card: its quiet actions sit on the ready chip's wash (the neutral wash fails under Increase
+    // Contrast, 3.95:1), and the strong action's light text.
+    pair("\(palette.label): a quiet action on the recording card (the ready chip's wash)", R.recordInk(palette), .wash(R.readyChip(palette), over: R.recordFill(palette)))
+    check("\(palette.label): the neutral wash would fail on the card under Increase Contrast, so it isn't used there",
+          palette == .soft || R.contrast(R.recordInk(palette).hcLight, R.over(H.neutral, R.recordFill(palette).hcLight, dark: false, increased: true)) < 4.5)
+    pair("\(palette.label): the strong action's text on its ink", palette == .full ? H.lift : H.paper, .tone(R.recordInk(palette)))
 }
+pair("a strong action on paper (paper text on ink)", H.paper, .tone(H.ink))
 
 // MARK: - Badges, chips, and squares (Full in both palettes)
 
@@ -157,6 +164,8 @@ check("tap targets are at least 44 pt", R.minTapTarget >= 44)
 check("the player's times: 0:07, 12:30, 1:02:14", R.time(7.9) == "0:07" && R.time(750) == "12:30" && R.time(3734) == "1:02:14")
 check("a time never goes negative or breaks on NaN", R.time(-3) == "0:00" && R.time(.nan) == "0:00")
 check("the recorder's clock has hundredths", R.clock(72.48) == "01:12.48" && R.clock(0) == "00:00.00")
+check("the Mac recording card's clock: 01:12, and hours past an hour", R.minutesClock(72.9) == "01:12" && R.minutesClock(0) == "00:00"
+      && R.minutesClock(3672) == "1:01:12" && R.minutesClock(-4) == "00:00" && R.minutesClock(.nan) == "00:00")
 check("the clock shows hours past an hour", R.clock(3672.5) == "1:01:12.50")
 check("lengths read aloud", R.spokenTime(72) == "1 minute 12 seconds" && R.spokenTime(1) == "1 second" && R.spokenTime(0) == "0 seconds" &&
       R.spokenTime(3600) == "1 hour")
@@ -178,7 +187,8 @@ for f in kitFiles {
 }
 let kit = kitFiles.map { read("\(views)/\($0)") }.joined(separator: "\n")
 for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "KindColorChip", "IconSquare", "SerifSectionTitle",
-          "LargeSerifTitle", "ReadingText", "GlassPlayerBar", "RecorderClockPanel"] {
+          "LargeSerifTitle", "ReadingText", "GlassPlayerBar", "RecorderClockPanel", "PaperRow", "WeekCard", "RecordingCard",
+          "RefinedActionStyle"] {
     check("the kit has \(c) with a preview", kit.contains("struct \(c)") && kit.contains("\(c)_Previews"))
 }
 check("the kit reads the palette from where Settings stores it", kit.contains("AppPalette.key, store: AppLook.store"))

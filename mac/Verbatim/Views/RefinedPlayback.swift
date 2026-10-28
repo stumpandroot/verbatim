@@ -220,6 +220,93 @@ struct RecorderClockPanel: View {
     }
 }
 
+// MARK: - Recording card
+
+/// The Mac's recording card (mockup: Mac Home while recording), which the Record card turns into while you record: the
+/// persimmon panel with the status dot, what's recording and from where, the clock (SF Pro Ultralight), the live
+/// waveform (newest on the right, moving only with your voice), your words as they're heard, and the actions the
+/// caller puts in `controls` (Mark moment, Pause, and Stop and transcribe). Soft palette: the persimmon tint. The
+/// fast-changing parts observe `live` on their own, so the rest of the card doesn't redraw with the meter.
+struct RecordingCard<Words: View, Controls: View>: View {
+    var title: String
+    var detail: String
+    var live: LiveMeter
+    var paused = false
+    @ViewBuilder var words: Words
+    @ViewBuilder var controls: Controls
+    @CurrentPalette private var palette: AppPalette
+
+    init(title: String, detail: String, live: LiveMeter, paused: Bool = false,
+         @ViewBuilder words: () -> Words, @ViewBuilder controls: () -> Controls) {
+        self.title = title; self.detail = detail; self.live = live; self.paused = paused
+        self.words = words(); self.controls = controls()
+    }
+
+    var body: some View {
+        let ink = Refined.onFill(.persimmon, palette)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                Circle().fill(ink).frame(width: 10, height: 10).opacity(paused ? 0.4 : 1).accessibilityHidden(true)
+                Text(title).refinedFont(.body, weight: .semibold).lineLimit(1).layoutPriority(1)
+                // Full ink, not the mockup's #3E4A43: that measures 3.4:1 on the fill.
+                Text(detail).refinedFont(.body).lineLimit(1)
+                Spacer(minLength: 8)
+                RecordingClock(live: live)
+            }
+            RecordingWave(live: live, color: ink, paused: paused).frame(height: 54)
+            words
+            HStack(spacing: 10) { controls }
+        }
+        .foregroundStyle(ink)
+        .padding(.horizontal, 24).padding(.vertical, 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(alignment: .topTrailing) {
+            RecordRings(color: Refined.rings(palette), lineWidth: 2.2, breathing: false)
+                .frame(width: 240, height: 240)
+                .offset(x: 60, y: -70)
+        }
+        .refinedSurface(Refined.fill(.persimmon, palette), radius: RefinedPlatform.radius(.record))
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// The recording card's clock: minutes and seconds ("01:12") in SF Pro Ultralight with tabular digits.
+private struct RecordingClock: View {
+    @ObservedObject var live: LiveMeter
+    var body: some View {
+        Text(RefinedRules.minutesClock(live.elapsed))
+            .font(.system(size: CGFloat(RefinedRules.TextRole.clock.size(mac: RefinedPlatform.mac)), weight: .ultraLight))
+            .monospacedDigit().tracking(-0.5).lineLimit(1)
+            .accessibilityLabel("Elapsed")
+            .accessibilityValue(RefinedRules.spokenTime(live.elapsed))
+            .accessibilityAddTraits(.updatesFrequently)
+    }
+}
+
+/// The recording card's waveform: the recent levels as bars across the card, newest on the right. It moves only with
+/// your voice (the meter), so Limit animation changes nothing; paused, it dims and holds.
+private struct RecordingWave: View {
+    @ObservedObject var live: LiveMeter
+    var color: Color
+    var paused: Bool
+    var body: some View {
+        Canvas { ctx, size in
+            let bar: CGFloat = 4, gap: CGFloat = 3
+            let slots = max(1, Int((size.width + gap) / (bar + gap)))
+            let levels = live.levels
+            for k in 0..<slots {
+                // Spread the meter's recent levels across the width, oldest on the left.
+                let i = levels.isEmpty ? 0 : min(levels.count - 1, k * levels.count / slots)
+                let level = levels.isEmpty ? 0 : CGFloat(levels[i])
+                let h = max(4, size.height * min(1, max(0.08, level * 1.4)))
+                let rect = CGRect(x: CGFloat(k) * (bar + gap), y: (size.height - h) / 2, width: bar, height: h)
+                ctx.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(color.opacity(paused ? 0.4 : 1)))
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Previews
 
 #if DEBUG
@@ -250,6 +337,24 @@ struct GlassPlayerBar_Previews: PreviewProvider {
             GlassPlayerBar(isPlaying: false, elapsed: 7, duration: 42, onPlayPause: {}, onSeek: { _ in }, onSpeed: {})
         }
         .padding(16).frame(width: RefinedPlatform.mac ? 600 : 390).background(Refined.paper)
+    }
+}
+
+struct RecordingCard_Previews: PreviewProvider {
+    static var previews: some View {
+        ForEach(AppPalette.allCases) { p in
+            RecordingCard(title: "Recording a voice note", detail: "MacBook Pro microphone · Saved as you go", live: LiveMeter()) {
+                Text("Chris mentioned the Lititz dealer wants a one-page sheet too.").readingStyle(Refined.onFill(.persimmon, p))
+            } controls: {
+                Button("Mark moment") {}.buttonStyle(RefinedActionStyle(ink: Refined.onFill(.persimmon, p), wash: Refined.readyChip(p)))
+                Button("Pause") {}.buttonStyle(RefinedActionStyle(ink: Refined.onFill(.persimmon, p), wash: Refined.readyChip(p)))
+                Spacer()
+                Button("Stop and transcribe") {}.buttonStyle(RefinedActionStyle(kind: .strong, ink: Refined.onFill(.persimmon, p), light: p == .full ? Refined.lift : Refined.paper))
+            }
+            .padding(20).frame(width: 760).background(Refined.paper)
+            .environment(\.paletteOverride, p)
+            .previewDisplayName("Recording card, \(p.label)")
+        }
     }
 }
 

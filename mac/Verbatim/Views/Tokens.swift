@@ -430,6 +430,8 @@ enum Refined {
     static let accentText = color(RefinedHex.accentText)
     static let sageText = color(RefinedHex.sageText)
     static let onFill = color(RefinedHex.onFill)
+    /// Reader white in both modes: text on an ink action on a Full fill (the recording card's Stop and transcribe).
+    static let lift = color(RefinedHex.lift)
     static let persimmon = color(RefinedHex.persimmon)
     static let butter = color(RefinedHex.butter)
     static let sage = color(RefinedHex.sage)

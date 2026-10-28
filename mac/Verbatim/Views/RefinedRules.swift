@@ -202,6 +202,13 @@ enum RefinedRules {
         return h > 0 ? String(format: "%d:%02d:%02d.%02d", h, m, sec, cs) : String(format: "%02d:%02d.%02d", m, sec, cs)
     }
 
+    /// The Mac recording card's clock: "01:12", and "1:01:12" past an hour.
+    static func minutesClock(_ seconds: Double) -> String {
+        let s = max(0, Int(seconds.isFinite ? seconds.rounded(.down) : 0))
+        let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%02d:%02d", m, sec)
+    }
+
     /// A length read aloud: "1 minute 12 seconds".
     static func spokenTime(_ seconds: Double) -> String {
         let s = max(0, Int(seconds.isFinite ? seconds.rounded(.down) : 0))

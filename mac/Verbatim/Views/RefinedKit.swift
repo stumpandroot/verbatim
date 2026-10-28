@@ -171,11 +171,12 @@ struct RecordCard: View {
     var hint: String
     var title = "Record"
     var accessibilityHint: String? = nil
+    var compact = false
     var actions: [RecordCardAction] = []
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) { RecordCardFace(status: status, title: title, hint: hint) }
+        Button(action: action) { RecordCardFace(status: status, title: title, hint: hint, compact: compact) }
             .buttonStyle(RefinedPress())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)
@@ -188,36 +189,58 @@ struct RecordCard: View {
     }
 }
 
-/// The Record card's drawing, with no button of its own.
+/// The Record card's drawing, with no button of its own. Compact (Edit Home's size) is one slim row: the serif title
+/// over the status, and a smaller disc.
 struct RecordCardFace: View {
     var status: String
     var title = "Record"
     var hint: String
+    var compact = false
     @CurrentPalette private var palette: AppPalette
     private let mac = RefinedPlatform.mac
 
+    /// Spelled out: the palette's wrapper is private, which would keep the synthesized one to this file.
+    init(status: String, title: String = "Record", hint: String, compact: Bool = false) {
+        self.status = status; self.title = title; self.hint = hint; self.compact = compact
+    }
+
     var body: some View {
         let ink = Refined.onFill(.persimmon, palette)
-        VStack(alignment: .leading, spacing: 0) {
-            ReadyChip(text: status)
-            Spacer(minLength: 14)
-            HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: mac ? 3 : 2) {
-                    Text(title).refinedFont(.recordTitle)
-                    // Full ink, not the mockup's 80%: ink at 80% on the fill measures 3.6:1.
-                    Text(hint).refinedFont(.hint).fixedSize(horizontal: false, vertical: true)
+        Group {
+            if compact {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title).refinedFont(.sectionTitle)
+                        Text(status).refinedFont(.chip, weight: .semibold).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    RecordDiscMark(size: 40)
                 }
-                Spacer(minLength: 8)
-                RecordDiscMark(size: 56)
+                .padding(.horizontal, mac ? 20 : 16).padding(.vertical, 12)
+                .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ReadyChip(text: status)
+                    Spacer(minLength: 14)
+                    HStack(alignment: .bottom, spacing: 12) {
+                        VStack(alignment: .leading, spacing: mac ? 3 : 2) {
+                            Text(title).refinedFont(.recordTitle)
+                            // Full ink, not the mockup's 80%: ink at 80% on the fill measures 3.6:1.
+                            Text(hint).refinedFont(.hint).fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 8)
+                        RecordDiscMark(size: 56)
+                    }
+                }
+                .padding(.horizontal, mac ? 22 : 18).padding(.vertical, mac ? 18 : 16)
+                .frame(maxWidth: .infinity, minHeight: mac ? 150 : 168, alignment: .leading)
             }
         }
         .foregroundStyle(ink)
-        .padding(.horizontal, mac ? 22 : 18).padding(.vertical, mac ? 18 : 16)
-        .frame(maxWidth: .infinity, minHeight: mac ? 150 : 168, alignment: .leading)
         .background(alignment: .topTrailing) {
             RecordRings(color: Refined.rings(palette), lineWidth: mac ? 2.2 : 2.4)
-                .frame(width: mac ? 260 : 210, height: mac ? 260 : 210)
-                .offset(x: mac ? -90 : 46, y: mac ? -40 : -14)
+                .frame(width: compact ? 140 : (mac ? 260 : 210), height: compact ? 140 : (mac ? 260 : 210))
+                .offset(x: compact ? 20 : (mac ? -90 : 46), y: compact ? -30 : (mac ? -40 : -14))
         }
         .refinedSurface(Refined.fill(.persimmon, palette), radius: RefinedPlatform.radius(.record))
         .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.record), style: .continuous))
@@ -284,37 +307,102 @@ struct RecordRings: View {
 
 /// A Home tile (mockup: Home's four): a bare glyph top left and the name at the foot, on its hue's fill (butter
 /// Dictate, sage Import, petal What's playing or App audio, the card for anything else). The Mac shows the shortcut
-/// at the trailing edge of the name. iPhone 74 pt tall with a 16 pt radius, Mac 84 pt with 14.
+/// at the trailing edge of the name. iPhone 74 pt tall with a 16 pt radius, Mac 84 pt with 14. Compact (Edit Home's
+/// size, and the Mac recorder mockup's row) is 58 pt: the name alone on the Mac, a smaller glyph over it on iPhone.
 struct ColorTile: View {
     var title: String
     var art: BrandArt
     var hue: RefinedHue
     var shortcut: String? = nil
+    var compact = false
     var action: () -> Void
+
+    init(title: String, art: BrandArt, hue: RefinedHue, shortcut: String? = nil, compact: Bool = false, action: @escaping () -> Void) {
+        self.title = title; self.art = art; self.hue = hue; self.shortcut = shortcut; self.compact = compact; self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) { ColorTileFace(title: title, art: art, hue: hue, shortcut: shortcut, compact: compact) }
+            .buttonStyle(RefinedPress())
+            .accessibilityLabel(title)
+            .accessibilityHint(shortcut.map { "Shortcut: " + Keycap.spoken($0) } ?? "")
+    }
+}
+
+/// A tile's drawing, with no button of its own: for a tile that's a menu (Import on iPhone) or that carries a popover.
+struct ColorTileFace: View {
+    var title: String
+    var art: BrandArt
+    var hue: RefinedHue
+    var shortcut: String? = nil
+    var compact = false
     @CurrentPalette private var palette: AppPalette
     private let mac = RefinedPlatform.mac
 
+    init(title: String, art: BrandArt, hue: RefinedHue, shortcut: String? = nil, compact: Bool = false) {
+        self.title = title; self.art = art; self.hue = hue; self.shortcut = shortcut; self.compact = compact
+    }
+
     var body: some View {
-        Button(action: action) {
-            let ink = Refined.onFill(hue, palette)
-            VStack(alignment: .leading, spacing: 0) {
-                IconGlyph(art: art, size: 22, color: ink)
-                Spacer(minLength: 8)
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(title).refinedFont(.tileName, weight: .semibold).lineLimit(2)
-                    Spacer(minLength: 4)
-                    if let shortcut { Text(shortcut).refinedFont(.caption).accessibilityHidden(true) }
-                }
+        let ink = Refined.onFill(hue, palette)
+        VStack(alignment: .leading, spacing: 0) {
+            if !(compact && mac) { IconGlyph(art: art, size: compact ? 18 : 22, color: ink) }
+            Spacer(minLength: compact ? 4 : 8)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(title).refinedFont(.tileName, weight: .semibold).lineLimit(2).minimumScaleFactor(compact ? 0.8 : 1)
+                Spacer(minLength: 4)
+                if let shortcut { Text(shortcut).refinedFont(.caption).accessibilityHidden(true) }
             }
-            .foregroundStyle(ink)
-            .padding(.horizontal, 14).padding(.vertical, mac ? 14 : 12)
-            .frame(maxWidth: .infinity, minHeight: mac ? 84 : 74, alignment: .leading)
-            .refinedSurface(Refined.fill(hue, palette), radius: RefinedPlatform.radius(.tile))
-            .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.tile), style: .continuous))
         }
-        .buttonStyle(RefinedPress())
-        .accessibilityLabel(title)
-        .accessibilityHint(shortcut.map { "Shortcut: " + Keycap.spoken($0) } ?? "")
+        .foregroundStyle(ink)
+        .padding(.horizontal, compact && !mac ? 10 : 14).padding(.vertical, compact ? 10 : (mac ? 14 : 12))
+        .frame(maxWidth: .infinity, minHeight: compact ? 58 : (mac ? 84 : 74), alignment: .leading)
+        .refinedSurface(Refined.fill(hue, palette), radius: RefinedPlatform.radius(.tile))
+        .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.tile), style: .continuous))
+    }
+}
+
+// MARK: - Actions
+
+/// The kit's buttons on its own surfaces (the recording card's Mark moment, Pause, and Stop and transcribe; New thought,
+/// a journal entry's play, Edit Home): quiet is a wash with ink text (the neutral wash on paper and cards; on the
+/// Record card's fill, pass the ready chip's, since the neutral wash falls under 4.5:1 there with Increase Contrast),
+/// strong is ink with light text. `ink` is the text color where the button sits (the palette's ink on a fill), and
+/// `light` the strong button's text. Mac 32 pt with an 8 pt radius, iPhone a capsule at least 44 pt tall. System
+/// chrome keeps the system's own buttons.
+struct RefinedActionStyle: ButtonStyle {
+    enum Kind { case quiet, strong }
+    var kind: Kind = .quiet
+    var ink: Color = Refined.ink
+    var light: Color = Refined.paper
+    var wash: Color = Refined.neutral
+
+    func makeBody(configuration: Configuration) -> some View {
+        ActionBody(configuration: configuration, style: self)
+    }
+
+    private struct ActionBody: View {
+        let configuration: ButtonStyleConfiguration
+        let style: RefinedActionStyle
+        @Environment(\.isEnabled) private var enabled
+        @Environment(\.limitMotion) private var limitMotion
+        private let mac = RefinedPlatform.mac
+
+        var body: some View {
+            let strong = style.kind == .strong
+            let shape = RoundedRectangle(cornerRadius: mac ? 8 : 22, style: .continuous)
+            configuration.label
+                .refinedFont(.hint, weight: .semibold)
+                .lineLimit(1)
+                .foregroundStyle(strong ? style.light : style.ink)
+                .padding(.horizontal, mac ? 14 : 16)
+                .frame(minHeight: mac ? 32 : CGFloat(RefinedRules.minTapTarget))
+                .background(strong ? style.ink : style.wash, in: shape)
+                .contentShape(shape)
+                .opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.45)
+                .scaleEffect(configuration.isPressed && !limitMotion ? 0.98 : 1)
+                .animation(limitMotion ? Motion.fade : Motion.press, value: configuration.isPressed)
+        }
     }
 }
 
@@ -363,6 +451,161 @@ struct PaperList<Data: RandomAccessCollection, ID: Hashable, Row: View>: View {
                 row(element)
             }
         }
+    }
+}
+
+/// A recording as a row in a card (Home's Recent): on iPhone the kind's badge, the title over its meta line, and a
+/// trailing length; on the Mac one line, the kind's dot, the title, the meta, and the trailing length. `trailing`
+/// takes the place of the length when it's set (a stage while it transcribes).
+struct PaperRow<Trailing: View>: View {
+    var kind: RecordingKind?
+    var title: String
+    var meta: String
+    @ViewBuilder var trailing: Trailing
+    private let mac = RefinedPlatform.mac
+
+    var body: some View {
+        if mac {
+            HStack(spacing: 12) {
+                KindBadge(kind: kind, size: 8)
+                Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(meta).refinedFont(.rowTitle).foregroundStyle(Refined.mute).lineLimit(1)
+                trailing.frame(minWidth: 40, alignment: .trailing)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 9)
+            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+            .contentShape(Rectangle())
+        } else {
+            HStack(spacing: 12) {
+                KindBadge(kind: kind)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                    Text(meta).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                trailing
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
+            .contentShape(Rectangle())
+        }
+    }
+}
+
+/// A length or a count at the end of a row, in the meta style with tabular digits ("0:42").
+struct RowLength: View {
+    var text: String
+    var body: some View {
+        Text(text).refinedFont(RefinedPlatform.mac ? .rowTitle : .meta).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1)
+    }
+}
+
+// MARK: - This week
+
+/// This week (mockup: the Mac's Home): the label, the week's words big with tabular digits, what else happened
+/// ("words, 20 recordings"), the time saved, and seven small bars, today's in persimmon, days to come as stubs. Large
+/// is the card (on the Mac a column with the bars at its foot, on iPhone the bars beside the numbers); Compact is one
+/// line. Decorative bars: the caller gives the card one VoiceOver label.
+struct WeekCard: View {
+    struct Day: Hashable {
+        /// The day's words as a share of the week's busiest day, 0...1; 0 for a day with none.
+        var share: Double
+        var isToday: Bool
+        var isFuture: Bool
+    }
+    var words: Int
+    /// "words, 20 recordings"
+    var detail: String
+    /// "25 min saved"
+    var saved: String
+    var days: [Day]
+    var large = true
+    private let mac = RefinedPlatform.mac
+
+    var body: some View {
+        Group {
+            if !large { compact } else if mac { macCard } else { phoneCard }
+        }
+        // Fills the band's height beside Recent recordings on the Mac; its own height in a scroll view.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
+    }
+
+    private var label: some View { Text("This week").refinedFont(.meta).foregroundStyle(Refined.mute) }
+    private var number: some View {
+        Text(words.formatted()).font(.system(size: mac ? 28 : 30, weight: .semibold)).monospacedDigit()
+            .foregroundStyle(Refined.ink).lineLimit(1).minimumScaleFactor(0.6)
+    }
+
+    private var macCard: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            label
+            number
+            Text(detail).refinedFont(.body).foregroundStyle(Refined.dim)
+            Text(saved).refinedFont(.meta).foregroundStyle(Refined.mute)
+            Spacer(minLength: 10)
+            RefinedWeekBars(days: days, height: 40)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+    }
+
+    private var phoneCard: some View {
+        HStack(alignment: .bottom, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                label
+                number
+                Text(detail).refinedFont(.hint).foregroundStyle(Refined.dim)
+                Text(saved).refinedFont(.meta).foregroundStyle(Refined.mute)
+            }
+            Spacer(minLength: 8)
+            RefinedWeekBars(days: days, height: 52)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+    }
+
+    private var compact: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                label
+                Text("\(words.formatted()) \(words == 1 ? "word" : "words")").refinedFont(.rowTitle, weight: .semibold)
+                    .monospacedDigit().foregroundStyle(Refined.ink).lineLimit(1).fixedSize()
+                Spacer(minLength: 8)
+                RefinedWeekBars(days: days, height: 22)
+                Text(saved).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1).fixedSize()
+            }
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 1) {
+                    label
+                    Text("\(words.formatted()) \(words == 1 ? "word" : "words")").refinedFont(.rowTitle, weight: .semibold)
+                        .monospacedDigit().foregroundStyle(Refined.ink)
+                    Text(saved).refinedFont(.meta).foregroundStyle(Refined.mute)
+                }
+                Spacer(minLength: 8)
+                RefinedWeekBars(days: days, height: 30)
+            }
+        }
+        .padding(.horizontal, mac ? 16 : 14).padding(.vertical, mac ? 10 : 12)
+        .frame(minHeight: CGFloat(mac ? 40 : RefinedRules.minTapTarget))
+    }
+}
+
+/// This week's seven bars: today in persimmon, other days in the rest color, days to come as short stubs.
+struct RefinedWeekBars: View {
+    var days: [WeekCard.Day]
+    var height: CGFloat
+    var body: some View {
+        let width: CGFloat = height > 30 ? 10 : 7
+        HStack(alignment: .bottom, spacing: height > 30 ? 6 : 4) {
+            ForEach(Array(days.enumerated()), id: \.offset) { _, d in
+                RoundedRectangle(cornerRadius: min(3, width / 2), style: .continuous)
+                    .fill(d.isToday ? Refined.persimmon : d.isFuture ? Refined.neutralSquare : Refined.waveRest)
+                    .frame(width: width, height: d.isFuture || d.share <= 0 ? 3 : max(4, height * CGFloat(min(1, d.share))))
+            }
+        }
+        .frame(height: height, alignment: .bottom)
+        .accessibilityHidden(true)
     }
 }
 
@@ -657,6 +900,43 @@ struct SerifSectionTitle_Previews: PreviewProvider {
         RefinedPreviewPage {
             SerifSectionTitle("Today")
             SerifSectionTitle("Recent", link: "See all") {}
+        }
+    }
+}
+
+struct PaperRow_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage {
+            SerifSectionTitle("Recent", link: "See all") {}
+            PaperCard {
+                PaperRow(kind: .meeting, title: "Lapp Wagons catalog call", meta: "Meeting · Today, 8:35 PM") { RowLength(text: "0:42") }
+                PaperDivider(leading: RefinedPlatform.mac ? 16 : 60, trailing: RefinedPlatform.mac ? 16 : 0)
+                PaperRow(kind: .audio, title: "Melody for the second verse", meta: "Audio only · Today, 2:14 PM") { RowLength(text: "1:12") }
+            }
+        }
+    }
+}
+
+struct WeekCard_Previews: PreviewProvider {
+    static let days: [WeekCard.Day] = [0.5, 1, 0.35, 0, 0, 0, 0].enumerated().map {
+        WeekCard.Day(share: $0.element, isToday: $0.offset == 2, isFuture: $0.offset > 2)
+    }
+    static var previews: some View {
+        RefinedPreviewPage {
+            WeekCard(words: 1414, detail: "words, 20 recordings", saved: "25 min saved", days: days)
+                .frame(width: RefinedPlatform.mac ? 260 : nil, height: RefinedPlatform.mac ? 190 : nil)
+            WeekCard(words: 1414, detail: "words, 20 recordings", saved: "25 min saved", days: days, large: false)
+        }
+    }
+}
+
+struct RefinedActionStyle_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage {
+            HStack {
+                Button("Mark moment") {}.buttonStyle(RefinedActionStyle())
+                Button("Stop and transcribe") {}.buttonStyle(RefinedActionStyle(kind: .strong))
+            }
         }
     }
 }
