@@ -153,6 +153,20 @@
         },
         {
           "platforms": [
+            "iphone"
+          ],
+          "text": "Home has the new look: a persimmon Record card, colored tiles, and recent recordings.",
+          "detail": "Tap the Record card for a voice note, or touch and hold it for more ways to record. In the Native look, Record leaves the tab bar on Home while the card is there."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Home has the new look: a persimmon Record card, colored tiles, Recent, and This week.",
+          "detail": "Click the Record card for a voice note, or right-click it for more ways to record. While you record, it becomes the recording, with Mark moment, Pause, and Stop and transcribe."
+        },
+        {
+          "platforms": [
             "iphone",
             "mac"
           ],
