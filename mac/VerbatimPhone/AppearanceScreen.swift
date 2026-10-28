@@ -8,11 +8,14 @@ import SwiftUI
 struct AppearanceScreen: View {
     @EnvironmentObject var app: PhoneState
     @AppStorage(AppLook.key, store: AppLook.store) private var lookRaw = AppLook.verbose.rawValue
+    /// The refined look's palette (DESIGN.md §13), stored with the look in the App Group.
+    @AppStorage(AppPalette.key, store: AppLook.store) private var palette: AppPalette = .full
     @Environment(\.look) private var look
     /// Whether Appearance is on screen, for the UI tour's checks.
     static var visible = false
 
     static let lookNote = "How Verbose looks on this iPhone. Your Mac has its own setting. The Verbose keyboard uses the same look."
+    static let paletteNote = "How much color the Record card and Home's tiles carry. Kind badges and speaker chips keep their colors."
 
     private var selection: Binding<AppLook> {
         // The switching card shows first, then the look is stored behind it (LookSwitch.swift).
@@ -31,6 +34,31 @@ struct AppearanceScreen: View {
                         .settingsSearchTarget("look", flash: nil)
                 }
                 .padding(.top, look.isNative ? 8 : 18)
+                section("Palette", footer: Self.paletteNote) {
+                    ForEach(Array(AppPalette.allCases.enumerated()), id: \.element) { i, p in
+                        if i > 0 { divider }
+                        Button { palette = p } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(p.label).font(.system(size: look.isNative ? 17 : 16)).foregroundStyle(.lookInk)
+                                    Text(p.detail).font(.footnote).foregroundStyle(.lookMute)
+                                }
+                                Spacer(minLength: 8)
+                                if palette == p {
+                                    Image(systemName: "checkmark").font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(.lookAccentText)
+                                }
+                            }
+                            .padding(.horizontal, look.isNative ? 16 : 14).padding(.vertical, 8)
+                            .frame(minHeight: look.isNative ? 46 : 50)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(SettingsRowPress())
+                        .accessibilityAddTraits(palette == p ? [.isButton, .isSelected] : .isButton)
+                    }
+                }
+                .settingsSearchTarget("palette", flash: nil)
+                .padding(.top, 26)
                 section("Light or dark") {
                     ForEach(Array(Self.modes.enumerated()), id: \.element.0) { i, mode in
                         if i > 0 { divider }

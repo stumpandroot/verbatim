@@ -74,6 +74,8 @@ enum SettingsSearchIndex {
         // Personalization and preferences. Settings › Appearance: the look, light or dark, and the Record card.
         .init(id: "look", section: personalization, label: "Appearance", keywords: ["look", "native", "verbose style", "apple", "plain", "illustrated", "theme", "style", "keyboard look", "appearance"],
               description: "The look: Verbose style or Native", target: .page(.appearance)),
+        .init(id: "palette", section: personalization, label: "Palette", keywords: ["color", "colour", "soft", "full", "tint", "muted", "bright", "pastel", "record card", "tiles"],
+              description: "Full color or soft tints on the Record card and tiles", target: .page(.appearance)),
         .init(id: "appearance", section: personalization, label: "Light or dark", keywords: ["appearance", "dark mode", "light mode", "theme", "night", "color"],
               description: "Match the system, light, or dark", target: .page(.appearance)),
         .init(id: "customizeHome", section: personalization, label: "Customize Home", keywords: ["edit home", "home", "sections", "reorder", "tiles", "shortcut tiles", "compact", "large", "hide"],
@@ -273,6 +275,7 @@ enum SettingsSearchIndex {
         case "dictionary": return "\(app.store.dictionary.count)"
         case "builtInVocabulary": return onOff(BuiltInVocabulary.isOn)
         case "look": return AppLook.current.label
+        case "palette": return AppPalette.current.label
         case "appearance": return app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"
         case "limitMotion": return onOff(d.bool(forKey: MotionPreference.key))
         case "haptics": return onOff(Haptics.enabled)

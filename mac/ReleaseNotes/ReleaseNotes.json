@@ -1,6 +1,20 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "A palette for the refined look",
+      "items": [
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Appearance has Palette: full color or soft tints for the Record card and tiles.",
+          "detail": "Soft trades the persimmon Record card and bright tiles for light tints of the same colors. Kind badges and speaker chips keep theirs."
+        }
+      ]
+    },
+    {
       "build": "236",
       "date": "2026-10-27",
       "version": "1.0 beta",
