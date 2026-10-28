@@ -60,13 +60,16 @@ extension PhoneUITest {
         check("Meeting notes and 1:1 have different icons", meeting != nil && oneOnOne != nil
               && String(describing: meeting.map(\.art)) != String(describing: oneOnOne.map(\.art)))
 
-        // P-35: one meta line under the transcript's title.
+        // P-35: one meta line under the transcript's title (the refined header: the kind is its chip, so the line is
+        // when, the length, and the speakers).
         var kinded = Transcript(title: "Call", source: .voiceMemo, sourceLabel: "Voice memo", duration: 40, audioFileName: nil, model: "")
         kinded.kind = .meeting
-        check("a meeting's meta line names what it is once", TranscriptScreen.metaParts(kinded) == ["Voice note"])
+        let metaLine = TranscriptScreen.meta(kinded, languageMenu: true, now: kinded.createdAt)
+        check("a meeting's meta line is when and the length, with no kind repeated (\(metaLine))",
+              metaLine.hasPrefix("Today, ") && metaLine.hasSuffix(" · 0:40") && !metaLine.contains("Meeting"))
         var link = Transcript(title: "Walkthrough", source: .link, sourceLabel: "youtube.com", duration: 400, audioFileName: nil, model: "")
         link.sourceURL = "https://www.youtube.com/watch?v=x"
-        check("a link without a kind doesn't repeat its site under the eyebrow", TranscriptScreen.metaParts(link).isEmpty)
+        check("a link's meta line doesn't repeat its site", !TranscriptScreen.meta(link, languageMenu: true).contains("youtube"))
 
         // P-37: Clean up's chip.
         check("Clean up reads Clean up while off, and its level once set",

@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// "unclear 2:10" in the reading view: where speech was heard but the engine wrote nothing it was sure of
-/// (UnclearRules). A quiet neutral chip (ink at 6%, dim text, the time in mono; no action hue, mac/DESIGN.md §1)
-/// that plays that spot. Shared by the Mac and the iPhone.
+/// (UnclearRules). A quiet chip on the refined look's neutral wash (dim text, the time in tabular digits; no hue,
+/// DESIGN.md §13) that plays that spot. Shared by the Mac and the iPhone.
 struct UnclearChip: View {
     var span: UnclearSpan
     /// Plays from the span's start; nil when the audio isn't open.
@@ -12,12 +12,12 @@ struct UnclearChip: View {
 
     private var label: some View {
         HStack(spacing: 6) {
-            Text("unclear").font(.system(size: 12.5, weight: .medium))
-            Text(time).font(Ink.mono(12))
+            Text("unclear").refinedFont(.chip, weight: .medium)
+            Text(time).refinedFont(.chip).monospacedDigit()
         }
-        .foregroundStyle(Ink.dim)
+        .foregroundStyle(Refined.dim)
         .padding(.horizontal, 10).frame(minHeight: 24)
-        .background(Ink.ink.opacity(0.06), in: Capsule())
+        .background(Refined.neutral, in: Capsule())
         .contentShape(Capsule())
         .fixedSize()
         .accessibilityElement(children: .ignore)

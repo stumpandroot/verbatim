@@ -1,26 +1,27 @@
 import SwiftUI
 
-/// The Summary block at the top of a transcript (Mac and iPhone): an editorial section header that folds the block,
-/// the overview, up to 5 key points, and the AI label. Edit makes it the person's own (automatic summaries never
-/// replace it then); Regenerate asks before replacing an edited one.
-///
-/// Hidden while there's nothing to show and Apple Intelligence can't run here: the Summarize action says why.
+/// A transcript's Summary tab in the refined look (DESIGN.md §13), on the Mac and iPhone, in both look settings: the
+/// overview in the serif reading text, the key points, Apple Intelligence's note, and Edit and Regenerate as accent
+/// links. Edit makes it the person's own (automatic summaries never replace it then); Regenerate asks before replacing
+/// an edited one. With no summary yet it offers Summarize, or says why Apple Intelligence can't write one here.
 struct SummaryBlock: View {
     var transcript: Transcript
-    /// Smaller type and spacing for iPhone.
-    var compact = false
     /// Runs the summary; `true` replaces a summary the person edited.
     var onSummarize: (_ replacingEdits: Bool) -> Void
     /// Saves the person's edit; nil removes the summary.
     var onSave: (TranscriptSummary?) -> Void
 
     @ObservedObject private var center = SummaryCenter.shared
-    @AppStorage("summary.collapsed") private var collapsed = false
     @State private var editing = false
     @State private var draft = ""
     @State private var confirmReplace = false
-    @Environment(\.limitMotion) private var limitMotion
 
+    init(transcript: Transcript, onSummarize: @escaping (_ replacingEdits: Bool) -> Void, onSave: @escaping (TranscriptSummary?) -> Void) {
+        self.transcript = transcript; self.onSummarize = onSummarize; self.onSave = onSave
+    }
+
+    /// Whether there's a summary to show, or one being written or that failed: the Mac's side column and the
+    /// iPhone's Summarize action read it.
     @MainActor static func shows(_ t: Transcript, center: SummaryCenter) -> Bool {
         guard t.status == .ready else { return false }
         if t.summary != nil { return true }
@@ -28,136 +29,118 @@ struct SummaryBlock: View {
         return center.isRunning(t.id) || center.failures[t.id] != nil
     }
 
-    private var bodySize: CGFloat { compact ? 16 : 15 }
-    private var animation: Animation { limitMotion ? Motion.fade : Motion.settle }
-
-    var body: some View {
-        if Self.shows(transcript, center: center) {
-            VStack(alignment: .leading, spacing: compact ? 10 : 12) {
-                header
-                if !collapsed {
-                    content.transition(.opacity)
-                }
-            }
-            .padding(.bottom, compact ? 14 : 18)
-            .confirmationDialog("Replace your edited summary?", isPresented: $confirmReplace, titleVisibility: .visible) {
-                Button("Replace", role: .destructive) { onSummarize(true) }
-                Button("Keep mine", role: .cancel) {}
-            } message: {
-                Text("Apple Intelligence writes a new summary, and your edits are gone.")
-            }
-        }
-    }
-
     private var running: Bool { center.isRunning(transcript.id) }
 
-    private var header: some View {
-        Button { withAnimation(animation) { collapsed.toggle() } } label: {
-            EditorialSectionHeader(index: collapsed ? "Show" : "Hide", label: "Summary")
-                .contentShape(Rectangle())
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if editing {
+                editor
+            } else if let s = transcript.summary, !s.isEmpty {
+                summary(s)
+            } else if running {
+                progressRow
+            } else if let why = center.failures[transcript.id] {
+                Text(why).refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+                if Summarizer.available { link("Try again") { onSummarize(false) } }
+            } else {
+                empty
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Summary")
-        .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
-        .accessibilityHint(collapsed ? "Shows the summary" : "Hides the summary")
-        .accessibilityAddTraits(.isHeader)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .confirmationDialog("Replace your edited summary?", isPresented: $confirmReplace, titleVisibility: .visible) {
+            Button("Replace", role: .destructive) { onSummarize(true) }
+            Button("Keep mine", role: .cancel) {}
+        } message: {
+            Text("Apple Intelligence writes a new summary, and your edits are gone.")
+        }
     }
 
-    @ViewBuilder private var content: some View {
-        if editing {
-            editor
-        } else if let s = transcript.summary {
-            VStack(alignment: .leading, spacing: compact ? 8 : 10) {
-                if !s.overview.isEmpty {
-                    Text(s.overview).font(.system(size: bodySize)).foregroundStyle(Ink.ink).lineSpacing(3)
-                        .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                }
-                if !s.keyPoints.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { _, p in
-                            HStack(alignment: .top, spacing: 10) {
-                                Diamond().fill(Ink.mute).frame(width: 5, height: 5).padding(.top, compact ? 8 : 7)
-                                Text(p).font(.system(size: bodySize)).foregroundStyle(Ink.ink)
-                                    .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                            }
+    private func summary(_ s: TranscriptSummary) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if !s.overview.isEmpty { ReadingText(s.overview) }
+            if !s.keyPoints.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Key points").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+                        .accessibilityAddTraits(.isHeader)
+                    ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { _, p in
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Circle().fill(Refined.played).frame(width: 6, height: 6)
+                                .alignmentGuide(.firstTextBaseline) { $0[.bottom] + 4 }
+                                .accessibilityHidden(true)
+                            ReadingText(p)
                         }
                     }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("Key points")
                 }
-                footer(s)
+                .accessibilityElement(children: .contain)
             }
-        } else if running {
-            progressRow
-        } else if let why = center.failures[transcript.id] {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(why).font(.system(size: compact ? 14 : 13)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
-                if Summarizer.available {
-                    Button("Try again") { onSummarize(false) }.buttonStyle(.plain)
-                        .font(.system(size: compact ? 14 : 12.5, weight: .semibold)).foregroundStyle(Ink.iris)
+            if transcript.summaryByModel {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    IconGlyph(art: .iconAI, size: 13, color: Refined.mute)
+                    Text(AIGeneratedNote.summary).refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+            }
+            if running { progressRow } else if let why = center.failures[transcript.id] {
+                Text(why).refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 18) {
+                link("Edit") { draft = s.plainText; editing = true }
+                if Summarizer.available, !running {
+                    link("Regenerate") { if transcript.summaryIsEdited { confirmReplace = true } else { onSummarize(false) } }
                 }
             }
+        }
+    }
+
+    /// No summary yet: Summarize, or why it can't run here.
+    @ViewBuilder private var empty: some View {
+        Text("No summary yet").refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
+        if let why = SummaryAction.unavailableReason {
+            Text(why).refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text("Apple Intelligence writes an overview and the key points from the transcript, on this device.")
+                .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+            Button("Summarize") { onSummarize(false) }
+                .buttonStyle(RefinedActionStyle(kind: .strong))
+                .disabled(transcript.status != .ready)
         }
     }
 
     private var progressRow: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text(progressText).font(.system(size: compact ? 14 : 13)).foregroundStyle(Ink.mute)
+            Text(progressText).refinedFont(.body).foregroundStyle(Refined.dim)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var progressText: String {
-        if let p = center.progress[transcript.id], p > 0 { return "Writing a summary… \(Int(p * 100))%" }
-        return "Writing a summary…"
+        if let p = center.progress[transcript.id], p > 0 { return "Writing a summary\u{2026} \(Int(p * 100))%" }
+        return "Writing a summary\u{2026}"
     }
 
-    private func footer(_ s: TranscriptSummary) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if transcript.summaryByModel { AIGeneratedNote(text: AIGeneratedNote.summary) }
-            if running {
-                progressRow
-            } else if let why = center.failures[transcript.id] {
-                Text(why).font(.system(size: compact ? 13.5 : 12.5)).foregroundStyle(Ink.mute)
-            }
-            HStack(spacing: compact ? 18 : 14) {
-                Button("Edit") { draft = s.plainText; withAnimation(animation) { editing = true } }
-                if Summarizer.available, !running {
-                    Button("Regenerate") {
-                        if transcript.summaryIsEdited { confirmReplace = true } else { onSummarize(false) }
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: compact ? 14 : 12.5, weight: .semibold))
-            .foregroundStyle(Ink.iris)
-        }
-        .padding(.top, 2)
+    private func link(_ title: String, _ action: @escaping () -> Void) -> some View {
+        RefinedLink(title: title, action: action)
     }
 
     private var editor: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("An overview, then one key point per line starting with “- ”.")
-                .font(.system(size: compact ? 13.5 : 12)).foregroundStyle(Ink.mute)
+            Text("An overview, then one key point per line starting with \u{201C}- \u{201D}.").refinedFont(.meta).foregroundStyle(Refined.mute)
             TextEditor(text: $draft)
-                .font(.system(size: bodySize)).lineSpacing(3)
+                .refinedFont(.body).foregroundStyle(Refined.ink)
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: compact ? 160 : 130)
+                .frame(minHeight: 160)
                 .padding(8)
-                .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
-            HStack(spacing: compact ? 18 : 14) {
-                Button("Save") {
+                .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+                .accessibilityLabel("Summary")
+            HStack(spacing: 18) {
+                link("Save") {
                     let parsed = TranscriptSummary.parse(draft)
                     onSave(parsed.isEmpty ? nil : parsed)
-                    withAnimation(animation) { editing = false }
+                    editing = false
                 }
-                .foregroundStyle(Ink.iris)
-                Button("Cancel") { withAnimation(animation) { editing = false } }
-                    .foregroundStyle(Ink.mute)
+                link("Cancel") { editing = false }
             }
-            .buttonStyle(.plain)
-            .font(.system(size: compact ? 14 : 12.5, weight: .semibold))
         }
     }
 }

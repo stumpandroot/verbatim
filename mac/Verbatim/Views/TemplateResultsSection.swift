@@ -1,14 +1,12 @@
 import SwiftUI
 import AppKit
 
-// brand: web style
-//
-// A template's result in the transcript (mockup "Library features", section 1d): the template's name, why it ran
+// A template's result in the transcript (mockup "Library features", section 1d), on the refined kit (DESIGN.md §13): the template's name, why it ran
 // ("Ran automatically because this is a Meeting"), Run again and Edit, the menu with Run another template, the
 // result's sections, and the footer that says Apple Intelligence made it. While Run automatically's run waits or works,
 // a line says so; when the kind changed after it ran, "Now a Journal. Run Daily reflection?" offers the new kind's
-// template and never runs it on its own. Sits at the top of the side column (Verbose) or the inspector (Native), or
-// above the text with Show the result first on.
+// template and never runs it on its own (the transcript shows that offer under its header). The transcript's result
+// tab, in both look settings.
 
 struct TemplateResultsSection: View {
     @EnvironmentObject var app: AppState
@@ -18,6 +16,9 @@ struct TemplateResultsSection: View {
     /// The "Run a template" pill when there's no result. Verbose style's transcript has it in its tool row, so its
     /// sections leave it out (review M-26); Native's inspector keeps it.
     var runRow = true
+    /// The kind-change offer ("Now a Journal. Run Daily reflection?"). The transcript shows it under its header
+    /// (`KindOfferRow`), so its result tab leaves it out.
+    var showsOffers = true
     @ObservedObject private var center = TemplateCenter.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @State private var editing: TemplateResult? = nil
@@ -44,10 +45,10 @@ struct TemplateResultsSection: View {
                 failedRow(m)
             }
             if let why = center.failures[transcript.id] {
-                Text(why).font(.system(size: 12.5)).foregroundStyle(Ink.danger).fixedSize(horizontal: false, vertical: true)
+                Text(why).refinedFont(.meta).foregroundStyle(Refined.accentText).fixedSize(horizontal: false, vertical: true)
             }
             // Filed as a Brain dump afterward, with nothing run: "Now a Brain dump. Run Plan my day?"
-            if let offer = AutoRunRules.offer(transcript, settings: auto.settings, templates: templates), offer.result == nil,
+            if showsOffers, let offer = AutoRunRules.offer(transcript, settings: auto.settings, templates: templates), offer.result == nil,
                !center.isPending(transcript.id), busy == nil {
                 offerRow(offer)
             }
@@ -70,9 +71,9 @@ struct TemplateResultsSection: View {
     private func card(_ r: TemplateResult, _ templates: [TranscriptTemplate]) -> some View {
         let parts = TemplateTitle.split(r.name)
         return VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 6) {
-                Eyebrow(text: "Template")
-                WebText.serif(parts.0, italic: parts.1, size: inline ? 26 : 23).foregroundStyle(Ink.ink)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Template").refinedFont(.meta).foregroundStyle(Refined.mute)
+                Text([parts.0, parts.1].compactMap { $0 }.joined(separator: " ")).refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                 if let reason = AutoRunRules.reason(r) {
@@ -80,63 +81,66 @@ struct TemplateResultsSection: View {
                         Image(systemName: "arrow.counterclockwise").font(.system(size: 10, weight: .semibold)).accessibilityHidden(true)
                         Text(reason)
                     }
-                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                    .refinedFont(.meta).foregroundStyle(Refined.mute)
                 }
             }
             HStack(spacing: 6) {
                 // A cut template's result (Key points) has no Run again; a retired one's runs its replacement.
                 if TemplateLibrary.runAgain(r) != nil {
-                    PillButton(title: "Run again", kind: .line, size: .mini, icon: .iconRecent, enabled: center.busyTemplate(transcript.id) == nil) { runAgain(r) }
+                    Button("Run again") { runAgain(r) }.buttonStyle(RefinedActionStyle())
+                        .disabled(center.busyTemplate(transcript.id) != nil)
                         .uiTarget("result-run-again")
                 }
-                PillButton(title: "Edit", kind: .line, size: .mini) { draft = r.text; editing = r }
+                Button("Edit") { draft = r.text; editing = r }.buttonStyle(RefinedActionStyle())
                     .uiTarget("result-edit")
                 moreMenu(r, templates)
             }
-            if let offer = AutoRunRules.offer(transcript, settings: auto.settings, templates: templates), offer.result == r.id {
+            if showsOffers, let offer = AutoRunRules.offer(transcript, settings: auto.settings, templates: templates), offer.result == r.id {
                 offerRow(offer)
             }
             if r.skippedParts > 0 {
                 Text("Apple Intelligence declined \(r.skippedParts) of \(r.totalParts) parts, so their words aren\u{2019}t in this result.")
-                    .font(.system(size: 11.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
+                    .refinedFont(.caption).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
             }
             if DayPlan.isPlan(r) {
                 // Plan my day: the plan, with Send to Reminders (DayNote.swift's MacRemindersSend).
                 MacPlanResult(transcript: transcript, result: r, inline: inline)
             } else {
-                TemplateResultBody(text: r.text, heading: Ink.serif(inline ? 19 : 17), textFont: .system(size: 13),
-                                   ink: AnyShapeStyle(Ink.ink), dim: AnyShapeStyle(Ink.mute))
+                TemplateResultBody(text: r.text, heading: .system(size: inline ? 19 : 17, design: .serif), textFont: .system(size: 13.5),
+                                   ink: AnyShapeStyle(Refined.ink), dim: AnyShapeStyle(Refined.mute))
             }
-            Rectangle().fill(Ink.hairline).frame(height: 1)
-            Text(TemplateCopy.footer(madeOn: r.madeOn, here: TemplateCenter.here)).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+            Rectangle().fill(Refined.separator).frame(height: 1)
+            Text(TemplateCopy.footer(madeOn: r.madeOn, here: TemplateCenter.here)).refinedFont(.meta).foregroundStyle(Refined.dim)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .modifier(TemplateCardSurface())
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         .accessibilityElement(children: .contain)
     }
 
     private func offerRow(_ offer: AutoRunRules.Offer) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(offer.text).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
+            Text(offer.text).refinedFont(.body, weight: .semibold).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 6) {
-                PillButton(title: "Run", kind: .dark, size: .mini) {
+                Button("Run") {
                     center.run(offer.template, on: transcript.id, store: app.store, replacing: offer.result, kind: offer.kind)
                 }
+                .buttonStyle(RefinedActionStyle(kind: .strong))
                 .uiTarget("result-offer-run")
-                PillButton(title: "Not now", kind: .line, size: .mini) {
+                Button("Not now") {
                     app.store.update(transcript.id) { x in
                         if offer.result == nil { AutoRunRules.dismissBrainDumpOffer(offer, on: &x, device: Device.id); return }
                         if let i = x.templateResults?.firstIndex(where: { $0.id == offer.result }) { x.templateResults?[i].offerDismissed = offer.kind.rawValue }
                     }
                 }
+                .buttonStyle(RefinedActionStyle())
                 .uiTarget("result-offer-dismiss")
             }
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Ink.chip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .background(Refined.neutral, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
     }
 
     private func moreMenu(_ r: TemplateResult, _ templates: [TranscriptTemplate]) -> some View {
@@ -155,9 +159,9 @@ struct TemplateResultsSection: View {
             Divider()
             Button("Delete Result", role: .destructive) { app.store.update(transcript.id) { $0.removeTemplateResult(r.id) } }
         } label: {
-            Image(systemName: "ellipsis").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.ink)
-                .frame(width: 28, height: 28)
-                .overlay(Circle().strokeBorder(Ink.ink, lineWidth: 1.5))
+            Image(systemName: "ellipsis").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.ink)
+                .frame(width: 32, height: 32)
+                .background(Refined.neutral, in: Circle())
                 .contentShape(Circle())
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
@@ -173,27 +177,28 @@ struct TemplateResultsSection: View {
     private func statusRow(_ text: String, spinner: Bool) -> some View {
         HStack(spacing: 8) {
             if spinner { ProgressView().controlSize(.small) }
-            Text(text).font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(2)
+            Text(text).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)
         }
         .padding(.horizontal, 12).padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Ink.chip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .background(Refined.neutral, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
     private func failedRow(_ m: AutoRunMark) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(m.name) didn\u{2019}t run").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
-            if let note = m.note { Text(note).font(.system(size: 12)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true) }
+            Text("\(m.name) didn\u{2019}t run").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
+            if let note = m.note { Text(note).refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true) }
             if TemplateLibrary.current(m.templateId) != nil {
-                PillButton(title: "Run again", kind: .line, size: .mini) {
+                Button("Run again") {
                     center.run(m.templateId, on: transcript.id, store: app.store, kind: m.kind)
                 }
+                .buttonStyle(RefinedActionStyle())
             }
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Ink.chip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .background(Refined.neutral, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
     }
 
     // MARK: Actions
@@ -207,40 +212,41 @@ struct TemplateResultsSection: View {
 
     private func editor(_ r: TemplateResult) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow(text: "Edit the result")
-            WebText.serif(r.name, size: 24).foregroundStyle(Ink.ink)
+            Text("Edit the result").refinedFont(.meta).foregroundStyle(Refined.mute)
+            Text(r.name).refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
             TextEditor(text: $draft)
-                .font(.system(size: 13.5)).scrollContentBackground(.hidden)
+                .refinedFont(.body).foregroundStyle(Refined.ink).scrollContentBackground(.hidden)
                 .padding(8)
-                .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+                .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
                 .accessibilityLabel("Result, editable. Made by Apple Intelligence")
             Text("Headings start with ## and checklist lines with - [ ]. It stays marked as Apple Intelligence\u{2019}s.")
-                .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                .refinedFont(.caption).foregroundStyle(Refined.mute)
             HStack(spacing: 8) {
                 Spacer()
-                PillButton(title: "Cancel", kind: .line, size: .mini) { editing = nil }
-                PillButton(title: "Save as Note", kind: .line, size: .mini) {
+                Button("Cancel") { editing = nil }.buttonStyle(RefinedActionStyle())
+                Button("Save as Note") {
                     app.store.addNote(Note(text: TemplateResultText.plain(draft), aiAction: r.name), to: transcript.id)
                     app.toast = Toast("Saved as a note"); editing = nil
                 }
-                PillButton(title: "Save", kind: .dark, size: .mini) {
+                .buttonStyle(RefinedActionStyle())
+                Button("Save") {
                     let text = draft
                     app.store.update(transcript.id) { x in
                         if let i = x.templateResults?.firstIndex(where: { $0.id == r.id }) { x.templateResults?[i].text = text; x.templateResults?[i].edited = true }
                     }
                     editing = nil
                 }
+                .buttonStyle(RefinedActionStyle(kind: .strong))
             }
         }
         .padding(22)
         .frame(width: 600, height: 520)
-        .background(Ink.paper)
+        .background(Refined.paper)
     }
 }
 
-/// A line mini pill menu of every template, by where it came from: runs the chosen one on the transcript (replacing
-/// a result when `replacing` is set). In the result card's menu, the side column, and Verbose style's tool row.
+/// A menu of every template, by where it came from, as the kit's quiet action: runs the chosen one on the transcript
+/// (replacing a result when `replacing` is set). On the transcript's Summary tab and in a result's card.
 struct RunTemplateMenu: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
@@ -260,9 +266,9 @@ struct RunTemplateMenu: View {
                 }
             }
         } label: {
-            PillLabel(title: title, kind: .line, size: .mini, icon: .iconAI, trailing: .chevron)
+            Text(title)
         }
-        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(RefinedActionStyle()).menuIndicator(.hidden).fixedSize()
         .help("Make notes, a plan, or a draft from this transcript with a template")
         .accessibilityLabel(title)
     }
@@ -285,14 +291,15 @@ struct MacPlanResult: View {
             if !plan.isEmpty {
                 HStack(spacing: 8) {
                     if DayPlan.allSent(plan, sent: sent) {
-                        Text("\u{2713} " + (DayPlan.sentStatus(plan, sent: sent) ?? "")).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
+                        Text("\u{2713} " + (DayPlan.sentStatus(plan, sent: sent) ?? "")).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
                     } else {
-                        PillButton(title: "Send to Reminders", kind: .dark, size: .mini) { open(plan, sent, only: nil) }
+                        Button("Send to Reminders") { open(plan, sent, only: nil) }
+                            .buttonStyle(RefinedActionStyle(kind: .strong))
                             .uiTarget("result-send-reminders")
                             .popover(isPresented: Binding(get: { model != nil && look != .native }, set: { if !$0 { model = nil } }), arrowEdge: .bottom) {
                                 if let m = model { MacRemindersSend(model: m, onSent: done, onCancel: { model = nil }).environmentObject(app) }
                             }
-                        if let s = DayPlan.sentStatus(plan, sent: sent) { Text(s).font(.system(size: 12)).foregroundStyle(Ink.mute) }
+                        if let s = DayPlan.sentStatus(plan, sent: sent) { Text(s).refinedFont(.meta).foregroundStyle(Refined.mute) }
                     }
                 }
             }

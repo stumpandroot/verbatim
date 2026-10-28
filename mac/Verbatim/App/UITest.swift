@@ -611,6 +611,9 @@ enum UITest {
         await show("05e-recently-deleted")
         if let m = memo { app.go(.transcript(m.id)) }
         await show("06-transcript")
+        if let m = memo { transcriptLayoutCheck(app, m.id, look: .verbose) }
+        NotificationCenter.default.post(name: .verbatimShowMode, object: "Summary")
+        await show("06h-transcript-summary")
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
         try? await Task.sleep(nanoseconds: 1_500_000_000)   // Harper lints off the main thread
         await show("06b-document")
@@ -645,12 +648,13 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 1_000_000_000)
         app.go(.transcript(long))
         await show("06c-long-transcript")
-        // Scrolled down: the mode bar and tools pin under the top edge.
+        // Opened at a passage far down (as from search): the bar stays put above the column, and the line is in view.
         app.go(.home)
         try? await Task.sleep(nanoseconds: 600_000_000)
         if let seg = app.store.transcript(long)?.segments[120].id { app.focusSegment = seg }
         app.go(.transcript(long))
-        await show("06d-pinned-tools")
+        await show("06d-transcript-at-passage")
+        check("a transcript opened at a passage selects it", app.store.transcript(long)?.segments[120].id == NativeNav.shared.selectedSegment)
         app.go(.home)
         try? await Task.sleep(nanoseconds: 800_000_000)
         app.go(.transcript(long))
@@ -806,6 +810,10 @@ enum UITest {
         NativeNav.shared.inspector = inspectorWas
         if let m = memo { app.go(.transcript(m)) }
         await show("06-transcript-native")
+        if let m = memo { transcriptLayoutCheck(app, m, look: .native) }
+        NotificationCenter.default.post(name: .verbatimShowMode, object: "Summary")
+        await show("06h-transcript-summary-native")
+        NotificationCenter.default.post(name: .verbatimShowMode, object: "Transcript")
         app.go(.byDay(.idea))
         await show("05n-by-day-thoughts-native")
         app.go(.byDay(.journal))
@@ -1106,6 +1114,24 @@ enum UITest {
         NativeNav.shared.librarySelection = nil
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// A transcript draws its one refined layout in either look (DESIGN.md §13), once: the screen on screen is the one
+    /// built in this look, its tabs start Original, Cleaned, and Summary, its turns take the speaker rotation by who
+    /// talks first, and its meta line says when and how long without repeating the kind.
+    static func transcriptLayoutCheck(_ app: AppState, _ id: UUID, look: AppLook) {
+        let tag = look == .native ? "transcript (native)" : "transcript"
+        check("\(tag): one refined transcript on screen, built in this look (\(TranscriptView.onScreen.map(\.rawValue).sorted().joined(separator: ", ")))",
+              TranscriptView.onScreen == [look])
+        guard let t = app.store.transcript(id) else { return }
+        let tabs = TranscriptView.tabs(t, current: .original, templates: app.store.allTemplates).map(\.1)
+        check("\(tag): its tabs start Original, Cleaned, and Summary (\(tabs.joined(separator: ", ")))", Array(tabs.prefix(3)) == ["Original", "Cleaned", "Summary"])
+        let first = t.segments.first?.speaker
+        check("\(tag): the first speaker to talk takes the first chip color", first.map { t.speakerOrder[$0] == 0 } ?? true)
+        let meta = TranscriptView.meta(t)
+        check("\(tag): the meta line says when and how long, and not the kind (\(meta))",
+              meta.contains(RefinedRules.time(t.duration)) && !meta.contains(RecordingKind.refinedName(t.kind)))
+        check("\(tag): the reading text starts at the serif's 18 pt", NativeNav.shared.textSize >= NativeNav.textSizes.min && NativeNav.textSizes.normal == 18)
     }
 
     /// Switches the look as the picker does, checks the card shows in the new look and goes, and logs the time from the
@@ -3090,7 +3116,7 @@ extension UITest {
         check("\(name): the table's People or source column fits Transcribing in the test window (M-22)",
               LibraryColumns(width: 1000 - 232 - 2 * 40).people >= 104)
         // Transcript
-        check("\(name): playback is sage, not Record (M-24)", PlayerDock.playFill == Ink.panelSage && PlayerDock.playFill != Ink.panelRecord)
+        check("\(name): playback is sage, not Record (M-24)", RefinedHex.played != RefinedHex.persimmon && RefinedHex.playing.base != RefinedHex.persimmon)
         let segs = [Segment(start: 0, end: 1, text: "Hi.", speaker: "S2"), Segment(start: 1, end: 2, text: "Hello.", speaker: "S1"),
                     Segment(start: 2, end: 3, text: "Again.", speaker: "S2")]
         check("\(name): speaker colors follow who talks first (M-30)",

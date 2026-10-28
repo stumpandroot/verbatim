@@ -111,6 +111,13 @@ enum RefinedRules {
         return speakerRotation[((index % n) + n) % n]
     }
 
+    /// A project's chip in a transcript's header takes a hue by the project's color index: butter, sage, petal, then
+    /// persimmon, and around again.
+    static func projectHue(_ colorIndex: Int) -> RefinedHue {
+        let hues: [RefinedHue] = [.butter, .sage, .petal, .persimmon]
+        return hues[((colorIndex % hues.count) + hues.count) % hues.count]
+    }
+
     // MARK: Type and size
 
     /// The kit's type roles. Serif (New York) for large titles, section titles, the Record card's title, and the
@@ -232,6 +239,33 @@ enum RefinedRules {
         if let weekAgo = calendar.date(byAdding: .day, value: -6, to: today), date >= weekAgo, date < today { return formatted("EEE") }
         if calendar.isDate(date, equalTo: now, toGranularity: .year) { return formatted("MMM d") }
         return formatted("MMM d yyyy")
+    }
+
+    /// When a transcript was recorded, as its header says it (mockup: transcript): "Today, 8:35 PM", "Yesterday,
+    /// 8:35 PM", the weekday with the date this year ("Tuesday, Oct 27, 8:35 PM"), and the date with its year before
+    /// that ("Oct 27, 2025, 8:35 PM").
+    static func transcriptWhen(_ date: Date, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current) -> String {
+        func formatted(_ template: String) -> String {
+            let f = DateFormatter()
+            f.locale = locale; f.calendar = calendar; f.timeZone = calendar.timeZone
+            f.setLocalizedDateFormatFromTemplate(template)
+            return f.string(from: date)
+        }
+        let time = formatted("jmm")
+        if calendar.isDate(date, inSameDayAs: now) { return "Today, \(time)" }
+        if let y = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: y) { return "Yesterday, \(time)" }
+        if calendar.isDate(date, equalTo: now, toGranularity: .year) { return "\(formatted("EEEEMMMd")), \(time)" }
+        return "\(formatted("MMMdyyyy")), \(time)"
+    }
+
+    /// The transcript header's meta line after its chips: when, the length, the speakers ("2 speakers"), and the
+    /// language, joined with middle dots. A length of zero (a dictation's text, a link still coming) is left out.
+    static func transcriptMeta(when: String, duration: Double, speakers: Int, language: String? = nil) -> String {
+        var parts = [when]
+        if duration > 0 { parts.append(time(duration)) }
+        if speakers >= 2 { parts.append("\(speakers) speakers") }
+        if let language, !language.isEmpty { parts.append(language) }
+        return parts.joined(separator: " \u{00B7} ")
     }
 
     // MARK: Contrast (WCAG 2.x)

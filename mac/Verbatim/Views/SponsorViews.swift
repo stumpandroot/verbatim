@@ -3,8 +3,8 @@ import SwiftUI
 // Sponsor reads in the transcript and the player, shared by the Mac and iPhone apps. The rules are in
 // Model/Sponsors.swift and Transcription/SponsorDetect.swift.
 
-/// A folded sponsor read: one compact row, "Sponsor: Good Ranchers · 1:12", in the Background voices card's form
-/// (a neutral tile with the glyph, card white, a hairline) but inline with the lines. Click or tap to show the read's
+/// A folded sponsor read: one compact row, "Sponsor: Good Ranchers · 1:12", on the refined kit (DESIGN.md §13): the
+/// sponsor glyph on a neutral square and the title on a card, inline with the lines. Click or tap to show the read's
 /// lines; its menu plays the read or says it isn't a sponsor.
 struct SponsorFoldRow: View {
     var span: SponsorSpan
@@ -14,21 +14,23 @@ struct SponsorFoldRow: View {
     var onPlay: (() -> Void)? = nil
     var onNotSponsor: () -> Void
     @Environment(\.limitMotion) private var limitMotion
-    @Environment(\.look) private var look
 
     var body: some View {
         HStack(spacing: 6) {
             Button { withAnimation(limitMotion ? nil : Motion.settle) { onToggle() } } label: {
                 HStack(spacing: 10) {
-                    glyph
+                    IconGlyph(art: .iconSponsor, size: compact ? 14 : 16, color: Refined.ink)
+                        .frame(width: compact ? 26 : 30, height: compact ? 26 : 30)
+                        .background(Refined.neutralSquare, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.square), style: .continuous))
                     Text(SponsorFold.title(span))
-                        .font(.system(size: compact ? 13.5 : 15, weight: .semibold)).monospacedDigit()
-                        .foregroundStyle((look == .native) ? Color.primary : Ink.ink).lineLimit(1).truncationMode(.middle)
+                        .refinedFont(.rowTitle, weight: .semibold).monospacedDigit()
+                        .foregroundStyle(Refined.ink).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle((look == .native) ? Color.secondary : Ink.mute)
+                        .foregroundStyle(Refined.mute)
                         .rotationEffect(.degrees(open ? 180 : 0))
                 }
+                .frame(minHeight: RefinedPlatform.mac ? 0 : CGFloat(RefinedRules.minTapTarget))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -36,8 +38,8 @@ struct SponsorFoldRow: View {
             .accessibilityHint(open ? "Hides the sponsor read" : "Shows the sponsor read")
             Menu { items } label: {
                 Image(systemName: "ellipsis").font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle((look == .native) ? Color.secondary : Ink.dim)
-                    .frame(width: 30, height: compact ? 26 : 32).contentShape(Rectangle())
+                    .foregroundStyle(Refined.dim)
+                    .frame(width: RefinedPlatform.mac ? 30 : 44, height: RefinedPlatform.mac ? 26 : 44).contentShape(Rectangle())
             }
             #if os(macOS)
             .menuStyle(.borderlessButton)
@@ -45,21 +47,9 @@ struct SponsorFoldRow: View {
             .menuIndicator(.hidden).fixedSize()
             .accessibilityLabel("Sponsor read options")
         }
-        .padding(.leading, 6).padding(.trailing, 4).padding(.vertical, compact ? 5 : 6)
-        .modifier(SponsorRowSurface(native: look == .native, compact: compact))
+        .padding(.leading, 6).padding(.trailing, 4).padding(.vertical, compact ? 5 : 2)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         .contextMenu { items }
-    }
-
-    /// The sponsor glyph on a neutral tile in Verbose style; a plain gray symbol in Native.
-    @ViewBuilder private var glyph: some View {
-        if look == .native {
-            Image(systemName: "tag").font(.system(size: compact ? 13 : 15)).foregroundStyle(.secondary)   // brand: native
-                .frame(width: compact ? 26 : 30, height: compact ? 26 : 30)
-        } else {
-            IconGlyph(art: .iconSponsor, size: compact ? 14 : 16, color: Ink.ink)
-                .frame(width: compact ? 26 : 30, height: compact ? 26 : 30)
-                .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-        }
     }
 
     @ViewBuilder private var items: some View {
@@ -67,22 +57,6 @@ struct SponsorFoldRow: View {
         if let onPlay { Button("Play the read", action: onPlay) }
         Divider()
         Button("Not a sponsor", action: onNotSponsor)
-    }
-}
-
-/// The fold row's surface: card white with a hairline in Verbose style; in Native, a gray rounded row like a
-/// disclosure group's, with no edge.
-private struct SponsorRowSurface: ViewModifier {
-    var native: Bool
-    var compact: Bool
-    func body(content: Content) -> some View {
-        if native {
-            content.background(.fill.tertiary, in: RoundedRectangle(cornerRadius: compact ? 8 : 12, style: .continuous))   // brand: native
-        } else {
-            content
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
-        }
     }
 }
 
@@ -114,16 +88,4 @@ extension View {
 
     /// Playback on this screen jumps past the transcript's sponsor reads while Skip sponsor reads is on.
     func skipsSponsors(_ t: Transcript, player: Player) -> some View { modifier(SponsorSkipping(transcript: t, player: player)) }
-}
-
-/// "Skipped sponsor" in the dock, where the time usually is, for a moment after playback jumps past a read. Read
-/// aloud by VoiceOver. Never a dialog.
-struct SkippedSponsorNote: View {
-    var text: String
-    var size: CGFloat = 12.5
-    var body: some View {
-        Text(text).font(.system(size: size, weight: .semibold)).foregroundStyle(Ink.paperFixed).lineLimit(1).fixedSize()
-            .transition(.opacity)
-            .onAppear { AccessibilityNotification.Announcement(text).post() }
-    }
 }

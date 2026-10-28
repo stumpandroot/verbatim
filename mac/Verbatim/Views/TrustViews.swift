@@ -160,19 +160,17 @@ struct FixAllBanner: View {
         if let o = fix.offer, o.transcript == transcriptID {
             HStack(spacing: 12) {
                 Text(CorrectEverywhere.bannerText(heard: o.heard, count: o.count))
-                    .font(.system(size: 13)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
+                    .refinedFont(.body).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Button(CorrectEverywhere.buttonTitle(o.count)) { fixAll(o) }.buttonStyle(.pillLine())
+                Button(CorrectEverywhere.buttonTitle(o.count)) { fixAll(o) }.buttonStyle(RefinedActionStyle(kind: .strong))
                 if o.offerDictionary {
-                    Button("Add to Dictionary") { addToDictionary(o) }.buttonStyle(.plain)
-                        .font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.dim)
+                    Button("Add to Dictionary") { addToDictionary(o) }.buttonStyle(RefinedActionStyle())
                 }
-                Button { fix.dismiss() } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Ink.mute) }
+                Button { fix.dismiss() } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Refined.mute) }
                     .buttonStyle(.plain).accessibilityLabel("Dismiss")
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(Ink.wash, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
             .transition(.opacity)
         }
     }

@@ -21,10 +21,19 @@ final class NativeNav: ObservableObject {
     /// The inspector beside the Library and transcripts. Remembered on this Mac.
     @Published var inspector: Bool { didSet { UserDefaults.standard.set(inspector, forKey: Self.inspectorKey) } }
     static let inspectorKey = "native.inspector"
-    /// The open transcript's tab, text size, and whether the text follows playback.
+    /// The open transcript's tab, reading text size, and whether the text follows playback (both looks).
     @Published var mode: TranscriptView.Mode = .original
-    @Published var textSize: CGFloat = 16
+    @Published var textSize: CGFloat = NativeNav.textSizes.normal
     @Published var follow = true
+    /// The Original tab's engine words and Select text, from More or the row above the lines.
+    @Published var showEngine = false
+    @Published var selecting = false
+    /// The reading text's sizes: the serif's 18 pt (DESIGN.md §13), from 14 to 24 with ⌘+ and ⌘−.
+    struct TextSizes {
+        let min: CGFloat = 14, max: CGFloat = 24, normal: CGFloat = 18
+        func clamp(_ v: CGFloat) -> CGFloat { Swift.min(max, Swift.max(min, v)) }
+    }
+    static let textSizes = TextSizes()
     /// The passage selected in the open transcript (a note added in the inspector links to it).
     @Published var selectedSegment: UUID?
     /// The Library item whose preview the inspector shows, and the row Back comes back to (both looks).
@@ -94,8 +103,17 @@ final class NativeNav: ObservableObject {
 
     var copyVersion: Exporter.CopyVersion { mode == .document ? .cleaned : .original }
 
-    /// Review shows each fix side by side; it lives in More, beside Original and Cleaned in the toolbar.
+    /// Review shows each fix side by side: a tab once there are corrections, and More's Review Changes.
     func toggleReview() { mode = mode == .review ? .original : .review }
+
+    /// A transcript opened: its own tab (the result first when Show the result first says so), and Original's
+    /// words and lines as they are.
+    func opened(_ t: Transcript, focus: Bool) {
+        let start: TranscriptView.Mode = !focus && TemplateResultsSection.showsFirst(t) ? .result : .original
+        if mode != start { mode = start }
+        if showEngine { showEngine = false }
+        if selecting { selecting = false }
+    }
 }
 
 extension Screen {
@@ -156,7 +174,7 @@ struct NativeInspector: View {
                 LibraryPreview(nav: nav)
             case .transcript(let id):
                 if let t = app.store.transcript(id) {
-                    if t.showsAudioDetail { MacAudioInspector(transcript: t) } else { PremiumTranscriptInspector(transcript: t, nav: nav) }
+                    if t.showsAudioDetail { MacAudioInspector(transcript: t) } else { TranscriptSide(transcript: t, nav: nav) }
                 }
             default:
                 Color.clear
@@ -180,8 +198,8 @@ struct NativeToolbar: ToolbarContent {
     var body: some ToolbarContent {
         let _ = LookSwitch.mark("toolbar")
         ToolbarItem(id: "native.leading", placement: .navigation) { NativeLeadingItem(nav: nav, screen: screen) }
-        if screen.transcriptID != nil {
-            ToolbarItem(id: "native.center", placement: .principal) { NativeModePicker(nav: nav) }
+        if let id = screen.transcriptID {
+            ToolbarItem(id: "native.center", placement: .principal) { NativeModePicker(nav: nav, id: id) }
         } else {
             ToolbarItem(id: "native.record", placement: .primaryAction) { NativeRecordButton() }
         }
@@ -296,18 +314,21 @@ struct NativeRecordMenu: View {
     }
 }
 
-/// A transcript's Original and Cleaned, as a segmented control in the toolbar. Review is in More; while it's on,
-/// neither segment is chosen.
+/// A transcript's tabs as a segmented control in the toolbar: Original, Cleaned, and Summary, then Review once there
+/// are corrections and a template's result (`TranscriptView.tabs`). An Audio only recording has none.
 private struct NativeModePicker: View {
+    @EnvironmentObject var app: AppState
     @ObservedObject var nav: NativeNav
+    var id: UUID
 
     var body: some View {
-        Picker("View", selection: $nav.mode) {
-            Text(TranscriptView.Mode.original.title).tag(TranscriptView.Mode.original)
-            Text(TranscriptView.Mode.document.title).tag(TranscriptView.Mode.document)
+        if let t = app.store.transcript(id), !t.showsAudioDetail, t.status == .ready {
+            Picker("View", selection: $nav.mode) {
+                ForEach(TranscriptView.tabs(t, current: nav.mode, templates: app.store.allTemplates), id: \.0) { m, title in Text(title).tag(m) }
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            .help("Original keeps every word as said; Cleaned is the tidied text; Summary has the overview")
         }
-        .pickerStyle(.segmented).labelsHidden().fixedSize()
-        .help("Original keeps every word as said; Cleaned is the tidied text")
     }
 }
 
@@ -347,43 +368,13 @@ private struct NativeActionsItem: View {
 
     private func transcriptActions(_ t: Transcript) -> some View {
         HStack(spacing: 8) {
-            Menu {
-                Button("Copy (⇧⌘C)") { ExportMenu.copy(t, nav.copyVersion, app: app) }
-                Button("Copy with Timestamps") { ExportMenu.copy(t, nav.copyVersion, timestamps: true, app: app) }
-                Button(nav.copyVersion == .cleaned ? "Copy the Original" : "Copy the Cleaned Text") { ExportMenu.copy(t, nav.copyVersion.other, app: app) }
-                Button("Copy Engine Words") { ExportMenu.copy(t, .engine, app: app) }
-                    .disabled(!t.hasEngineWords)
-                Button("Copy for AI") { CopyForAI.copy(t, app: app) }
-                Divider()
-                Button("Export…") { app.exportRequest = ExportRequest(ids: [t.id]) }
-            } label: { Label("Share", systemImage: "square.and.arrow.up") }
+            Menu { TranscriptShareItems(transcript: t, nav: nav) } label: { Label("Share", systemImage: "square.and.arrow.up") }
                 .menuIndicator(.hidden)
                 .disabled(t.status != .ready)
                 .help("Copy, or export as text, Markdown, Word, subtitles, or JSON")
-            Menu {
-                Button("Mark This Moment") { nav.bookmark(t, app: app) }
-                    .disabled(t.audioFileName == nil || t.status != .ready)
-                Button("Continue Recording") { app.continueRecording(t.id) }
-                    .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || t.isAudioOnly || app.recorder.isRecording)
-                Divider()
-                Menu("Run an Action") { ActionsMenuItems(transcript: t.id) { nav.runningAction = $0 } }
-                    .disabled(t.status != .ready)
-                Button(SummaryAction.title(t)) { nav.summarize(t, app: app) }
-                    .disabled(t.status != .ready || t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
-                Toggle("Review Changes", isOn: Binding(get: { nav.mode == .review }, set: { on in if on != (nav.mode == .review) { nav.toggleReview() } }))
-                Divider()
-                Button(TurboRerun.title + "…") { app.turboAsk = t.id }
-                    .disabled(t.status != .ready || TurboRerun.unavailableReason(t) != nil)
-                if let other = TurboRerun.switchTitle(t) { Button(other) { app.switchTranscriptVersion(t.id) } }
-                Divider()
-                Menu("Text Size") {
-                    Button("Larger Text") { nav.textSize = min(22, nav.textSize + 1) }
-                    Button("Smaller Text") { nav.textSize = max(13, nav.textSize - 1) }
-                    Button("Default Size") { nav.textSize = 16 }
-                }
-            } label: { Label("More", systemImage: "ellipsis.circle") }
+            Menu { TranscriptMoreItems(transcript: t, nav: nav) } label: { Label("More", systemImage: "ellipsis.circle") }
                 .menuIndicator(.hidden)
-                .help("Mark a moment, record more, run an action, summarize, review the fixes, or change the text size")
+                .help("Mark a moment, record more, run a template or an action, summarize, review the fixes, or change the text size")
                 .uiWindowTarget("tb-more")
         }
     }

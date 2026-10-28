@@ -26,29 +26,160 @@ extension View {
     func readingStyle(_ color: Color = Refined.ink) -> some View {
         refinedFont(.reading).foregroundStyle(color)
     }
+
+    /// Reading text at a size the reader picked (the Mac's ⌘+ and ⌘−), in the serif with the reading line height.
+    func readingStyle(size: CGFloat, color: Color = Refined.ink) -> some View {
+        let base = RefinedRules.TextRole.reading.size(mac: RefinedPlatform.mac)
+        let spacing = RefinedRules.lineSpacing(.reading, mac: RefinedPlatform.mac) / base
+        return font(.system(size: size, design: .serif)).lineSpacing(size * CGFloat(spacing)).foregroundStyle(color)
+    }
+}
+
+// MARK: - Turns
+
+/// The line above a turn's text: the time in the meta style with tabular digits (sage text while the turn plays), and
+/// a small accent bookmark when the line is marked or bookmarked (never a butter wash). The caller puts the speaker's
+/// chip before it when the speaker changes, and makes the time a button that plays from there.
+struct TurnTime: View {
+    var time: String
+    var playing = false
+    var marked = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(time).refinedFont(.meta).monospacedDigit().foregroundStyle(playing ? Refined.sageText : Refined.mute)
+                .lineLimit(1).fixedSize()
+            if marked { MomentMark() }
+        }
+    }
+}
+
+/// A marked or bookmarked line's mark: the bookmark glyph in the accent, 12 pt on the Mac and 13 on iPhone.
+/// Decorative: the turn's spoken label says "marked".
+struct MomentMark: View {
+    @ScaledMetric(relativeTo: .footnote) private var size: CGFloat = RefinedPlatform.mac ? 12 : 13
+    init() {}
+    var body: some View {
+        IconGlyph(art: .iconMarked, size: size, color: Refined.accentText).accessibilityHidden(true)
+    }
+}
+
+/// A moment marked while recording, under its line: the accent mark, "Moment 0:24", and where it came from
+/// ("Lock Screen") on the neutral wash. The caller makes it a button that plays from the moment.
+struct MomentChip: View {
+    var time: String
+    var source: String? = nil
+    var body: some View {
+        HStack(spacing: 6) {
+            MomentMark()
+            Text("Moment").refinedFont(.chip, weight: .semibold)
+            Text(time).refinedFont(.chip).monospacedDigit()
+            if let source { Text("\u{00B7} \(source)").refinedFont(.chip).foregroundStyle(Refined.dim) }
+        }
+        .foregroundStyle(Refined.ink)
+        .lineLimit(1)
+        .padding(.horizontal, 10).padding(.vertical, 4)
+        .background(Refined.neutral, in: Capsule())
+    }
+}
+
+/// A turn's surface: the same padding on every turn, so the playing wash never moves the text. Playing takes the sage
+/// `playing` wash; a selected line (a note links to it) the neutral wash with an accent bar at its leading edge; a
+/// hovered line (Mac) the stripe.
+struct ReadingTurnSurface: ViewModifier {
+    var playing = false
+    var selected = false
+    var hovered = false
+    private var mac: Bool { RefinedPlatform.mac }
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        content
+            .padding(.horizontal, mac ? 12 : 10).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(playing ? Refined.playing : selected ? Refined.neutral : hovered ? Refined.stripe : Color.clear, in: shape)
+            .overlay(alignment: .leading) {
+                if selected {
+                    RoundedRectangle(cornerRadius: 1.5, style: .continuous).fill(Refined.accentText)
+                        .frame(width: 3).padding(.vertical, 8)
+                }
+            }
+            .padding(.horizontal, mac ? -12 : -10)
+    }
+}
+
+extension View {
+    func readingTurn(playing: Bool = false, selected: Bool = false, hovered: Bool = false) -> some View {
+        modifier(ReadingTurnSurface(playing: playing, selected: selected, hovered: hovered))
+    }
+}
+
+/// Search matches in reading text: butter behind the match with ink fixed on it, in light and dark.
+enum ReadingHighlight {
+    static func marked(_ text: AttributedString, query: String) -> AttributedString {
+        var a = text
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard q.count >= 2 else { return a }
+        var from = a.startIndex
+        while from < a.endIndex, let r = a[from...].range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) {
+            a[r].backgroundColor = Refined.badge(.butter)
+            a[r].foregroundColor = Refined.onFill
+            from = r.upperBound
+        }
+        return a
+    }
+}
+
+extension Transcript {
+    /// A template's result as a transcript's tab: named for its template ("Meeting notes"), "Results" with more than
+    /// one, or the template that's running or waiting; nil when there's none.
+    func resultTabTitle(busyName: String?) -> String? {
+        let r = shownTemplateResults
+        if r.count == 1 { return r[0].name }
+        if r.count > 1 { return "Results" }
+        if let busyName { return busyName }
+        return autoRun.flatMap { $0.state == .waiting || $0.state == .failed ? $0.name : nil }
+    }
+
+    /// Each speaker's place in the chip rotation (DESIGN.md §13): the order they first talk, then anyone who never
+    /// talks in the order the transcript lists them. Worked out once per render, not per line.
+    var speakerOrder: [String: Int] {
+        var out: [String: Int] = [:]
+        for s in segments { if let sp = s.speaker, out[sp] == nil { out[sp] = out.count } }
+        for sp in speakers where out[sp.id] == nil { out[sp.id] = out.count }
+        return out
+    }
 }
 
 // MARK: - Player bar
 
 /// The player at the foot of a transcript (mockup: transcript): system glass in a capsule with the play disc (ink,
-/// with the glyph in paper), the time, the waveform as the scrubber with the played part in sage (iPhone) or a rail
-/// with moment ticks (Mac), the time left (iPhone) or length (Mac), and the speed. Text sits on the system's glass, as
-/// in Apple's own players; Reduce Transparency and Increase Contrast make it the solid card with a hairline. iPhone 60
-/// pt tall, Mac 48; the caller places it and sets the Mac's width.
-struct GlassPlayerBar: View {
+/// with the glyph in paper), the time, the waveform as the scrubber with the played part in sage and the moments as
+/// accent ticks (iPhone) or a rail with the moments as ticks (Mac), the time left (iPhone) or length (Mac), and the
+/// speed. Text sits on the system's glass, as in Apple's own players; Reduce Transparency and Increase Contrast make
+/// it the solid card with a hairline. iPhone 60 pt tall, Mac 48; the caller places it and sets the Mac's width.
+///
+/// The speed is a button (`onSpeed`) or a menu of the caller's `options` (the speeds, skips, Reduce background noise,
+/// Mark this moment, Follow). `status` takes the elapsed time's place for a moment ("Skipped a sponsor read"), and
+/// `loading` puts a spinner in the play disc while the audio downloads. VoiceOver reads the play button, the position
+/// as an adjustable value (15 seconds a swipe), and the speed.
+struct GlassPlayerBar<Options: View>: View {
     var isPlaying: Bool
     var elapsed: Double
     var duration: Double
     /// Levels 0...1 across the whole recording, for the iPhone's waveform. Empty draws a rail.
     var levels: [Float] = []
-    /// Moments, in seconds, ticked on the Mac's rail.
+    /// Moments, in seconds: ticks on the Mac's rail and the iPhone's waveform.
     var moments: [Double] = []
     var speed = "1×"
+    var status: String? = nil
+    var loading = false
     var onPlayPause: () -> Void
     var onSeek: (Double) -> Void
-    var onSpeed: () -> Void
+    var onSpeed: (() -> Void)? = nil
+    @ViewBuilder var options: Options
 
-    private let mac = RefinedPlatform.mac
+    private var mac: Bool { RefinedPlatform.mac }
     private var fraction: Double { duration > 0 ? min(1, max(0, elapsed / duration)) : 0 }
 
     var body: some View {
@@ -56,31 +187,61 @@ struct GlassPlayerBar: View {
             Button(action: onPlayPause) {
                 Circle().fill(Refined.ink)
                     .frame(width: mac ? 34 : 40, height: mac ? 34 : 40)
-                    .overlay(IconGlyph(art: isPlaying ? .iconPause : .iconPlay, size: mac ? 15 : 17, color: Refined.paper))
+                    .overlay {
+                        if loading {
+                            ProgressView().controlSize(.small).tint(Refined.paper)
+                        } else {
+                            IconGlyph(art: isPlaying ? .iconPause : .iconPlay, size: mac ? 15 : 17, color: Refined.paper)
+                        }
+                    }
                     .frame(minWidth: CGFloat(RefinedRules.minTapTarget), minHeight: CGFloat(RefinedRules.minTapTarget))
                     .contentShape(Rectangle())
             }
             .buttonStyle(RefinedPress())
-            .accessibilityLabel(isPlaying ? "Pause" : "Play")
+            .disabled(loading)
+            .accessibilityLabel(loading ? "Downloading audio" : isPlaying ? "Pause" : "Play")
 
-            Text(RefinedRules.time(elapsed)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.dim)
-                .accessibilityHidden(true)
+            Group {
+                if let status {
+                    // Read aloud as it shows (a skipped sponsor read); never a dialog.
+                    Text(status).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1).fixedSize()
+                        .onAppear { AccessibilityNotification.Announcement(status).post() }
+                } else {
+                    Text(RefinedRules.time(elapsed)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.dim)
+                        .accessibilityHidden(true)
+                }
+            }
             scrubber
-            Text(mac ? RefinedRules.time(duration) : "−" + RefinedRules.time(max(0, duration - elapsed)))
+            Text(mac ? RefinedRules.time(duration) : "\u{2212}" + RefinedRules.time(max(0, duration - elapsed)))
                 .refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.dim)
                 .accessibilityHidden(true)
-            Button(action: onSpeed) {
-                Text(speed).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
-                    .frame(minWidth: CGFloat(RefinedRules.minTapTarget), minHeight: CGFloat(RefinedRules.minTapTarget))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Speed")
-            .accessibilityValue(speed)
+            speedControl
         }
         .padding(.leading, mac ? 4 : 6).padding(.trailing, mac ? 6 : 4)
         .frame(minHeight: mac ? 48 : 60)
         .modifier(PlayerGlass())
+    }
+
+    private var speedLabel: some View {
+        Text(speed).refinedFont(.meta, weight: .semibold).monospacedDigit().foregroundStyle(Refined.ink)
+            .frame(minWidth: CGFloat(RefinedRules.minTapTarget), minHeight: CGFloat(RefinedRules.minTapTarget))
+            .contentShape(Rectangle())
+    }
+
+    @ViewBuilder private var speedControl: some View {
+        if Options.self == EmptyView.self {
+            Button { onSpeed?() } label: { speedLabel }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Speed")
+                .accessibilityValue(speed)
+        } else {
+            Menu { options } label: { speedLabel }
+                #if os(macOS)
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                #endif
+                .accessibilityLabel("Speed and playback options")
+                .accessibilityValue(speed)
+        }
     }
 
     private var scrubber: some View {
@@ -112,11 +273,7 @@ struct GlassPlayerBar: View {
         let h: CGFloat = 4, y = (size.height - h) / 2
         ctx.fill(Path(roundedRect: CGRect(x: 0, y: y, width: size.width, height: h), cornerRadius: h / 2), with: .color(Refined.rail))
         ctx.fill(Path(roundedRect: CGRect(x: 0, y: y, width: size.width * fraction, height: h), cornerRadius: h / 2), with: .color(Refined.played))
-        guard duration > 0 else { return }
-        for m in moments where m >= 0 && m <= duration {
-            let x = size.width * m / duration
-            ctx.fill(Path(CGRect(x: x - 1, y: y - 3, width: 2, height: h + 6)), with: .color(Refined.accentText))
-        }
+        drawMoments(ctx, size, top: y - 3, height: h + 6)
     }
 
     private func drawWave(_ ctx: GraphicsContext, _ size: CGSize) {
@@ -129,6 +286,108 @@ struct GlassPlayerBar: View {
             let rect = CGRect(x: CGFloat(i) * (bar + gap), y: (size.height - h) / 2, width: bar, height: h)
             ctx.fill(Path(roundedRect: rect, cornerRadius: 1.5), with: .color(at <= fraction ? Refined.played : Refined.waveRest))
         }
+        drawMoments(ctx, size, top: 0, height: size.height)
+    }
+
+    /// The moments as thin accent ticks across the rail or the waveform.
+    private func drawMoments(_ ctx: GraphicsContext, _ size: CGSize, top: CGFloat, height: CGFloat) {
+        guard duration > 0 else { return }
+        for m in moments where m >= 0 && m <= duration {
+            let x = min(size.width - 1, max(1, size.width * m / duration))
+            ctx.fill(Path(CGRect(x: x - 1, y: top, width: 2, height: height)), with: .color(Refined.accentText))
+        }
+    }
+}
+
+extension GlassPlayerBar where Options == EmptyView {
+    /// The bar with the speed as a button.
+    init(isPlaying: Bool, elapsed: Double, duration: Double, levels: [Float] = [], moments: [Double] = [], speed: String = "1×",
+         status: String? = nil, loading: Bool = false,
+         onPlayPause: @escaping () -> Void, onSeek: @escaping (Double) -> Void, onSpeed: @escaping () -> Void) {
+        self.init(isPlaying: isPlaying, elapsed: elapsed, duration: duration, levels: levels, moments: moments, speed: speed,
+                  status: status, loading: loading, onPlayPause: onPlayPause, onSeek: onSeek, onSpeed: onSpeed) { EmptyView() }
+    }
+}
+
+// MARK: - Audio only
+
+/// An Audio only recording's player, its screen's main content (mockup "Verbose Brain Dump", section 4, on the refined
+/// kit): the waveform with the played part in sage and the moments as accent ticks (drag or tap it to move), the time
+/// and the length, back 5 seconds, the ink play disc, and the speed's menu (`options`), on a card. VoiceOver reads
+/// the position as an adjustable value, 5 seconds a swipe.
+struct AudioPlayerCard<Options: View>: View {
+    var isPlaying: Bool
+    var elapsed: Double
+    var duration: Double
+    var levels: [Float]
+    /// Moments, 0...1 of the way through.
+    var moments: [Double] = []
+    var speed = "1\u{00D7}"
+    /// The play button's accessibility identifier, for the self-tests.
+    var playID = "audio.play"
+    var onPlayPause: () -> Void
+    var onSeek: (Double) -> Void
+    @ViewBuilder var options: Options
+
+    private var mac: Bool { RefinedPlatform.mac }
+    private var fraction: Double { duration > 0 ? min(1, max(0, elapsed / duration)) : 0 }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            GeometryReader { g in
+                AudioWave(levels: levels, played: fraction, marks: moments,
+                          bar: Refined.waveRest, playedColor: Refined.played, mark: Refined.accentText, bars: mac ? 90 : 64)
+                    .contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 0).onChanged { v in
+                        guard g.size.width > 0, duration > 0 else { return }
+                        onSeek(min(1, max(0, v.location.x / g.size.width)) * duration)
+                    })
+            }
+            .frame(height: mac ? 72 : 76)
+            .accessibilityElement()
+            .accessibilityLabel("Position")
+            .accessibilityValue("\(RefinedRules.spokenTime(elapsed)) of \(RefinedRules.spokenTime(duration))")
+            .accessibilityAdjustableAction { d in
+                onSeek(d == .increment ? min(duration, elapsed + 5) : max(0, elapsed - 5))
+            }
+            HStack {
+                Text(RefinedRules.time(elapsed))
+                Spacer()
+                Text(RefinedRules.time(duration))
+            }
+            .refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
+            .accessibilityHidden(true)
+            HStack(spacing: 32) {
+                Button { onSeek(max(0, elapsed - 5)) } label: {
+                    IconGlyph(art: .iconBack5, size: 22, color: Refined.ink)
+                        .frame(minWidth: CGFloat(RefinedRules.minTapTarget), minHeight: CGFloat(RefinedRules.minTapTarget))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(RefinedPress())
+                .help("Back 5 seconds")
+                .accessibilityLabel("Back 5 seconds")
+                Button(action: onPlayPause) {
+                    Circle().fill(Refined.ink).frame(width: 56, height: 56)
+                        .overlay(IconGlyph(art: isPlaying ? .iconPause : .iconPlay, size: 22, color: Refined.paper))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(RefinedPress())
+                .accessibilityLabel(isPlaying ? "Pause" : "Play")
+                .accessibilityIdentifier(playID)
+                Menu { options } label: {
+                    Text(speed).refinedFont(.body, weight: .semibold).monospacedDigit().foregroundStyle(Refined.ink)
+                        .frame(minWidth: CGFloat(RefinedRules.minTapTarget), minHeight: CGFloat(RefinedRules.minTapTarget))
+                        .contentShape(Rectangle())
+                }
+                #if os(macOS)
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                #endif
+                .accessibilityLabel("Speed")
+                .accessibilityValue(speed)
+            }
+        }
+        .padding(18)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.tile))
     }
 }
 
@@ -307,19 +566,39 @@ private struct RecordingWave: View {
 #if DEBUG
 struct ReadingText_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) { SpeakerChip(name: "Tim", index: 0); Text("0:00").refinedFont(.meta).foregroundStyle(Refined.mute) }
+                HStack(spacing: 8) { SpeakerChip(name: "Tim", index: 0); TurnTime(time: "0:00") }
                 ReadingText("Okay, so the catalog needs to work for the folding wagon and the full wheel line.")
             }
+            .readingTurn()
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) { SpeakerChip(name: "Jonathan", index: 1); Text("0:06").refinedFont(.meta).foregroundStyle(Refined.sageText) }
+                HStack(spacing: 8) { SpeakerChip(name: "Jonathan", index: 1); TurnTime(time: "0:06", playing: true) }
                 ReadingText("Right. Jonathan wants the wheels first, then the wagons as a second section.")
             }
-            .padding(.horizontal, 10).padding(.vertical, 8)
-            .background(Refined.playing, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .readingTurn(playing: true)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) { SpeakerChip(name: "Tim", index: 0); TurnTime(time: "0:11", marked: true) }
+                ReadingText("Then we shoot the wheels on white, and the wagons out in the field by the shop in Ephrata.")
+                MomentChip(time: "0:11", source: "Lock Screen")
+            }
+            .readingTurn(selected: true)
         }
         .padding(20).frame(width: 390).background(Refined.paper)
+    }
+}
+
+struct TurnTime_Previews: PreviewProvider {
+    static var previews: some View {
+        HStack(spacing: 12) { TurnTime(time: "0:06"); TurnTime(time: "0:11", playing: true); TurnTime(time: "0:19", marked: true) }
+            .padding(20).background(Refined.paper)
+    }
+}
+
+struct MomentChip_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(alignment: .leading, spacing: 10) { MomentChip(time: "0:24", source: "Lock Screen"); MomentChip(time: "1:02") }
+            .padding(20).background(Refined.paper)
     }
 }
 
@@ -332,6 +611,15 @@ struct GlassPlayerBar_Previews: PreviewProvider {
             GlassPlayerBar(isPlaying: false, elapsed: 7, duration: 42, onPlayPause: {}, onSeek: { _ in }, onSpeed: {})
         }
         .padding(16).frame(width: RefinedPlatform.mac ? 600 : 390).background(Refined.paper)
+    }
+}
+
+struct AudioPlayerCard_Previews: PreviewProvider {
+    static let levels: [Float] = (0..<90).map { Float(0.2 + 0.7 * abs(sin(Double($0) * 0.5))) }
+    static var previews: some View {
+        AudioPlayerCard(isPlaying: false, elapsed: 18, duration: 72, levels: levels, moments: [0.3, 0.7],
+                        onPlayPause: {}, onSeek: { _ in }) { Button("1\u{00D7}") {} }
+            .padding(20).frame(width: RefinedPlatform.mac ? 640 : 390).background(Refined.paper)
     }
 }
 

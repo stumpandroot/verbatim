@@ -116,6 +116,20 @@
           ],
           "text": "The Library is one table with colored kinds, quick filters, and sortable columns.",
           "detail": "Click a row to select it and double-click to open it, in both looks. The Table and List choice is gone, so every Library is the table."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Transcripts have the new look: serif text, colored speaker chips, and a glass player.",
+          "detail": "The line playing has a sage wash, and marked lines have a small bookmark. Summary is a tab beside Original and Cleaned, and the player's speed menu has Mark this moment and Follow playback."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Transcripts read in a centered serif column with speaker chips and a glass player.",
+          "detail": "Original, Cleaned, Summary, and a template's result are tabs at the top. Share and More hold Copy, Export, Run a template, and the rest, and moments and details sit in the side column."
         }
       ]
     },

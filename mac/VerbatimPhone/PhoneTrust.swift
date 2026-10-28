@@ -201,10 +201,10 @@ struct PhoneFixAllBanner: View {
         if let o = fix.offer, o.transcript == transcriptID {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top) {
-                    Text(CorrectEverywhere.bannerText(heard: o.heard, count: o.count)).font(.system(size: 15)).foregroundStyle(.lookInk)
+                    Text(CorrectEverywhere.bannerText(heard: o.heard, count: o.count)).refinedFont(.body).foregroundStyle(Refined.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 6)
-                    Button { fix.dismiss() } label: { Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.lookMute) }
+                    Button { fix.dismiss() } label: { Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Refined.mute).frame(width: 44, height: 44).contentShape(Rectangle()) }
                         .accessibilityLabel("Dismiss")
                 }
                 HStack(spacing: 10) {
@@ -213,7 +213,7 @@ struct PhoneFixAllBanner: View {
                         fix.dismiss()
                         app.say(n == 1 ? "Fixed 1 more place. Undo it in Review." : "Fixed \(n) more places. Undo any in Review.")
                     }
-                    .buttonStyle(.phoneSecondary)
+                    .buttonStyle(RefinedActionStyle(kind: .strong))
                     if o.offerDictionary {
                         Button("Add to Dictionary") {
                             let title = app.store.transcript(o.transcript)?.title ?? "Added on iPhone"
@@ -222,13 +222,12 @@ struct PhoneFixAllBanner: View {
                             var next = o; next.offerDictionary = false
                             fix.offer = next
                         }
-                        .font(.system(size: 15, weight: .medium)).foregroundStyle(.lookDim)
+                        .buttonStyle(RefinedActionStyle())
                     }
                 }
             }
             .padding(14)
-            .background(Ink.wash, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.lookHairline))
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         }
     }
 }
