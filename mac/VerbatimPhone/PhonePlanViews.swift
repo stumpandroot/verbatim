@@ -21,23 +21,23 @@ struct PhoneKindOffer: View {
         if let offer = AutoRunRules.offer(transcript, settings: auto.settings, templates: app.store.allTemplates), offer.result == nil,
            !center.isPending(transcript.id), center.busyTemplate(transcript.id) == nil {
             VStack(alignment: .leading, spacing: 8) {
-                Text(offer.text).font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookInk)
+                Text(offer.text).refinedFont(.body, weight: .semibold).foregroundStyle(Refined.ink)
                 HStack(spacing: 8) {
                     Button("Run") {
                         if let why = TemplateCenter.unavailableReason { app.say(why); return }
                         center.run(offer.template, on: transcript.id, store: app.store, kind: offer.kind)
                         onRun()
                     }
-                    .buttonStyle(.phonePrimary).accessibilityIdentifier("offer.run")
+                    .buttonStyle(RefinedActionStyle(kind: .strong)).accessibilityIdentifier("offer.run")
                     Button("Not now") {
                         app.store.update(transcript.id) { AutoRunRules.dismissBrainDumpOffer(offer, on: &$0, device: Device.id) }
                     }
-                    .buttonStyle(.phoneSecondary).accessibilityIdentifier("offer.dismiss")
+                    .buttonStyle(RefinedActionStyle()).accessibilityIdentifier("offer.dismiss")
                 }
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(look.isNative ? NativeInk.fill : Ink.chip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         }
     }
 }

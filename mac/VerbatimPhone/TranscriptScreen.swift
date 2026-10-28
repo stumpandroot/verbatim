@@ -2,17 +2,20 @@ import SwiftUI
 import Combine
 import UIKit
 
-/// A transcript, in the website style: the eyebrow (kind · date · length) over the recording's name as the big serif
-/// title, the Summary on a butter panel with grain and the strands drawing, the Original / Cleaned switch (plus Review
-/// once something was corrected), speaker pills with mono timecodes over the text at a comfortable size, and the dark
-/// player at the bottom edge (the tab bar hides while you read). Long-press a line to bookmark it, add a note, copy it, or open the video at
-/// that moment. Copy takes the tab you're on.
+/// A transcript in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", PhoneTranscript), one layout in both
+/// look settings. Apple draws the chrome: the navigation bar's glass Back, Share, and More (a standard menu built like
+/// Books' reading menu), the sheets, and the tab bar, which hides while you read. Verbose draws the content on paper:
+/// the title in the serif, a meta line led by the kind's chip (and the project's), the segmented control (Original,
+/// Cleaned, Summary, Review once something was corrected, and a template's result), then each turn as the speaker's
+/// chip and the time over the serif reading text. The line being played takes the sage `playing` wash; a bookmarked or
+/// marked line carries a small accent mark. The glass player bar sits at the bottom edge. Touch and hold a line to
+/// bookmark it, add a note, fix a word, copy it, or open the video at that moment. Copy takes the tab you're on.
 struct TranscriptScreen: View {
     @EnvironmentObject var app: PhoneState
     var id: UUID
     var startMode: Mode = .transcript
     /// `result`: the template results tab (TemplatesScreens.swift), once a template ran or is running here.
-    enum Mode: Hashable { case transcript, document, review, result }
+    enum Mode: Hashable { case transcript, document, summary, review, result }
     @State private var mode: Mode = .transcript
     /// This screen's place in `PhoneState.readingScreens`.
     @State private var readingToken = UUID()
@@ -36,7 +39,7 @@ struct TranscriptScreen: View {
     @State private var selecting = false
     /// The transcript action whose result sheet is open.
     @State private var runningAction: TranscriptActionSpec? = nil
-    /// Scroll to the playing line. Turns off when you scroll yourself; the dock's Follow turns it back on.
+    /// Scroll to the playing line. Turns off when you scroll yourself; Play and the player's menu turn it back on.
     @State private var follow = true
     @State private var followed: UUID? = nil
     /// Opened from a search passage: where the audio starts.
@@ -44,16 +47,14 @@ struct TranscriptScreen: View {
     /// The scrubber's scroll state (TranscriptScrubber.swift). A plain reference, not observed here, so scrolling
     /// re-renders only the scrubber.
     @State private var scrub = TranscriptScrubModel()
-    /// The player dock's height with its bottom margin; the scrubber's track ends above it.
-    @State private var dockHeight: CGFloat = 64
+    /// The player bar's height with its bottom margin; the scrubber's track ends above it.
+    @State private var dockHeight: CGFloat = 70
     /// The transcript is long enough for the scrubber, which then replaces the system scroll indicator.
     @State private var scrubLong = false
-    @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 32
     @Environment(\.look) private var look
     @Environment(\.dismiss) private var dismiss
-    /// Native's More menu: Find, Summary, Speakers, and Details open sheets; Delete asks first.
+    /// More's Find, Speakers, and Details open sheets; Delete asks first.
     @State private var showFind = false
-    @State private var showSummary = false
     @State private var showSpeakers = false
     @State private var showDetails = false
     @State private var confirmDelete = false
@@ -62,8 +63,11 @@ struct TranscriptScreen: View {
 
     private static let scrollSpace = "transcript-scroll"
 
-    /// The player dock shows under the Original and Review tabs of a recording with audio.
-    private func hasDock(_ t: Transcript) -> Bool { t.audioFileName != nil && t.status == .ready && mode != .document }
+    /// The looks a transcript is on screen in (the self-test checks each look draws this one layout, once).
+    static var onScreen = Set<AppLook>()
+
+    /// The player bar shows under every tab but Cleaned, for a recording with audio.
+    private func hasPlayer(_ t: Transcript) -> Bool { t.audioFileName != nil && t.status == .ready && mode != .document }
 
     /// The Original tab's lines as shown: filler and background voices left out, the engine's words when chosen.
     private func shownLines(_ t: Transcript) -> [Segment] {
@@ -95,21 +99,14 @@ struct TranscriptScreen: View {
                             VStack(alignment: .leading, spacing: 0) {
                                 header(t)
                                 if t.status == .ready {
-                                    // Native: the summary is in More › Summary, a sheet.
-                                    if !look.isNative {
-                                    PhoneSummaryPanel(transcript: t,
-                                                      onSummarize: { replacing in SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: replacing) },
-                                                      onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
-                                        .padding(.top, 16)
-                                    }
-                                    PhoneSegmented(options: modes(t), selection: $mode)
-                                        .padding(.top, 16)
+                                    RefinedSegmented(options: modes(t), selection: $mode)
+                                        .padding(.top, 14)
                                         .onChange(of: t.corrections.isEmpty) { _, none in if none, mode == .review { mode = .transcript } }
                                 }
-                                content(t).padding(.top, 14)
+                                content(t).padding(.top, 16)
                             }
-                            .padding(.horizontal, 20).padding(.top, 4)
-                            .padding(.bottom, t.audioFileName != nil && t.status == .ready && mode != .document ? 120 : 32)
+                            .padding(.horizontal, 20).padding(.top, 6)
+                            .padding(.bottom, hasPlayer(t) ? dockHeight + 24 : 32)
                             .scrubContent(scrub, in: Self.scrollSpace)
                         }
                         .coordinateSpace(.named(Self.scrollSpace))
@@ -119,7 +116,8 @@ struct TranscriptScreen: View {
                         .scrollDismissesKeyboard(.interactively)
                         .onManualScroll { if app.player.isPlaying, follow { follow = false } }
                         .onAppear {
-                            // Opened from a search passage, a note, or a link: land on that line and start the audio there.
+                            // Opened from a search passage, a note, a citation, or a link: land on that line and start
+                            // the audio there.
                             if let f = app.focusSegment, let s = t.segments.first(where: { $0.id == f }) {
                                 app.focusSegment = nil; mode = .transcript
                                 pendingSeek = s.start
@@ -147,100 +145,42 @@ struct TranscriptScreen: View {
                         }
                         // Long transcripts: hold the right edge and drag to move fast. Original tab only, not in Select text.
                         if t.status == .ready, mode == .transcript, !selecting {
+                            let order = t.speakerOrder
                             TranscriptScrubber(model: scrub,
                                                lines: { shownLines(t) },
                                                end: ScrubMath.scaleEnd(starts: t.segments.map(\.start), ends: t.segments.map(\.end)),
                                                speaker: { s in t.speakers.count >= 2 ? t.speakerName(s.speaker) : nil },
-                                               speakerColor: { s in PhoneLines.speakerColor(t, s.speaker) },
+                                               speakerIndex: { s in s.speaker.flatMap { order[$0] } ?? 0 },
                                                jump: { s in
                                                    var tr = Transaction(); tr.disablesAnimations = true
                                                    withTransaction(tr) { proxy.scrollTo(s.id, anchor: .top) }
                                                },
                                                onBegin: { if app.player.isPlaying, follow { follow = false } })
                                 .padding(.top, 8)
-                                .padding(.bottom, hasDock(t) ? dockHeight + 8 : 8)
+                                .padding(.bottom, hasPlayer(t) ? dockHeight + 8 : 8)
                         }
-                        if hasDock(t) {
-                            PhoneDock(transcript: t, clock: app.player.clock, downloading: downloading, follow: $follow)
-                                .padding(.horizontal, 22).padding(.bottom, 10)
+                        if hasPlayer(t) {
+                            PhonePlayerBar(transcript: t, player: app.player, clock: app.player.clock, downloading: downloading, follow: $follow)
+                                .padding(.horizontal, 16).padding(.bottom, 8)
+                                .background(alignment: .bottom) { PlayerFade(height: dockHeight + 40) }
                                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { dockHeight = $0 }
                         }
                     }
                     .coordinateSpace(.named(TranscriptScrubber.frameSpace))
                 }
-                .phoneTopFade()
-                .phonePage(plain: true)
+                .background(Refined.paper.ignoresSafeArea())
+                .modifier(ReadingEdges())
                 .navigationBarTitleDisplayMode(.inline)
                 // Reading: the tab bar goes, and the player sits at the bottom edge instead of floating over it.
                 .toolbar(.hidden, for: .tabBar)
                 .toolbar {
-                    if look.isNative {
-                        // Native: two glass controls beside Back, Share and More (Books' reading menu).
-                        ToolbarItemGroup(placement: .topBarTrailing) {
-                            Button { app.exportRequest = PhoneExportRequest(ids: [t.id]) } label: { Image(systemName: "square.and.arrow.up") }   // brand: native
-                                .accessibilityLabel("Share")
-                                .disabled(t.status != .ready)
-                            nativeMore(t)
-                        }
-                    } else {
+                    // Two glass controls beside Back: Share and More (Books' reading menu).
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        if t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil, !t.isAudioOnly {
-                            Button { app.player.stop(); app.continueRecording(t.id) } label: { toolbarIcon(.capture, "toolbar-continue", "mic.badge.plus") }
-                                .accessibilityLabel("Continue recording")
-                        }
-                        Button { showNotes = true } label: { toolbarIcon(.iconNotes, "toolbar-notes", "note.text") }.accessibilityLabel("Notes")
-                        Menu {
-                            Section("From the original transcript") {
-                                PhoneActionItems { a in
-                                    if let why = TranscriptActions.unavailableReason { summaryUnavailable = why } else { runningAction = a }
-                                }
-                            }
-                            // A template's result stays in the transcript, in its own tab (TemplatesScreens.swift).
-                            Menu {
-                                ForEach(app.store.allTemplates) { tpl in
-                                    Button(tpl.name) {
-                                        if let why = TemplateCenter.unavailableReason { summaryUnavailable = why }
-                                        else { TemplateCenter.shared.run(tpl.id, on: t.id, store: app.store); mode = .result }
-                                    }
-                                }
-                            } label: { Label("Run a template", systemImage: "doc.text") }   // brand: system surface (menu)
-                            Button {
-                                if let why = SummaryAction.unavailableReason { summaryUnavailable = why }
-                                else { SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: false) }
-                            } label: { Label(SummaryAction.title(t), systemImage: "text.quote") }   // brand: system surface (menu)
-                            .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
-                            // Whisper Turbo on the original audio, run by your Mac; and back to the words it replaced.
-                            Section {
-                                Button { askTurbo = true } label: { Label(TurboRerun.title + "…", systemImage: "arrow.counterclockwise") }
-                                    .disabled(TurboRerun.unavailableReason(t) != nil)
-                                if let other = TurboRerun.switchTitle(t) {
-                                    Button { app.switchTranscriptVersion(t.id) } label: { Label(other, systemImage: "arrow.uturn.backward") }
-                                }
-                            }
-                        } label: { toolbarIcon(.refine, "toolbar-actions", "sparkles") }
-                        .accessibilityLabel("Actions")
-                        .disabled(t.status != .ready)
-                        Menu {
-                            Button { app.copyText(t, copyVersion) } label: { Label(copyVersion == .cleaned ? "Copy cleaned text" : "Copy text", systemImage: "doc.on.doc") }   // brand: system surface (menu)
-                            // The text with a header (title, date, duration, speakers, source, language) for an AI assistant.
-                            Button { app.copyForAI(t) } label: { Label("Copy for AI", systemImage: "doc.on.clipboard") }   // brand: system surface
-                            Menu {
-                                Button { app.copyText(t, copyVersion, timestamps: true) } label: { Label("Copy with timestamps", systemImage: "clock") }   // brand: system surface (menu)
-                                Button { app.copyText(t, copyVersion.other) } label: {
-                                    Label(copyVersion == .cleaned ? "Copy the original" : "Copy the cleaned text", systemImage: "arrow.left.arrow.right")   // brand: system surface (menu)
-                                }
-                                Button { app.copyText(t, .engine) } label: { Label("Copy engine words", systemImage: "waveform") }   // brand: system surface (menu)
-                                    .disabled(!t.hasEngineWords)
-                            } label: { Label("More ways to copy", systemImage: "doc.on.clipboard") }   // brand: system surface (menu)
-                            Divider()
-                            Button { app.exportRequest = PhoneExportRequest(ids: [t.id]) } label: { Label("Export…", systemImage: "square.and.arrow.up") }
-                            if let u = app.store.audioURL(for: t) {
-                                Button { shareAudio(u) } label: { Label("Share original audio", systemImage: "waveform") }   // brand: system surface (menu)
-                            }
-                        } label: { Image(systemName: "square.and.arrow.up") }
-                        .accessibilityLabel("Copy and export")
-                        .disabled(t.status != .ready)
-                    }
+                        Button { app.exportRequest = PhoneExportRequest(ids: [t.id]) } label: { Image(systemName: "square.and.arrow.up") }
+                            .accessibilityLabel("Share")
+                            .accessibilityIdentifier("transcript.share")
+                            .disabled(t.status != .ready)
+                        more(t)
                     }
                 }
                 .sheet(isPresented: $showFind) {
@@ -252,9 +192,8 @@ struct TranscriptScreen: View {
                     }
                     .environmentObject(app)
                 }
-                .sheet(isPresented: $showSummary) { NativeSummarySheet(id: t.id).environmentObject(app) }
-                .sheet(isPresented: $showSpeakers) { NativeSpeakersSheet(id: t.id).environmentObject(app) }
-                .sheet(isPresented: $showDetails) { NativeTranscriptDetails(id: t.id).environmentObject(app) }
+                .sheet(isPresented: $showSpeakers) { TranscriptSpeakersSheet(id: t.id).environmentObject(app) }
+                .sheet(isPresented: $showDetails) { TranscriptDetailsSheet(id: t.id).environmentObject(app) }
                 .confirmationDialog("Move this transcript to Recently Deleted?", isPresented: $confirmDelete, titleVisibility: .visible) {
                     Button("Move to Recently Deleted", role: .destructive) { app.delete([t.id]); dismiss() }
                     Button("Cancel", role: .cancel) {}
@@ -279,7 +218,7 @@ struct TranscriptScreen: View {
                     TextField("Note", text: $noteText)
                     Button("Cancel", role: .cancel) { noteText = "" }
                     Button("Add") { if let s = noteFor { app.addNote(id, text: noteText, at: s.start, segment: s.id) }; noteText = "" }
-                } message: { Text(noteFor.map { "At \($0.start.timecode)" } ?? "") }
+                } message: { Text(noteFor.map { "At \(RefinedRules.time($0.start))" } ?? "") }
                 .onAppear {
                     if !didStart {
                         didStart = true; mode = startMode
@@ -290,7 +229,7 @@ struct TranscriptScreen: View {
                         downloading = !Cloud.isDownloaded(u)
                         app.player.loadAsync(u, startAt: pendingSeek)
                         if downloading { Task { _ = await Cloud.ensureDownloaded(u); downloading = false } }
-                        // Opened from a recording's play pill (Premium Native): play once the audio is open.
+                        // Opened from a recording's play button: play once the audio is open.
                         if app.autoplay == t.id {
                             app.autoplay = nil
                             Task { @MainActor in
@@ -302,18 +241,18 @@ struct TranscriptScreen: View {
                 }
                 .onDisappear { app.player.stop() }
                 .skipsSponsors(t, player: app.player)
+                // The self-test's screenshots of the other tabs ("summary", "review", "document", "transcript").
+                .onReceive(NotificationCenter.default.publisher(for: .phoneTranscriptMode)) { n in
+                    if let raw = n.object as? String, let m = Mode(selfTest: raw) { mode = m }
+                }
             } else {
-                Text("This transcript was deleted.").foregroundStyle(.lookMute).frame(maxWidth: .infinity, maxHeight: .infinity).background(Ink.paper)
+                Text("This transcript was deleted.").refinedFont(.body).foregroundStyle(Refined.mute)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity).background(Refined.paper)
             }
         }
-        // Reading: Native's Record accessory turns off with the tab bar (RecordAccessory.swift).
-        .onAppear { app.readingScreens.insert(readingToken) }
-        .onDisappear { app.readingScreens.remove(readingToken) }
-    }
-
-    /// A toolbar button's icon: the brand line icon in Verbose style, its SF Symbol in Native.
-    private func toolbarIcon(_ art: BrandArt, _ key: String, _ symbol: String) -> Image {
-        look.isNative ? Image(systemName: symbol) : Image(uiImage: art.templateImage(size: 22, key: key))   // brand: native
+        // Reading: Record's accessory turns off with the tab bar (RecordAccessory.swift).
+        .onAppear { app.readingScreens.insert(readingToken); Self.onScreen.insert(look) }
+        .onDisappear { app.readingScreens.remove(readingToken); Self.onScreen.remove(look) }
     }
 
     /// Shares the recording's audio file, after it downloads from iCloud when it lives on the other device.
@@ -325,148 +264,116 @@ struct TranscriptScreen: View {
         }
     }
 
-    /// Original and Cleaned; Review joins them once something was corrected.
+    /// Original, Cleaned, and Summary; Review once something was corrected; and a template's result.
     private func modes(_ t: Transcript) -> [(Mode, String)] {
-        var out: [(Mode, String)] = [(.transcript, "Original"), (.document, "Cleaned")]
-        if !t.corrections.isEmpty || mode == .review { out.append((.review, "Review")) }
-        // A template's result: a tab named for it ("Meeting notes"), or "Results" with more than one.
-        let busy = TemplateCenter.shared.busyTemplate(t.id).flatMap { id in app.store.allTemplates.first { $0.id == id }?.name }
-        if let title = PhoneTemplateResults.tabTitle(t, busyName: busy) { out.append((.result, title)) }
-        else if mode == .result { out.append((.result, "Template")) }
+        Self.modes(t, current: mode, busyName: TemplateCenter.shared.busyTemplate(t.id).flatMap { id in app.store.allTemplates.first { $0.id == id }?.name })
+    }
+
+    /// The segmented control's tabs (the self-test reads them): Original, Cleaned, Summary, then Review while there are
+    /// corrections (or it's open), then the result's tab, named for its template ("Meeting notes"), or "Results".
+    static func modes(_ t: Transcript, current: Mode, busyName: String?) -> [(Mode, String)] {
+        var out: [(Mode, String)] = [(.transcript, "Original"), (.document, "Cleaned"), (.summary, "Summary")]
+        if !t.corrections.isEmpty || current == .review { out.append((.review, "Review")) }
+        if let title = PhoneTemplateResults.tabTitle(t, busyName: busyName) { out.append((.result, title)) }
+        else if current == .result { out.append((.result, "Template")) }
         return out
     }
 
-    /// "Meeting · Thu Oct 22 · 07:50": the kind (or source), the day, and the length.
-    static func eyebrow(_ t: Transcript) -> String {
-        var parts = [t.kind?.label ?? HomeRecentStyle(t).source]
-        let cal = Calendar.current
-        parts.append(Formats.pattern(cal.isDate(t.createdAt, equalTo: Date(), toGranularity: .year) ? "EEE MMM d" : "EEE MMM d, yyyy").string(from: t.createdAt))
-        if t.duration > 0 { parts.append(t.duration.timecode) }
-        return parts.joined(separator: " · ")
-    }
-
-    /// The meta line under the title, before the language: what it is ("Voice note", "Audio file") when the eyebrow
-    /// names the kind instead, and "2 speakers". Without a kind the eyebrow already names the source, so it isn't
-    /// repeated ("YouTube" over "youtube.com").
-    static func metaParts(_ t: Transcript) -> [String] {
-        var parts: [String] = []
-        if t.kind != nil { parts.append(HomeRecentStyle(t).source) }
-        if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
-        return parts
-    }
-
-    /// Native's one line under the title: "Meeting · Today, 9:00 AM · 38:12 · 2 speakers".
-    static func nativeMeta(_ t: Transcript, now: Date = Date()) -> String {
-        var parts = [NativeRows.kind(t)]
-        parts.append("\(HomeRecentStyle.day(t.createdAt, now: now)), \(Formats.style(date: .none, time: .short).string(from: t.createdAt))")
-        if t.duration > 0 { parts.append(HomeRecentStyle.length(t.duration)) }
-        if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
-        return parts.joined(separator: " · ")
+    /// The meta line after the chips: "Today, 8:35 PM · 0:42 · 2 speakers", and the language when there's no menu
+    /// for it (a dictation, a link still coming).
+    static func meta(_ t: Transcript, languageMenu: Bool, now: Date = Date()) -> String {
+        RefinedRules.transcriptMeta(when: RefinedRules.transcriptWhen(t.createdAt, now: now), duration: t.duration,
+                                    speakers: t.speakers.count, language: languageMenu ? nil : t.language.map(LanguageDetection.name))
     }
 
     private func header(_ t: Transcript) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Verbose style: the mono eyebrow over the serif title. Native: a bold title, then one meta line.
-            if !look.isNative { PhoneEyebrow(text: Self.eyebrow(t)) }
+        let languageMenu = t.status == .ready && t.audioFileName != nil && t.pendingAppend == nil && t.source != .dictation
+        let project = t.projectId.flatMap { p in app.store.projects.first { $0.id == p } }
+        return VStack(alignment: .leading, spacing: 10) {
             TextField("Title", text: Binding(get: { t.title }, set: { v in
                 guard v != t.title else { return }
                 app.store.updateDeferred(t.id) { $0.title = v; $0.titleIsAuto = false; $0.titleByModel = false }
             }), axis: .vertical)
-                .font(look.isNative ? .title.bold() : Ink.serif(titleSize)).tracking(look.isNative ? 0 : -0.6).foregroundStyle(.lookInk).lineLimit(1...4)
-                .padding(.top, 2)
+                .refinedFont(.transcriptTitle).foregroundStyle(Refined.ink).lineLimit(1...4)
                 .accessibilityLabel("Title")
-            if look.isNative {
-                // Native: the kind, day and time, length, and speakers in one line, then the language (Transcribe
-                // again in…). Kind, tags, and where it was transcribed are in More › Details.
-                HStack(spacing: 6) {
-                    Text(Self.nativeMeta(t)).lineLimit(2)
-                    if t.status == .ready && t.audioFileName != nil && t.pendingAppend == nil && t.source != .dictation {
-                        Text("·")
-                        TranscriptLanguageMenu(transcript: t)
-                    }
+                .accessibilityAddTraits(.isHeader)
+            // The kind's chip (tap to change it), the project's, then when, the length, the speakers, and the language.
+            FlowRow(spacing: 8, lineSpacing: 2) {
+                if t.kind != .dictation, t.status == .ready {
+                    KindPickerChip(kind: t.kind, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
                 }
-                .font(.subheadline).foregroundStyle(NativeInk.secondary)
-            }
-            // One meta line: what it is (when the eyebrow shows the kind instead), speakers, and the language. The
-            // kind, day, and length are in the eyebrow above.
-            let meta = Self.metaParts(t)
-            let languageMenu = t.status == .ready && t.audioFileName != nil && t.pendingAppend == nil && t.source != .dictation
-            let language = languageMenu ? nil : t.language.map(LanguageDetection.name)
-            if !look.isNative, !meta.isEmpty || languageMenu || language != nil {
-                HStack(spacing: 6) {
-                    ForEach(Array(meta.enumerated()), id: \.offset) { i, part in
-                        if i > 0 { Text("·") }
-                        Text(part)
-                    }
+                if let project {
+                    KindColorChip(title: project.name, hue: RefinedRules.projectHue(project.colorIndex))
+                        .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+                        .accessibilityLabel("Project: \(project.name)")
+                }
+                Text(Self.meta(t, languageMenu: languageMenu)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
+                    .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+                if languageMenu {
                     // The language it was transcribed in, and Transcribe again in… another one.
-                    if languageMenu {
-                        if !meta.isEmpty { Text("·") }
-                        TranscriptLanguageMenu(transcript: t)
-                    } else if let language {
-                        if !meta.isEmpty { Text("·") }
-                        Text(language)
-                    }
+                    TranscriptLanguageMenu(transcript: t).refinedFont(.meta)
+                        .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
                 }
-                .font(.system(size: 13)).foregroundStyle(.lookMute)
             }
-            // Where the data went; tap it for the source file, engine, and exact time (PhoneTrust.swift).
-            if t.status == .ready, !look.isNative { PhoneProvenanceLine(transcript: t) }
-            if t.titleIsAuto && t.titleByModel { AITitleNote() }
-            if t.status == .ready, !look.isNative {
-                // Mini chips (28 pt, as mini pills), so the add-a-tag button fits inline after the last tag.
-                KindAndTags(transcript: t, compact: true,
-                            onPick: { k in app.pickKind(k, for: t.id) },
-                            onTags: { tags in app.store.update(t.id) { $0.tags = tags } })
-                    .padding(.top, 8)
+            if t.titleIsAuto && t.titleByModel {
+                HStack(spacing: 6) {
+                    IconGlyph(art: .iconAI, size: 14, color: Refined.mute)
+                    Text("Title by Apple Intelligence").refinedFont(.meta).foregroundStyle(Refined.mute)
+                }
+                .accessibilityElement(children: .combine)
             }
-            // Filed as a Brain dump afterward: "Now a Brain dump. Run Plan my day?" (TemplatesScreens.swift).
-            if t.status == .ready { PhoneKindOffer(transcript: t) { mode = .result }.padding(.top, 8) }
+            // Filed as a Brain dump afterward: "Now a Brain dump. Run Plan my day?" (PhonePlanViews.swift).
+            if t.status == .ready { PhoneKindOffer(transcript: t) { mode = .result } }
             if t.status == .ready, !t.visibleSpeakerSuggestions.isEmpty {
                 SpeakerSuggestionRows(transcript: t,
                                       onUse: { app.useSpeakerSuggestion(t.id, $0) },
                                       onDismiss: { app.dismissSpeakerSuggestion(t.id, $0) })
-                    .padding(.top, 8)
             }
-            if t.pendingAppend != nil {
-                HStack(spacing: 8) {
-                    if t.processingDevice != nil { ProgressView().controlSize(.small) } else { LookIcon(art: .capture, symbol: "mic.badge.plus", size: 18, color: Ink.accentText, nativeColor: NativeInk.secondary) }
-                    LiveStage(t) { t in Text(t.stageText).font(.system(size: 14)).foregroundStyle(.lookDim).lineLimit(2) }
-                    Spacer(minLength: 4)
-                    if t.processingDevice == nil {
-                        Menu {
-                            Button { app.retry(t) } label: { Label("Try again", systemImage: "arrow.counterclockwise") }
-                            Button(role: .destructive) { app.discardPendingAppend(t.id) } label: { Label("Discard new recording", systemImage: "trash") }
-                        } label: { Text("Retry").font(.system(size: 14, weight: .semibold)) }
-                    } else if t.processingDevice == Device.id {
-                        Button("Cancel") { app.cancel(t.id) }.font(.system(size: 14))
-                    }
-                }
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(.lookWash, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .padding(.top, 6)
-            } else if t.rerunRequest != nil, t.status == .ready {
-                // Transcribe again with Whisper Turbo, waiting for the Mac to pick it up.
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    LiveStage(t) { t in Text(t.stageText).font(.system(size: 14)).foregroundStyle(.lookDim).lineLimit(2) }
-                    Spacer(minLength: 4)
-                    if t.processingDevice == nil { Button("Cancel") { app.cancelTurboRequest(t.id) }.font(.system(size: 14)) }
-                }
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(Ink.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .padding(.top, 6)
-            } else if t.status == .ready {
-                // A progress tick can change the label (StageClock), so it's read live.
-                LiveStage(t) { t in
-                    if t.stage == "Finding speakers" {
-                        HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Finding speakers…") }
-                            .font(.system(size: 13)).foregroundStyle(.lookMute)
-                    }
-                }
-            }
-            if let info = t.linkInfo { PhoneLinkCard(info: info).padding(.top, 8) }
+            stageRow(t)
+            if let info = t.linkInfo { PhoneLinkCard(info: info) }
         }
         .task(id: t.id) { SpeakerNameSuggester.openedIfNeeded(t.id, store: app.store) }
+    }
+
+    /// Continue recording's new part on its way, Transcribe again with Whisper Turbo waiting for the Mac, or speakers
+    /// still being found.
+    @ViewBuilder private func stageRow(_ t: Transcript) -> some View {
+        if t.pendingAppend != nil {
+            HStack(spacing: 8) {
+                if t.processingDevice != nil { ProgressView().controlSize(.small) } else { IconGlyph(art: .capture, size: 18, color: Refined.accentText) }
+                LiveStage(t) { t in Text(t.stageText).refinedFont(.hint).foregroundStyle(Refined.dim).lineLimit(2) }
+                Spacer(minLength: 4)
+                if t.processingDevice == nil {
+                    Menu {
+                        Button { app.retry(t) } label: { Label("Try again", systemImage: "arrow.counterclockwise") }
+                        Button(role: .destructive) { app.discardPendingAppend(t.id) } label: { Label("Discard new recording", systemImage: "trash") }
+                    } label: { Text("Retry").refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText) }
+                        .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+                } else if t.processingDevice == Device.id {
+                    Button("Cancel") { app.cancel(t.id) }.buttonStyle(RefinedActionStyle())
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 4)
+            .refinedSurface(Refined.persimmonTint, radius: RefinedPlatform.radius(.card))
+        } else if t.rerunRequest != nil, t.status == .ready {
+            // Transcribe again with Whisper Turbo, waiting for the Mac to pick it up.
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                LiveStage(t) { t in Text(t.stageText).refinedFont(.hint).foregroundStyle(Refined.dim).lineLimit(2) }
+                Spacer(minLength: 4)
+                if t.processingDevice == nil { Button("Cancel") { app.cancelTurboRequest(t.id) }.buttonStyle(RefinedActionStyle()) }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 4)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        } else if t.status == .ready {
+            // A progress tick can change the label (StageClock), so it's read live.
+            LiveStage(t) { t in
+                if t.stage == "Finding speakers" {
+                    HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Finding speakers…") }
+                        .refinedFont(.meta).foregroundStyle(Refined.mute)
+                }
+            }
+        }
     }
 
     @ViewBuilder private func content(_ t: Transcript) -> some View {
@@ -474,23 +381,26 @@ struct TranscriptScreen: View {
             HStack(spacing: 14) {
                 SignalRings(active: t.processingDevice == Device.id).frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 3) {
-                    LiveStage(t) { t in Text(t.stageText).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk) }
+                    LiveStage(t) { t in Text(t.stageText).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink) }
                     Text(t.processingDevice == Device.id ? "On this iPhone. The first run downloads the model once." : "It appears here when it's done.")
-                        .font(.system(size: 14)).foregroundStyle(.lookMute)
+                        .refinedFont(.hint).foregroundStyle(Refined.mute)
                 }
             }
-            .padding(.top, 20)
+            .padding(.top, 8)
         } else if t.status == .failed {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) { IconGlyph(art: .iconAttention, size: 20, color: Ink.accentText); Text("Transcription did not finish") }.font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookAccentText)
-                Text(t.error ?? "").font(.system(size: 14)).foregroundStyle(.lookMute)
                 HStack(spacing: 8) {
-                    Button("Retry") { app.retry(t) }.buttonStyle(.phonePrimary)
+                    IconGlyph(art: .iconAttention, size: 20, color: Refined.accentText)
+                    Text("Transcription did not finish").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                }
+                Text(t.error ?? "").refinedFont(.hint).foregroundStyle(Refined.mute)
+                HStack(spacing: 8) {
+                    Button("Retry") { app.retry(t) }.buttonStyle(RefinedActionStyle(kind: .strong))
                     // Local Only refused this transcript's model download (PhoneTrust.swift).
                     PhoneAllowDownloadButton(transcript: t)
                 }
             }
-            .padding(.top, 20)
+            .padding(.top, 8)
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 switch mode {
@@ -500,8 +410,8 @@ struct TranscriptScreen: View {
                     VStack(alignment: .leading, spacing: 10) {
                         // Fix all, after Fix a word… (PhoneTrust.swift).
                         PhoneFixAllBanner(transcriptID: t.id)
-                        // Native: Words and Select text are in More › Text and display; the bar shows only while one is on.
-                        if !look.isNative || selecting || showEngine { originalBar(t) }
+                        // Words and Select text are in More › Text and display; the bar shows only while one is on.
+                        if selecting || showEngine { originalBar(t) }
                         if selecting {
                             PhoneSelectableText(text: PhoneSelectableText.joined(segs, in: t))
                                 .accessibilityIdentifier("original-selectable")
@@ -512,7 +422,7 @@ struct TranscriptScreen: View {
                         }
                         let fillers = app.store.fillerCount(t.id)
                         if hideFillerSetting, fillers > 0 {
-                            FillerToggle(count: fillers, shown: $showFiller).padding(.leading, 6)
+                            FillerToggle(count: fillers, shown: $showFiller)
                         }
                         if !background.isEmpty {
                             BackgroundVoicesCard(segments: background,
@@ -522,6 +432,10 @@ struct TranscriptScreen: View {
                         }
                     }
                 case .document: PhoneDocument(transcript: t)
+                case .summary:
+                    SummaryBlock(transcript: t,
+                                 onSummarize: { replacing in summarize(t, replacing: replacing) },
+                                 onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
                 case .review: review(t)
                 case .result: PhoneTemplateResults(transcript: t, onJump: { at in
                     app.player.play(from: at)
@@ -533,7 +447,13 @@ struct TranscriptScreen: View {
         }
     }
 
-    /// Original tab: which words (with corrections, or the engine's) and Select text.
+    /// Runs Summarize, or says why Apple Intelligence can't here.
+    private func summarize(_ t: Transcript, replacing: Bool) {
+        if let why = SummaryAction.unavailableReason { summaryUnavailable = why; return }
+        SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: replacing)
+    }
+
+    /// Original tab, while one is on: which words (with corrections, or the engine's) and Select text.
     private func originalBar(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
@@ -544,90 +464,84 @@ struct TranscriptScreen: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Text(showEngine ? "Engine words" : "With corrections").font(.system(size: 14, weight: .medium))
+                        Text(showEngine ? "Engine words" : "With corrections").refinedFont(.hint, weight: .medium)
                         Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
                     }
-                    .foregroundStyle(.lookInk)
-                    .padding(.horizontal, 12).padding(.vertical, 7)
-                    .modifier(OriginalBarCapsule(native: look.isNative))
+                    .foregroundStyle(Refined.ink)
+                    .padding(.horizontal, 14).frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+                    .background(Refined.neutral, in: Capsule())
                 }
                 .accessibilityLabel("Words: \(showEngine ? "engine words" : "with corrections")")
                 .accessibilityIdentifier("original-words")
-                Button { selecting.toggle() } label: {
-                    Label(selecting ? "Done selecting" : "Select text", art: .iconSelect, size: 15)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(selecting ? (look.isNative ? NativeInk.onAccent : Ink.onInteractive) : (look.isNative ? NativeInk.label : Ink.ink))
-                        .padding(.horizontal, 12).padding(.vertical, 7)
-                        .modifier(OriginalBarCapsule(native: look.isNative, selected: selecting))
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("original-select")
+                RefinedChip(title: selecting ? "Done selecting" : "Select text", selected: selecting) { selecting.toggle() }
+                    .accessibilityIdentifier("original-select")
                 Spacer(minLength: 0)
             }
             if showEngine {
                 Text(t.hasEngineWords ? "Exactly what the engine heard, before your corrections and Dictionary fixes."
                                       : "This transcript has no separate engine words, so these are the lines as they are.")
-                    .font(.system(size: 13)).foregroundStyle(.lookMute)
+                    .refinedFont(.meta).foregroundStyle(Refined.mute)
             }
         }
-        .padding(.bottom, 4)
     }
 
-    private func review(_ t: Transcript) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if t.corrections.isEmpty {
-                HStack(spacing: 14) {
-                    EmptyStateArt(art: .refine, tint: Ink.petalTint)
-                    Text("Nothing changed yet. Dictionary fixes and your corrections show here beside the original.").font(.system(size: 14)).foregroundStyle(.lookDim)
-                }
-            }
-            ForEach(t.corrections) { c in
+    /// Review: each fix beside what it replaced, in a card, with Undo.
+    @ViewBuilder private func review(_ t: Transcript) -> some View {
+        if t.corrections.isEmpty {
+            Text("Nothing changed yet. Dictionary fixes and your corrections show here beside the original.")
+                .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+        } else {
+            PaperList(t.corrections, id: \.id, inset: 46) { c in
                 HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: c.byDictionary ? "book.closed" : "pencil").foregroundStyle(.lookInk).frame(width: 20)
+                    IconGlyph(art: c.byDictionary ? .iconDictionary : .iconFeedback, size: 18, color: Refined.ink).frame(width: 22)
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) { Text(c.from).strikethrough().foregroundStyle(.lookMute); Image(systemName: "arrow.right").font(.system(size: 10)); Text(c.to).fontWeight(.semibold) }
-                        if let seg = t.segments.first(where: { $0.id == c.segmentId }) { Text(seg.text).font(.system(size: 13)).foregroundStyle(.lookDim).lineLimit(2) }
+                        HStack(spacing: 6) {
+                            Text(c.from).strikethrough().foregroundStyle(Refined.mute)
+                            Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(Refined.mute)
+                            Text(c.to).fontWeight(.semibold).foregroundStyle(Refined.ink)
+                        }
+                        .refinedFont(.body)
+                        if let seg = t.segments.first(where: { $0.id == c.segmentId }) {
+                            Text(seg.text).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)
+                        }
+                        Text(c.byDictionary ? "Dictionary" : "Your fix").refinedFont(.caption).foregroundStyle(Refined.mute)
                     }
-                    Spacer()
-                    Button("Undo") {
-                        app.store.undoCorrection(c, in: t.id)
-                    }
-                    .buttonStyle(.phoneSecondary)
+                    Spacer(minLength: 6)
+                    Button("Undo") { app.store.undoCorrection(c, in: t.id) }
+                        .buttonStyle(RefinedActionStyle())
+                        .accessibilityLabel("Undo \(c.to)")
                 }
-                .padding(12)
-                .cardSurface(radius: Radius.row)
+                .padding(.horizontal, 14).padding(.vertical, 10)
+                .accessibilityElement(children: .combine)
             }
         }
     }
-}
 
-// brand: native begin
-extension TranscriptScreen {
-    /// Native's More: a standard Liquid Glass menu built like Apple Books' reading menu (iOS 27.2). A row of icon
-    /// buttons (Copy, Find, Mark) as a ControlGroup, then the transcript's places and tools, then Rename and Delete,
-    /// which the system draws in its destructive red.
-    fileprivate func nativeMore(_ t: Transcript) -> some View {
+    /// More: a standard Liquid Glass menu built like Apple Books' reading menu (iOS 27.2). A row of icon buttons (Copy,
+    /// Find, Mark) as a ControlGroup, then the transcript's places and tools, then Rename and Delete, which the system
+    /// draws in its destructive red.
+    private func more(_ t: Transcript) -> some View {
         let moments = t.notes.filter { $0.at != nil }.count
         let ready = t.status == .ready
         let fillers = app.store.fillerCount(t.id)
         return Menu {
             ControlGroup {
-                Button { app.copyText(t, copyVersion) } label: { Label("Copy", systemImage: "doc.on.doc") }
+                Button { app.copyText(t, copyVersion) } label: { Label("Copy", systemImage: "doc.on.doc") }   // brand: system surface (menu)
                     .disabled(!ready)
                 Button { showFind = true } label: { Label("Find", systemImage: "magnifyingglass") }
                     .disabled(!ready)
-                Button { mark(t) } label: { Label("Mark", systemImage: "bookmark") }
+                Button { mark(t) } label: { Label("Mark", systemImage: "bookmark") }   // brand: system surface (menu)
                     .disabled(!ready || t.audioFileName == nil)
             }
             Section {
-                Button { openSummary(t) } label: { Label("Summary", systemImage: "text.alignleft") }
+                Button { mode = .summary } label: { Label("Summary", systemImage: "text.alignleft") }   // brand: system surface (menu)
                     .disabled(!ready)
                 Button { showNotes = true } label: {
-                    Label("Moments", systemImage: "bookmark")
+                    Label("Moments", systemImage: "bookmark")   // brand: system surface (menu)
                     Text(moments == 1 ? "1 saved" : "\(moments) saved")
                 }
                 Button { showSpeakers = true } label: {
-                    Label("Speakers", systemImage: "person.2")
+                    Label("Speakers", systemImage: "person.2")   // brand: system surface (menu)
                     Text(t.speakers.count == 1 ? "1 speaker" : "\(t.speakers.count) speakers")
                 }
                 .disabled(t.speakers.isEmpty)
@@ -638,37 +552,43 @@ extension TranscriptScreen {
                             else { TemplateCenter.shared.run(tpl.id, on: t.id, store: app.store); mode = .result }
                         }
                     }
-                } label: { Label("Run a template", systemImage: "doc.text") }
+                } label: { Label("Run a template", systemImage: "doc.text") }   // brand: system surface (menu)
                 .disabled(!ready)
                 Menu {
-                    PhoneActionItems { a in
-                        if let why = TranscriptActions.unavailableReason { summaryUnavailable = why } else { runningAction = a }
+                    Section("From the original transcript") {
+                        PhoneActionItems { a in
+                            if let why = TranscriptActions.unavailableReason { summaryUnavailable = why } else { runningAction = a }
+                        }
                     }
+                    Button { mode = .summary; summarize(t, replacing: false) } label: { Label(SummaryAction.title(t), systemImage: "text.quote") }   // brand: system surface (menu)
+                        .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
                     Divider()
                     if t.audioFileName != nil, t.pendingAppend == nil, !t.isAudioOnly {
-                        Button { app.player.stop(); app.continueRecording(t.id) } label: { Label("Continue recording", systemImage: "mic.badge.plus") }
+                        Button { app.player.stop(); app.continueRecording(t.id) } label: { Label("Continue recording", systemImage: "mic.badge.plus") }   // brand: system surface (menu)
                     }
+                    // Whisper Turbo on the original audio, run by your Mac; and back to the words it replaced.
                     Button { askTurbo = true } label: { Label(TurboRerun.title + "…", systemImage: "arrow.counterclockwise") }
                         .disabled(TurboRerun.unavailableReason(t) != nil)
                     if let other = TurboRerun.switchTitle(t) {
                         Button { app.switchTranscriptVersion(t.id) } label: { Label(other, systemImage: "arrow.uturn.backward") }
                     }
-                } label: { Label("Actions", systemImage: "sparkles") }
+                } label: { Label("Actions", systemImage: "sparkles") }   // brand: system surface (menu)
                 .disabled(!ready)
             }
             Section {
                 Menu {
                     Button { app.exportRequest = PhoneExportRequest(ids: [t.id]) } label: { Label("Export…", systemImage: "square.and.arrow.up") }
                     if let u = app.store.audioURL(for: t) {
-                        Button { shareAudio(u) } label: { Label("Share original audio", systemImage: "waveform") }
+                        Button { shareAudio(u) } label: { Label("Share original audio", systemImage: "waveform") }   // brand: system surface (menu)
                     }
                     Divider()
-                    Button { app.copyForAI(t) } label: { Label("Copy for AI", systemImage: "doc.on.clipboard") }
-                    Button { app.copyText(t, copyVersion, timestamps: true) } label: { Label("Copy with timestamps", systemImage: "clock") }
+                    // The text with a header (title, date, duration, speakers, source, language) for an AI assistant.
+                    Button { app.copyForAI(t) } label: { Label("Copy for AI", systemImage: "doc.on.clipboard") }   // brand: system surface (menu)
+                    Button { app.copyText(t, copyVersion, timestamps: true) } label: { Label("Copy with timestamps", systemImage: "clock") }   // brand: system surface (menu)
                     Button { app.copyText(t, copyVersion.other) } label: {
-                        Label(copyVersion == .cleaned ? "Copy the original" : "Copy the cleaned text", systemImage: "arrow.left.arrow.right")
+                        Label(copyVersion == .cleaned ? "Copy the original" : "Copy the cleaned text", systemImage: "arrow.left.arrow.right")   // brand: system surface (menu)
                     }
-                    Button { app.copyText(t, .engine) } label: { Label("Copy engine words", systemImage: "waveform") }
+                    Button { app.copyText(t, .engine) } label: { Label("Copy engine words", systemImage: "waveform") }   // brand: system surface (menu)
                         .disabled(!t.hasEngineWords)
                 } label: { Label("Export", systemImage: "square.and.arrow.up") }
                 .disabled(!ready)
@@ -681,23 +601,24 @@ extension TranscriptScreen {
                         }
                     }
                     if !app.store.projects.isEmpty { Divider() }
-                    Button { app.newProjectFor = t.id } label: { Label("New project…", systemImage: "folder.badge.plus") }
-                } label: { Label("Add to project", systemImage: "folder.badge.plus") }
+                    Button { app.newProjectFor = t.id } label: { Label("New project…", systemImage: "folder.badge.plus") }   // brand: system surface (menu)
+                } label: { Label("Add to project", systemImage: "folder.badge.plus") }   // brand: system surface (menu)
                 Menu {
                     Picker("Words", selection: $showEngine) {
                         Text("With corrections").tag(false)
                         Text("Engine words").tag(true)
                     }
-                    Toggle(isOn: $selecting) { Label("Select text", systemImage: "selection.pin.in.out") }
+                    Toggle(isOn: $selecting) { Label("Select text", systemImage: "selection.pin.in.out") }   // brand: system surface (menu)
                     if hideFillerSetting, fillers > 0 {
-                        Toggle(isOn: $showFiller) { Label("Show filler lines", systemImage: "text.badge.minus") }
+                        Toggle(isOn: $showFiller) { Label("Show filler lines", systemImage: "text.badge.minus") }   // brand: system surface (menu)
                     }
-                } label: { Label("Text and display", systemImage: "textformat.size") }
+                    Toggle(isOn: $follow) { Label("Follow playback", systemImage: "text.line.first.and.arrowtriangle.forward") }   // brand: system surface (menu)
+                } label: { Label("Text and display", systemImage: "textformat.size") }   // brand: system surface (menu)
                 .disabled(!ready)
-                Button { showDetails = true } label: { Label("Details", systemImage: "info.circle") }
+                Button { showDetails = true } label: { Label("Details", systemImage: "info.circle") }   // brand: system surface (menu)
             }
             Section {
-                Button { RenameCenter.shared.begin(t) } label: { Label("Rename", systemImage: "pencil") }
+                Button { RenameCenter.shared.begin(t) } label: { Label("Rename", systemImage: "pencil") }   // brand: system surface (menu)
                 Button(role: .destructive) { confirmDelete = true } label: { Label("Delete", systemImage: "trash") }
             }
         } label: {
@@ -707,62 +628,65 @@ extension TranscriptScreen {
         .accessibilityIdentifier("transcript.more")
     }
 
-    /// Mark: a bookmark at the playhead, on the line being said (the same as the player's Bookmark this moment).
+    /// Mark: a bookmark at the playhead, on the line being said (the same as the player's Mark this moment).
     private func mark(_ t: Transcript) {
         let at = app.player.time
         let seg = t.segments.first { at >= $0.start && at < $0.end }
         app.addNote(t.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
         app.say("Marked \(Marks.clock(at))")
     }
+}
 
-    /// Summary: the summary in a sheet, or Summarize first when there isn't one.
-    private func openSummary(_ t: Transcript) {
-        if t.summary == nil, !SummaryCenter.shared.isRunning(t.id) {
-            if let why = SummaryAction.unavailableReason { summaryUnavailable = why; return }
-            SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: false)
+extension TranscriptScreen.Mode {
+    /// The self-test's names for the tabs.
+    init?(selfTest raw: String) {
+        switch raw {
+        case "transcript": self = .transcript
+        case "document": self = .document
+        case "summary": self = .summary
+        case "review": self = .review
+        case "result": self = .result
+        default: return nil
         }
-        showSummary = true
     }
 }
-// brand: native end
 
-/// A speaker's colored pill on a transcript line (and in the scrubber's bubble): the name in fixed ink on the
-/// speaker's color (`PhoneLines.speakerColor`), with a small chevron where it opens a menu.
-struct PhoneSpeakerChip: View {
-    var name: String
-    var color: Color
-    var size: CGFloat = 12.5
-    var menu = false
-    @Environment(\.look) private var look
-    var body: some View {
-        if look.isNative {
-            // Native: the name in semibold, no colored chip. Names carry who's talking.
-            HStack(spacing: 3) {
-                Text(name).font(.system(size: size + 2, weight: .semibold)).lineLimit(1)
-                if menu { Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(NativeInk.tertiary) }
-            }
-            .foregroundStyle(NativeInk.label)
-            .frame(minHeight: 24)
-            .contentShape(Rectangle())
+extension Notification.Name {
+    /// The self-test picks a transcript's tab (`TranscriptScreen.Mode(selfTest:)`).
+    static let phoneTranscriptMode = Notification.Name("phoneTranscriptMode")
+}
+
+/// The reading surface's edges: Apple's soft scroll edge effect under the navigation bar's glass (iOS 26); a fade of
+/// paper before that.
+private struct ReadingEdges: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content.scrollEdgeEffectStyle(.soft, for: .top)
         } else {
-            verbose
+            content
         }
-    }
-
-    private var verbose: some View {
-        HStack(spacing: 4) {
-            Text(name).font(.system(size: size, weight: .bold)).lineLimit(1)
-            if menu { Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).opacity(0.7) }
-        }
-        .foregroundStyle(Ink.inkFixed)
-        .padding(.horizontal, 10).frame(minHeight: 24)
-        .background(color, in: Capsule())
-        .contentShape(Capsule())
     }
 }
 
-/// The reading lines. Reads the playhead without observing it: the lines re-render only when the playing
-/// passage changes (`playingIDs`), not on every 20 Hz tick, so the playing tint moves without re-rendering the screen.
+/// Paper fading in under the player bar, so lines scrolling past it fade instead of peeking around it (mockup:
+/// transcript). Never takes touches.
+private struct PlayerFade: View {
+    var height: CGFloat
+    var body: some View {
+        LinearGradient(stops: [.init(color: Refined.paper.opacity(0), location: 0), .init(color: Refined.paper, location: 0.6)],
+                       startPoint: .top, endPoint: .bottom)
+            .frame(height: height)
+            .frame(maxWidth: .infinity)
+            .ignoresSafeArea(edges: .bottom)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The reading lines: each turn as the speaker's chip (when the speaker changes) and the time over the serif text. Reads
+/// the playhead without observing it: the lines re-render only when the playing passage changes (`playingIDs`), not on
+/// every 20 Hz tick, so the playing wash moves without re-rendering the screen. VoiceOver reads a turn as one element:
+/// the speaker, the time, and the words, with Play from here as its action and the line's tools as named actions.
 struct PhoneLines: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
@@ -778,22 +702,11 @@ struct PhoneLines: View {
     @State private var newName = ""
     /// Fix a word… on a line (PhoneTrust.swift).
     @State private var fixing: Segment? = nil
-    /// The passages under the playhead as of the last tick. Only a change here re-renders the lines; the tint
-    /// itself is worked out from the clock in `body`.
+    /// The passages under the playhead as of the last tick. Only a change here re-renders the lines; the wash itself is
+    /// worked out from the clock in `body`.
     @State private var playingIDs: Set<UUID> = []
     /// Sponsor reads opened from their folded row.
     @State private var openSponsors: Set<UUID> = []
-    /// Reading text at a comfortable size and line height (the website's 16.5 / 1.6), scaled with Dynamic Type.
-    @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 16.5
-    @ScaledMetric(relativeTo: .caption) private var pillSize: CGFloat = 12.5
-    @Environment(\.look) private var look
-
-    /// A speaker's pill color, by their place in the list: record, petal, sage, butter, then around again.
-    static func speakerColor(_ t: Transcript, _ id: String?) -> Color {
-        let colors = [PhoneInk.record, PhoneInk.petal, PhoneInk.sage, PhoneInk.butter]
-        guard let id, let i = t.speakers.firstIndex(where: { $0.id == id }) else { return PhoneInk.wash }
-        return colors[i % colors.count]
-    }
 
     /// The playing rule: under the playhead, and either playing or moved off the start.
     static func playing(_ segments: [Segment], at now: Double, isPlaying: Bool) -> Set<UUID> {
@@ -809,12 +722,13 @@ struct PhoneLines: View {
         // Moments marked while recording, by line, for their chips (the first on a line).
         let marked = Dictionary(transcript.notes.filter(\.isMark).compactMap { n in n.segmentId.map { ($0, n) } }, uniquingKeysWith: { a, _ in a })
         let segs = segments
+        let order = transcript.speakerOrder
         let current = Self.playing(segs, at: clock.time, isPlaying: app.player.isPlaying)
         // Sponsor reads fold into one row at their first line; their lines show once the row is opened.
         let folds = self.folds.count == segs.count ? self.folds : SponsorFold.places(segs, in: transcript)
         // "unclear 2:10" chips where speech was heard but no words came through (UnclearRules), between the lines.
         let chips = UnclearStyle.chips(transcript, lines: segs)
-        LazyVStack(alignment: .leading, spacing: 0) {
+        LazyVStack(alignment: .leading, spacing: 4) {
             ForEach(Array(segs.enumerated()), id: \.element.id) { i, s in
                 // After a folded read, name the speaker again: the line above on screen is someone else's.
                 let afterFold = i > 0 && folds[i - 1].map { !openSponsors.contains($0.span.id) } == true
@@ -829,65 +743,12 @@ struct PhoneLines: View {
                                    onNotSponsor: { app.store.update(transcript.id) { $0.dismissSponsor(fold.span.id) } })
                         .padding(.top, i == 0 ? 2 : 10).padding(.bottom, 4)
                 }
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        if showSpeaker, let n = transcript.speakerName(s.speaker) {
-                            // Tap the name to rename the speaker or move this line to someone else.
-                            Menu {
-                                if let sid = s.speaker, let sp = transcript.speakers.first(where: { $0.id == sid }) {
-                                    Button { newName = sp.name; renaming = sp } label: { Label("Rename \(n)…", systemImage: "pencil") }   // brand: system surface (menu)
-                                }
-                                Section("This line is") {
-                                    ForEach(transcript.speakers) { sp in
-                                        Button { app.assign(transcript.id, segment: s.id, to: sp.id) } label: {
-                                            Label(sp.label, systemImage: sp.id == s.speaker ? "checkmark" : "person")
-                                        }
-                                    }
-                                    Button { app.assign(transcript.id, segment: s.id, to: nil) } label: { Label("No speaker", systemImage: "person.slash") }   // brand: system surface (menu)
-                                }
-                            } label: {
-                                PhoneSpeakerChip(name: n, color: Self.speakerColor(transcript, s.speaker), size: pillSize, menu: true)
-                            }
-                            .accessibilityLabel("Speaker: \(n). Rename or reassign")
-                        }
-                        Text(s.start.timecode).lookMono(12).foregroundStyle(.lookMute)
-                            .onTapGesture { play(s) }
-                            .accessibilityLabel("Play from \(s.start.timecode)").accessibilityAddTraits(.isButton)
-                    }
-                    lineText(s, playing: playing).font(.system(size: textSize)).foregroundStyle(.lookInk).lineSpacing(textSize * 0.38)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        // Tap a line to play from it (Select text, above, is for selecting).
-                        .onTapGesture { play(s) }
-                        .accessibilityAction(named: "Play from here") { play(s) }
-                    if let mark = marked[s.id] {
-                        PhoneMarkChip(note: mark) { if let at = mark.at { app.player.play(from: at) } else { play(s) } }
-                    }
-                }
-                .padding(.vertical, 6).padding(.horizontal, 6)
-                .background(look.isNative ? (playing ? NativeInk.fill : .clear) : playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear,
-                            in: RoundedRectangle(cornerRadius: look.isNative ? 12 : Radius.button, style: .continuous))
-                .padding(.top, showSpeaker && i > 0 ? 12 : 2)
-                .id(s.id)
-                .scrubRow(scrub, index: i, count: segs.count)
-                .contentShape(Rectangle())
-                .contextMenu {
-                    if app.player.loadedURL != nil {
-                        Button { play(s) } label: { Label("Play from here", systemImage: "play") }   // brand: system surface (menu)
-                    }
-                    Button { app.addNote(transcript.id, text: String(s.text.prefix(60)), at: s.start, segment: s.id, bookmark: true) } label: { Label("Bookmark", systemImage: "bookmark") }   // brand: system surface (menu)
-                    Button { onNote(s) } label: { Label("Add note…", systemImage: "note.text.badge.plus") }   // brand: system surface (menu)
-                    Button { fixing = s } label: { Label("Fix a word…", systemImage: "pencil") }   // brand: system surface
-                    Button { UIPasteboard.general.string = "“\(s.text)”"; app.say("Quote copied"); Haptics.play(.copied) } label: { Label("Copy quote", systemImage: "quote.opening") }   // brand: system surface (menu)
-                    if let info = transcript.linkInfo, info.supportsTimestamps, let u = info.url(at: s.start) {
-                        Button { UIPasteboard.general.string = "“\(s.text)” \(u.absoluteString)"; app.say("Quote and link copied"); Haptics.play(.copied) } label: { Label("Copy quote with link", systemImage: "link") }   // brand: system surface (menu)
-                        Link(destination: u) { Label("Open video at \(s.start.timecode)", systemImage: "play.rectangle") }   // brand: system surface (menu)
-                    }
-                    if transcript.offersSponsorMarking, fold == nil {
-                        Button { app.store.update(transcript.id) { $0.markSponsor(segment: s.id) } } label: { Label("Mark as sponsor", systemImage: "tag") }   // brand: system surface (menu)
-                    }
-                }
-                .foldedAway(fold.map { !openSponsors.contains($0.span.id) } ?? false)
+                turn(s, showSpeaker: showSpeaker, index: s.speaker.flatMap { order[$0] } ?? 0, playing: playing,
+                     marked: saved.contains(s.id) || marked[s.id] != nil, mark: marked[s.id], inFold: fold != nil)
+                    .padding(.top, showSpeaker && i > 0 ? 10 : 0)
+                    .id(s.id)
+                    .scrubRow(scrub, index: i, count: segs.count)
+                    .foldedAway(fold.map { !openSponsors.contains($0.span.id) } ?? false)
             }
             if let spans = chips[segs.count] { unclearChips(spans) }
         }
@@ -903,6 +764,108 @@ struct PhoneLines: View {
         .onChange(of: transcript.segments.timingKey) { _, _ in syncPlaying(at: clock.time) }
     }
 
+    /// One turn: the chip and the time (the chip opens Rename and This line is; the time plays from here), the text,
+    /// and a marked moment's chip.
+    private func turn(_ s: Segment, showSpeaker: Bool, index: Int, playing: Bool, marked: Bool, mark: Note?, inFold: Bool) -> some View {
+        let name = transcript.speakerName(s.speaker)
+        let time = RefinedRules.time(s.start)
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                if showSpeaker, let n = name {
+                    // Tap the name to rename the speaker or move this line to someone else.
+                    Menu { speakerMenu(s, name: n) } label: {
+                        SpeakerChip(name: n, index: index)
+                            .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+                            .contentShape(Rectangle())
+                    }
+                }
+                Button { play(s) } label: {
+                    TurnTime(time: time, playing: playing, marked: marked)
+                        .frame(minWidth: CGFloat(RefinedRules.minTapTarget), minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            // The 44 pt targets reach into the space around the line, which is empty.
+            .padding(.vertical, -10)
+            lineText(s, playing: playing).readingStyle()
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                // Tap a line to play from it (Select text, in More, is for selecting).
+                .onTapGesture { play(s) }
+            if let mark {
+                Button { if let at = mark.at { app.player.play(from: at) } else { play(s) } } label: {
+                    MomentChip(time: Marks.clock(mark.at ?? s.start), source: Marks.shortSource(mark))
+                        .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.vertical, -8)
+                .accessibilityLabel(Marks.chip(mark) ?? "Moment")
+                .accessibilityHint("Plays from this moment.")
+            }
+        }
+        .readingTurn(playing: playing)
+        .contentShape(Rectangle())
+        .contextMenu { lineMenu(s, inFold: inFold) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([name.map { "\($0)," }, RefinedRules.spokenTime(s.start) + ",", s.text].compactMap { $0 }.joined(separator: " "))
+        .accessibilityValue([playing ? "Playing" : nil, marked ? "Marked" : nil].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityHint("Plays from here.")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { play(s) }
+        .accessibilityActions {
+            Button("Bookmark") { bookmark(s) }
+            Button("Add note") { onNote(s) }
+            Button("Fix a word") { fixing = s }
+            Button("Copy quote") { copyQuote(s) }
+            if let sid = s.speaker, let sp = transcript.speakers.first(where: { $0.id == sid }) {
+                Button("Rename \(sp.label)") { newName = sp.name; renaming = sp }
+            }
+            if let mark { Button("Play moment") { app.player.play(from: mark.at ?? s.start) } }
+        }
+    }
+
+    @ViewBuilder private func speakerMenu(_ s: Segment, name n: String) -> some View {
+        if let sid = s.speaker, let sp = transcript.speakers.first(where: { $0.id == sid }) {
+            Button { newName = sp.name; renaming = sp } label: { Label("Rename \(n)…", systemImage: "pencil") }   // brand: system surface (menu)
+        }
+        Section("This line is") {
+            ForEach(transcript.speakers) { sp in
+                Button { app.assign(transcript.id, segment: s.id, to: sp.id) } label: {
+                    Label(sp.label, systemImage: sp.id == s.speaker ? "checkmark" : "person")   // brand: system surface (menu)
+                }
+            }
+            Button { app.assign(transcript.id, segment: s.id, to: nil) } label: { Label("No speaker", systemImage: "person.slash") }   // brand: system surface (menu)
+        }
+    }
+
+    @ViewBuilder private func lineMenu(_ s: Segment, inFold: Bool) -> some View {
+        if app.player.loadedURL != nil {
+            Button { play(s) } label: { Label("Play from here", systemImage: "play") }   // brand: system surface (menu)
+        }
+        Button { bookmark(s) } label: { Label("Bookmark", systemImage: "bookmark") }   // brand: system surface (menu)
+        Button { onNote(s) } label: { Label("Add note…", systemImage: "note.text.badge.plus") }   // brand: system surface (menu)
+        Button { fixing = s } label: { Label("Fix a word…", systemImage: "pencil") }   // brand: system surface
+        Button { copyQuote(s) } label: { Label("Copy quote", systemImage: "quote.opening") }   // brand: system surface (menu)
+        if let info = transcript.linkInfo, info.supportsTimestamps, let u = info.url(at: s.start) {
+            Button { UIPasteboard.general.string = "“\(s.text)” \(u.absoluteString)"; app.say("Quote and link copied"); Haptics.play(.copied) } label: { Label("Copy quote with link", systemImage: "link") }   // brand: system surface (menu)
+            Link(destination: u) { Label("Open video at \(RefinedRules.time(s.start))", systemImage: "play.rectangle") }   // brand: system surface (menu)
+        }
+        if transcript.offersSponsorMarking, !inFold {
+            Button { app.store.update(transcript.id) { $0.markSponsor(segment: s.id) } } label: { Label("Mark as sponsor", systemImage: "tag") }   // brand: system surface (menu)
+        }
+    }
+
+    private func bookmark(_ s: Segment) {
+        app.addNote(transcript.id, text: String(s.text.prefix(60)), at: s.start, segment: s.id, bookmark: true)
+    }
+
+    private func copyQuote(_ s: Segment) {
+        UIPasteboard.general.string = "“\(s.text)”"; app.say("Quote copied"); Haptics.play(.copied)
+    }
+
     @MainActor private func syncPlaying(at now: Double) {
         let ids = Self.playing(transcript.segments, at: now, isPlaying: app.player.isPlaying)
         if ids != playingIDs { playingIDs = ids }
@@ -912,7 +875,7 @@ struct PhoneLines: View {
     private func unclearChips(_ spans: [UnclearSpan]) -> some View {
         ForEach(spans, id: \.start) { sp in
             UnclearChip(span: sp, onPlay: { if app.player.canPlay { app.player.play(from: sp.start) } })
-                .padding(.leading, 6).padding(.vertical, 6)
+                .padding(.vertical, 4)
         }
     }
 
@@ -922,245 +885,57 @@ struct PhoneLines: View {
         app.player.play(from: PlaybackSync.seekTime(s, duration: app.player.duration))
     }
 
-    /// The line's text; while it plays with fresh word timings, the playing word is tinted too.
+    /// The line's text; while it plays with fresh word timings, the playing word takes the playing wash too.
     @ViewBuilder private func lineText(_ s: Segment, playing: Bool) -> some View {
         // Low-confidence words carry a quiet dotted underline (UnclearStyle), as a best guess.
         if playing, PlaybackSync.timingsFresh(s) {
-            PlayingWordText(segment: s, base: UnclearStyle.marked(AttributedString(s.text), s), clock: clock, tint: look.isNative ? NativeInk.fillStrong : Ink.accentText.opacity(0.18))
+            PlayingWordText(segment: s, base: UnclearStyle.marked(AttributedString(s.text), s), clock: clock, tint: Refined.playing)
         } else {
             Text(UnclearStyle.marked(AttributedString(s.text), s))
         }
     }
 }
 
-/// The dark player at the foot of a transcript (an opaque ink capsule, never glass): play on a sage disc (sage means
-/// playback; persimmon stays on Record), the time in mono, the waveform (drag or tap it to move through the recording;
-/// the played part is sage), Follow, and a menu with speed, skip 5 seconds, and Bookmark this moment.
-struct PhoneDock: View {
+/// The transcript's player: the kit's glass bar (`GlassPlayerBar`) with this recording's waveform, its moments, and the
+/// speed's menu (the speeds, back and forward 5 seconds, Reduce background noise, Mark this moment, and Follow
+/// playback). Observes the player and the clock, so playback redraws the bar alone. Play turns Follow back on.
+struct PhonePlayerBar: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
+    @ObservedObject var player: Player
     @ObservedObject var clock: PlayerClock
     var downloading: Bool
     @Binding var follow: Bool
-    @Environment(\.look) private var look
-
-    /// Native repaints the dock in system colors on glass; Verbose style keeps the opaque ink capsule.
-    private var onDock: Color { look.isNative ? NativeInk.label : Ink.paperFixed }
 
     var body: some View {
-        let total = max(app.player.duration, transcript.duration, 0.1)
-        if look.isNative { nativeDock(total) } else { verboseDock(total) }
-    }
-
-    private func verboseDock(_ total: Double) -> some View {
-        let dock = HStack(spacing: 10) {
-            Button { app.player.toggle() } label: {
-                ZStack {
-                    Circle().fill(look.isNative ? NativeInk.accent : PhoneInk.sage)
-                    if downloading { ProgressView().tint(look.isNative ? Color.white : Ink.inkFixed) }
-                    else if look.isNative {
-                        Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.white)   // brand: native
-                    }
-                    else { ArtIcon(art: app.player.isPlaying ? .iconPause : .iconPlay, size: 15, lineWidth: 2).foregroundStyle(Ink.inkFixed) }
-                }
-                .frame(width: 38, height: 38)
-                .contentShape(Circle())
+        let total = max(clock.duration, transcript.duration, 0.1)
+        GlassPlayerBar(isPlaying: player.isPlaying, elapsed: min(clock.time, total), duration: total,
+                       levels: transcript.waveform.isEmpty ? Self.flat : transcript.waveform,
+                       moments: transcript.notes.filter { $0.isBookmark || $0.isMark }.compactMap(\.at),
+                       speed: PlaybackSync.speedLabel(player.rate), status: clock.note, loading: downloading,
+                       onPlayPause: {
+                           if !player.isPlaying { follow = true }
+                           player.toggle()
+                       },
+                       onSeek: { player.seek(to: $0) }) {
+            Picker("Speed", selection: Binding(get: { player.rate }, set: { player.setRate($0) })) {
+                ForEach(PlaybackSync.speeds, id: \.self) { r in Text(PlaybackSync.speedLabel(r)).tag(r) }
             }
-            .buttonStyle(PhoneCardPress())
-            .disabled(downloading)
-            .accessibilityLabel(downloading ? "Downloading audio" : app.player.isPlaying ? "Pause" : "Play")
-            if let note = clock.note {
-                SkippedSponsorNote(text: note)
-            } else {
-                Text(clock.time.timecode).lookMono(12).foregroundStyle(onDock)
-                    .fixedSize()
-                    .accessibilityHidden(true)
-            }
-            PhoneDockWave(levels: transcript.waveform, progress: min(1, clock.time / total),
-                          played: look.isNative ? NativeInk.accent : Ink.sage,
-                          rest: look.isNative ? NativeInk.gray : Ink.paperFixed.opacity(0.35)) { f in
-                app.player.seek(to: f * total)
-            }
-            .frame(height: 26)
-            .accessibilityElement()
-            .accessibilityLabel("Playback position")
-            .accessibilityValue("\(clock.time.timecode) of \(total.timecode)")
-            .accessibilityAdjustableAction { direction in
-                switch direction {
-                case .increment: app.player.seek(to: min(total, clock.time + 5))
-                case .decrement: app.player.seek(to: max(0, clock.time - 5))
-                @unknown default: break
-                }
-            }
-            Button { follow.toggle() } label: {
-                Text("Follow").font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(look.isNative ? (follow ? Color.white : NativeInk.accent) : follow ? Ink.inkFixed : Ink.paperFixed)
-                    .padding(.horizontal, 14).frame(minHeight: 36)
-                    .background { if follow { Capsule().fill(look.isNative ? NativeInk.accent : Ink.paperFixed) } }
-                    .overlay { if !follow { Capsule().strokeBorder(look.isNative ? NativeInk.accent.opacity(0.6) : Ink.paperFixed.opacity(0.6), lineWidth: 1.2) } }
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Follow playback")
-            .accessibilityValue(follow ? "On" : "Off")
-            .accessibilityHint("Scrolls to the line that's playing. Scrolling yourself turns it off.")
-            Menu {
-                Picker("Speed", selection: Binding(get: { app.player.rate }, set: { app.player.setRate($0) })) {
-                    ForEach(PlaybackSync.speeds, id: \.self) { r in Text(PlaybackSync.speedLabel(r)).tag(r) }
-                }
-                Button("Back 5 seconds") { app.player.seek(to: max(0, clock.time - 5)) }
-                Button("Forward 5 seconds") { app.player.seek(to: min(total, clock.time + 5)) }
-                ReduceNoiseToggle(player: app.player)
-                Button {
-                    let at = clock.time
-                    let seg = transcript.segments.first { at >= $0.start && at < $0.end }
-                    app.addNote(transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
-                } label: { Label("Bookmark this moment", systemImage: "bookmark") }   // brand: system surface (menu)
-            } label: {
-                Image(systemName: "ellipsis").font(.system(size: 16, weight: .semibold)).foregroundStyle(onDock)
-                    .frame(width: 32, height: 38).contentShape(Rectangle())
-            }
-            .accessibilityLabel("Playback options, \(PlaybackSync.speedLabel(app.player.rate))")
+            Button { player.seek(to: max(0, clock.time - 5)) } label: { Label("Back 5 seconds", systemImage: "gobackward.5") }   // brand: system surface (menu)
+            Button { player.seek(to: min(total, clock.time + 5)) } label: { Label("Forward 5 seconds", systemImage: "goforward.5") }   // brand: system surface (menu)
+            ReduceNoiseToggle(player: player)
+            Button {
+                let at = clock.time
+                let seg = transcript.segments.first { at >= $0.start && at < $0.end }
+                app.addNote(transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
+            } label: { Label("Mark this moment", systemImage: "bookmark") }   // brand: system surface (menu)
+            Toggle(isOn: $follow) { Label("Follow playback", systemImage: "text.line.first.and.arrowtriangle.forward") }   // brand: system surface (menu)
         }
-        .padding(.leading, 8).padding(.trailing, 6)
-        .frame(minHeight: 54)
-        return dock
-            .background(Ink.inkFixed, in: Capsule())
-            .shadow(color: Ink.inkFixed.opacity(0.2), radius: 12, y: 8)
+        .accessibilityIdentifier("transcript.player")
     }
-}
 
-// brand: native begin
-extension PhoneDock {
-    /// Native: the player as a glass bar at the bottom edge (the tab bar hides while you read), like Apple's own
-    /// players: play, the time, the waveform as the scrubber (label color played, tertiary after), the time left, the
-    /// speed (its menu has skip, Reduce background noise, and Bookmark this moment), and Follow.
-    @ViewBuilder fileprivate func nativeDock(_ total: Double) -> some View {
-        let dock = HStack(spacing: 8) {
-            Button { app.player.toggle() } label: {
-                Group {
-                    if downloading { ProgressView() }
-                    else { Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.title3) }
-                }
-                .foregroundStyle(NativeInk.label)
-                .frame(width: 40, height: 44)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(downloading)
-            .accessibilityLabel(downloading ? "Downloading audio" : app.player.isPlaying ? "Pause" : "Play")
-            if let note = clock.note {
-                SkippedSponsorNote(text: note)
-            } else {
-                Text(clock.time.timecode).font(.footnote.weight(.medium)).monospacedDigit().foregroundStyle(NativeInk.label)
-                    .fixedSize()
-                    .accessibilityHidden(true)
-            }
-            PhoneDockWave(levels: transcript.waveform, progress: min(1, clock.time / total),
-                          played: NativeInk.label, rest: NativeInk.tertiary) { f in
-                app.player.seek(to: f * total)
-            }
-            .frame(height: 26)
-            .accessibilityElement()
-            .accessibilityLabel("Playback position")
-            .accessibilityValue("\(clock.time.timecode) of \(total.timecode)")
-            .accessibilityAdjustableAction { direction in
-                switch direction {
-                case .increment: app.player.seek(to: min(total, clock.time + 5))
-                case .decrement: app.player.seek(to: max(0, clock.time - 5))
-                @unknown default: break
-                }
-            }
-            Text("−" + max(0, total - clock.time).timecode).font(.footnote).monospacedDigit().foregroundStyle(NativeInk.secondary)
-                .fixedSize()
-                .accessibilityHidden(true)
-            Menu {
-                Picker("Speed", selection: Binding(get: { app.player.rate }, set: { app.player.setRate($0) })) {
-                    ForEach(PlaybackSync.speeds, id: \.self) { r in Text(PlaybackSync.speedLabel(r)).tag(r) }
-                }
-                Button { app.player.seek(to: max(0, clock.time - 5)) } label: { Label("Back 5 seconds", systemImage: "gobackward.5") }
-                Button { app.player.seek(to: min(total, clock.time + 5)) } label: { Label("Forward 5 seconds", systemImage: "goforward.5") }
-                ReduceNoiseToggle(player: app.player)
-                Button {
-                    let at = clock.time
-                    let seg = transcript.segments.first { at >= $0.start && at < $0.end }
-                    app.addNote(transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
-                } label: { Label("Bookmark this moment", systemImage: "bookmark") }
-            } label: {
-                Text(PlaybackSync.speedLabel(app.player.rate)).font(.subheadline.weight(.semibold)).monospacedDigit()
-                    .foregroundStyle(NativeInk.label)
-                    .frame(minWidth: 30, minHeight: 44).contentShape(Rectangle())
-            }
-            .accessibilityLabel("Playback options, \(PlaybackSync.speedLabel(app.player.rate))")
-            Button { follow.toggle() } label: {
-                Image(systemName: "text.line.first.and.arrowtriangle.forward").font(.body.weight(.medium))
-                    .foregroundStyle(follow ? NativeInk.accent : NativeInk.secondary)
-                    .frame(width: 36, height: 44).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Follow playback")
-            .accessibilityValue(follow ? "On" : "Off")
-            .accessibilityHint("Scrolls to the line that's playing. Scrolling yourself turns it off.")
-        }
-        .padding(.leading, 6).padding(.trailing, 8)
-        .frame(minHeight: 52)
-        NativeDockSurface(content: dock)
-    }
-}
-// brand: native end
-
-// brand: native begin
-/// The player in the Native look: Liquid Glass like Music's bar above the tab bar (a material before iOS 26). Native
-/// follows Apple in putting text on glass here; keep the scroll edge effect on.
-private struct NativeDockSurface<Content: View>: View {
-    var content: Content
-    var body: some View {
-        if #available(iOS 26, *) {
-            content.glassEffect(.regular, in: Capsule())
-        } else {
-            content.background(.bar, in: Capsule())
-                .overlay(Capsule().strokeBorder(NativeInk.separator, lineWidth: 0.5))
-        }
-    }
-}
-// brand: native end
-
-/// The player's waveform: the recording's levels as thin bars, butter up to the playhead and faint paper after it.
-/// Tap or drag to move the playhead.
-struct PhoneDockWave: View {
-    var levels: [Float]
-    var progress: Double
-    var played: Color = Ink.butter
-    var rest: Color = Ink.paperFixed.opacity(0.35)
-    var seek: (Double) -> Void
-
-    var body: some View {
-        GeometryReader { g in
-            Canvas { ctx, size in
-                let n = 46
-                let gap: CGFloat = 2
-                let w = max(1, (size.width - gap * CGFloat(n - 1)) / CGFloat(n))
-                for i in 0..<n {
-                    let v: CGFloat
-                    if levels.isEmpty {
-                        v = 0.2 + 0.7 * CGFloat(abs(sin(Double(i) * 0.7) * cos(Double(i) * 0.23)))
-                    } else {
-                        let idx = min(levels.count - 1, i * levels.count / n)
-                        v = max(0.2, min(1, CGFloat(levels[idx]) * 1.4))
-                    }
-                    let h = v * size.height
-                    let rect = CGRect(x: CGFloat(i) * (w + gap), y: (size.height - h) / 2, width: w, height: h)
-                    let isPlayed = Double(i) / Double(n) < progress
-                    ctx.fill(Path(roundedRect: rect, cornerRadius: min(2, w / 2)),
-                             with: .color(isPlayed ? played : rest))
-                }
-            }
-            .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0).onChanged { v in
-                seek(max(0, min(1, Double(v.location.x / max(1, g.size.width)))))
-            })
-        }
-    }
+    /// A quiet waveform for a recording whose levels aren't measured yet.
+    static let flat: [Float] = (0..<46).map { Float(0.25 + 0.5 * abs(sin(Double($0) * 0.7) * cos(Double($0) * 0.23))) }
 }
 
 /// Calls `action` when the person drags the scroll view themselves (not when code scrolls it), for turning off
@@ -1180,13 +955,15 @@ extension View {
     func onManualScroll(_ action: @escaping () -> Void) -> some View { modifier(ManualScroll(action: action)) }
 }
 
+/// A link's video under the header: its thumbnail, the channel and site, and the upload date, on a card. The whole
+/// card opens the video.
 struct PhoneLinkCard: View {
     var info: LinkInfo
     var body: some View {
         if let u = URL(string: info.url) {
             // One play target: the whole card opens the video.
             Link(destination: u) { card }
-                .buttonStyle(PhoneCardPress())
+                .buttonStyle(RefinedPress())
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Open video, \(title)")
         } else {
@@ -1199,63 +976,28 @@ struct PhoneLinkCard: View {
     private var card: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.track)
-                if let f = info.thumbnailFile { StillImage(file: f, maxPixel: 240).clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)) }
-                else { IconGlyph(art: .iconPlay, size: 18, color: Ink.mute) }
+                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Refined.neutralSquare)
+                if let f = info.thumbnailFile { StillImage(file: f, maxPixel: 240).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)) }
+                else { IconGlyph(art: .iconPlay, size: 18, color: Refined.mute) }
             }
             .frame(width: 72, height: 42)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(.lookInk).lineLimit(1)
-                Text(info.uploadDisplay ?? URL(string: info.url)?.host ?? "").font(.system(size: 12.5)).foregroundStyle(.lookMute).lineLimit(1)
+                Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                Text(info.uploadDisplay ?? URL(string: info.url)?.host ?? "").refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
             }
             Spacer(minLength: 4)
         }
         .padding(8)
-        .cardSurface(radius: Radius.row)
-        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
     }
 }
 
-/// A marked line's chip (mockup "Library features", section 3c): the Marked icon, "Moment 4:12", and where it came from
-/// ("· from the Lock Screen"), on butter in ink. Premium Native: the accent's symbol on a neutral capsule. Tap to play.
-struct PhoneMarkChip: View {
-    @Environment(\.look) private var look
-    var note: Note
-    var play: () -> Void
-    @ScaledMetric(relativeTo: .footnote) private var size: CGFloat = 13
-
-    var body: some View {
-        let native = look.isNative
-        Button(action: play) {
-            HStack(spacing: 6) {
-                if native {
-                    Image(systemName: "bookmark.fill").font(.system(size: size - 1, weight: .semibold)).foregroundStyle(NativeInk.accent)   // brand: native
-                } else {
-                    IconGlyph(art: .iconMarked, size: size + 1, color: Ink.inkFixed)
-                }
-                Text("Moment").font(.system(size: size, weight: .semibold))
-                Text(Marks.clock(note.at ?? 0)).font(native ? .system(size: size, weight: .medium).monospacedDigit() : Ink.mono(max(12, size - 0.5)))
-                // The short form, as the Moments screen says it ("Lock Screen", "Mac · ⌃⌥B"; DESIGN.md §18.3); VoiceOver
-                // hears the sentence (Marks.chip).
-                if let from = Marks.shortSource(note) { Text("· \(from)").font(.system(size: size)).opacity(0.78) }
-            }
-            .foregroundStyle(native ? NativeInk.label : Ink.inkFixed)
-            .lineLimit(1).minimumScaleFactor(0.85)
-            .padding(.horizontal, 10).frame(minHeight: 28)
-            .background(native ? NativeInk.label.opacity(0.07) : Ink.panelButter, in: Capsule())
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Marks.chip(note) ?? "Moment")
-        .accessibilityHint("Plays from this moment.")
-    }
-}
-
-/// Notes and bookmarks for one transcript, newest first, with an add field.
+/// Moments and notes for one transcript, newest first, with an add field: a system sheet with the transcript's
+/// paper behind its rows. A bookmark or a marked moment carries the accent mark; tap one to play from it.
 struct NotesSheet: View {
     @EnvironmentObject var app: PhoneState
     var id: UUID
-    @Environment(\.look) private var look
     @State private var draft = ""
     @FocusState private var focused: Bool
     var body: some View {
@@ -1270,26 +1012,30 @@ struct NotesSheet: View {
                         }
                         .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
+                    .listRowBackground(Refined.card)
                 }
                 Section {
                     ForEach(app.store.transcript(id)?.notes ?? []) { n in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 5) {
-                                if n.isBookmark { ArtIcon(art: n.isMark ? .iconMarked : .bookmark, size: 13) }
-                                if let at = n.at { Text(at.timecode).lookMono(12) }
+                                if n.isBookmark { MomentMark() }
+                                if let at = n.at { Text(RefinedRules.time(at)).refinedFont(.meta).monospacedDigit() }
                                 // Marked while recording: where from.
-                                if let from = Marks.shortSource(n) { Text("· \(from)").font(.system(size: 13)) }
+                                if let from = Marks.shortSource(n) { Text("· \(from)").refinedFont(.meta) }
                             }
-                            .foregroundStyle(look.isNative ? (n.isBookmark ? NativeInk.accent : NativeInk.secondary) : (n.isBookmark ? Ink.butterText : Ink.dim))
-                            if let f = n.frameFile { StillImage(file: f).frame(height: 120).clipShape(RoundedRectangle(cornerRadius: Radius.button)) }
+                            .foregroundStyle(Refined.mute)
+                            if let f = n.frameFile { StillImage(file: f).frame(height: 120).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)) }
                             if let action = n.aiAction {
                                 // Saved from an action: stays marked as Apple Intelligence's, not the transcript's.
-                                Label("\(action) · Made by Apple Intelligence", art: .iconAI, size: 14)
-                                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.lookDim)
+                                HStack(spacing: 6) {
+                                    IconGlyph(art: .iconAI, size: 14, color: Refined.dim)
+                                    Text("\(action) · Made by Apple Intelligence").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.dim)
+                                }
                             }
-                            Text(Marks.words(n, in: app.store.transcript(id)?.segments ?? [])).font(.system(size: 15)).foregroundStyle(.lookInk)
+                            Text(Marks.words(n, in: app.store.transcript(id)?.segments ?? [])).refinedFont(.body).foregroundStyle(Refined.ink)
                         }
-                        .listRowBackground(look.isNative ? NativeInk.card : (n.isBookmark ? Ink.butterTint : Ink.card))
+                        .listRowBackground(Refined.card)
+                        .contentShape(Rectangle())
                         .onTapGesture { if let at = n.at { app.player.seek(to: at) } }
                     }
                     .onDelete { idx in
@@ -1299,229 +1045,9 @@ struct NotesSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background((look.isNative ? NativeInk.paper : Ink.paper).ignoresSafeArea())
-            .navigationTitle(look.isNative ? "Moments and notes" : "Notes")
+            .background(Refined.paper.ignoresSafeArea())
+            .navigationTitle("Moments and notes")
             .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-}
-
-/// The Summary on a butter panel with grain and the strands drawing (the screen's one moving drawing): the eyebrow,
-/// the overview's first sentence as a serif headline and the rest under it, the key points, the Apple Intelligence
-/// note, and Edit and Regenerate. Ink text in both modes. Hidden while there's nothing to show and Apple
-/// Intelligence can't run here (`SummaryBlock.shows`); the Summarize action says why.
-struct PhoneSummaryPanel: View {
-    var transcript: Transcript
-    /// Runs the summary; `true` replaces a summary the person edited.
-    var onSummarize: (_ replacingEdits: Bool) -> Void
-    /// Saves the person's edit; nil removes the summary.
-    var onSave: (TranscriptSummary?) -> Void
-
-    @ObservedObject private var center = SummaryCenter.shared
-    @State private var editing = false
-    @State private var draft = ""
-    @State private var confirmReplace = false
-    @Environment(\.limitMotion) private var limitMotion
-    @ScaledMetric(relativeTo: .title2) private var headSize: CGFloat = 22
-    @ScaledMetric(relativeTo: .body) private var bodySize: CGFloat = 14.5
-    @Environment(\.look) private var look
-
-    private var running: Bool { center.isRunning(transcript.id) }
-    private var animation: Animation { limitMotion ? Motion.fade : Motion.settle }
-
-    var body: some View {
-        if SummaryBlock.shows(transcript, center: center) {
-            Group {
-                if look.isNative { nativeCard } else { verboseCard }
-            }
-            .confirmationDialog("Replace your edited summary?", isPresented: $confirmReplace, titleVisibility: .visible) {
-                Button("Replace", role: .destructive) { onSummarize(true) }
-                Button("Keep mine", role: .cancel) {}
-            } message: {
-                Text("Apple Intelligence writes a new summary, and your edits are gone.")
-            }
-        }
-    }
-
-    private var verboseCard: some View {
-        let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
-        return VStack(alignment: .leading, spacing: 10) {
-            PhoneEyebrow(text: "Summary", color: Ink.inkFixed)
-                .accessibilityAddTraits(.isHeader)
-            content
-        }
-        .foregroundStyle(.lookOnPanel)
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            PhonePanelFill(color: PhoneInk.butter, shape: shape)
-                .overlay(alignment: .topTrailing) {
-                    if !editing { PhonePanelArt(kind: .strands).frame(width: 160, height: 107).offset(x: 4, y: -16) }
-                }
-                .clipShape(shape)
-        }
-    }
-
-    // brand: native begin
-    /// Native: an inset grouped cell with label text, the sparkles symbol, Apple Intelligence's mark, and the moment
-    /// and speaker counts.
-    private var nativeCard: some View {
-        let moments = transcript.notes.filter { $0.at != nil }.count
-        let speakers = transcript.speakers.count
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("Summary", systemImage: "sparkles").font(.subheadline.weight(.semibold)).foregroundStyle(NativeInk.secondary)
-                Spacer(minLength: 6)
-                if transcript.summaryByModel { Text("Apple Intelligence").font(.caption).foregroundStyle(NativeInk.secondary) }
-            }
-            .accessibilityAddTraits(.isHeader)
-            content
-            if !editing, moments > 0 || speakers >= 2 {
-                HStack(spacing: 8) {
-                    if moments > 0 { nativeCount("bookmark", moments == 1 ? "1 moment" : "\(moments) moments") }
-                    if speakers >= 2 { nativeCount("person.2", "\(speakers) speakers") }
-                }
-                .padding(.top, 4)
-            }
-        }
-        .foregroundStyle(NativeInk.label)
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .nativeCell()
-    }
-
-    private func nativeCount(_ symbol: String, _ text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: symbol).font(.footnote)
-            Text(text).font(.footnote).monospacedDigit()
-        }
-        .foregroundStyle(NativeInk.secondary)
-        .padding(.horizontal, 10).frame(minHeight: 26)
-        .background(NativeInk.fill, in: Capsule())
-        .accessibilityElement(children: .combine)
-    }
-    // brand: native end
-
-    @ViewBuilder private var content: some View {
-        if editing {
-            editor
-        } else if let s = transcript.summary {
-            let parts = Self.split(s.overview)
-            let head = parts.0, rest = parts.1
-            VStack(alignment: .leading, spacing: 10) {
-                if !head.isEmpty {
-                    Text(head).lookSerif(headSize).lineSpacing(1)
-                        .padding(.trailing, 64)
-                        .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                }
-                if !rest.isEmpty {
-                    Text(rest).font(.system(size: bodySize)).lineSpacing(3)
-                        .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                }
-                if !s.keyPoints.isEmpty {
-                    VStack(alignment: .leading, spacing: 5) {
-                        ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { _, p in
-                            HStack(alignment: .firstTextBaseline, spacing: 9) {
-                                Circle().fill(look.isNative ? NativeInk.label : Ink.inkFixed).frame(width: 4.5, height: 4.5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + 4 }
-                                Text(p).font(.system(size: bodySize)).lineSpacing(2)
-                                    .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("Key points")
-                }
-                if transcript.summaryByModel {
-                    Label { Text(AIGeneratedNote.summary) } icon: { ArtIcon(art: .iconAI, size: 13) }
-                        .font(.system(size: 12)).opacity(0.8)
-                        .accessibilityElement(children: .combine)
-                }
-                if running { progressRow } else if let why = center.failures[transcript.id] { Text(why).font(.system(size: 13)).opacity(0.8) }
-                HStack(spacing: 18) {
-                    Button("Edit") { draft = s.plainText; withAnimation(animation) { editing = true } }
-                    if Summarizer.available, !running {
-                        Button("Regenerate") {
-                            if transcript.summaryIsEdited { confirmReplace = true } else { onSummarize(false) }
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 14, weight: .semibold))
-                .underline(!look.isNative)
-                .foregroundStyle(look.isNative ? NativeInk.accent : Ink.inkFixed)
-            }
-        } else if running {
-            progressRow
-        } else if let why = center.failures[transcript.id] {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(why).font(.system(size: 14)).fixedSize(horizontal: false, vertical: true)
-                if Summarizer.available {
-                    Button("Try again") { onSummarize(false) }.buttonStyle(.plain)
-                        .font(.system(size: 14, weight: .semibold)).underline()
-                }
-            }
-        }
-    }
-
-    private var progressRow: some View {
-        HStack(spacing: 8) {
-            ProgressView().controlSize(.small).tint(look.isNative ? NativeInk.secondary : Ink.inkFixed)
-            Text(progressText).font(.system(size: 14))
-        }
-    }
-
-    private var progressText: String {
-        if let p = center.progress[transcript.id], p > 0 { return "Writing a summary… \(Int(p * 100))%" }
-        return "Writing a summary…"
-    }
-
-    private var editor: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("An overview, then one key point per line starting with “- ”.").font(.system(size: 13.5))
-            TextEditor(text: $draft)
-                .font(.system(size: bodySize)).lineSpacing(3)
-                .foregroundStyle(Ink.inkFixed)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 160)
-                .padding(8)
-                .background(Ink.readerFixed, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .environment(\.colorScheme, .light)
-            HStack(spacing: 18) {
-                Button("Save") {
-                    let parsed = TranscriptSummary.parse(draft)
-                    onSave(parsed.isEmpty ? nil : parsed)
-                    withAnimation(animation) { editing = false }
-                }
-                Button("Cancel") { withAnimation(animation) { editing = false } }
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: 14, weight: .semibold))
-        }
-    }
-
-    /// The overview's first sentence (the headline) and the rest.
-    static func split(_ overview: String) -> (String, String) {
-        let text = overview.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let r = text.range(of: #"[.!?](\s|$)"#, options: .regularExpression) else { return (text, "") }
-        let head = String(text[..<r.upperBound]).trimmingCharacters(in: .whitespaces)
-        let rest = String(text[r.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        // A long first sentence reads as body text, not a headline.
-        return head.count <= 90 ? (head, rest) : ("", text)
-    }
-}
-
-/// The Original tab's two capsules (the words menu and Select text): card white with a hairline in Verbose style
-/// (ink when selecting); a gray system fill in Native (the accent when selecting).
-private struct OriginalBarCapsule: ViewModifier {
-    var native: Bool
-    var selected = false
-    func body(content: Content) -> some View {
-        if native {
-            content.background(selected ? NativeInk.accent : NativeInk.fill, in: Capsule())
-        } else {
-            content
-                .background(selected ? Ink.interactive : Ink.card, in: Capsule())
-                .overlay(Capsule().strokeBorder(Ink.hairline))
         }
     }
 }

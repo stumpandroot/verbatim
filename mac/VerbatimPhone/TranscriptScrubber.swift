@@ -248,8 +248,8 @@ struct TranscriptScrubber: View {
     var end: Double
     /// The speaker's name for the bubble, when there are speakers.
     var speaker: (Segment) -> String?
-    /// The speaker's chip color, as on the transcript's lines (`PhoneLines.speakerColor`).
-    var speakerColor: (Segment) -> Color
+    /// The speaker's place in the chip rotation, as on the transcript's lines (`Transcript.speakerOrder`).
+    var speakerIndex: (Segment) -> Int
     /// Jumps the transcript to a line, at once.
     var jump: (Segment) -> Void
     /// A drag began (turns Follow off while playing).
@@ -258,7 +258,6 @@ struct TranscriptScrubber: View {
     @Environment(\.limitMotion) private var limitMotion
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.displayScale) private var displayScale
-    @Environment(\.look) private var look
     @State private var voiceOver = UIAccessibility.isVoiceOverRunning
     /// The lines and their starts for the drag in progress.
     @State private var held: [Segment] = []
@@ -312,7 +311,7 @@ struct TranscriptScrubber: View {
                 if model.dragging, let text = bubbleText {
                     // Beside the finger, its right edge 10 pt from the handle.
                     let room = max(0, g.size.width - 48)
-                    bubble(time: text.time, name: text.name, color: held.indices.contains(landed) ? speakerColor(held[landed]) : .clear)
+                    bubble(time: text.time, name: text.name, index: held.indices.contains(landed) ? speakerIndex(held[landed]) : 0)
                         .frame(maxWidth: min(280, room))
                         .frame(width: room, alignment: .trailing)
                         .position(x: room / 2, y: min(max(y, 22), max(22, h - 22)))
@@ -344,28 +343,12 @@ struct TranscriptScrubber: View {
 
     // MARK: Handle and bubble
 
-    /// The bars mark on an ink key (paper in dark): the keycap radius, the ink outline, and a hard offset shadow
-    /// that tightens while held, as a pressed card's does (DESIGN.md §7, §11).
+    /// A capsule like the system's scroll indicator, in the refined ink, wider while held. Same hit area as before.
     private var handle: some View {
-        let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-        let shadow: CGSize = model.dragging ? CGSize(width: 2, height: 3) : CGSize(width: 3, height: 4)
-        return Group {
-            if look.isNative {
-                // Native: a gray capsule like the system's scroll indicator, wider while held. Same hit area.
-                Capsule().fill(NativeInk.secondary.opacity(model.dragging ? 0.9 : 0.6))
-                    .frame(width: model.dragging ? 8 : 6, height: Self.handleSize.height)
-                    .frame(width: Self.handleSize.width, height: Self.handleSize.height)
-                    .accessibilityHidden(true)
-            } else {
-                BarsMark(color: Ink.paper)
-                    .frame(width: 12, height: 13)
-                    .accessibilityHidden(true)
-                    .frame(width: Self.handleSize.width, height: Self.handleSize.height)
-                    .background(shape.fill(Ink.ink))
-                    .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
-                    .background(shape.fill(Ink.hard).offset(x: shadow.width, y: shadow.height))
-            }
-        }
+        Capsule().fill(Refined.mute.opacity(model.dragging ? 1 : 0.7))
+            .frame(width: model.dragging ? 8 : 6, height: Self.handleSize.height)
+            .frame(width: Self.handleSize.width, height: Self.handleSize.height)
+            .accessibilityHidden(true)
             .scaleEffect(model.dragging && !limitMotion ? 1.08 : 1)
             .animation(limitMotion ? nil : Motion.press, value: model.dragging)
             .frame(width: 44, height: 60)
@@ -393,34 +376,23 @@ struct TranscriptScrubber: View {
             .accessibilityIdentifier("transcript-scrubber")
     }
 
-    /// "23:41" and the speaker's chip ("Ginna Cross" on her color, as on her lines) on card white with an ink
-    /// outline and the hard shadow (DESIGN.md §11), never glass. No speakers: the time alone (or "Line 12 of 340").
-    @ViewBuilder private func bubble(time: String, name: String?, color: Color) -> some View {
-        if look.isNative {
-            NativeScrubBubble(time: time, name: name)
-        } else {
-            verboseBubble(time: time, name: name, color: color)
-        }
-    }
-
-    private func verboseBubble(time: String, name: String?, color: Color) -> some View {
+    /// "23:41" and the speaker's chip ("Ginna Cross" in her hue, as on her lines) on the card, opaque (never glass).
+    /// No speakers: the time alone (or "Line 12 of 340").
+    private func bubble(time: String, name: String?, index: Int) -> some View {
         HStack(spacing: 8) {
-            Text(time).lookMono(13, weight: .medium).foregroundStyle(.lookInk)
-            if let name {
-                PhoneSpeakerChip(name: name, color: color).truncationMode(.tail)
-            }
+            Text(time).refinedFont(.hint, weight: .semibold).monospacedDigit().foregroundStyle(Refined.ink)
+            if let name { SpeakerChip(name: name, index: index).truncationMode(.tail) }
         }
-        .padding(.leading, 12).padding(.trailing, name == nil ? 12 : 6).frame(height: 34)
-        .background(.lookCard, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5))
-        .background(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).fill(Ink.hard).offset(x: 4, y: 5))
+        .padding(.leading, 12).padding(.trailing, name == nil ? 12 : 8).frame(height: 34)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        .shadow(color: Refined.separator, radius: 6, y: 2)
     }
 
     /// Hairline ink ticks centered under the handle's path, one per minute (or step), never closer than 18 pt.
     /// Stronger under Increase Contrast.
     private func tickMarks(width: CGFloat, height: CGFloat) -> some View {
         let x = width - 4 - Self.handleSize.width / 2
-        let color = Ink.ink.opacity(contrast == .increased ? 0.5 : 0.22)
+        let color = contrast == .increased ? Refined.mute : Refined.separator
         let line = max(1 / displayScale, 0.5)
         return Canvas { ctx, _ in
             for f in ticks {
@@ -526,26 +498,3 @@ struct TranscriptScrubber: View {
         model.objectWillChange.send()
     }
 }
-
-// brand: native begin
-/// The scrubber's bubble in the Native look: the time in monospaced digits and the speaker's name in semibold, on a
-/// Photos-style glass capsule (a material before iOS 26). Native follows Apple in putting text on glass here.
-private struct NativeScrubBubble: View {
-    var time: String
-    var name: String?
-    var body: some View {
-        let content = HStack(spacing: 6) {
-            Text(time).font(.subheadline.weight(.semibold)).monospacedDigit().foregroundStyle(NativeInk.label)
-            if let name {
-                Text(name).font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(1).truncationMode(.tail)
-            }
-        }
-        .padding(.horizontal, 14).frame(height: 34)
-        if #available(iOS 26, *) {
-            content.glassEffect(.regular, in: Capsule())
-        } else {
-            content.background(.regularMaterial, in: Capsule())
-        }
-    }
-}
-// brand: native end

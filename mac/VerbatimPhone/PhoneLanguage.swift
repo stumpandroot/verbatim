@@ -43,7 +43,7 @@ struct TranscriptLanguageMenu: View {
                 Text(current)
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
             }
-            .foregroundStyle(.lookDim)
+            .foregroundStyle(Refined.dim)
         }
         .accessibilityLabel("Language, \(current)")
         .accessibilityHint("Transcribe again in another language")

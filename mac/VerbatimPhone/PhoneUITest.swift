@@ -240,6 +240,10 @@ enum PhoneUITest {
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
                     await show("\(prefix)05-transcript")
+                    if prefix == "p" { transcriptLayoutCheck(.verbose, rich) }
+                    NotificationCenter.default.post(name: .phoneTranscriptMode, object: "summary")
+                    await show("\(prefix)05e-transcript-summary")
+                    NotificationCenter.default.post(name: .phoneTranscriptMode, object: "transcript")
                     // The export sheet with the options a meeting export would use.
                     let keep = ExportOptions.saved
                     var o = keep; o.header = true; o.timecodeMode = .everyParagraph; o.moments = .end; o.speakerMode = .onChange; o.save()
@@ -443,6 +447,10 @@ enum PhoneUITest {
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
                     await show("\(prefix)05-transcript-native")
+                    if prefix == "p" { transcriptLayoutCheck(.native, rich) }
+                    NotificationCenter.default.post(name: .phoneTranscriptMode, object: "summary")
+                    await show("\(prefix)05e-transcript-summary-native")
+                    NotificationCenter.default.post(name: .phoneTranscriptMode, object: "transcript")
                     if prefix == "p" {
                         // Reading: the tab bar hides, and Record's accessory turns off with it (the player takes the bottom).
                         lookCheck("a transcript turns off Record's accessory while you read", app.readingTranscripts > 0)
@@ -1556,6 +1564,20 @@ enum PhoneUITest {
         let places = LibraryScreen.placeRows(dictations: 1, todayThoughts: 1, templates: 1, recipes: 1, projects: 1).map { $0.id }
         lookCheck("Library's places keep the self-test's identifiers",
                   places == ["library.dictations", "library.byDay", "library.templates", "library.ask", "library.projects"])
+    }
+
+    /// A transcript draws its one refined layout in either look (DESIGN.md §13), once: the screen on screen is the one
+    /// built in the current look, its tabs are Original, Cleaned, and Summary (then Review and a result when there are
+    /// any), and each turn's speaker chip takes the rotation by who talks first.
+    private static func transcriptLayoutCheck(_ look: AppLook, _ t: Transcript) {
+        let shown = TranscriptScreen.onScreen
+        lookCheck("a transcript in \(look == .native ? "Native" : "Verbose style") draws the refined transcript, once (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))",
+                  shown == [look])
+        let tabs = TranscriptScreen.modes(t, current: .transcript, busyName: nil).map(\.1)
+        lookCheck("a transcript's tabs start Original, Cleaned, Summary (\(tabs.joined(separator: ", ")))", Array(tabs.prefix(3)) == ["Original", "Cleaned", "Summary"])
+        let order = t.speakerOrder
+        let first = t.segments.first?.speaker
+        lookCheck("the first speaker to talk takes the first chip color", first.map { order[$0] == 0 } ?? true)
     }
 
     /// Edit Home (EditHome.swift, HomeLayout.swift) from Home's button: open it, hide a section (This week), reorder

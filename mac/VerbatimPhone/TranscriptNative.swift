@@ -1,9 +1,9 @@
 // brand: native file
 import SwiftUI
 
-// The transcript's sheets in the Native look (DESIGN.md §13.3; mockup "Verbose Native Redesign", section 3), opened
-// from the More menu (TranscriptScreen.swift): Find, Summary, Speakers, and Details. Standard sheets with a grabber,
-// inset grouped lists, and system controls.
+// The transcript's sheets (DESIGN.md §13: Apple draws sheets), opened from the More menu (TranscriptScreen.swift) in
+// both look settings: Find, Speakers, and Details. Standard sheets with a grabber, inset grouped lists, and system
+// controls. The summary is the transcript's Summary tab (SummaryBlock.swift).
 
 /// Find: the lines that contain what you type, with their times. A tap closes the sheet, plays from that line, and
 /// scrolls the transcript to it.
@@ -72,42 +72,8 @@ struct TranscriptFindSheet: View {
     }
 }
 
-/// Summary: the summary as a grouped cell, with Edit and Regenerate (PhoneSummaryPanel draws Native's cell).
-struct NativeSummarySheet: View {
-    @EnvironmentObject var app: PhoneState
-    var id: UUID
-    @ObservedObject private var center = SummaryCenter.shared
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                if let t = app.store.transcript(id) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if SummaryBlock.shows(t, center: center) {
-                            PhoneSummaryPanel(transcript: t,
-                                              onSummarize: { replacing in SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: replacing) },
-                                              onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
-                        } else {
-                            ContentUnavailableView("No summary", systemImage: "text.alignleft",
-                                                   description: Text(SummaryAction.unavailableReason ?? "Summarize writes one from the transcript."))
-                        }
-                    }
-                    .padding(16)
-                }
-            }
-            .background(NativeInk.paper.ignoresSafeArea())
-            .navigationTitle("Summary")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-        }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-    }
-}
-
 /// Speakers: each speaker's name, which you can change, and how long they talk.
-struct NativeSpeakersSheet: View {
+struct TranscriptSpeakersSheet: View {
     @EnvironmentObject var app: PhoneState
     var id: UUID
     @State private var drafts: [String: String] = [:]
@@ -162,9 +128,9 @@ struct NativeSpeakersSheet: View {
     }
 }
 
-/// Details: the kind and tags, when it was recorded, and where it was transcribed (the data path and the provenance
-/// line Verbose style shows under the title).
-struct NativeTranscriptDetails: View {
+/// Details: the kind and tags, when it was recorded, its project, and where it was transcribed (the data path and the
+/// provenance line).
+struct TranscriptDetailsSheet: View {
     @EnvironmentObject var app: PhoneState
     var id: UUID
     @State private var newTag = ""
@@ -183,6 +149,10 @@ struct NativeTranscriptDetails: View {
                         LabeledContent("Recorded", value: Formats.style(date: .medium, time: .short).string(from: t.createdAt))
                         if t.duration > 0 { LabeledContent("Length", value: HomeRecentStyle.length(t.duration)) }
                         if let lang = t.language { LabeledContent("Language", value: LanguageDetection.name(lang)) }
+                        Picker("Project", selection: Binding(get: { t.projectId }, set: { v in app.store.update(t.id) { $0.projectId = v } })) {
+                            Text("None").tag(UUID?.none)
+                            ForEach(app.store.projects) { p in Text(p.name).tag(UUID?.some(p.id)) }
+                        }
                     }
                     Section("Tags") {
                         ForEach(t.tags, id: \.self) { tag in Text(tag) }
