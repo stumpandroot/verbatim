@@ -3,18 +3,17 @@ import UniformTypeIdentifiers
 import AVFoundation
 import CoreAudio
 
-// brand: web style
-//
-/// Home in the website style (mockup "The app, in the website's clothes", October 23, 2026; mac/DESIGN.md §6 and §11):
-/// a mono date eyebrow over the big two-line greeting, then the sections Edit Home lists (HomeLayout.swift), in its
-/// order and sizes. By default: the Record panel (breathing meter, looping rings) beside four start tiles, one slim
-/// This week strip, then Recent recordings (two flat rows) beside Last dictation (one card on a butter panel). One
-/// 12-column grid: two Large neighbors share a band at the same 7 / 5 edge; a Compact section is a strip across it.
-/// Big cards tilt and pick up the ink outline and hard shadow on hover (`HomeCard` + `inkEdge`); rows stay flat.
-/// Narrow windows stack the bands. Edit Home's button closes the page; editing outlines each section and opens the
-/// inspector on the right (EditHome.swift). Sections arrive at once and keep their identity when the layout changes.
-///
-/// Native (NativeHome.swift): Premium Native's cards under a bold "Good afternoon, Tim", with the same state and actions.
+/// Home in the refined look (DESIGN.md §6 and §13; mockup "Verbose Refined Look", MacHome and MacRecorder): the date
+/// over the large serif greeting, then the sections Edit Home lists (HomeLayout.swift), in its order and sizes. By
+/// default: the persimmon Record card across the column (a click records a voice note, ⌥⇧R from anywhere;
+/// right-click for Record As and the microphone), the four tiles in a row with their shortcuts, then Recent recordings
+/// in a card beside This week. While you record, the Record card turns into the recording card (the clock, the live
+/// waveform, your words, Mark moment, Pause, and Stop and transcribe). Today's thoughts and Journal when you show them.
+/// One column, at most 860 pt wide; two Large neighbors that can pair share a band (two thirds and one third), and a
+/// narrow window stacks them. It's the same Home in both looks until the look switch goes, each look reading its own
+/// layout; the window's chrome stays each look's. Edit Home's button closes the page; editing outlines each section and
+/// opens the inspector on the right (EditHome.swift). Sections arrive at once and keep their identity when the layout
+/// changes.
 struct HomeView: View {
     /// Ticks `now` once a minute: one timer for every render. Built in `body`, each render made a new timer and
     /// restarted the minute, so under frequent renders (transcribing, playing, dictating) it never fired.
@@ -26,8 +25,8 @@ struct HomeView: View {
     /// Edit Home's layouts (both looks) and whether Home is being edited.
     @ObservedObject var layouts = HomeLayoutStore.shared
     @ObservedObject var edit = HomeEditSession.shared
+    @ObservedObject private var recordAs = RecordAsStore.shared
     @AppStorage(YouProfile.nameKey) var storedName = ""
-    @Environment(\.limitMotion) private var limitMotion
     @Environment(\.look) var look
     /// The microphone's name, looked up off the main thread and kept current by Core Audio's notifications. (Looking
     /// it up here, in a `@State` initial value and on every UserDefaults change, ran a full device scan on the main
@@ -37,56 +36,47 @@ struct HomeView: View {
     @State var now = Date()
     @State var importOpen = false
     @State var fileOver = false
-    @State private var recordDown = false
-    @State private var weekDown = false
-    /// Listens to the mic while the pointer is over Record, so the meter shows your real level (DESIGN.md §7).
-    @StateObject var monitor = HomeLevelMonitor()
 
-    /// The gutter between columns.
-    static let gap: CGFloat = 16
-    /// Side margin around the grid, and the widest the grid gets.
-    private static let margin: CGFloat = 40
-    private static let maxContent: CGFloat = 1100
-    /// The Record panel and the tile block share this height.
-    private static let startHeight: CGFloat = 196
+    /// The gutter between tiles and between two sections in a band.
+    static let gap: CGFloat = 12
+    /// The widest Home's column gets (the mockup's 860).
+    static let maxContent: CGFloat = 860
     /// Edit Home's inspector beside Home while editing.
     static let inspectorWidth: CGFloat = 320
-    /// The grid's width for a scroll view `available` points wide: the space inside the margins, at most 1100.
-    static func contentWidth(_ available: CGFloat) -> CGFloat { min(maxContent, max(280, available - 2 * margin)) }
-    private func wide(_ width: CGFloat) -> Bool { width >= 680 }
-    /// The 7 / 5 split of a 12-column grid with `gap` gutters: (7 columns + 6 gutters, 5 columns + 4 gutters).
+    /// The side margin: the mockup's 56, narrower in a narrow window.
+    static func margin(_ available: CGFloat) -> CGFloat { available < 760 ? 32 : 56 }
+    /// The column's width for a scroll view `available` points wide.
+    static func contentWidth(_ available: CGFloat) -> CGFloat { min(maxContent, max(280, available - 2 * margin(available))) }
+    /// Wide enough for two sections side by side.
+    static func wide(_ width: CGFloat) -> Bool { width >= 560 }
+    /// A band of two: two thirds and one third of the column, with `gap` between (the mockup's 2fr / 1fr).
     static func columns(_ total: CGFloat) -> (CGFloat, CGFloat) {
-        let column = (total - 11 * gap) / 12
-        let left = (7 * column + 6 * gap).rounded(.down)
+        let left = ((total - gap) * 2 / 3).rounded(.down)
         return (left, total - gap - left)
     }
 
     var body: some View {
         LookSwitch.mark("home")
         return HStack(spacing: 0) {
-            Group {
-                if look == .native { nativeBody } else { verboseBody }
-            }
-            .frame(maxWidth: .infinity)
+            column.frame(maxWidth: .infinity)
             if edit.editing {
                 EditHomeView(onDone: { edit.editing = false })
                     .frame(width: Self.inspectorWidth)
                     .padding(.vertical, 16).padding(.trailing, 16)
             }
         }
+        .background(Refined.paper)
         .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
         .onChange(of: app.focusLink) { _, _ in importOpen = true }
-        .onChange(of: recording) { _, on in if on { monitor.stop() } }
         .onAppear { LookSwitch.mark("home-appear"); mics.refresh() }
         // Only when editing: a write publishes even when nothing changes, and at a look switch the old Home leaves in
         // the same update the new one is built, so it re-rendered the new Home (and Settings' Edit Home list) again.
-        .onDisappear { monitor.stop(); if edit.editing { edit.editing = false } }
+        .onDisappear { if edit.editing { edit.editing = false } }
         .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mics.refresh(); now = Date() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in monitor.stop() }
     }
 
-    private var verboseBody: some View {
+    private var column: some View {
         // A GeometryReader takes exactly the space the window offers and passes it down, so Home's width comes
         // from the window. (Measuring the scroll view or the content was circular: both report the content's
         // own width back, so Home either kept a too-wide layout or grew past the detail area.) The width is worked
@@ -94,41 +84,38 @@ struct HomeView: View {
         GeometryReader { geo in
             let _ = LookSwitch.mark("home-grid")
             let width = Self.contentWidth(geo.size.width)
-            let layout = layouts.layout(.verbose)
-            let rows = HomeRows.rows(drawn(layout), wide: wide(width))
+            let layout = layouts.layout(look.homeLook)
+            let rows = HomeRows.rows(layout.shown, wide: Self.wide(width))
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    header.staggerIn(0)
+                    LargeSerifTitle(title: greeting, eyebrow: HomeGreeting.dateLine(now))
                         .background { popoverAnchors(layout) }
                     // After an update: "What's new in build N", once (WhatsNewPane.swift).
-                    WhatsNewHomeLine(top: 18) { app.dictation.openSettings(tab: .whatsNew) }
-                    if app.recorder.isRecording { RecordPanel().padding(.top, 18) }
-                    else if app.capture.isCapturing { CapturePanel().padding(.top, 18) }
+                    WhatsNewHomeLine(top: 16) { app.dictation.openSettings(tab: .whatsNew) }
+                    // Recording with the Record card hidden: the recording card leads Home all the same.
+                    if recording && !layout.isVisible(.record) { HomeRecordingCard().padding(.top, 18) }
                     // Only the shown sections, each band identified by its first section.
                     ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
-                        verboseRow(row, width: width, layout: layout)
-                            .padding(.top, Self.rowGap(row, after: i > 0 ? rows[i - 1] : nil, native: false))
+                        band(row, width: width, layout: layout)
+                            .padding(.top, Self.rowGap(row, after: i > 0 ? rows[i - 1] : nil))
                     }
-                    editHomeButton.padding(.top, 36)
+                    editHomeButton.padding(.top, 32)
                 }
                 .navMarkWhenLaidOut("home-laid-out")
-                .animation(Motion.settle, value: app.recorder.isRecording)
-                .animation(Motion.settle, value: app.capture.isCapturing)
                 .frame(width: width, alignment: .leading)
-                .padding(.horizontal, Self.margin).padding(.top, 30).padding(.bottom, 40)
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, Self.margin(geo.size.width)).padding(.top, 18).padding(.bottom, 40)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 // Back and Forward bring Home back where you left it; the sidebar opens it at the top (App/NavTrail.swift).
-                .scrollPlace(ScreenPlaces.scrollKey("home", look: .verbose), restore: NavTrail.shared.movingThroughHistory)
+                .scrollPlace(ScreenPlaces.scrollKey("home", look: look), restore: NavTrail.shared.movingThroughHistory)
             }
+            // The greeting fades under the toolbar's glass instead of running into it (review M-05).
+            .softScrollEdges(.top)
         }
     }
 
     // MARK: Layout
 
-    /// The shown sections Home draws (Queue left Home in the consolidation; the sidebar shows it while it works).
-    func drawn(_ layout: HomeLayout) -> [HomeLayout.Item] { layout.shown }
-
-    /// Sections with a heading of their own get more room above them.
+    /// Sections with a title of their own get more room above them.
     static func headed(_ item: HomeLayout.Item) -> Bool {
         switch item.section {
         case .recent: return true
@@ -137,55 +124,56 @@ struct HomeView: View {
         }
     }
 
-    /// The gap above a band, as Home spaced it before Edit Home (Verbose: 20 first, 16 between cards, 30 above
-    /// Recent recordings, 12 between a stacked Record and the tiles; Native: 18, 14, 24).
-    static func rowGap(_ row: HomeRow, after previous: HomeRow?, native: Bool) -> CGFloat {
-        guard let previous else { return native ? 18 : 20 }
-        if row.items.contains(where: headed) { return native ? 24 : 30 }
-        if !native, previous.items.count == 1, previous.id == .record, row.id == .tiles { return 12 }
-        return native ? 14 : 16
+    /// The gap above a band: 20 under the greeting, the mockup's 16 between cards, 22 above a titled section.
+    static func rowGap(_ row: HomeRow, after previous: HomeRow?) -> CGFloat {
+        guard previous != nil else { return 20 }
+        return row.items.contains(where: headed) ? 22 : 16
     }
 
-    @ViewBuilder private func verboseRow(_ row: HomeRow, width: CGFloat, layout: HomeLayout) -> some View {
+    /// A band: one section across the column, or two side by side at the same height.
+    @ViewBuilder private func band(_ row: HomeRow, width: CGFloat, layout: HomeLayout) -> some View {
         if row.items.count == 2 {
             let cols = Self.columns(width)
             HStack(alignment: .top, spacing: Self.gap) {
-                verboseSection(row.items[0], width: cols.0, layout: layout).frame(width: cols.0)
-                verboseSection(row.items[1], width: cols.1, layout: layout).frame(width: cols.1)
+                section(row.items[0], layout: layout).frame(width: cols.0).frame(maxHeight: .infinity, alignment: .top)
+                section(row.items[1], layout: layout).frame(width: cols.1).frame(maxHeight: .infinity, alignment: .top)
             }
+            .fixedSize(horizontal: false, vertical: true)
         } else {
-            verboseSection(row.items[0], width: width, layout: layout)
+            section(row.items[0], layout: layout)
         }
     }
 
-    private func verboseSection(_ item: HomeLayout.Item, width: CGFloat, layout: HomeLayout) -> some View {
-        verboseContent(item, width: width, layout: layout)
+    private func section(_ item: HomeLayout.Item, layout: HomeLayout) -> some View {
+        content(item, layout: layout)
             .homeEditFrame(item, editing: edit.editing)
             .homeProbe(item)
     }
 
-    @ViewBuilder private func verboseContent(_ item: HomeLayout.Item, width: CGFloat, layout: HomeLayout) -> some View {
+    @ViewBuilder private func content(_ item: HomeLayout.Item, layout: HomeLayout) -> some View {
         switch item.section {
-        case .record:
-            if item.size == .large { recordPanel(width: width).frame(height: Self.startHeight) } else { recordStrip }
-        case .tiles:
-            if item.size == .large { tiles(layout, large: true).frame(height: Self.startHeight) } else { tiles(layout, large: false) }
-        case .week: if item.size == .compact { weekStrip } else { weekCard }
-        case .recent: recentRecordings(item.size)
+        case .record: if recording { HomeRecordingCard() } else { recordCard(compact: item.size == .compact) }
+        case .tiles: tiles(layout.tiles, compact: item.size == .compact)
+        case .week: weekCard(large: item.size == .large)
+        case .recent: recentCard(item.size)
         case .thoughts: HomeThoughtsMac(size: item.size)
         case .journal: HomeJournalMac(size: item.size)
         }
     }
 
     /// The last thing on Home: Edit Home, which outlines the sections and opens the inspector. While the inspector is
-    /// open its Done is the one way to stop editing, so this pill steps aside (keeping its place, so Home doesn't move).
+    /// open its Done is the one way to stop editing, so this button steps aside (keeping its place, so Home doesn't move).
     var editHomeButton: some View {
         HStack {
             Spacer(minLength: 0)
-            PillButton(title: "Edit Home", kind: .line, size: .regular,
-                       hint: "Show, hide, reorder, and resize Home's sections, and choose its four tiles.") {
-                edit.editing = true
+            Button { edit.editing = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "line.3.horizontal").font(.system(size: 12, weight: .semibold))
+                    Text("Edit Home")
+                }
             }
+            .buttonStyle(RefinedActionStyle())
+            .help("Show, hide, reorder, and resize Home's sections, and choose its four tiles.")
             .uiTarget("home-edit")
             .opacity(edit.editing ? 0 : 1)
             .allowsHitTesting(!edit.editing)
@@ -210,154 +198,34 @@ struct HomeView: View {
             }
     }
 
-    /// The tile that anchors the Import panel: Import, when it's on Home (Paste a link merged into it).
-    func importAnchor(_ tiles: [HomeTile]) -> HomeTile? {
-        tiles.contains(.importMedia) ? .importMedia : nil
-    }
-
     // MARK: Header
 
     var greeting: String {
         HomeGreeting.line(name: HomeGreeting.firstName(YouProfile.displayName(storedName)), hour: Calendar.current.component(.hour, from: now))
     }
-    private static let question = "What are we keeping?"
-
-    /// The mono date eyebrow and the big two-line greeting (Home only; every other screen uses a compact title).
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Eyebrow(text: HomeGreeting.dateLine(now))
-            ViewThatFits(in: .horizontal) {
-                headline(52).fixedSize()
-                headline(44).fixedSize()
-                headline(36).fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
-        }
-    }
-
-    private func headline(_ size: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: -size * 0.1) {
-            Text(greeting).font(Ink.serif(size))
-            Text(Self.question).font(Ink.serif(size).italic())
-        }
-        .tracking(-size * 0.023)
-        .foregroundStyle(Ink.ink)
-    }
 
     // MARK: Record
 
     var recording: Bool { app.recorder.isRecording || app.capture.isCapturing }
-    /// Ink on the Record fill: every line passes at its size (status sits on a light wash). White would fail.
-    private var onRecord: Color { Ink.inkFixed }
     var micName: String { mics.device?.name ?? "Microphone" }
 
     var recordStatus: String {
-        if app.capture.isCapturing { return "Capturing · \(app.capture.appName)" }
-        if app.recorder.isRecording { return app.recorder.isPaused ? "Paused" : "Recording" }
         if app.savingRecording { return "Saving…" }
         return "Ready · \(micName)"
     }
 
-    /// The Record panel: the status, the meter (an even breath at rest, your real level on hover and while
-    /// recording), "Record / a thought, a call, a walk.", and a Start recording pill. The rings loop behind.
-    private func recordPanel(width panelWidth: CGFloat) -> some View {
-        let meterWidth = max(160, (panelWidth - 40) * 0.6)
-        return HomeCard(tilt: 2, radius: Radius.record, enabled: !recording, shadow: false, onHover: { h in
-            if h {
-                if !recording { monitor.listen(after: 0.12) }
-            } else {
-                monitor.stop(after: 0.4)
-            }
-        }, onPress: { recordDown = $0 }, action: {
-            monitor.stop()
+    /// The Record card: a click records a voice note; right-click has Record As's ways and the microphone. VoiceOver
+    /// reads one button with each way to record as an action.
+    private func recordCard(compact: Bool) -> some View {
+        RecordCard(status: recordStatus, hint: "Click for a voice note, right-click for a meeting, a thought, and more · ⌥⇧R",
+                   accessibilityHint: "Starts a voice note. Shortcut: Option Shift R. Right-click for more ways to record.",
+                   compact: compact,
+                   actions: recordAs.visible.map { c in RecordCardAction(name: c.actionName) { app.startRecordChoice(c) } }) {
             app.requestRecord()
-        }) { hovering in
-            let _ = LookSwitch.mark("home-record")
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    HStack(spacing: 8) {
-                        Circle().fill(onRecord).frame(width: 8, height: 8).accessibilityHidden(true)
-                        Text(recordStatus).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
-                    }
-                    .padding(.horizontal, 12).frame(height: 28)
-                    .background(Ink.readerFixed.opacity(0.55), in: Capsule())
-                    Spacer(minLength: 12)
-                    Keycap(keys: "⌥⇧R", size: 12)
-                }
-                Spacer(minLength: 8)
-                Group {
-                    if app.recorder.isRecording { LiveHomeMeter(live: app.recorder.live, barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
-                    else if app.capture.isCapturing { LiveHomeMeter(live: app.capture.live, barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
-                    else if monitor.listening { LiveHomeMeter(live: monitor.live, barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
-                    // At rest the breathing bars are drawn by the panel's one loop (RecordPanelArt), in this space.
-                    else { Color.clear.anchorPreference(key: RecordMeterSlot.self, value: .bounds) { $0 } }
-                }
-                .frame(width: meterWidth, height: 44)
-                Spacer(minLength: 8)
-                HStack(alignment: .bottom, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(recording ? "Recording" : "Record").font(Ink.serif(36)).tracking(-0.6)
-                        Text(recording ? "Pause or stop from the bar above." : "a thought, a call, a walk.")
-                            .font(Ink.serif(22).italic()).tracking(-0.3)
-                    }
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    Spacer(minLength: 8)
-                    if !recording {
-                        PillLabel(title: "Start recording", kind: .dark, trailing: .arrow, fixedInk: true)
-                    }
-                }
-            }
-            .foregroundStyle(onRecord)
-            .padding(.horizontal, 20).padding(.vertical, 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            // The rings and the resting meter: one clock and one Canvas, over the panel's grain and under its text.
-            .backgroundPreferenceValue(RecordMeterSlot.self) { slot in
-                RecordPanelArt(meterSlot: slot, running: !recording, meterColor: onRecord)
-            }
-            .colorPanel(Ink.panelRecord, radius: Radius.record)
-            .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: recordDown, rest: CGSize(width: 6, height: 7)), radius: Radius.record)
         }
         .contextMenu { RecordMenu(onChange: { mics.refresh() }) }
-        .help("Recording from \(micName). Right-click to change the microphone.")
-        .accessibilityLabel(recording ? "Recording" : "Record")
-        .accessibilityValue(recording ? "" : "Microphone: \(micName)")
-        .accessibilityHint("Starts a voice note. Shortcut: Option Shift R.")
+        .help("Recording from \(micName). Right-click for more ways to record, or to change the microphone.")
         .uiTarget("tile-record")
-    }
-
-    /// Record, Compact: one strip in the record color with the status, the name, the shortcut, and the pill.
-    private var recordStrip: some View {
-        HomeCard(tilt: 1, radius: Radius.record, enabled: !recording, shadow: false, onPress: { recordDown = $0 }, action: {
-            monitor.stop()
-            app.requestRecord()
-        }) { hovering in
-            HStack(spacing: 14) {
-                HStack(spacing: 8) {
-                    Circle().fill(onRecord).frame(width: 8, height: 8).accessibilityHidden(true)
-                    Text(recordStatus).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
-                }
-                .padding(.horizontal, 12).frame(height: 28)
-                .background(Ink.readerFixed.opacity(0.55), in: Capsule())
-                Text(recording ? "Recording" : "Record").font(Ink.serif(28)).tracking(-0.4).lineLimit(1)
-                if !recording {
-                    Text("a thought, a call, a walk.").font(Ink.serif(18).italic()).lineLimit(1).minimumScaleFactor(0.8)
-                }
-                Spacer(minLength: 8)
-                Keycap(keys: "⌥⇧R", size: 12)
-                if !recording { PillLabel(title: "Start recording", kind: .dark, size: .mini, trailing: .arrow, fixedInk: true) }
-            }
-            .foregroundStyle(onRecord)
-            .padding(.horizontal, 18)
-            .frame(maxWidth: .infinity, minHeight: 72, maxHeight: 72, alignment: .leading)
-            .colorPanel(Ink.panelRecord, radius: Radius.record)
-            .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: recordDown, rest: CGSize(width: 4, height: 5)), radius: Radius.record)
-        }
-        .contextMenu { RecordMenu(onChange: { mics.refresh() }) }
-        .help("Recording from \(micName). Right-click to change the microphone.")
-        .accessibilityLabel(recording ? "Recording" : "Record")
-        .accessibilityValue(recording ? "" : "Microphone: \(micName)")
-        .accessibilityHint("Starts a voice note. Shortcut: Option Shift R.")
     }
 
     // MARK: Tiles
@@ -367,7 +235,7 @@ struct HomeView: View {
                 set: { open in if !open && app.captureMode == "dictate" { app.captureMode = "voice" } })
     }
 
-    /// "hold right ⌘" → ("Talk into any app", "right ⌘"): what it does in sans, and the key as a keycap.
+    /// "hold right ⌘" → ("Talk into any app", "right ⌘"): what it does, and the key.
     var dictateKey: (String, String?) {
         guard app.dictation.accessibilityTrusted else { return ("Needs Accessibility", nil) }
         let title = app.dictation.hotkey.shortTitle
@@ -394,13 +262,27 @@ struct HomeView: View {
         }
     }
 
-    /// The tile's second line, live where it can be (Dictate's key, a file over Import, captions on screen).
+    /// The tile's second line, live where it can be (Dictate's key, a file over Import, captions on screen): read by
+    /// VoiceOver as the tile's value.
     func tileDetail(_ t: HomeTile) -> String {
         switch t {
         case .dictate: return dictateKey.0
         case .importMedia: return fileOver ? "Drop to transcribe" : t.detail
         case .captions: return captions.isOpen ? "On screen now" : t.detail
         default: return t.detail
+        }
+    }
+
+    /// What sits at the end of a tile's name: its shortcut, or a state that needs you ("Needs Accessibility").
+    func tileShortcut(_ t: HomeTile) -> String? {
+        switch t {
+        case .dictate:
+            guard app.dictation.accessibilityTrusted else { return "Needs Accessibility" }
+            return dictateKey.1.map { "\($0) hold" }
+        case .importMedia: return fileOver ? "Drop to transcribe" : "⌘O"
+        case .captions: return captions.isOpen ? "On screen now" : "⌥⌘C"
+        case .newThought: return Thoughts.hotkey
+        default: return nil
         }
     }
 
@@ -432,25 +314,8 @@ struct HomeView: View {
         }
     }
 
-    /// The four tiles you picked. Large: two by two, as tall together as the Record panel. Compact: one row of four.
-    @ViewBuilder private func tiles(_ layout: HomeLayout, large: Bool) -> some View {
-        let picks = layout.tiles
-        if large {
-            VStack(spacing: 10) {
-                HStack(spacing: 10) { tileViews(picks, 0..<2) }
-                HStack(spacing: 10) { tileViews(picks, 2..<4) }
-            }
-        } else {
-            HStack(spacing: 10) { tileViews(picks, 0..<4) }.frame(height: 84)
-        }
-    }
-
-    private func tileViews(_ picks: [HomeTile], _ slots: Range<Int>) -> some View {
-        let anchor = importAnchor(picks)
-        return ForEach(HomeTileSlot.slots(picks, slots), id: \.tile) { s in webTile(s.tile, slot: s.slot, importAnchor: anchor == s.tile) }
-    }
-
-    /// Fills go by slot: butter, sage, petal, then card white with an ink outline, so it never outweighs Record.
+    /// A slot's fill in Verbose style's Edit Home (butter, sage, petal, then card white). Home itself colors tiles by
+    /// what they do (`HomeTile.refinedHues`).
     static func tileFill(_ slot: Int) -> Color? {
         switch slot {
         case 0: return Ink.panelButter
@@ -460,24 +325,32 @@ struct HomeView: View {
         }
     }
 
-    @ViewBuilder private func webTile(_ t: HomeTile, slot: Int, importAnchor: Bool) -> some View {
-        let fill = Self.tileFill(slot)
-        let on = fill == nil ? Ink.ink : Ink.inkFixed
-        let keycap: String? = {
-            switch t {
-            case .dictate: return dictateKey.1
-            case .importMedia: return "⌘O"
-            case .captions: return "⌥⌘C"
-            case .newThought: return Thoughts.hotkey
-            default: return nil
+    /// The four tiles you picked, in one row: Large 84 pt with the glyph, Compact 58 pt with the name alone.
+    private func tiles(_ picks: [HomeTile], compact: Bool) -> some View {
+        let hues = HomeTile.refinedHues(picks)
+        return HStack(alignment: .top, spacing: Self.gap) {
+            ForEach(HomeTileSlot.slots(picks, 0..<HomeLayout.tileCount), id: \.tile) { s in
+                tile(s.tile, hue: hues[s.slot], compact: compact, importAnchor: picks.contains(.importMedia) && s.tile == .importMedia)
             }
-        }()
-        let base = WebTile(title: t.title, detail: tileDetail(t), keycap: keycap, fill: fill ?? Ink.card, onFill: on,
-                           outlined: fill == nil || (t == .importMedia && fileOver), grain: fill != nil, hint: Self.tileHint(t)) {
-            runTile(t)
-        } icon: { replay in
-            DrawOnGlyph(art: t.art, color: on, lineWidth: 1.5, replay: replay, duration: 0.55)
         }
+    }
+
+    @ViewBuilder private func tile(_ t: HomeTile, hue: RefinedHue, compact: Bool, importAnchor: Bool) -> some View {
+        let shortcut = tileShortcut(t)
+        let base = Button { runTile(t) } label: {
+            ColorTileFace(title: t.title, art: t.art, hue: hue, shortcut: shortcut, compact: compact)
+                .overlay {
+                    // A file held over Import: the tile says so, with the accent's edge.
+                    if t == .importMedia && fileOver {
+                        RoundedRectangle(cornerRadius: RefinedPlatform.radius(.tile), style: .continuous)
+                            .strokeBorder(Refined.accentText, lineWidth: 2)
+                    }
+                }
+        }
+        .buttonStyle(RefinedPress())
+        .accessibilityLabel(t.title)
+        .accessibilityValue([tileDetail(t), shortcut.map(Keycap.spoken)].compactMap { $0 }.joined(separator: " "))
+        .accessibilityHint(Self.tileHint(t))
         switch t {
         case .dictate:
             base.popover(isPresented: dictateOpen, arrowEdge: .bottom) { DictateControls().padding(16).environmentObject(app) }
@@ -526,77 +399,96 @@ struct HomeView: View {
         return (recordings, week.secondsSaved(typingWPM: flow.typingWPM), moments)
     }
 
-    /// One slim strip, and one button: anywhere on it opens You.
-    private var weekStrip: some View { weekSection(large: false) }
-
-    /// This week, Large: the words big in the serif beside taller bars, the stats under them.
-    private var weekCard: some View { weekSection(large: true) }
-
-    private func weekSection(large: Bool) -> some View {
+    /// This week as one button: a click anywhere opens You. Large is the card (beside Recent recordings by default);
+    /// Compact a strip across the column.
+    private func weekCard(large: Bool) -> some View {
         let week = log.week(now: now)
         let n = weekNumbers(week)
-        return HomeCard(tilt: 1, radius: Radius.record, shadow: false, onPress: { weekDown = $0 }, action: { app.go(.activity) }) { hovering in
-            WeekStrip(week: week, recordings: n.recordings, saved: WebFormat.compactDuration(n.saved), moments: n.moments, large: large)
-                .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: weekDown), radius: Radius.record)
+        let saved = HomeWeek.savedText(n.saved)
+        let recordings = HomeCounts.countLabel(n.recordings, "recording", "recordings")
+        let savedLine = n.moments > 0 ? "\(saved) saved · \(HomeCounts.countLabel(n.moments, "moment", "moments"))" : "\(saved) saved"
+        return Button { app.go(.activity) } label: {
+            WeekCard(words: week.words, detail: "\(week.words == 1 ? "word" : "words"), \(recordings)", saved: savedLine,
+                     days: week.cardDays, large: large)
+                .frame(maxHeight: .infinity)
         }
-        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(HomeCounts.countLabel(n.recordings, "recording", "recordings")), \(WebFormat.compactDuration(n.saved)) saved typing, \(HomeCounts.countLabel(n.moments, "moment", "moments")).")
+        .buttonStyle(RefinedPress())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(recordings), \(saved) saved typing, \(HomeCounts.countLabel(n.moments, "moment", "moments")).")
         .accessibilityHint("Opens You: your week, cleanup, and where you dictate.")
+        .accessibilityAddTraits(.isButton)
         .uiTarget("home-week")
     }
 
     // MARK: Recent
 
-    /// Large: the two newest as flat rows with a Clean up pill where there are filler words. Compact: the four newest
-    /// as slim rows with their length.
-    private func recentRecordings(_ size: HomeCardSize) -> some View {
-        let items = Array(app.archive.prefix(size == .large ? 2 : 4))
-        return VStack(alignment: .leading, spacing: 2) {
-            SectionTitle(title: "Recent", italic: "recordings", link: "Library", linkHint: "Opens your library.") { app.go(.library) }
-                .padding(.bottom, size == .large ? 10 : 6)
+    /// The serif "Recent" with Library, then the newest recordings in a card, one line each: the kind's dot, the
+    /// title, the kind and day, and the length. Large lists four, Compact two. A recording with filler words gets Clean
+    /// up, which opens its Cleaned tab.
+    private func recentCard(_ size: HomeCardSize) -> some View {
+        let items = Array(app.archive.prefix(size == .large ? 4 : 2))
+        return VStack(alignment: .leading, spacing: 0) {
+            SerifSectionTitle("Recent", link: "Library") { app.go(.library) }
+                .padding(.horizontal, 16).padding(.top, 2)
             if items.isEmpty && app.search.isEmpty {
-                EmptyStateCard(art: .iconLibrary, title: "Record something new",
-                               message: "Recordings and imports land here, ready to review.",
-                               button: "Start recording", action: { app.requestRecord() })
-            } else if items.isEmpty {
-                EmptyStateCard(art: .search, title: "Nothing found",
-                               message: "Nothing matches “\(app.search)”. Search looks at titles and every transcript's text.")
-            } else if size == .large {
-                ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
-                    let fillers = WebStatus.cachedFillers(t)
-                    FlatRowButton(action: { app.go(.transcript(t.id)) }) { _ in
-                        RecentRow(transcript: t, fillers: fillers)
-                    } accessory: { _ in
-                        if fillers > 0 {
-                            PillButton(title: "Clean up", kind: .dark, size: .mini, hint: "Opens the transcript's Cleaned tab.") { openCleaned(t) }
-                                .padding(.trailing, 14)
-                        }
-                    }
-                    .contextMenu { RowMenu(transcript: t) }
-                    .accessibilityHint("Opens the transcript.")
-                    .uiTarget("row-\(i)")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Record something new").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                    Text("Recordings and imports land here, ready to review.").refinedFont(.meta).foregroundStyle(Refined.mute)
+                    Button("Start recording") { app.requestRecord() }.buttonStyle(RefinedActionStyle()).padding(.top, 6)
                 }
+                .padding(.horizontal, 16).padding(.bottom, 14)
+            } else if items.isEmpty {
+                Text("Nothing matches “\(app.search)”. Search looks at titles and every transcript's text.")
+                    .refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 16).padding(.bottom, 14)
             } else {
                 ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
-                    FlatRowButton(action: { app.go(.transcript(t.id)) }) { _ in
-                        HStack(spacing: 10) {
-                            KindDot(transcript: t, size: 24)
-                            Text(t.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
-                            Spacer(minLength: 8)
-                            LiveStage(t) { t in
-                                Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText)
-                                    .font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
-                            }
-                        }
-                        .padding(.horizontal, 14)
-                        .frame(height: 44)
-                    } accessory: { _ in EmptyView() }
-                    .contextMenu { RowMenu(transcript: t) }
-                    .accessibilityHint("Opens the transcript.")
-                    .uiTarget("row-\(i)")
+                    if i > 0 { PaperDivider(leading: 16, trailing: 16) }
+                    recentRow(t).uiTarget("row-\(i)")
                 }
             }
         }
+        .padding(.bottom, 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         .animation(Motion.settle, value: items.map(\.id))
+    }
+
+    /// A recent recording: the row is the button that opens it; Clean up sits beside it, never inside it (macOS 26
+    /// click safety).
+    private func recentRow(_ t: Transcript) -> some View {
+        let fillers = WebStatus.cachedFillers(t)
+        return HStack(spacing: 0) {
+            Button { app.go(.transcript(t.id)) } label: {
+                // The live progress (StageClock) while it transcribes: only this row re-renders on a tick.
+                LiveStage(t) { t in
+                    PaperRow(kind: t.refinedKind, title: t.title, meta: Self.recentMeta(t)) {
+                        if t.status != .ready { RowLength(text: t.status == .failed ? "Didn't finish" : t.stageText) }
+                        else if !WebStatus.isTextOnly(t), t.duration > 0 { RowLength(text: HomeRecentStyle.length(t.duration)) }
+                    }
+                }
+            }
+            .buttonStyle(RefinedPress())
+            .accessibilityHint("Opens the transcript.")
+            if fillers > 0 {
+                Button("Clean up") { openCleaned(t) }
+                    .buttonStyle(RefinedActionStyle())
+                    .help("\(HomeCounts.countLabel(fillers, "filler word", "filler words")). Opens the transcript's Cleaned tab.")
+                    .accessibilityLabel("Clean up \(t.title)")
+                    .padding(.trailing, 12)
+            }
+        }
+        .contextMenu { RowMenu(transcript: t) }
+    }
+
+    /// "Meeting · Today", or where it is while it's being made.
+    static func recentMeta(_ t: Transcript) -> String {
+        let chip = HomeRecentStyle(t).chip
+        switch t.status {
+        case .processing: return chip
+        case .failed: return chip
+        case .ready: return "\(chip) · \(HomeRecentStyle.day(t.createdAt))"
+        }
     }
 
     /// Clean up: the transcript on its Cleaned tab, where Clean up runs (the Original stays).
@@ -606,246 +498,129 @@ struct HomeView: View {
     }
 }
 
-// MARK: - Pieces
+// MARK: - Recording
 
-/// Where the Record panel's resting meter goes, for `RecordPanelArt`. Nil while the meter shows live levels.
-private struct RecordMeterSlot: PreferenceKey {
-    static let defaultValue: Anchor<CGRect>? = nil
-    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
-}
-
-/// The Record panel's two moving drawings on one `LoopTimeline` and one Canvas (DESIGN.md §11.12: one moving drawing
-/// per screen): the rings, 250 pt from the top trailing corner pushed 50 pt past the right edge and 10 pt down (as the
-/// panel art they were), and the resting meter's breath in its slot. Each draws exactly as `PanelArt` and
-/// `BreathingHomeMeter` did on their own clocks; still with motion limited, in the screenshot tour, or while recording.
-private struct RecordPanelArt: View {
-    var meterSlot: Anchor<CGRect>?
-    var running: Bool
-    var meterColor: Color
-    @Environment(\.limitMotion) private var limitMotion
-    @Environment(\.look) private var look
+/// The Record card while you record or capture an app's audio (mockup: MacRecorder): the persimmon recording card
+/// with what's recording and from where, the clock, the live waveform, your words as they're heard, and Mark moment
+/// (with its shortcut), Pause, the moments so far, and Stop and transcribe. Starting, the stop button cancels; a muted
+/// microphone says so on the card.
+struct HomeRecordingCard: View {
+    @EnvironmentObject var app: AppState
+    @ObservedObject private var marks = MarkCenter.shared
+    @ObservedObject private var mics = HomeMic.shared
+    @CurrentPalette private var palette: AppPalette
 
     var body: some View {
-        let _ = LookSwitch.mark("home-record-art")
-        if look != .native {
-            GeometryReader { g in
-                let meter = meterSlot.map { g[$0] }
-                if limitMotion || !LoopingArt.enabled || !running {
-                    Canvas { ctx, size in Self.draw(ctx, size, meter: meter, t: nil, meterColor: meterColor) }
-                } else {
-                    LoopTimeline(running: true) { now in
-                        Canvas { ctx, size in Self.draw(ctx, size, meter: meter, t: now.timeIntervalSinceReferenceDate, meterColor: meterColor) }
+        let capturing = app.capture.isCapturing && !app.recorder.isRecording
+        let starting = app.recorder.isStarting
+        let paused = app.recorder.isPaused && !capturing
+        let ink = Refined.onFill(.persimmon, palette)
+        RecordingCard(title: title(capturing: capturing, starting: starting, paused: paused), detail: detail(capturing: capturing),
+                      live: capturing ? app.capture.live : app.recorder.live, paused: paused) {
+            if !capturing {
+                if let w = app.recorder.micWarning, !starting, !paused {
+                    Text("\(w.title). \(w.detail).").refinedFont(.body, weight: .semibold)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                RecordingCardWords(words: app.recordingWords, ink: ink)
+            }
+        } controls: {
+            if !capturing {
+                Button { marks.mark(.macApp) } label: {
+                    HStack(spacing: 6) {
+                        IconGlyph(art: .iconMark, size: 14, color: ink)
+                        Text("Mark moment")
+                        Text(MarkHotkeyStore.current().title).fontWeight(.regular)
                     }
                 }
+                .buttonStyle(RefinedActionStyle(ink: ink, wash: Refined.readyChip(palette)))
+                .disabled(starting)
+                .help("Mark this moment (\(MarkHotkeyStore.current().title) from any app while you record)")
+                .accessibilityLabel("Mark a moment")
+                .uiTarget("record-panel-mark")
+                Button { app.togglePause() } label: {
+                    HStack(spacing: 6) {
+                        IconGlyph(art: paused ? .iconPlay : .iconPause, size: 12, color: ink)
+                        Text(paused ? "Resume" : "Pause")
+                    }
+                }
+                .buttonStyle(RefinedActionStyle(ink: ink, wash: Refined.readyChip(palette)))
+                .disabled(starting)
+                if let c = marks.confirmation, !starting {
+                    Text(Marks.confirmation(c)).refinedFont(.body).monospacedDigit().lineLimit(1)
+                        .uiTarget("record-panel-marked")
+                } else if marks.count(.voiceNote) > 0 {
+                    Text(Marks.count(marks.count(.voiceNote))).refinedFont(.body).monospacedDigit().lineLimit(1)
+                }
             }
-            .clipShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+            Spacer(minLength: 8)
+            Button {
+                if capturing { app.stopCapture() } else { app.stopRecording() }
+            } label: {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.recordRed).frame(width: 9, height: 9)
+                        .accessibilityHidden(true)
+                    Text(starting ? "Cancel" : capturing ? "Stop" : "Stop and transcribe")
+                }
+            }
+            .buttonStyle(RefinedActionStyle(kind: .strong, ink: ink, light: palette == .full ? Refined.lift : Refined.paper))
+            // While the mic is starting, Stop cancels the start.
+            .keyboardShortcut(".", modifiers: [.option, .shift])
+        }
+        .accessibilityLabel(starting ? "Starting the microphone" : paused ? "Recording paused" : capturing ? "Capturing \(app.capture.appName)" : "Recording")
+        .uiTarget("home-recording")
+    }
+
+    /// "Recording a voice note", "Recording a meeting", "Paused", "Starting…", or "Capturing Zoom".
+    private func title(capturing: Bool, starting: Bool, paused: Bool) -> String {
+        if capturing { return "Capturing \(app.capture.appName)" }
+        if starting { return "Starting…" }
+        if paused { return "Paused" }
+        return "Recording " + Self.noun(app.recordKind)
+    }
+
+    /// "a voice note", "a meeting", "an interview", "a journal entry", "audio only".
+    static func noun(_ kind: RecordingKind?) -> String {
+        switch kind {
+        case nil, .note?: return "a voice note"
+        case .interview?: return "an interview"
+        case .journal?: return "a journal entry"
+        case .idea?: return "a thought"
+        case .audio?: return "audio only"
+        case let k?: return "a " + k.label.lowercased()
         }
     }
 
-    static func draw(_ ctx: GraphicsContext, _ size: CGSize, meter: CGRect?, t: Double?, meterColor: Color) {
-        let box = CGRect(x: size.width - 250 + 50, y: 10, width: 250, height: 250)
-        var rings = ctx
-        rings.translateBy(x: box.minX, y: box.minY)
-        rings.clip(to: Path(CGRect(origin: .zero, size: box.size)))
-        PanelArtDrawing.draw(.rings, rings, box.size, t: t, color: Ink.inkFixed)
-        if let m = meter, m.width > 0, m.height > 0 {
-            var bars = ctx
-            bars.translateBy(x: m.minX, y: m.minY)
-            HomeMeter.draw(bars, m.size, barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: meterColor, levels: nil, breath: t)
-        }
+    /// "MacBook Pro microphone · Saved as you go", or the transcript a recording adds to.
+    private func detail(capturing: Bool) -> String {
+        if capturing { return "Saved as you go" }
+        if let id = app.continuing, let t = app.store.transcript(id) { return "Adding to “\(t.title)”" }
+        return "\(mics.device?.name ?? "Microphone") · Saved as you go"
     }
 }
 
-/// A start tile: a color panel with grain (Live captions: card white with an ink outline), the bare icon top left,
-/// the keycap top right, and the serif name with a one-line detail at the foot. Tilts on hover and picks up the ink
-/// outline and hard shadow; the icon draws on again.
-private struct WebTile<Icon: View>: View {
-    var title: String
-    var detail: String
-    var keycap: String? = nil
-    var fill: Color
-    var onFill: Color = Ink.inkFixed
-    var outlined = false
-    var grain = true
-    var hint: String
-    var action: () -> Void
-    @ViewBuilder var icon: (_ replay: Int) -> Icon
-    @State private var replay = 0
-    @State private var down = false
+/// Your words on the recording card as they're heard: the newest two lines in the serif, in the card's ink. Words
+/// still changing are in italic rather than lighter, since a lighter ink on the fill falls under 4.5:1. Nothing at all
+/// when Show words while you record is off or nothing has been heard.
+private struct RecordingCardWords: View {
+    @ObservedObject var words: RecordingWords
+    var ink: Color
+    @AppStorage(RecordingWords.enabledKey) private var showWords = true
 
     var body: some View {
-        let _ = LookSwitch.mark("home-tile")
-        HomeCard(tilt: 3, radius: Radius.tile, shadow: false, onHover: { h in if h { replay += 1 } }, onPress: { down = $0 }, action: action) { hovering in
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top, spacing: 6) {
-                    icon(replay).frame(width: 22, height: 22)
-                    Spacer(minLength: 0)
-                    if let keycap { Keycap(keys: keycap, size: 12).opacity(0.8) }
-                }
-                Spacer(minLength: 4)
-                Text(title).font(Ink.serif(21)).lineLimit(1).minimumScaleFactor(0.8)
-                Text(detail).font(.system(size: 12)).opacity(0.8).lineLimit(1).minimumScaleFactor(0.85).padding(.top, 3)
-            }
-            .foregroundStyle(onFill)
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .colorPanel(fill, radius: Radius.tile, grain: grain)
-            .inkEdge(outline: outlined || hovering, shadow: InkEdge.card(hover: hovering, pressed: down), radius: Radius.tile)
-        }
-        .accessibilityLabel(title)
-        .accessibilityValue([detail, keycap.map(Keycap.spoken)].compactMap { $0 }.joined(separator: " "))
-        .accessibilityHint(hint)
-    }
-}
-
-/// This week as one slim strip: the eyebrow, the words in the serif, seven small bars (today in the Record color,
-/// days to come as faint dashes), and the stats on the right. Two lines when the window is narrow. Large: a card with
-/// the words big beside taller bars and the stats under them.
-private struct WeekStrip: View {
-    var week: HomeWeek
-    var recordings: Int
-    var saved: String
-    var moments: Int
-    var large = false
-
-    var body: some View {
-        let _ = LookSwitch.mark("home-week")
-        if large { card } else { strip }
-    }
-
-    private var card: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Eyebrow(text: "This week")
-            HStack(alignment: .bottom, spacing: 18) {
-                Text("\(Text(week.words.formatted()).font(Ink.serif(52))) \(Text(week.words == 1 ? "word" : "words").font(Ink.serif(52).italic()))")
-                    .tracking(-0.8).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.6)
-                Spacer(minLength: 8)
-                bars(height: 56)
-            }
-            ViewThatFits(in: .horizontal) {
-                stats
-                VStack(alignment: .leading, spacing: 6) {
-                    stat("\(recordings.formatted())", recordings == 1 ? "recording" : "recordings")
-                    stat(saved, "saved typing")
-                    stat("\(moments.formatted())", moments == 1 ? "moment" : "moments")
-                }
-            }
-        }
-        .padding(.horizontal, 22).padding(.vertical, 18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-    }
-
-    private var strip: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 28) {
-                lead
-                Spacer(minLength: 12)
-                stats
-            }
-            .padding(.horizontal, 22)
-            .frame(height: 72)
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 20) { lead; Spacer(minLength: 0) }
-                HStack(spacing: 22) { stats; Spacer(minLength: 0) }
-            }
-            .padding(.horizontal, 18).padding(.vertical, 14)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-    }
-
-    private var lead: some View {
-        HStack(spacing: 28) {
-            Eyebrow(text: "This week")
-            Text("\(Text(week.words.formatted()).font(Ink.serif(28))) \(Text(week.words == 1 ? "word" : "words").font(Ink.serif(28).italic()))")
-                .tracking(-0.4).foregroundStyle(Ink.ink).lineLimit(1).fixedSize()
-            bars(height: 24)
-        }
-    }
-
-    private var stats: some View {
-        HStack(spacing: 28) {
-            stat("\(recordings.formatted())", recordings == 1 ? "recording" : "recordings")
-            stat(saved, "saved typing")
-            stat("\(moments.formatted())", moments == 1 ? "moment" : "moments")
-        }
-    }
-
-    private func stat(_ value: String, _ label: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(value).font(Ink.serif(20)).foregroundStyle(Ink.ink)
-            Text(label).font(.system(size: 13)).foregroundStyle(Ink.dim)
-        }
-        .lineLimit(1).fixedSize()
-    }
-
-    private func bars(height: CGFloat) -> some View {
-        let peak = max(1, week.peak)
-        return HStack(alignment: .bottom, spacing: 3) {
-            ForEach(Array(week.days.enumerated()), id: \.offset) { _, day in
-                let empty = day.isFuture || day.words == 0
-                VStack(spacing: 3) {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(day.isToday ? Ink.panelRecord : Ink.ink)
-                        .opacity(day.isFuture ? 0.3 : 1)
-                        .frame(width: height > 30 ? 11 : 8, height: empty ? 2 : max(3, height * CGFloat(day.words) / CGFloat(peak)))
-                    Text(Formats.pattern("EEEEE").string(from: day.start))
-                        .font(Ink.mono(12, weight: day.isToday ? .semibold : .regular))
-                        .foregroundStyle(day.isToday ? Ink.ink : Ink.mute)
-                }
-                .frame(width: height > 30 ? 15 : 12)
+        let w = words.shown.tail(220)
+        if showWords && !w.isEmpty {
+            let gap = w.settled.isEmpty || w.volatile.isEmpty ? "" : " "
+            (Text(w.settled) + Text(gap) + Text(w.volatile).italic())
+                .readingStyle(ink)
+                .lineLimit(2)
+                .truncationMode(.head)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Formats.pattern("EEEE").string(from: day.start))
-                .accessibilityValue(day.isFuture ? "Still to come" : HomeCounts.countLabel(day.words, "word", "words"))
-            }
+                .accessibilityLabel("Live text")
+                .accessibilityValue(w.text)
+                .accessibilityAddTraits(.updatesFrequently)
         }
-        .frame(height: height + 20, alignment: .bottom)
-    }
-}
-
-/// A recent recording as a flat row, 66 pt: the kind dot, the title and a sentence-case meta line, and plain status
-/// text on the right ("14 filler words" with room for the Clean up pill, or "1 moment").
-private struct RecentRow: View {
-    var transcript: Transcript
-    var fillers: Int
-
-    var body: some View {
-        let _ = LookSwitch.mark("home-recent")
-        let style = HomeRecentStyle(transcript)
-        let moments = WebStatus.moments(transcript)
-        HStack(spacing: 12) {
-            KindDot(transcript: transcript, size: 34)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(transcript.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
-                // The live progress (StageClock) while it transcribes: only this line re-renders on a tick.
-                LiveStage(transcript) { transcript in
-                    Self.metaText(transcript, style).font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute).lineLimit(1)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if fillers > 0 {
-                StatusText(text: HomeCounts.countLabel(fillers, "filler word", "filler words"))
-                // Room for the Clean up pill, which sits above the row's click layer.
-                PillLabel(title: "Clean up", kind: .dark, size: .mini).hidden()
-            } else if moments > 0 {
-                StatusText(text: HomeCounts.countLabel(moments, "moment", "moments"), icon: .iconMoments)
-            }
-        }
-        .padding(.horizontal, 14)
-        .frame(height: 66)
-    }
-
-    private static func metaText(_ transcript: Transcript, _ style: HomeRecentStyle) -> Text {
-        let parts = HomeRecentStyle.metaParts(transcript, style: style, compact: false)
-        var out = Text(verbatim: "")
-        for (i, part) in parts.enumerated() {
-            let piece = part.failed ? Text(part.text).foregroundStyle(Ink.danger).fontWeight(.semibold) : Text(part.text)
-            out = Text("\(out)\(i > 0 ? " · " : "")\(piece)")
-        }
-        return out
     }
 }
 

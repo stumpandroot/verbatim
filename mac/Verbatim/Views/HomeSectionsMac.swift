@@ -1,12 +1,9 @@
 import SwiftUI
 import AppKit
 
-// brand: web style
-//
-// Home's newer sections on the Mac (Edit Home, mockup "premium", section 03): Today's thoughts and Journal in the
-// website style, each Compact (one strip) or Large (the card under its heading); Native draws its own
-// (NativeHomeSections.swift). Also the outline and name badge each section wears while Home is being edited. Projects,
-// Moments, and Queue left Home in the consolidation (October 28, 2026), with the Search tile.
+// Home's Today's thoughts and Journal on the Mac (Edit Home), each Compact (one slim row) or Large (the card under its
+// serif title), drawn with the refined kit (DESIGN.md §13) in both looks; and the outline and name badge each section
+// wears while Home is being edited.
 
 // MARK: - Editing frame
 
@@ -21,15 +18,14 @@ extension View {
 private struct HomeEditFrame: ViewModifier {
     var item: HomeLayout.Item
     var editing: Bool
-    @Environment(\.look) private var look
 
     func body(content: Content) -> some View {
         content
             .allowsHitTesting(!editing)
             .overlay {
                 if editing {
-                    RoundedRectangle(cornerRadius: look == .native ? 14 : Radius.record + 4, style: .continuous)
-                        .strokeBorder(look == .native ? NativeInk.accent.opacity(0.55) : Ink.ink, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                    RoundedRectangle(cornerRadius: RefinedPlatform.radius(.record) + 4, style: .continuous)
+                        .strokeBorder(Refined.ink, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                         .padding(-6)
                         .allowsHitTesting(false)
                 }
@@ -39,22 +35,11 @@ private struct HomeEditFrame: ViewModifier {
             }
     }
 
-    @ViewBuilder private var badge: some View {
-        let text = "\(item.section.title) · \(item.size.title)"
-        if look == .native {
-            Text(text).font(.system(size: 12, weight: .semibold)).foregroundStyle(.primary)   // brand: native
-                .padding(.horizontal, 10).frame(height: 24)
-                .background(Capsule().fill(NativeInk.content))   // brand: native
-                .overlay(Capsule().strokeBorder(NativeInk.separator, lineWidth: 0.5))   // brand: native
-        } else {
-            HStack(spacing: 6) {
-                ArtIcon(art: .iconNameAndSort, size: 12, lineWidth: 1.4)
-                Text(text).font(.system(size: 12, weight: .semibold))
-            }
-            .foregroundStyle(Ink.paper)
+    private var badge: some View {
+        Text("\(item.section.title) · \(item.size.title)").refinedFont(.chip, weight: .semibold)
+            .foregroundStyle(Refined.paper)
             .padding(.horizontal, 10).frame(height: 24)
-            .background(Capsule().fill(Ink.ink))
-        }
+            .background(Capsule().fill(Refined.ink))
     }
 }
 
@@ -80,57 +65,42 @@ enum HomeDayPages {
     }
 }
 
-/// Today's thoughts. Large: the latest four under "Today's thoughts", each with its time in mono, and New thought.
-/// Compact: one strip with the count and the latest. A click opens today's page; New thought records in place, as
-/// ⌃⌥P does. Thoughts are a kind, so everything here is ink (DESIGN.md §14.1).
+/// New thought on Home: a quiet button with the bulb (its wave follows your voice while one records) and ⌃⌥P. It
+/// records in place, and a second click stops it onto today's page. Never a second fill beside Record (DESIGN.md §14.9).
+struct HomeNewThoughtButton: View {
+    @ObservedObject private var capture = ThoughtCapture.shared
+
+    var body: some View {
+        Button { capture.toggle() } label: {
+            HStack(spacing: 7) {
+                Group {
+                    if capture.isRecording { ThoughtMicLevel(live: capture.recorder.live, color: Refined.ink) }
+                    else { ThoughtGlyph(color: Refined.ink, lineWidth: 1.4) }
+                }
+                .frame(width: 14, height: 14)
+                Text(capture.isRecording ? "Stop" : "New thought")
+                Text(Thoughts.hotkey).fontWeight(.regular).foregroundStyle(Refined.mute)
+            }
+        }
+        .buttonStyle(RefinedActionStyle())
+        .help("New thought (\(Thoughts.hotkey))")
+        .accessibilityLabel(capture.isRecording ? "Stop the thought" : "New thought")
+    }
+}
+
+/// Today's thoughts. Large: "Today's thoughts" with Today's page, the latest four in a card with their times, and New
+/// thought. Compact: one slim row with the count and the latest, and New thought beside it. A click opens today's page.
+/// Thoughts are a kind, so the section stays in ink (DESIGN.md §14.1).
 struct HomeThoughtsMac: View {
     @EnvironmentObject var app: AppState
     var size: HomeCardSize
-    @ObservedObject private var capture = ThoughtCapture.shared
-    @Environment(\.look) private var look
 
     var body: some View {
         let page = app.store.todaysThoughts()
-        if look == .native {
-            NativeHomeThoughts(size: size, page: page)
-        } else if size == .compact {
-            strip(page)
-        } else {
-            VStack(alignment: .leading, spacing: 2) {
-                SectionTitle(title: "Today's", italic: "thoughts", link: "Today's page", linkHint: "Opens today's Thoughts page.") { HomeDayPages.openToday(app) }
-                    .padding(.bottom, 8)
-                if page.isEmpty {
-                    FlatRowButton(action: { HomeDayPages.openToday(app) }) { _ in
-                        Text("No thoughts yet today. \(Thoughts.hotkey) starts one from any app.")
-                            .font(.system(size: 14)).foregroundStyle(Ink.dim)
-                            .padding(.horizontal, 14).frame(height: 52, alignment: .leading)
-                    } accessory: { _ in EmptyView() }
-                    .accessibilityHint("Opens today's Thoughts page.")
-                }
-                ForEach(HomeThoughts.latest(page)) { t in line(t) }
-                HStack {
-                    newThought
-                    Spacer(minLength: 0)
-                    if page.count > HomeThoughts.largeCount {
-                        Text("\(page.count) today").font(Ink.mono(12)).foregroundStyle(Ink.mute)
-                    }
-                }
-                .padding(.top, 10)
-            }
-            .uiTarget("home-thoughts")
+        Group {
+            if size == .compact { compact(page) } else { large(page) }
         }
-    }
-
-    private func line(_ t: Transcript) -> some View {
-        FlatRowButton(action: { HomeDayPages.openToday(app) }) { _ in
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                Text(Thoughts.time(t.createdAt, native: false)).font(Ink.mono(12.5)).foregroundStyle(Ink.mute).frame(width: 44, alignment: .leading)
-                Text(words(t)).font(.system(size: 14)).foregroundStyle(t.status == .ready ? Ink.ink : Ink.dim).lineLimit(2)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10).padding(.vertical, 11)
-        } accessory: { _ in EmptyView() }
-        .accessibilityHint("Opens today's Thoughts page.")
+        .uiTarget("home-thoughts")
     }
 
     private func words(_ t: Transcript) -> String {
@@ -141,150 +111,141 @@ struct HomeThoughtsMac: View {
         }
     }
 
-    /// A line pill with its keycap, never a second fill beside Record (DESIGN.md §14.9; `NewThoughtPill`, ByDayView.swift).
-    private var newThought: some View {
-        NewThoughtPill(size: .mini).uiTarget("home-thoughts-new")
+    private func large(_ page: [Transcript]) -> some View {
+        let shown = HomeThoughts.latest(page)
+        return VStack(alignment: .leading, spacing: 6) {
+            SerifSectionTitle("Today's thoughts", link: "Today's page") { HomeDayPages.openToday(app) }
+            Button { HomeDayPages.openToday(app) } label: {
+                PaperCard {
+                    if shown.isEmpty {
+                        Text("No thoughts yet today. \(Thoughts.hotkey) starts one from any app.")
+                            .refinedFont(.body).foregroundStyle(Refined.dim)
+                            .padding(.horizontal, 16).padding(.vertical, 14)
+                    }
+                    ForEach(Array(shown.enumerated()), id: \.element.id) { i, t in
+                        if i > 0 { PaperDivider(leading: 16, trailing: 16) }
+                        HStack(alignment: .firstTextBaseline, spacing: 14) {
+                            Text(Thoughts.time(t.createdAt, native: true)).refinedFont(.meta).monospacedDigit()
+                                .foregroundStyle(Refined.mute).frame(width: 64, alignment: .leading)
+                            Text(words(t)).refinedFont(.body).foregroundStyle(t.status == .ready ? Refined.ink : Refined.dim).lineLimit(2)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 10)
+                    }
+                }
+            }
+            .buttonStyle(RefinedPress())
+            .accessibilityHint("Opens today's Thoughts page.")
+            HStack {
+                HomeNewThoughtButton().uiTarget("home-thoughts-new")
+                Spacer(minLength: 0)
+                if page.count > HomeThoughts.largeCount {
+                    Text("\(page.count) today").refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
+                }
+            }
+            .padding(.top, 4)
+        }
     }
 
-    private func strip(_ page: [Transcript]) -> some View {
-        FlatRowButton(action: { HomeDayPages.openToday(app) }) { _ in
-            HStack(spacing: 12) {
-                IconGlyph(art: .iconThought, size: 18, color: Ink.ink)
-                Text(HomeThoughts.countLine(page.count)).font(Ink.serif(18)).foregroundStyle(Ink.ink).lineLimit(1).fixedSize()
-                if let last = page.last {
-                    Text(words(last)).font(.system(size: 13.5)).foregroundStyle(Ink.dim).lineLimit(1)
+    private func compact(_ page: [Transcript]) -> some View {
+        HStack(spacing: 8) {
+            Button { HomeDayPages.openToday(app) } label: {
+                HStack(spacing: 12) {
+                    IconGlyph(art: .iconThought, size: 18, color: Refined.ink)
+                    Text(HomeThoughts.countLine(page.count)).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                        .lineLimit(1).fixedSize()
+                    if let last = page.last {
+                        Text(words(last)).refinedFont(.rowTitle).foregroundStyle(Refined.mute).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
                 }
-                Spacer(minLength: 8)
-                Color.clear.frame(width: 176, height: 1)   // room for New thought and its keycap
+                .frame(minHeight: 36)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 16)
-            .frame(height: 56)
-            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-            .inkEdge(outline: true, radius: Radius.record)
-        } accessory: { _ in newThought.padding(.trailing, 14) }
-        .accessibilityHint("Opens today's Thoughts page.")
-        .uiTarget("home-thoughts")
+            .buttonStyle(RefinedPress())
+            .accessibilityHint("Opens today's Thoughts page.")
+            HomeNewThoughtButton().uiTarget("home-thoughts-new")
+        }
+        .padding(.leading, 16).padding(.trailing, 10).padding(.vertical, 8)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
     }
 }
 
-/// Journal. Large: the newest entry under "Journal" (its title in the serif with an italic last word, the first
-/// line, and a play pill with the length) over this week's days as ink dots. Compact: one strip with the title and the
-/// dots. A click opens Journal By day; the play pill plays the entry.
+/// Journal. Large: "Journal" with By day, then a card with the newest entry (the date, its title, the first lines, and
+/// a play button with the length) over this week's days as dots. Compact: one slim row with the title and the dots.
+/// A click opens Journal By day; play plays the entry.
 struct HomeJournalMac: View {
     @EnvironmentObject var app: AppState
     var size: HomeCardSize
-    @Environment(\.look) private var look
 
     var body: some View {
         let j = HomeDayPages.journal(app.store)
-        if look == .native {
-            NativeHomeJournal(size: size, latest: j.latest, week: j.week)
-        } else if size == .compact {
-            FlatRowButton(action: { HomeDayPages.openJournal(app) }) { _ in
-                HStack(spacing: 12) {
-                    IconGlyph(art: .iconNotes, size: 18, color: Ink.ink)
-                    Text("Journal").font(Ink.serif(18)).foregroundStyle(Ink.ink).fixedSize()
-                    Text(j.latest?.title ?? "No entries yet").font(.system(size: 13.5)).foregroundStyle(Ink.dim).lineLimit(1)
-                    Spacer(minLength: 8)
-                    HomeWeekDots(week: j.week, size: 8)
-                }
-                .padding(.horizontal, 16)
-                .frame(height: 56)
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-                .inkEdge(outline: true, radius: Radius.record)
-            } accessory: { _ in EmptyView() }
-            .accessibilityValue(HomeJournalWeek.countLine(j.week))
-            .accessibilityHint("Opens Journal by day.")
-            .uiTarget("home-journal")
-        } else {
-            VStack(alignment: .leading, spacing: 2) {
-                SectionTitle(title: "", italic: "Journal", link: "By day", linkHint: "Opens Journal by day.") { HomeDayPages.openJournal(app) }
-                    .padding(.bottom, 8)
-                entry(j.latest)
-                HStack(spacing: 12) {
-                    HomeWeekDots(week: j.week, size: 10, letters: true)
-                    Spacer(minLength: 8)
-                    Text(HomeJournalWeek.countLine(j.week)).font(Ink.mono(12)).foregroundStyle(Ink.mute)
-                }
-                .padding(.horizontal, 10).padding(.top, 12)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("This week: \(HomeJournalWeek.countLine(j.week))")
-            }
-            .uiTarget("home-journal")
+        Group {
+            if size == .compact { compact(j.latest, j.week) } else { large(j.latest, j.week) }
         }
+        .uiTarget("home-journal")
     }
 
-    @ViewBuilder private func entry(_ t: Transcript?) -> some View {
-        if let t {
-            let words = t.title.split(separator: " ")
-            let playable = t.audioFileName != nil && t.status == .ready
-            FlatRowButton(action: { HomeDayPages.openJournal(app) }) { _ in
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(PremiumDateLine.line(t.createdAt)).font(Ink.mono(12)).foregroundStyle(Ink.mute)
-                    Group {
-                        if words.count < 2 { Text(t.title).font(Ink.serif(21)) }
-                        else { WebText.serif(words.dropLast().joined(separator: " "), italic: String(words.last ?? ""), size: 21) }
-                    }
-                    .foregroundStyle(Ink.ink).lineLimit(1)
-                    Text(PremiumPreview.text(t)).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(2)
-                    if playable { Color.clear.frame(width: 60, height: 24) }
-                }
-                .padding(.horizontal, 10).padding(.vertical, 12)
-            } accessory: { _ in EmptyView() }
-            .accessibilityHint("Opens Journal by day.")
-            .overlay(alignment: .bottomLeading) {
-                if playable {
-                    HStack(spacing: 5) {
-                        ArtIcon(art: .iconPlay, size: 10, lineWidth: 1.4)
-                        Text(HomeRecentStyle.length(t.duration)).font(Ink.mono(12))
-                    }
-                    .foregroundStyle(Ink.ink)
-                    .padding(.horizontal, 9).frame(height: 24)
-                    .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5))
-                    .contentShape(Capsule())
-                    .tapArea { NativeNav.shared.play(t, app: app) }
-                    .accessibilityLabel("Play, \(HomeRecentStyle.length(t.duration))")
-                    .accessibilityAddTraits(.isButton)
-                    .padding(.leading, 10).padding(.bottom, 12)
-                }
+    private func compact(_ latest: Transcript?, _ week: [HomeJournalWeek.Day]) -> some View {
+        Button { HomeDayPages.openJournal(app) } label: {
+            HStack(spacing: 12) {
+                IconGlyph(art: .iconNotes, size: 18, color: Refined.ink)
+                Text("Journal").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).fixedSize()
+                Text(latest?.title ?? "No entries yet").refinedFont(.rowTitle).foregroundStyle(Refined.mute).lineLimit(1)
+                Spacer(minLength: 8)
+                HomeWeekDots(week: week, size: 8)
             }
-        } else {
-            FlatRowButton(action: { HomeDayPages.openJournal(app) }) { _ in
-                Text("Record with the Journal kind, and your newest entry shows here.")
-                    .font(.system(size: 14)).foregroundStyle(Ink.dim)
-                    .padding(.horizontal, 14).frame(height: 52, alignment: .leading)
-            } accessory: { _ in EmptyView() }
-            .accessibilityHint("Opens Journal by day.")
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         }
+        .buttonStyle(RefinedPress())
+        .accessibilityValue(HomeJournalWeek.countLine(week))
+        .accessibilityHint("Opens Journal by day.")
     }
-}
 
-/// This week's seven days as dots: filled where there's an entry, today outlined, ink in Verbose style and the accent
-/// in Native (DESIGN.md §14.6). Optional weekday letters under them.
-struct HomeWeekDots: View {
-    var week: [HomeJournalWeek.Day]
-    var size: CGFloat
-    var letters = false
-    @Environment(\.look) private var look
-
-    var body: some View {
-        let native = look == .native
-        let color = native ? NativeInk.accent : Ink.ink
-        let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
-        HStack(spacing: size * 0.9) {
-            ForEach(week, id: \.start) { d in
-                VStack(spacing: 4) {
-                    Circle().fill(d.hasEntry ? color : Color.clear)
-                        .overlay(Circle().strokeBorder(color.opacity(d.hasEntry ? 1 : (d.isFuture ? 0.25 : 0.5)), lineWidth: d.isToday ? 1.6 : 1))
-                        .frame(width: size, height: size)
-                    if letters {
-                        Text(symbols[(Calendar.current.component(.weekday, from: d.start) - 1) % symbols.count])
-                            .font(native ? .system(size: 10, weight: d.isToday ? .bold : .regular) : Ink.mono(12))   // brand: native
-                            .foregroundStyle(native ? Color.secondary : Ink.mute)   // brand: native
+    private func large(_ latest: Transcript?, _ week: [HomeJournalWeek.Day]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SerifSectionTitle("Journal", link: "By day") { HomeDayPages.openJournal(app) }
+            VStack(alignment: .leading, spacing: 12) {
+                Button { HomeDayPages.openJournal(app) } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let t = latest {
+                            Text(PremiumDateLine.line(t.createdAt)).refinedFont(.meta).foregroundStyle(Refined.mute)
+                            Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                            Text(PremiumPreview.text(t)).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)
+                        } else {
+                            Text("Record with the Journal kind, and your newest entry shows here.")
+                                .refinedFont(.body).foregroundStyle(Refined.dim)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(RefinedPress())
+                .accessibilityHint("Opens Journal by day.")
+                // Play sits beside the entry's button, not inside it (macOS 26 click safety).
+                HStack(spacing: 12) {
+                    if let t = latest, t.audioFileName != nil, t.status == .ready {
+                        Button { NativeNav.shared.play(t, app: app) } label: {
+                            HStack(spacing: 6) {
+                                IconGlyph(art: .iconPlay, size: 11, color: Refined.ink)
+                                Text(HomeRecentStyle.length(t.duration)).monospacedDigit()
+                            }
+                        }
+                        .buttonStyle(RefinedActionStyle())
+                        .accessibilityLabel("Play, \(HomeRecentStyle.length(t.duration))")
+                    }
+                    Spacer(minLength: 8)
+                    HomeWeekDots(week: week, size: 10, letters: true)
+                    Text(HomeJournalWeek.countLine(week)).refinedFont(.meta).foregroundStyle(Refined.mute)
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("This week: \(HomeJournalWeek.countLine(week))")
             }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         }
-        .accessibilityHidden(true)
     }
 }

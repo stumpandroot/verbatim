@@ -76,30 +76,3 @@ final class RecordingWords: ObservableObject {
         shown = w
     }
 }
-
-/// The last two lines of live words in the recording bar: settled words in ink, words still changing lighter.
-/// Nothing at all when the setting is off or nothing has been heard.
-struct RecordingWordsLine: View {
-    @ObservedObject var words: RecordingWords
-    /// Space around the words, only while there are words (the bar keeps its height until then).
-    var insets = EdgeInsets()
-    @AppStorage(RecordingWords.enabledKey) private var showWords = true
-
-    var body: some View {
-        let w = words.shown.tail(220)
-        if showWords && !w.isEmpty {
-            let gap = w.settled.isEmpty || w.volatile.isEmpty ? "" : " "
-            (Text(w.settled).foregroundStyle(Ink.ink) + Text(gap) + Text(w.volatile).foregroundStyle(Ink.mute))
-                .font(.system(size: 13.5))
-                .lineSpacing(2)
-                .lineLimit(2)
-                .truncationMode(.head)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(insets)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Live text")
-                .accessibilityValue(w.text)
-                .accessibilityAddTraits(.updatesFrequently)
-        }
-    }
-}
