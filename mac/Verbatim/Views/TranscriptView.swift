@@ -1,229 +1,146 @@
 import SwiftUI
 import AppKit
 
-// brand: web style
-
-/// Transcript workspace in the website style (mac/DESIGN.md §11): the recording's name as a large two-line serif
-/// title under a mono eyebrow, the Original / Cleaned / Review toggle, the lines on a paper sheet with an ink outline,
-/// the side column (Summary on butter, Moments, Export), and the dark player dock.
-///
-/// Native (`nativeScreen`): a bold title over plain text in a centered reading column, Original and Cleaned as a
-/// segmented control in the toolbar with Share and More beside it, the side column as an inspector, and the system glass
-/// player bar floating over the column's foot.
+/// A transcript in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", MacTranscript), one layout in both
+/// look settings: a centered 640 pt reading column on paper with the title in the serif, a meta line led by the kind's
+/// chip (and the project's), then each turn as the speaker's chip and the time over the serif reading text, and the
+/// glass player bar floating at the foot of the column. The bar above holds Back, the centered segmented control
+/// (Original, Cleaned, Summary, Review once something was corrected, and a template's result), Share, and More: the
+/// window's toolbar in Native, the page's own bar in Verbose style, where the window has no toolbar items of its own.
+/// The side column (Moments, Speakers, Export, Details) is Native's inspector, and a column beside the text in Verbose
+/// style. Keys: Space plays, ← and → move 5 seconds, B marks a moment, ⇧⌘C copies the tab, ⌥⇧⌘C copies for AI, and
+/// ⌘+ and ⌘− change the text size.
 struct TranscriptView: View {
     /// True while any text field or text view in the key window is being edited.
     static var typing: Bool { NSApp.keyWindow?.firstResponder is NSText }
 
     @EnvironmentObject var app: AppState
     var id: UUID
-    @State private var view: Mode = .original
-    /// nil = automatic (open when the window is wide). Set once the person toggles it.
-    @State private var notesPref: Bool? = nil
-    @State private var detailsOpen = false
+    /// Verbose style's side column: nil follows the inspector setting (and the window's width); set once you toggle it.
+    @State private var sidePref: Bool? = nil
     @State private var selectedSegment: UUID? = nil
     @State private var followed: UUID? = nil
     @State private var pendingSeek: Double? = nil
-    @State private var textSize: CGFloat = 16
-    /// True once the mode bar has scrolled under the top edge; a pinned copy shows there instead.
-    @State private var barPinned = false
-    /// True once the header's Original / Cleaned / Review toggle reaches the top of the screen's content area (it
-    /// would sit under the toolbar); a copy floats at the top, right where it was, until the whole bar pins.
-    @State private var togglePinned = false
-    /// The top of the screen's content area (below the toolbar), in window coordinates.
-    @State private var contentTop: CGFloat = 0
-    @State private var runningAction: FlowAction? = nil
-    /// Why Summarize can't run here (Apple Intelligence unavailable), shown when the action is chosen.
-    @State private var summaryUnavailable: String? = nil
+    /// A passage to bring into view (opened from search, a link, a note, or an Ask citation).
+    @State private var scrollTarget: UUID? = nil
     /// "2 filler lines hidden · Show": per view, starting from Settings › Hide filler lines.
     @State private var showFiller = false
     @AppStorage(Transcript.hideFillerKey) private var hideFillerSetting = true
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
-    /// Original tab: the engine's own words (`original`) instead of the corrected lines.
-    @State private var showEngine = false
-    /// Original tab: one selectable text, for selecting across lines.
-    @State private var selecting = false
     /// Renaming the title in place (click it).
     @State private var editingTitle = false
     @State private var titleDraft = ""
     @FocusState private var titleFocused: Bool
-    @Namespace private var segNS
     @Environment(\.look) private var look
-    /// Native's toolbar and inspector share the tab, text size, and selected passage (NativeChrome.swift).
+    /// The tab, text size, Follow, engine words, Select text, the selected passage, and the running action, shared
+    /// with Native's toolbar and inspector (NativeChrome.swift) and with the page's bar in Verbose style.
     @EnvironmentObject private var nav: NativeNav
 
-    /// Raw values stay stable: UI tests and Home post them in `.verbatimShowMode`.
+    /// Raw values stay stable: UI tests, Home, and Fix all post them in `.verbatimShowMode`.
     enum Mode: String, CaseIterable {
-        case original = "Transcript", document = "Document", review = "Review"
-        /// The tab's name on screen.
+        case original = "Transcript", document = "Document", summary = "Summary", review = "Review", result = "Result"
+        /// The tab's name on screen (a result's tab is named for its template, `TranscriptView.tabs`).
         var title: String {
-            switch self { case .original: return "Original"; case .document: return "Cleaned"; case .review: return "Review" }
+            switch self {
+            case .original: return "Original"
+            case .document: return "Cleaned"
+            case .summary: return "Summary"
+            case .review: return "Review"
+            case .result: return "Template"
+            }
         }
     }
-    /// Clean up and Tone live inside Cleaned.
-    static let visibleModes: [Mode] = [.original, .document, .review]
 
-    /// The reading text's size: this screen's own in Verbose style; Native's toolbar sets it (`NativeNav`).
-    private var fontSize: CGFloat { look == .native ? nav.textSize : textSize }
+    /// The looks a transcript is on screen in (the self-test checks each look draws this one layout, once).
+    static var onScreen = Set<AppLook>()
+
+    /// The reading column's width (the mockup's 640 pt), and the player bar's.
+    static let column: CGFloat = 640
+    static let playerWidth: CGFloat = 600
+
+    /// The segmented control's tabs: Original, Cleaned, and Summary, then Review while there are corrections (or it's
+    /// open), then a template's result, named for its template ("Meeting notes"), or "Results" with more than one.
+    @MainActor static func tabs(_ t: Transcript, current: Mode, templates: [TranscriptTemplate]) -> [(Mode, String)] {
+        var out: [(Mode, String)] = [(.original, Mode.original.title), (.document, Mode.document.title), (.summary, Mode.summary.title)]
+        if !t.corrections.isEmpty || current == .review { out.append((.review, Mode.review.title)) }
+        let busy = TemplateCenter.shared.busyTemplate(t.id).flatMap { b in templates.first { $0.id == b }?.name }
+        if let title = t.resultTabTitle(busyName: busy) { out.append((.result, title)) }
+        else if current == .result { out.append((.result, Mode.result.title)) }
+        return out
+    }
 
     /// What Copy takes on this tab.
-    private var copyVersion: Exporter.CopyVersion { view == .document ? .cleaned : .original }
-
+    private var copyVersion: Exporter.CopyVersion { nav.copyVersion }
+    private var view: Mode { nav.mode }
 
     private var transcript: Transcript? { app.store.transcript(id) }
 
     var body: some View {
         LookSwitch.mark("transcript")
-        // One sheet for the screen: the tools row can exist twice (scrolled and pinned). Native runs actions from the
-        // window's toolbar, which shows the same sheet (NativeChrome.swift).
-        return screenBody.sheet(item: $runningAction) { a in
-            if let t = transcript {
-                TranscriptActionSheet(action: a, transcript: t).environmentObject(app)
+        // One sheet and one set of alerts for the screen. Native runs actions from the window's toolbar, which shows
+        // the same sheet (NativeChrome.swift).
+        return screenBody
+            .sheet(item: look == .native ? .constant(nil) : $nav.runningAction) { a in
+                if let t = transcript { TranscriptActionSheet(action: a, transcript: t).environmentObject(app) }
             }
-        }
-        .alert("Summaries need Apple Intelligence", isPresented: Binding(get: { summaryUnavailable != nil }, set: { if !$0 { summaryUnavailable = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: { Text(summaryUnavailable ?? "") }
-        // Transcribe again with Whisper Turbo, from the Actions menu (either look): what it does, the download when
-        // the model isn't here, and that your edits stay with the words you can switch back to.
-        .alert(TurboRerun.title + "?", isPresented: Binding(get: { app.turboAsk == id }, set: { if !$0, app.turboAsk == id { app.turboAsk = nil } })) {
-            Button("Cancel", role: .cancel) {}
-            Button(TurboRerun.confirm(needsDownload: !app.turboDownloaded)) { app.transcribeAgainWithTurbo(id) }
-        } message: { Text(transcript.map { TurboRerun.message($0, onMac: true, needsDownload: !app.turboDownloaded) } ?? "") }
-    }
-
-    /// The Summarize action: runs it, or says why it can't run on this Mac.
-    private func summarize(_ t: Transcript) {
-        if let why = SummaryAction.unavailableReason { summaryUnavailable = why; return }
-        // An edited summary is replaced only from the Summary block's Regenerate, which asks first.
-        SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: false)
+            .alert("Summaries need Apple Intelligence", isPresented: Binding(get: { look != .native && nav.summaryUnavailable != nil }, set: { if !$0 { nav.summaryUnavailable = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: { Text(nav.summaryUnavailable ?? "") }
+            // Transcribe again with Whisper Turbo, from More (either look): what it does, the download when the model
+            // isn't here, and that your edits stay with the words you can switch back to.
+            .alert(TurboRerun.title + "?", isPresented: Binding(get: { app.turboAsk == id }, set: { if !$0, app.turboAsk == id { app.turboAsk = nil } })) {
+                Button("Cancel", role: .cancel) {}
+                Button(TurboRerun.confirm(needsDownload: !app.turboDownloaded)) { app.transcribeAgainWithTurbo(id) }
+            } message: { Text(transcript.map { TurboRerun.message($0, onMac: true, needsDownload: !app.turboDownloaded) } ?? "") }
     }
 
     @ViewBuilder private var screenBody: some View {
         if let t = transcript {
-            Group {
-            if look == .native {
-                nativeScreen(t)
-            } else {
             GeometryReader { g in
-            // Decided from the geometry in the same pass, so the screen lays out once (no open-then-close).
-            let narrow = g.size.width < 900
-            let notesOpen = notesPref ?? !narrow
-            let sideInline = notesOpen && !narrow
-            HStack(alignment: .top, spacing: 0) {
-                ZStack(alignment: .bottom) {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 0) {
-                                header(t).staggerIn(0)
-                                modeBar(t, notesOpen: notesOpen, narrow: narrow, withToggle: false)
-                                    .opacity(barPinned ? 0 : 1).allowsHitTesting(!barPinned)
-                                    .background(GeometryReader { b in Color.clear.preference(key: BarOffsetKey.self, value: b.frame(in: .named("tscroll")).minY) })
-                                    .staggerIn(1).padding(.bottom, 12)
-                                // Show the result first: a template's automatic result opens above the text.
-                                if view != .review, TemplateResultsSection.showsFirst(t) {
-                                    TemplateResultsSection(transcript: t, inline: true, runRow: false).padding(.bottom, 14)
-                                }
-                                // The side column is closed: the Summary card sits above the text instead.
-                                if !notesOpen, view != .review {
-                                    if !TemplateResultsSection.showsFirst(t) { TemplateResultsSection(transcript: t, inline: true, runRow: false).padding(.bottom, 14) }
-                                    TranscriptSummaryCard(transcript: t).padding(.bottom, 14)
-                                }
-                                content(t)
-                            }
-                            .frame(maxWidth: 760, alignment: .leading)
-                            .padding(.leading, 40).padding(.trailing, sideInline ? 22 : 40)
-                            .padding(.top, 28).padding(.bottom, t.audioFileName != nil && view != .document ? 124 : 40)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .coordinateSpace(name: "tscroll")
-                        .onPreferenceChange(BarOffsetKey.self) { y in
-                            let pinned = y < 6
-                            if pinned != barPinned { barPinned = pinned }
-                        }
-                        .onPreferenceChange(ToggleOffsetKey.self) { y in
-                            let pinned = y < contentTop + 4
-                            if pinned != togglePinned { togglePinned = pinned }
-                        }
-                        .overlay(alignment: .top) {
-                            // The mode bar and tools stay reachable while reading: pinned under the top edge.
-                            if barPinned {
-                                VStack(spacing: 0) {
-                                    modeBar(t, notesOpen: notesOpen, narrow: narrow, withToggle: true)
-                                        .frame(maxWidth: 760, alignment: .leading)
-                                        .padding(.leading, 40).padding(.trailing, sideInline ? 22 : 40).padding(.vertical, 8)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Ink.paper)
-                                    Rectangle().fill(Ink.hairline).frame(height: 1)
-                                }
-                                .transition(.opacity)
-                            } else if togglePinned {
-                                // Only the header has scrolled up: the toggle stays put, inside the content area.
-                                HStack(spacing: 0) { Spacer(minLength: 0); modeToggle }
-                                    .frame(maxWidth: 760, alignment: .trailing)
-                                    .padding(.leading, 40).padding(.trailing, sideInline ? 22 : 40).padding(.top, 8)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .transition(.opacity)
-                            }
-                        }
-                        .onReceive(app.player.clock.$time) { now in
-                            // Follow playback, but only when the playing passage changes (not on every tick).
-                            if app.player.isPlaying, let s = t.segments.first(where: { now >= $0.start && now < $0.end }), s.id != followed {
-                                followed = s.id
-                                withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
-                            }
-                        }
-                        .onAppear {
-                            // Opened from search, a link, or a note: land on that passage.
-                            if let f = app.focusSegment, t.segments.contains(where: { $0.id == f }) {
-                                app.focusSegment = nil
-                                view = .original
-                                selectedSegment = f
-                                DispatchQueue.main.async { proxy.scrollTo(f, anchor: .center) }
-                                if let s = t.segments.first(where: { $0.id == f }) { pendingSeek = s.start }
-                            }
+                // Verbose style's side column: beside the text when the window is wide, over it as a drawer when not.
+                let narrow = g.size.width < Self.column + 64 + 300
+                let sideOpen = look != .native && (sidePref ?? (nav.inspector && !narrow))
+                VStack(spacing: 0) {
+                    if look != .native { pageBar(t, sideOpen: sideOpen, narrow: narrow) }
+                    HStack(spacing: 0) {
+                        column(t)
+                        if sideOpen && !narrow {
+                            Rectangle().fill(Refined.separator).frame(width: 1).accessibilityHidden(true)
+                            TranscriptSide(transcript: t, nav: nav).frame(width: 300)
                         }
                     }
-                    if t.audioFileName != nil, t.status == .ready, view != .document {
-                        PlayerDock(transcript: t, clock: app.player.clock)
-                            .padding(.leading, 40).padding(.trailing, sideInline ? 22 : 40).padding(.bottom, 24)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            // Lines fade into the paper under the dock instead of showing around it (review M-29).
-                            .background(alignment: .bottom) { BottomFade(color: Ink.paper, height: Self.dockFade) }
-                            .staggerIn(3)
-                    }
                 }
-                .frame(maxWidth: .infinity)
-                if sideInline {
-                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.nav) { notesPref = false } })
-                        .frame(width: 300).padding(.trailing, 32).padding(.top, 28)
-                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .identity))
-                }
-            }
-            .overlay(alignment: .trailing) {
-                // Narrow window: Notes becomes a drawer over the text instead of squeezing it.
-                if notesOpen && narrow {
-                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.nav) { notesPref = false } }, drawer: true)
+                .overlay(alignment: .trailing) {
+                    if sideOpen && narrow {
+                        HStack(spacing: 0) {
+                            Rectangle().fill(Refined.separator).frame(width: 1)
+                            TranscriptSide(transcript: t, nav: nav)
+                        }
                         .frame(width: 320)
-                        .shadow(color: .black.opacity(0.12), radius: 24, x: -6)
-                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .identity))
+                        .padding(.top, look == .native ? 0 : 52)
+                    }
                 }
             }
+            .background(Refined.paper)
             .background {
-                // Shortcuts live here once, not on the mode bar (which can exist twice while pinned).
+                // Shortcuts live here once.
                 ZStack {
                     Button("") { ExportMenu.copy(t, copyVersion, app: app) }.keyboardShortcut("c", modifiers: [.command, .shift])
                     Button("") { CopyForAI.copy(t, app: app) }.keyboardShortcut("c", modifiers: [.command, .option, .shift])
-                    Button("") { textSize = min(22, textSize + 1) }.keyboardShortcut("=", modifiers: .command)
-                    Button("") { textSize = max(13, textSize - 1) }.keyboardShortcut("-", modifiers: .command)
+                    Button("") { nav.textSize = NativeNav.textSizes.clamp(nav.textSize + 1) }.keyboardShortcut("=", modifiers: .command)
+                    Button("") { nav.textSize = NativeNav.textSizes.clamp(nav.textSize - 1) }.keyboardShortcut("-", modifiers: .command)
                 }
                 .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
             }
-            .onChange(of: g.frame(in: .global).minY, initial: true) { _, y in contentTop = y }
-            }
-            }
-            }
             .onAppear {
                 if UITest.enabled { Log.note("UITEST nav appear ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000)) segments=\(t.segments.count)") }
+                Self.onScreen.insert(look)
+                // Opened from search, a link, a note, or an Ask citation: land on that passage, on Original.
+                let focus = app.focusSegment.flatMap { f in t.segments.first { $0.id == f } }
+                nav.opened(t, focus: focus != nil)
+                if nav.selectedSegment != focus?.id { nav.selectedSegment = focus?.id }
+                selectedSegment = focus?.id
+                if let s = focus { pendingSeek = s.start; scrollTarget = s.id; app.focusSegment = nil }
                 app.player.screenAppeared(t.id)
                 if let u = app.store.audioURL(for: t) {
                     app.player.loadAsync(u, startAt: pendingSeek, autoplay: nav.takeAutoplay(t.id))
@@ -234,126 +151,167 @@ struct TranscriptView: View {
             }
             // Stops only when the last screen for this transcript goes and no other transcript took playback: a look
             // switch builds the new screen before the old one leaves, and that used to stop the audio.
-            .onDisappear { if app.player.screenLeft(id) { app.player.stop() } }
+            .onDisappear {
+                Self.onScreen.remove(look)
+                if app.player.screenLeft(id) { app.player.stop() }
+            }
             .skipsSponsors(t, player: app.player)
             // Playback keys never steal typing: when a text field (renaming a speaker, a note, a correction) has
             // focus, the key goes to the field.
             .onKeyPress(.space) { if Self.typing { return .ignored }; app.player.toggle(); return .handled }
             .onKeyPress(.leftArrow) { if Self.typing { return .ignored }; app.player.seek(to: app.player.time - 5); return .handled }
             .onKeyPress(.rightArrow) { if Self.typing { return .ignored }; app.player.seek(to: app.player.time + 5); return .handled }
-            .onKeyPress("b") { if Self.typing { return .ignored }; bookmark(t); return .handled }
+            .onKeyPress("b") { if Self.typing { return .ignored }; nav.bookmark(t, app: app); return .handled }
             .onReceive(NotificationCenter.default.publisher(for: .verbatimShowMode)) { n in
-                if let raw = n.object as? String, let m = Mode(rawValue: raw) { withAnimation(Motion.snap) { view = m } }
+                if let raw = n.object as? String, let m = Mode(rawValue: raw) { nav.mode = m }
             }
+            .onChange(of: selectedSegment) { _, v in if nav.selectedSegment != v { nav.selectedSegment = v } }
+            .onChange(of: t.corrections.isEmpty) { _, none in if none, nav.mode == .review { nav.mode = .original } }
         } else {
-            Text("This transcript was deleted.").foregroundStyle(Ink.mute)
+            Text("This transcript was deleted.").refinedFont(.body).foregroundStyle(Refined.mute)
+                .frame(maxWidth: .infinity, maxHeight: .infinity).background(Refined.paper)
         }
     }
 
-    // MARK: Native
+    // MARK: The page's bar (Verbose style)
 
-    /// The transcript in the Native look (mockup section 9): a centered reading column on the window background with
-    /// times in a fixed column, and the glass player bar floating over its foot. The tabs and tools live in the
-    /// window's toolbar and the side column in its inspector (NativeChrome.swift), so opening a transcript adds nothing
-    /// to the window.
-    private func nativeScreen(_ t: Transcript) -> some View {
-        ScrollViewReader { proxy in
+    /// Back, the centered segmented control, Share, More, and the side column's button, 52 pt tall (mockup
+    /// MacTranscript's toolbar). Native draws the same in the window's toolbar.
+    private func pageBar(_ t: Transcript, sideOpen: Bool, narrow: Bool) -> some View {
+        HStack(spacing: 6) {
+            RefinedCircleButton(symbol: "chevron.left", label: "Back to \(NavTrail.shared.backName(app))") { NavTrail.shared.back(app) }
+                .help("Back to \(NavTrail.shared.backName(app)) (⌘[)")
+                .uiTarget("transcript-back")
+            Spacer(minLength: 12)
+            Menu { TranscriptShareItems(transcript: t, nav: nav) } label: { barGlyph(Image(systemName: "square.and.arrow.up")) }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .disabled(t.status != .ready)
+                .help("Copy, or export as text, Markdown, Word, subtitles, or JSON")
+                .accessibilityLabel("Share")
+                .uiTarget("transcript-share")
+            Menu { TranscriptMoreItems(transcript: t, nav: nav) } label: { barGlyph(Image(systemName: "ellipsis")) }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .help("Mark a moment, record more, run a template or an action, summarize, review the fixes, or change the text size")
+                .accessibilityLabel("More")
+                .uiTarget("transcript-more")
+            Button {
+                sidePref = !sideOpen
+                if !narrow { nav.inspector = !sideOpen }
+            } label: {
+                barGlyph(IconGlyph(art: .iconNotes, size: 16, color: sideOpen ? Refined.accentText : Refined.ink))
+            }
+            .buttonStyle(RefinedPress())
+            .help(sideOpen ? "Hide moments, speakers, and details" : "Show moments, speakers, and details")
+            .accessibilityLabel("Moments and details")
+            .accessibilityValue(sideOpen ? "Shown" : "Hidden")
+            .uiTarget("transcript-side")
+        }
+        .overlay {
+            if t.status == .ready, !t.showsAudioDetail {
+                RefinedSegmented(options: Self.tabs(t, current: nav.mode, templates: app.store.allTemplates), selection: $nav.mode)
+                    .fixedSize()
+            }
+        }
+        .padding(.horizontal, 16).frame(height: 52)
+    }
+
+    private func barGlyph<V: View>(_ v: V) -> some View {
+        v.font(.system(size: 15, weight: .medium)).foregroundStyle(Refined.ink)
+            .frame(width: 30, height: 30).contentShape(Rectangle())
+    }
+
+    // MARK: The reading column
+
+    private func column(_ t: Transcript) -> some View {
+        let hasPlayer = t.audioFileName != nil && t.status == .ready && view != .document
+        return ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     header(t)
-                    // A result lives in the inspector; with it closed, a neutral row says it's there (review M-27).
-                    if !nav.inspector, view != .review, !TemplateResultsSection.showsFirst(t), let r = t.shownTemplateResults.first {
-                        NativeResultReadyRow(name: r.name, count: t.shownTemplateResults.count) { nav.inspector = true }
-                            .padding(.bottom, 12)
-                    }
-                    if view == .original, t.status == .ready { versionControl(t).padding(.bottom, 12) }
-                    // Show the result first: a template's automatic result opens above the text (else the inspector).
-                    if view != .review, TemplateResultsSection.showsFirst(t) {
-                        TemplateResultsSection(transcript: t, inline: true).padding(.bottom, 14)
-                    }
-                    content(t)
+                    content(t).padding(.top, 18)
                 }
-                .frame(maxWidth: 720, alignment: .leading)
-                .padding(.horizontal, 32).padding(.top, 8)
-                .padding(.bottom, t.audioFileName != nil && view != .document ? 96 : 32)
+                .frame(maxWidth: Self.column, alignment: .leading)
+                .padding(.horizontal, 32).padding(.top, look == .native ? 14 : 18)
+                .padding(.bottom, hasPlayer ? 104 : 40)
                 .frame(maxWidth: .infinity, alignment: .center)
             }
             // Lines fade under the toolbar's glass and the player's, instead of colliding with them (review M-29).
             .softScrollEdges([.top, .bottom])
             .onReceive(app.player.clock.$time) { now in
                 // Follow playback (while Follow is on), only when the playing passage changes, not on every tick.
-                if nav.follow, app.player.isPlaying, let s = t.segments.first(where: { now >= $0.start && now < $0.end }), s.id != followed {
+                if nav.follow, app.player.isPlaying, view == .original, !nav.selecting,
+                   let s = t.segments.first(where: { now >= $0.start && now < $0.end }), s.id != followed {
                     followed = s.id
                     withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
                 }
             }
-            .onAppear {
-                // Opened from search, a link, or a note: land on that passage.
-                if let f = app.focusSegment, t.segments.contains(where: { $0.id == f }) {
-                    app.focusSegment = nil
-                    view = .original
-                    selectedSegment = f
-                    DispatchQueue.main.async { proxy.scrollTo(f, anchor: .center) }
-                    if let s = t.segments.first(where: { $0.id == f }) { pendingSeek = s.start }
-                }
+            .onChange(of: scrollTarget, initial: true) { _, target in
+                guard let target else { return }
+                DispatchQueue.main.async { proxy.scrollTo(target, anchor: .center) }
+                scrollTarget = nil
             }
         }
         .overlay(alignment: .bottom) {
-            if t.audioFileName != nil, t.status == .ready, view != .document {
-                // The system glass bar, over the reading column's foot; the scroll edge effect keeps lines legible
-                // under it.
-                NativePlayerBar(transcript: t, clock: app.player.clock, nav: nav)
-                    .padding(.horizontal, 32).padding(.bottom, 16)
+            if hasPlayer {
+                // The glass bar over the reading column's foot; the scroll edge effect keeps lines legible under it.
+                MacPlayerBar(transcript: t, player: app.player, clock: app.player.clock, nav: nav)
+                    .frame(maxWidth: Self.playerWidth)
+                    .padding(.horizontal, 32).padding(.bottom, 22)
             }
         }
-        .background {
-            ZStack {
-                Button("") { ExportMenu.copy(t, copyVersion, app: app) }.keyboardShortcut("c", modifiers: [.command, .shift])
-                Button("") { CopyForAI.copy(t, app: app) }.keyboardShortcut("c", modifiers: [.command, .option, .shift])
-                Button("") { nav.textSize = min(22, nav.textSize + 1) }.keyboardShortcut("=", modifiers: .command)
-                Button("") { nav.textSize = max(13, nav.textSize - 1) }.keyboardShortcut("-", modifiers: .command)
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Header
+
+    /// The title (click it to rename), the meta line with the kind's and the project's chips and the tags, and what
+    /// needs you: the title's Apple Intelligence note, the kind-change offer, suggested speakers, a recording being
+    /// added, the link's video, and the latest fixes with Undo.
+    private func header(_ t: Transcript) -> some View {
+        let project = t.projectId.flatMap { p in app.store.projectsByID[p] }
+        return VStack(alignment: .leading, spacing: 10) {
+            title(t)
+            FlowRow(spacing: 8, lineSpacing: 6) {
+                if t.kind != .dictation, t.status == .ready {
+                    KindPickerChip(kind: t.kind, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
+                }
+                if let project {
+                    KindColorChip(title: project.name, hue: RefinedRules.projectHue(project.colorIndex))
+                        .accessibilityLabel("Project: \(project.name)")
+                }
+                Text(Self.meta(t)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
+                if t.status == .ready {
+                    RefinedTagChips(tags: t.tags,
+                                    onAdd: { tag in if !t.tags.contains(tag) { app.store.update(t.id) { $0.tags = t.tags + [tag] } } },
+                                    onRemove: { tag in app.store.update(t.id) { $0.tags = t.tags.filter { $0 != tag } } })
+                }
             }
-            .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
+            if t.titleIsAuto && t.titleByModel {
+                HStack(spacing: 6) {
+                    IconGlyph(art: .iconAI, size: 14, color: Refined.mute)
+                    Text("Title by Apple Intelligence").refinedFont(.meta).foregroundStyle(Refined.mute)
+                }
+                .accessibilityElement(children: .combine)
+            }
+            if t.status == .ready { KindOfferRow(transcript: t) { nav.mode = .result } }
+            if t.status == .ready, !t.visibleSpeakerSuggestions.isEmpty {
+                SpeakerSuggestionRows(transcript: t,
+                                      onUse: { app.useSpeakerSuggestion(transcript: t.id, $0) },
+                                      onDismiss: { app.dismissSpeakerSuggestion(transcript: t.id, $0) })
+            }
+            if t.pendingAppend != nil { appendRow(t) }
+            if let info = t.linkInfo { LinkCard(info: info, transcript: t) }
+            if view == .original, !t.corrections.isEmpty { correctionChips(t) }
         }
-        // The toolbar's tabs and text size and the inspector's note field share this screen's state.
-        // Written only when they differ, so opening a transcript doesn't re-render the toolbar for nothing.
-        .onAppear { if nav.mode != view { nav.mode = view }; if nav.selectedSegment != selectedSegment { nav.selectedSegment = selectedSegment } }
-        .onChange(of: nav.mode) { _, m in if view != m { withAnimation(Motion.snap) { view = m } } }
-        .onChange(of: view) { _, m in if nav.mode != m { nav.mode = m } }
-        .onChange(of: selectedSegment) { _, v in if nav.selectedSegment != v { nav.selectedSegment = v } }
+        .task(id: t.id) { SpeakerNameSuggester.openedIfNeeded(t.id, store: app.store) }
     }
 
-    /// "Meeting · Tuesday, October 27, 9:00 AM · 38:12 · Anika, Marcus · English" (mockup section 9).
-    private func nativeMeta(_ t: Transcript) -> String {
-        var parts = [t.kind?.label ?? Self.sourceName(t)]
-        parts.append(Formats.pattern("EEEE, MMMM d").string(from: t.createdAt) + ", " + Formats.style(date: .none, time: .short).string(from: t.createdAt))
-        if !WebStatus.isTextOnly(t) { parts.append(HomeRecentStyle.length(t.duration)) }
-        let named = t.speakers.map(\.name).filter { !$0.isEmpty && !$0.hasPrefix("Speaker ") }
-        if named.count >= 2 { parts.append(named.prefix(3).joined(separator: ", ")) }
-        else if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
-        if let lang = t.language { parts.append(LanguageDetection.name(lang)) }
-        return parts.joined(separator: " · ")
+    /// "Tuesday, Oct 27, 8:35 PM · 0:42 · 2 speakers · English" after the chips. A dictation's text has no length.
+    static func meta(_ t: Transcript, now: Date = Date()) -> String {
+        RefinedRules.transcriptMeta(when: RefinedRules.transcriptWhen(t.createdAt, now: now),
+                                    duration: WebStatus.isTextOnly(t) ? 0 : t.duration,
+                                    speakers: t.speakers.count, language: t.language.map(LanguageDetection.name))
     }
-
-    private func bookmark(_ t: Transcript) {
-        let at = app.player.time
-        let seg = t.segments.first(where: { at >= $0.start && at < $0.end })
-        app.addNote(transcript: t.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
-    }
-
-    // MARK: Header and mode bar
-
-    /// "◇ Meeting · Thu Oct 22 · 15:39": the kind (or the source), the day, and the length.
-    private func eyebrow(_ t: Transcript) -> String {
-        var parts = [t.kind?.label ?? Self.sourceName(t)]
-        parts.append(Formats.pattern("EEE MMM d").string(from: t.createdAt))
-        parts.append(WebFormat.clock(t.duration))
-        if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
-        return parts.joined(separator: " · ")
-    }
-
-    /// How tall the fade under the player is: the dock or bar, its 22 to 24 pt margin, and 16 more.
-    static let dockFade: CGFloat = 104
 
     /// What the recording is when it has no kind: "Voice note" for a voice note (its stored label says "Voice memo"
     /// in older libraries; review M-14), else the stored label.
@@ -362,126 +320,23 @@ struct TranscriptView: View {
         return t.sourceLabel.isEmpty ? "Recording" : t.sourceLabel
     }
 
-    private func projectName(_ t: Transcript) -> String? {
-        t.projectId.flatMap { id in app.store.projects.first { $0.id == id }?.name }
-    }
-
-    /// The recording's name on two lines, the second in italic: after the project's name when it starts with it
-    /// ("Lapp Wagons / *catalog call*"), otherwise split near the middle at a word. One word stays on one line.
-    static func twoLine(_ title: String, project: String?) -> (String, String?) {
-        let split = WebText.split(title, after: project)
-        if split.1 != nil { return split }
-        let words = title.split(separator: " ").map(String.init)
-        guard words.count >= 2 else { return (title, nil) }
-        var best = 1, bestDiff = Int.max
-        for k in 1..<words.count {
-            let a = words[..<k].joined(separator: " ").count, b = words[k...].joined(separator: " ").count
-            // Ties go to a longer first line.
-            let diff = abs(a - b) * 2 + (a < b ? 1 : 0)
-            if diff < bestDiff { bestDiff = diff; best = k }
-        }
-        return (words[..<best].joined(separator: " "), words[best...].joined(separator: " "))
-    }
-
-    private func header(_ t: Transcript) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if look == .native {
-                // Native: a big bold title (SF Pro, never the serif) and one secondary line; the tabs live in the toolbar.
-                title(t)
-                Text(nativeMeta(t)).font(.system(size: 13)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1).padding(.top, 6)
-            } else {
-            // Back, named for where you came from (App/NavTrail.swift); Native's is in the toolbar.
-            TranscriptBackPill().padding(.bottom, 16)
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Eyebrow(text: eyebrow(t))
-                    title(t)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // Top-aligned with the eyebrow, inside the content area (the mockup's .tr-head). When it reaches the
-                // top edge, a floating copy takes its place (togglePinned), so it never sits under the toolbar.
-                modeToggle
-                    .background(GeometryReader { b in Color.clear.preference(key: ToggleOffsetKey.self, value: b.frame(in: .global).minY) })
-                    .opacity(togglePinned ? 0 : 1).allowsHitTesting(!togglePinned)
-            }
-            }
-            if t.titleIsAuto && t.titleByModel { AITitleNote().padding(.top, 8) }
-            if t.status == .ready {
-                KindAndTags(transcript: t, compact: true,
-                            onPick: { k in app.pickKind(k, for: t.id) },
-                            onTags: { tags in app.store.update(t.id) { $0.tags = tags } })
-                    .padding(.top, 12)
-            }
-            if t.status == .ready, !t.visibleSpeakerSuggestions.isEmpty {
-                SpeakerSuggestionRows(transcript: t,
-                                      onUse: { app.useSpeakerSuggestion(transcript: t.id, $0) },
-                                      onDismiss: { app.dismissSpeakerSuggestion(transcript: t.id, $0) })
-                    .padding(.top, 12)
-            }
-            if t.pendingAppend != nil {
-                HStack(spacing: 8) {
-                    if t.processingDevice != nil { ProgressView().controlSize(.small) } else { ArtIcon(art: .capture, size: 16).foregroundStyle(Ink.accentText) }
-                    LiveStage(t) { t in Text(t.stageText).font(.system(size: 13.5)).foregroundStyle(Ink.dim) }
-                    if t.processingDevice == nil {
-                        Button("Retry") { app.retry(t) }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
-                        Button("Discard") { app.discardPendingAppend(t.id) }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
-                    } else {
-                        Button("Cancel") { app.cancel(t.id) }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
-                    }
-                }
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .padding(.top, 10)
-            }
-            if let info = t.linkInfo { LinkCard(info: info, transcript: t).padding(.top, 12) }
-            if view == .original, !t.corrections.isEmpty { correctionChips(t).padding(.top, 16) }
-        }
-        .padding(.bottom, 14)
-        .task(id: t.id) { SpeakerNameSuggester.openedIfNeeded(t.id, store: app.store) }
-    }
-
-    /// The title: content, not a page label, so it stays large (serif 44). Click it to rename in place; Return or
-    /// clicking away saves, Escape cancels.
+    /// The title in the serif (32 pt). Click it to rename in place; Return or clicking away saves, Escape cancels.
     @ViewBuilder private func title(_ t: Transcript) -> some View {
         if editingTitle {
             TextField("Title", text: $titleDraft, axis: .vertical)
-                .textFieldStyle(.plain).font(look == .native ? .system(size: 26, weight: .bold) : Ink.serif(44))
-                .tracking(look == .native ? 0 : -1).foregroundStyle(Ink.ink).lineLimit(1...3)
+                .textFieldStyle(.plain).refinedFont(.transcriptTitle).foregroundStyle(Refined.ink).lineLimit(1...3)
                 .focused($titleFocused)
                 .onSubmit { commitTitle(t) }
                 .onChange(of: titleFocused) { _, f in if !f { commitTitle(t) } }
                 .onExitCommand { editingTitle = false }
-        } else if look == .native {
-            Text(t.title).font(.system(size: 30, weight: .bold)).tracking(-0.4).foregroundStyle(.primary)
-                .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text(t.title).refinedFont(.transcriptTitle).foregroundStyle(Refined.ink)
+                .lineLimit(3).fixedSize(horizontal: false, vertical: true)
                 .contentShape(Rectangle())
                 .onTapGesture { beginRename(t) }
                 .help("Click to rename")
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityAction(named: "Rename") { beginRename(t) }
-        } else {
-            let lines = Self.twoLine(t.title, project: projectName(t))
-            // A title that fits on one line takes PageTitle's serif 34, so the first words of the transcript sit
-            // higher (review M-26); a longer one keeps the two-line serif 44 with its italic second line.
-            ViewThatFits(in: .horizontal) {
-                WebText.serif(lines.0, italic: lines.1, size: 34)
-                    .tracking(-0.5).lineLimit(1).fixedSize()
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(lines.0).font(Ink.serif(44))
-                    if let second = lines.1 { Text(second).font(Ink.serif(44).italic()) }
-                }
-                .tracking(-1)
-                .lineLimit(2).minimumScaleFactor(0.7)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            .foregroundStyle(Ink.ink)
-            .contentShape(Rectangle())
-            .onTapGesture { beginRename(t) }
-            .help("Click to rename")
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(t.title)
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityAction(named: "Rename") { beginRename(t) }
         }
     }
 
@@ -499,133 +354,70 @@ struct TranscriptView: View {
         app.store.update(t.id) { $0.title = v; $0.titleIsAuto = false; $0.titleByModel = false }
     }
 
-    /// Original / Cleaned / Review: a soft track with the chosen one in ink.
-    private var modeToggle: some View {
-        HStack(spacing: 2) {
-            ForEach(Self.visibleModes, id: \.self) { m in
-                Text(m.title).font(.system(size: 13.5, weight: .semibold)).lineLimit(1).fixedSize()
-                    .padding(.horizontal, 16).padding(.vertical, 7)
-                    .background { if view == m { Capsule().fill(Ink.ink).matchedGeometryEffect(id: "mode", in: segNS) } }
-                    .foregroundStyle(view == m ? Ink.paper : Ink.ink)
-                    .contentShape(Capsule())
-                    .tapArea { withAnimation(Motion.snap) { view = m } }
-                    .accessibilityLabel(m.title).accessibilityAddTraits(view == m ? [.isButton, .isSelected] : .isButton)
+    /// Continue recording's new part: its stage, and Retry and Discard (or Cancel while it transcribes).
+    private func appendRow(_ t: Transcript) -> some View {
+        HStack(spacing: 8) {
+            if t.processingDevice != nil { ProgressView().controlSize(.small) } else { IconGlyph(art: .capture, size: 16, color: Refined.accentText) }
+            LiveStage(t) { t in Text(t.stageText).refinedFont(.body).foregroundStyle(Refined.dim) }
+            Spacer(minLength: 8)
+            if t.processingDevice == nil {
+                Button("Retry") { app.retry(t) }.buttonStyle(RefinedActionStyle())
+                Button("Discard") { app.discardPendingAppend(t.id) }.buttonStyle(RefinedActionStyle())
+            } else {
+                Button("Cancel") { app.cancel(t.id) }.buttonStyle(RefinedActionStyle())
             }
         }
-        .padding(4).background(Ink.chip, in: Capsule()).fixedSize()
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .refinedSurface(Refined.persimmonTint, radius: RefinedPlatform.radius(.card))
     }
 
-    /// The latest fixes (yours and the Dictionary's) as dark pills with Undo; the rest are in Review.
+    /// The latest fixes (yours and the Dictionary's) with Undo; the rest are in Review.
     private func correctionChips(_ t: Transcript) -> some View {
         let recent = Array(t.corrections.suffix(3).reversed())
         let more = t.corrections.count - recent.count
         return FlowRow(spacing: 8, lineSpacing: 8) {
             ForEach(recent) { c in
-                UndoChip(text: "“\(c.from)” → \(c.to)") { undo(t, c) }
+                HStack(spacing: 8) {
+                    Text("\u{201C}\(c.from)\u{201D} \u{2192} \(c.to)").refinedFont(.meta).foregroundStyle(Refined.ink)
+                        .lineLimit(1).truncationMode(.middle).frame(maxWidth: 260, alignment: .leading)
+                    Button("Undo") { app.store.undoCorrection(c, in: t.id) }
+                        .buttonStyle(.plain).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.accentText)
+                        .accessibilityLabel("Undo \(c.from) to \(c.to)")
+                }
+                .padding(.horizontal, 12).frame(height: 28)
+                .background(Refined.neutral, in: Capsule())
             }
             if more > 0 {
-                Text(more == 1 ? "1 more in Review" : "\(more) more in Review")
-                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.dim)
-                    .frame(height: 34).contentShape(Rectangle())
-                    .tapArea { withAnimation(Motion.snap) { view = .review } }
-                    .accessibilityAddTraits(.isButton)
+                RefinedLink(title: more == 1 ? "1 more in Review" : "\(more) more in Review") { nav.mode = .review }
             }
         }
     }
 
-    private func modeBar(_ t: Transcript, notesOpen: Bool, narrow: Bool, withToggle: Bool) -> some View {
-        HStack(spacing: 12) {
-            if withToggle {
-                modeToggle
-                Divider().frame(height: 18)
-            }
-            versionControl(t).layoutPriority(-1)
-            Spacer(minLength: 8)
-            tools(t, notesOpen: notesOpen, compact: narrow)
-        }
-    }
-
-    /// Beside the tabs. Original: which words to show (with corrections, or the engine's) and Select text. Cleaned
-    /// and Review: a way to the engine's words, which are stored untouched.
-    @ViewBuilder private func versionControl(_ t: Transcript) -> some View {
-        if view == .original {
-            HStack(spacing: 6) {
-                Menu {
-                    Picker("Words", selection: $showEngine) {
-                        Text("With corrections").tag(false)
-                        Text("Show engine words").tag(true)
-                    }
-                    .pickerStyle(.inline).labelsHidden()
-                } label: {
-                    Text(showEngine ? "Engine words" : "With corrections").font(.system(size: 12.5, weight: .medium)).foregroundStyle(Ink.dim).lineLimit(1)
-                }
-                .menuStyle(.borderlessButton).fixedSize()
-                .help("With corrections shows your fixes and Dictionary fixes. Engine words shows exactly what the engine heard.")
-                .accessibilityIdentifier("original-words")
-                Button { selecting.toggle() } label: { ToolLabel(title: "Select text", art: .iconSelect, compact: false, on: selecting) }
-                    .buttonStyle(.plain)
-                    .help(selecting ? "Back to lines (corrections, notes, Copy quote)" : "Select across lines and copy with ⌘C")
-                    .accessibilityIdentifier("original-select")
-            }
-        } else {
-            Button { withAnimation(Motion.snap) { view = .original; showEngine = true } } label: {
-                Text("Engine words kept · Show").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
-            }
-            .buttonStyle(.plain)
-            .help("The engine's words are stored untouched. Open them in Original.")
-        }
-    }
-
-    /// Run a template, Copy, Export, Continue, Actions, Notes, and text size, beside the modes they act on. Every icon
-    /// has a help tag and a spoken name (ToolLabel), labeled or not (review M-26).
-    private func tools(_ t: Transcript, notesOpen: Bool, compact: Bool) -> some View {
-        HStack(spacing: 2) {
-            if t.status == .ready {
-                RunTemplateMenu(transcript: t, title: compact ? "Template" : "Run a template", templates: app.store.allTemplates)
-                    .padding(.trailing, 6)
-                    .uiTarget("transcript-run-template")
-            }
-            ExportMenu(transcript: t, compact: compact, version: copyVersion)
-            Button { app.continueRecording(t.id) } label: { ToolLabel(title: "Record more", art: .capture, compact: compact) }
-                .buttonStyle(.plain)
-                .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || t.isAudioOnly || app.recorder.isRecording)
-                .help("Record more and add it to the end of this transcript")
-            Menu {
-                ActionsMenuItems(transcript: t.id) { runningAction = $0 }
-                Divider()
-                Button(SummaryAction.title(t)) { summarize(t) }
-                    .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
-                Divider()
-                Button(TurboRerun.title + "…") { app.turboAsk = t.id }
-                    .disabled(TurboRerun.unavailableReason(t) != nil)
-                if let other = TurboRerun.switchTitle(t) { Button(other) { app.switchTranscriptVersion(t.id) } }
-            } label: { ToolLabel(title: "Actions", art: .refine, compact: compact) }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .disabled(t.status != .ready)
-                .help("Run a saved action on this transcript: decisions and next steps, a brief, an email")
-            Button { withAnimation(Motion.nav) { notesPref = !notesOpen } } label: { ToolLabel(title: "Notes", art: .iconNotes, compact: compact, on: notesOpen) }
-                .buttonStyle(.plain).help(notesOpen ? "Hide the side column (summary, moments, details)" : "Show the side column (summary, moments, details)")
-            Menu {
-                Button("Larger text") { textSize = min(22, textSize + 1) }
-                Button("Smaller text") { textSize = max(13, textSize - 1) }
-                Button("Default size") { textSize = 16 }
-            } label: { ToolLabel(title: "Text", art: .iconTextSize, compact: true) }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Text size (⌘+ and ⌘−)")
-        }
-        .fixedSize()
-    }
-
-    // MARK: Content per mode
+    // MARK: Content per tab
 
     @ViewBuilder private func content(_ t: Transcript) -> some View {
         if t.status == .processing { processing(t) }
         else if t.status == .failed { failed(t) }
         else {
-            // The Summary lives in the side column (TranscriptSummaryCard), or above the text when it's closed.
             switch view {
-            case .original: readingSheet(original(t))
+            case .original: original(t)
             case .document: DocumentView(transcript: t)
+            case .summary:
+                VStack(alignment: .leading, spacing: 24) {
+                    SummaryBlock(transcript: t,
+                                 onSummarize: { replacing in
+                                     if let why = SummaryAction.unavailableReason { nav.summaryUnavailable = why; return }
+                                     SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: replacing)
+                                 },
+                                 onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
+                    // Make notes, a plan, or a draft from it; the result gets a tab of its own.
+                    if t.shownTemplateResults.isEmpty, TemplateCenter.shared.busyTemplate(t.id) == nil {
+                        RunTemplateMenu(transcript: t, title: "Run a template", templates: app.store.allTemplates)
+                            .uiTarget("transcript-run-template")
+                    }
+                }
             case .review: review(t)
+            case .result: TemplateResultsSection(transcript: t, inline: true, runRow: true, showsOffers: false)
             }
         }
     }
@@ -636,25 +428,22 @@ struct TranscriptView: View {
         let background = mainSpeakerOnly ? t.backgroundSegments : []
         // Worked out once per transcript change, not on every render (Store+Memo.swift).
         let shown = app.store.displaySegments(t.id, hideFiller: hide, mainOnly: mainSpeakerOnly)
-        let folds = app.store.sponsorFolds(t.id, hideFiller: hide, mainOnly: mainSpeakerOnly, engine: showEngine)
+        let folds = app.store.sponsorFolds(t.id, hideFiller: hide, mainOnly: mainSpeakerOnly, engine: nav.showEngine)
         let fillers = app.store.fillerCount(t.id)
         // Engine words: the same passages as the engine wrote them, read-only (corrections apply to the corrected lines).
-        let segs = showEngine ? t.engineLines(for: shown) : shown
+        let segs = nav.showEngine ? t.engineLines(for: shown) : shown
         return VStack(alignment: .leading, spacing: 12) {
+            wordsRow(t)
             // Fix all, after a correction (Views/TrustViews.swift).
             FixAllBanner(transcriptID: t.id)
-            if showEngine {
-                Text(t.hasEngineWords ? "Engine words: exactly what the engine heard, before your corrections and Dictionary fixes."
-                                      : "This transcript has no separate engine words, so these are the lines as they are.")
-                    .font(.system(size: 12.5)).foregroundStyle(Ink.mute).padding(.leading, 84)
-            }
-            if selecting {
-                SelectableLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, textSize: fontSize)
+            if nav.selecting {
+                SelectableLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, textSize: nav.textSize)
             } else {
-                lines(t, segments: segs, folds: folds, editable: !showEngine)
+                TranscriptLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, folds: folds,
+                                editable: !nav.showEngine, textSize: nav.textSize, selected: $selectedSegment)
             }
             if hideFillerSetting, fillers > 0 {
-                FillerToggle(count: fillers, shown: $showFiller).padding(.leading, 84)
+                FillerToggle(count: fillers, shown: $showFiller)
             }
             if !background.isEmpty {
                 BackgroundVoicesCard(segments: background, compact: true,
@@ -665,97 +454,96 @@ struct TranscriptView: View {
         }
     }
 
-    /// The reading sheet: card white, a 1.5 pt ink outline, the panel radius.
-    @ViewBuilder private func readingSheet<V: View>(_ inner: V) -> some View {
-        if look == .native {
-            // Native: plain text on the window background.
-            inner.frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            inner
-                .padding(.horizontal, 22).padding(.vertical, 22)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-                .inkEdge(outline: true, radius: Radius.record)
-        }
-    }
-
-    private func lines(_ t: Transcript, segments: [Segment], folds: [SponsorFold.Place?], editable: Bool) -> some View {
-        TranscriptLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segments, folds: folds, editable: editable, textSize: fontSize, selected: $selectedSegment)
-    }
-
-    private func review(_ t: Transcript) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if t.corrections.isEmpty {
-                placeholder("Nothing changed yet", "Corrections you make, and Dictionary fixes, show here side by side with the original so you can accept or undo them.")
-            } else {
-                VStack(spacing: 2) {
-                    ForEach(t.corrections) { c in
-                        HStack(alignment: .top, spacing: 12) {
-                            ArtIcon(art: c.byDictionary ? .iconDictionary : .iconFeedback, size: 15).foregroundStyle(Ink.ink).frame(width: 18)
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 8) { Text(c.from).strikethrough().foregroundStyle(Ink.mute); Image(systemName: "arrow.right").font(.system(size: 10)); Text(c.to).fontWeight(.semibold) }
-                                    .font(.system(size: 14))
-                                if let seg = t.segments.first(where: { $0.id == c.segmentId }) {
-                                    Text(seg.text).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(2)
-                                    Text(seg.start.timecode).font(Ink.mono(12)).foregroundStyle(Ink.dim).underline()
-                                        .tapArea { app.player.seek(to: seg.start) }
-                                        .help("Play from here").accessibilityAddTraits(.isButton)
-                                }
-                            }
-                            Spacer()
-                            StatusText(text: c.byDictionary ? "Dictionary" : "Your fix", tone: .dim)
-                            Button("Undo") { undo(t, c) }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
-                        }
-                        .padding(.horizontal, 14).padding(.vertical, 12)
-                        .flatRow(highlighted: false)
+    /// Above the lines: which words to show (with corrections, or the engine's) and Select text, quietly.
+    private func wordsRow(_ t: Transcript) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 14) {
+                Menu {
+                    Picker("Words", selection: $nav.showEngine) {
+                        Text("With corrections").tag(false)
+                        Text("Show engine words").tag(true)
                     }
+                    .pickerStyle(.inline).labelsHidden()
+                } label: {
+                    Text(nav.showEngine ? "Engine words" : "With corrections").refinedFont(.meta, weight: .medium).foregroundStyle(Refined.dim)
                 }
+                .menuStyle(.borderlessButton).fixedSize()
+                .help("With corrections shows your fixes and Dictionary fixes. Engine words shows exactly what the engine heard.")
+                .accessibilityIdentifier("original-words")
+                Button { nav.selecting.toggle() } label: {
+                    Text(nav.selecting ? "Done selecting" : "Select text").refinedFont(.meta, weight: .medium)
+                        .foregroundStyle(nav.selecting ? Refined.accentText : Refined.dim)
+                }
+                .buttonStyle(.plain)
+                .help(nav.selecting ? "Back to lines (corrections, notes, Copy quote)" : "Select across lines and copy with ⌘C")
+                .accessibilityIdentifier("original-select")
+            }
+            if nav.showEngine {
+                Text(t.hasEngineWords ? "Engine words: exactly what the engine heard, before your corrections and Dictionary fixes."
+                                      : "This transcript has no separate engine words, so these are the lines as they are.")
+                    .refinedFont(.meta).foregroundStyle(Refined.mute)
             }
         }
     }
 
-    private func undo(_ t: Transcript, _ c: Correction) {
-        app.store.undoCorrection(c, in: t.id)
-    }
-
-    private func placeholder(_ title: String, _ body: String) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            EmptyStateArt(art: .refine, tint: Ink.petalTint)
+    /// Review: each fix beside what it replaced, in a card, with Undo; its time plays from there.
+    @ViewBuilder private func review(_ t: Transcript) -> some View {
+        if t.corrections.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.system(size: 15, weight: .semibold))
-                Text(body).font(.system(size: 13.5)).foregroundStyle(Ink.mute)
+                Text("Nothing changed yet").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
+                Text("Corrections you make, and Dictionary fixes, show here side by side with the original so you can accept or undo them.")
+                    .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            PaperList(t.corrections, id: \.id, inset: 16, trailingInset: 16) { c in
+                HStack(alignment: .top, spacing: 12) {
+                    IconGlyph(art: c.byDictionary ? .iconDictionary : .iconFeedback, size: 15, color: Refined.ink).frame(width: 18)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Text(c.from).strikethrough().foregroundStyle(Refined.mute)
+                            Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(Refined.mute)
+                            Text(c.to).fontWeight(.semibold).foregroundStyle(Refined.ink)
+                        }
+                        .refinedFont(.body)
+                        if let seg = t.segments.first(where: { $0.id == c.segmentId }) {
+                            Text(seg.text).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)
+                            Text(RefinedRules.time(seg.start)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.accentText)
+                                .tapArea { app.player.seek(to: seg.start) }
+                                .help("Play from here").accessibilityAddTraits(.isButton)
+                        }
+                    }
+                    Spacer()
+                    Text(c.byDictionary ? "Dictionary" : "Your fix").refinedFont(.meta).foregroundStyle(Refined.mute)
+                    Button("Undo") { app.store.undoCorrection(c, in: t.id) }.buttonStyle(RefinedActionStyle())
+                }
+                .padding(.horizontal, 16).padding(.vertical, 12)
             }
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-        .inkEdge(outline: true, radius: Radius.record)
     }
-
 
     private func processing(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 SignalRings().frame(width: 40, height: 40).padding(6)
                 VStack(alignment: .leading, spacing: 2) {
-                    LiveStage(t) { t in Text(t.stageText).font(.system(size: 15, weight: .semibold)) }
-                    Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    LiveStage(t) { t in Text(t.stageText).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink) }
+                    Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.").refinedFont(.meta).foregroundStyle(Refined.mute)
                 }
             }
             ForEach(0..<4, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 4).fill(Ink.ink.opacity(0.07)).frame(width: CGFloat([480, 420, 500, 300][i]), height: 14).padding(.vertical, 6)
+                RoundedRectangle(cornerRadius: 4).fill(Refined.neutral).frame(width: CGFloat([480, 420, 500, 300][i]), height: 14).padding(.vertical, 6)
             }
         }
     }
 
     private func failed(_ t: Transcript) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            IconGlyph(art: .iconAttention, size: 28, color: Ink.accentText).frame(width: 40, height: 40)
+            IconGlyph(art: .iconAttention, size: 28, color: Refined.accentText).frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: 6) {
-                Text("Transcription did not finish").font(.system(size: 14, weight: .semibold))
-                Text(t.error ?? "").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                Text("Transcription did not finish").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                Text(t.error ?? "").refinedFont(.meta).foregroundStyle(Refined.mute)
                 HStack(spacing: 8) {
-                    Button("Retry") { app.retry(t) }.buttonStyle(PillButtonStyle(kind: .dark, size: .mini))
+                    Button("Retry") { app.retry(t) }.buttonStyle(RefinedActionStyle(kind: .strong))
                     AllowDownloadButton(transcript: t)
                 }
             }
@@ -763,45 +551,7 @@ struct TranscriptView: View {
     }
 }
 
-/// "“Lit it's” → Lititz  [Undo]": a fix as a dark pill with a card-white Undo inside (accent text).
-private struct UndoChip: View {
-    var text: String
-    var action: () -> Void
-    var body: some View {
-        HStack(spacing: 10) {
-            Text(text).lineLimit(1).truncationMode(.middle).foregroundStyle(Ink.paper)
-                .frame(maxWidth: 260, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("Undo").foregroundStyle(Ink.accentText)
-                .padding(.horizontal, 11).frame(height: 26)
-                .background(Ink.card, in: Capsule())
-                .contentShape(Capsule())
-                .tapArea(action)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Undo \(text)")
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction { action() }
-        }
-        .font(.system(size: 12.5, weight: .semibold))
-        .padding(.leading, 14).padding(.trailing, 4)
-        .frame(height: 34)
-        .background(Ink.ink, in: Capsule())
-    }
-}
-
 extension Notification.Name { static let verbatimFocusNote = Notification.Name("verbatimFocusNote") }
-
-struct BarOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = .infinity
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = min(value, nextValue()) }
-}
-
-/// The header toggle's top, in window coordinates.
-struct ToggleOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = .infinity
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = min(value, nextValue()) }
-}
-
 extension Notification.Name { static let verbatimShowMode = Notification.Name("verbatimShowMode") }
 
 /// An action run on a transcript (Actions menu): the transcript actions read the Original text with corrections,
@@ -819,43 +569,5 @@ struct TranscriptActionSheet: View {
                     transcript: onOriginal ? t : nil, aiLabel: TranscriptActions.madeByLabel) { text in
             app.store.addNote(Note(text: text, aiAction: action.name), to: t.id)
         }
-    }
-}
-
-/// A fade from clear to the page's color at the bottom edge, under a floating player, so lines scrolling past it fade
-/// out instead of peeking around it. Never takes clicks.
-struct BottomFade: View {
-    var color: Color
-    var height: CGFloat
-    var body: some View {
-        LinearGradient(stops: [.init(color: color.opacity(0), location: 0), .init(color: color, location: 0.55)],
-                       startPoint: .top, endPoint: .bottom)
-            .frame(height: height)
-            .frame(maxWidth: .infinity)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-    }
-}
-
-/// Native: "Meeting notes ready · Show" under the header while the inspector, where the result lives, is closed. A
-/// neutral row (templates are neutral, DESIGN.md §17.2) whose Show opens the inspector.
-struct NativeResultReadyRow: View {
-    var name: String
-    var count: Int
-    var show: () -> Void
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "doc.text")   // brand: native
-                .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-            Text(count > 1 ? "\(name) and \(count - 1) more ready" : "\(name) ready")
-                .font(.system(size: 13)).foregroundStyle(.primary).lineLimit(1)
-            Spacer(minLength: 8)
-            Button("Show", action: show).buttonStyle(.bordered).controlSize(.small)
-                .help("Open the inspector to read the result")
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .background(NativeInk.box, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityAction(named: "Show") { show() }
     }
 }

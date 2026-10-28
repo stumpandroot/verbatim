@@ -18,6 +18,9 @@ struct TemplateResultsSection: View {
     /// The "Run a template" pill when there's no result. Verbose style's transcript has it in its tool row, so its
     /// sections leave it out (review M-26); Native's inspector keeps it.
     var runRow = true
+    /// The kind-change offer ("Now a Journal. Run Daily reflection?"). The transcript shows it under its header
+    /// (`KindOfferRow`), so its result tab leaves it out.
+    var showsOffers = true
     @ObservedObject private var center = TemplateCenter.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @State private var editing: TemplateResult? = nil
@@ -47,7 +50,7 @@ struct TemplateResultsSection: View {
                 Text(why).font(.system(size: 12.5)).foregroundStyle(Ink.danger).fixedSize(horizontal: false, vertical: true)
             }
             // Filed as a Brain dump afterward, with nothing run: "Now a Brain dump. Run Plan my day?"
-            if let offer = AutoRunRules.offer(transcript, settings: auto.settings, templates: templates), offer.result == nil,
+            if showsOffers, let offer = AutoRunRules.offer(transcript, settings: auto.settings, templates: templates), offer.result == nil,
                !center.isPending(transcript.id), busy == nil {
                 offerRow(offer)
             }
@@ -93,7 +96,7 @@ struct TemplateResultsSection: View {
                     .uiTarget("result-edit")
                 moreMenu(r, templates)
             }
-            if let offer = AutoRunRules.offer(transcript, settings: auto.settings, templates: templates), offer.result == r.id {
+            if showsOffers, let offer = AutoRunRules.offer(transcript, settings: auto.settings, templates: templates), offer.result == r.id {
                 offerRow(offer)
             }
             if r.skippedParts > 0 {
@@ -239,8 +242,8 @@ struct TemplateResultsSection: View {
     }
 }
 
-/// A line mini pill menu of every template, by where it came from: runs the chosen one on the transcript (replacing
-/// a result when `replacing` is set). In the result card's menu, the side column, and Verbose style's tool row.
+/// A menu of every template, by where it came from, as the kit's quiet action: runs the chosen one on the transcript
+/// (replacing a result when `replacing` is set). On the transcript's Summary tab and in a result's card.
 struct RunTemplateMenu: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
@@ -260,9 +263,9 @@ struct RunTemplateMenu: View {
                 }
             }
         } label: {
-            PillLabel(title: title, kind: .line, size: .mini, icon: .iconAI, trailing: .chevron)
+            Text(title)
         }
-        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(RefinedActionStyle()).menuIndicator(.hidden).fixedSize()
         .help("Make notes, a plan, or a draft from this transcript with a template")
         .accessibilityLabel(title)
     }

@@ -26,6 +26,13 @@ extension View {
     func readingStyle(_ color: Color = Refined.ink) -> some View {
         refinedFont(.reading).foregroundStyle(color)
     }
+
+    /// Reading text at a size the reader picked (the Mac's ⌘+ and ⌘−), in the serif with the reading line height.
+    func readingStyle(size: CGFloat, color: Color = Refined.ink) -> some View {
+        let base = RefinedRules.TextRole.reading.size(mac: RefinedPlatform.mac)
+        let spacing = RefinedRules.lineSpacing(.reading, mac: RefinedPlatform.mac) / base
+        return font(.system(size: size, design: .serif)).lineSpacing(size * CGFloat(spacing)).foregroundStyle(color)
+    }
 }
 
 // MARK: - Turns
@@ -124,6 +131,16 @@ enum ReadingHighlight {
 }
 
 extension Transcript {
+    /// A template's result as a transcript's tab: named for its template ("Meeting notes"), "Results" with more than
+    /// one, or the template that's running or waiting; nil when there's none.
+    func resultTabTitle(busyName: String?) -> String? {
+        let r = shownTemplateResults
+        if r.count == 1 { return r[0].name }
+        if r.count > 1 { return "Results" }
+        if let busyName { return busyName }
+        return autoRun.flatMap { $0.state == .waiting || $0.state == .failed ? $0.name : nil }
+    }
+
     /// Each speaker's place in the chip rotation (DESIGN.md §13): the order they first talk, then anyone who never
     /// talks in the order the transcript lists them. Worked out once per render, not per line.
     var speakerOrder: [String: Int] {

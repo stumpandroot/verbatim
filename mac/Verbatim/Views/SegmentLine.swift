@@ -1,46 +1,37 @@
 import SwiftUI
 import AppKit
 
-// brand: web style
-
-/// One line: timecode, speaker only when it changes, text. Click to select (for a passage-linked note),
-/// right-click to correct a word. The current line during playback carries the iris tint.
+/// One turn of a transcript in the refined look (DESIGN.md §13), in both look settings: the speaker's chip when the
+/// speaker changes (click it to move the line to someone else or rename them) and the time (click to play from
+/// there), with a small accent mark on a bookmarked or marked line, over the serif reading text. The line being played
+/// takes the sage `playing` wash, a selected line (a note links to it) the neutral wash with an accent bar, and a
+/// hovered line the stripe. Click the text to select it and play from it; right-click to correct a word, add a note,
+/// open the video at that moment, copy a quote, or mark a sponsor read. A moment marked while recording shows its chip
+/// under the text.
 struct SegmentLine: View {
-    @Environment(\.look) private var look
     @EnvironmentObject var app: AppState
     var transcript: Transcript
     var segment: Segment
     var showSpeaker: Bool
+    /// The speaker's place in the chip rotation (`Transcript.speakerOrder`).
+    var speakerIndex: Int = 0
     var current: Bool
-    var saved: Bool = false
+    /// Bookmarked, or marked while recording: the accent mark beside the time.
+    var marked: Bool = false
     /// A moment marked on this line while recording (Model/Marks.swift): its chip under the text.
     var mark: Note? = nil
     var selected: Bool
     var editable: Bool
     var size: CGFloat
-    /// The first line in the sheet: no extra space above its speaker.
+    /// The first line in the column: no extra space above its speaker.
     var first = false
     var select: () -> Void
     @State private var hover = false
-    @State private var tsHover = false
     @State private var fixing: String? = nil
     @State private var replacement = ""
     @State private var remember = true
     @State private var renaming = false
     @State private var newName = ""
-
-    /// The search term, highlighted where it appears in this line.
-    private func highlighted(_ text: String) -> AttributedString {
-        var a = AttributedString(text)
-        let q = app.search.trimmingCharacters(in: .whitespaces)
-        guard q.count >= 2 else { return a }
-        var searchStart = a.startIndex
-        while searchStart < a.endIndex, let r = a[searchStart...].range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) {
-            a[r].backgroundColor = Ink.match
-            searchStart = r.upperBound
-        }
-        return a
-    }
 
     /// “Quote” — Speaker, Title (12:34) and, when it came from a link, the video at that second.
     private func copyQuote(withLink: Bool) {
@@ -52,176 +43,135 @@ struct SegmentLine: View {
         app.toast = Toast(withLink ? "Quote and link copied" : "Quote copied")
     }
 
-    /// The line's text; while it plays with fresh word timings, the playing word is tinted too.
+    /// The line's text, with search matches in butter and low-confidence words underlined; while it plays with fresh
+    /// word timings, the playing word takes the playing wash too.
     @ViewBuilder private var lineText: some View {
-        // Low-confidence words carry a quiet dotted underline (UnclearStyle), as a best guess.
+        let base = UnclearStyle.marked(ReadingHighlight.marked(AttributedString(segment.text), query: app.search), segment)
         if current, PlaybackSync.timingsFresh(segment) {
-            PlayingWordText(segment: segment, base: UnclearStyle.marked(highlighted(segment.text), segment), clock: app.player.clock,
-                            tint: look == .native ? NativeInk.accentSoft : Ink.iris.opacity(0.22))
+            PlayingWordText(segment: segment, base: base, clock: app.player.clock, tint: Refined.playing)
         } else {
-            Text(UnclearStyle.marked(highlighted(segment.text), segment))
+            Text(base)
         }
     }
 
-    private var highlight: Color {
-        if look == .native {
-            // brand: native begin
-            // Native (mockup section 9): the line being played gets a light neutral fill, and marks lose the butter
-            // wash (the chip under the line says it's marked).
-            if current { return Color.primary.opacity(0.07) }
-            if selected { return Ink.wash }
-            if hover { return Color.primary.opacity(0.035) }
-            return .clear
-            // brand: native end
-        }
-        if current { return Ink.playing }
-        if saved { return Ink.saved }
-        if selected { return Ink.wash }
-        if hover { return Ink.iris.opacity(0.045) }
-        return .clear
+    private func play() {
+        app.player.seek(to: PlaybackSync.seekTime(segment, duration: app.player.duration))
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text(segment.start.timecode).font(Ink.mono(12)).foregroundStyle(tsHover ? Ink.ink : Ink.mute)
-                .underline(tsHover, color: Ink.ink).onHover { tsHover = $0 }.help("Play from here")
-                .lineLimit(1).fixedSize()
-                .frame(width: 64, alignment: .leading).padding(.top, showSpeaker && segment.speaker != nil ? 6 : 10)
-                .tapArea { app.player.seek(to: PlaybackSync.seekTime(segment, duration: app.player.duration)) }
-            VStack(alignment: .leading, spacing: 4) {
-                if showSpeaker, let sp = segment.speaker, let name = transcript.speakerName(sp) {
-                    HStack(spacing: 7) {
-                        Menu {
-                            ForEach(transcript.speakers) { s in Button(s.label) { app.assign(transcript: transcript.id, segment: segment.id, to: s.id) } }
-                            Divider()
-                            Button("Rename \(name)…") { renaming = true; newName = name }
-                            Button("No speaker") { app.assign(transcript: transcript.id, segment: segment.id, to: nil) }
-                        } label: {
-                            // A speaker pill: the speaker's color, fixed ink text. Native: the name in semibold, no hue.
-                            Text(name).font(.system(size: 12.5, weight: look == .native ? .semibold : .bold))
-                                .foregroundStyle(look == .native ? Ink.ink : Ink.inkFixed).lineLimit(1)
-                                .padding(.horizontal, look == .native ? 0 : 11).frame(height: 26)
-                                .background(look == .native ? Color.clear : speakerColor(sp), in: Capsule())
-                                .contentShape(Capsule())
-                        }
-                        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-                        .help("Change or rename the speaker")
-                        .accessibilityLabel("Speaker \(name)")
-                        .popover(isPresented: $renaming, arrowEdge: .bottom) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Name this speaker").font(.system(size: 12.5, weight: .semibold))
-                                TextField("Name", text: $newName).textFieldStyle(.roundedBorder).frame(width: 200)
-                                    .onSubmit { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }
-                                HStack { Spacer(); Button("Cancel") { renaming = false }.buttonStyle(.pillLine()); Button("Save") { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }.buttonStyle(.pillDark()) }
-                            }
-                            .padding(14)
-                        }
-                    }
-                    .padding(.leading, 10)
-                }
-                lineText
-                    .font(.system(size: size)).lineSpacing(size * 0.45).foregroundStyle(Ink.ink)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    // Three highlights, never confused: saved (lime, persistent), playing (iris, moves), hover (light, temporary).
-                    .background(highlight, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .onHover { hover = $0 }
-                    .animation(Motion.touch, value: hover)
-                    .overlay(alignment: .leading) { if selected { RoundedRectangle(cornerRadius: 2).fill(look == .native ? NativeInk.accent : Ink.iris).frame(width: 3).padding(.vertical, 4).offset(x: -10) } }
+        let name = showSpeaker ? segment.speaker.flatMap { sp in transcript.speakerName(sp).map { (sp, $0) } } : nil
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+                if let n = name { speakerMenu(n.0, name: n.1) }
+                TurnTime(time: RefinedRules.time(segment.start), playing: current, marked: marked)
                     .contentShape(Rectangle())
-                    // A click selects the line (for a passage note) and, once the audio is open, plays from it.
-                    .onTapGesture {
-                        select()
-                        if app.player.canPlay { app.player.play(from: PlaybackSync.seekTime(segment, duration: app.player.duration)) }
-                    }
-                    .contextMenu {
-                        CorrectionItems(text: segment.text, editable: editable) { w in fixing = w; replacement = w }
-                        Divider()
-                        Button("Note on this passage") { select(); NotificationCenter.default.post(name: .verbatimFocusNote, object: nil) }
-                        Button("Play from here") { app.player.play(from: PlaybackSync.seekTime(segment, duration: app.player.duration)) }
-                        if let info = transcript.linkInfo {
-                            Button(info.supportsTimestamps ? "Open video at \(segment.start.timecode)" : "Open video") {
-                                if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) }
-                            }
-                        }
-                        Divider()
-                        Button("Copy quote") { copyQuote(withLink: false) }
-                        if transcript.linkInfo != nil { Button("Copy quote with link") { copyQuote(withLink: true) } }
-                        if transcript.offersSponsorMarking, transcript.sponsorSpan(for: segment) == nil {
-                            Divider()
-                            Button("Mark as sponsor") { app.store.update(transcript.id) { $0.markSponsor(segment: segment.id) } }
-                        }
-                    }
-                    .popover(isPresented: Binding(get: { fixing != nil }, set: { if !$0 { fixing = nil } })) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack { Text("Heard as").font(.system(size: 11)).foregroundStyle(Ink.mute); Text(fixing ?? "").font(.system(size: 13, weight: .semibold)) }
-                            TextField("Correct spelling", text: $replacement).textFieldStyle(.roundedBorder).onSubmit { commit() }
-                            Toggle("Remember in Dictionary", isOn: $remember).font(.system(size: 12))
-                            HStack { Spacer(); Button("Cancel") { fixing = nil }.buttonStyle(.pillLine()); Button("Fix") { commit() }.buttonStyle(.pillDark()).keyboardShortcut(.defaultAction) }
-                        }
-                        .padding(14).frame(width: 300)
-                    }
-                if let mark {
-                    MarkChip(note: mark) { app.player.play(from: mark.at ?? segment.start) }
-                        .padding(.leading, 10).padding(.bottom, 4)
+                    .tapArea { play() }
+                    .help("Play from here")
+                    .accessibilityLabel("Play from \(RefinedRules.spokenTime(segment.start))\(marked ? ", marked" : "")")
+                    .accessibilityAddTraits(.isButton)
+            }
+            lineText
+                .readingStyle(size: size)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                // A click selects the line (for a passage note) and, once the audio is open, plays from it.
+                .onTapGesture {
+                    select()
+                    if app.player.canPlay { app.player.play(from: PlaybackSync.seekTime(segment, duration: app.player.duration)) }
                 }
+                .accessibilityLabel([name.map { "\($0.1)," }, RefinedRules.spokenTime(segment.start) + ",", segment.text].compactMap { $0 }.joined(separator: " "))
+                .accessibilityValue([current ? "Playing" : nil, marked ? "Marked" : nil, selected ? "Selected" : nil].compactMap { $0 }.joined(separator: ", "))
+                .contextMenu {
+                    CorrectionItems(text: segment.text, editable: editable) { w in fixing = w; replacement = w }
+                    Divider()
+                    Button("Note on This Passage") { select(); NotificationCenter.default.post(name: .verbatimFocusNote, object: nil) }
+                    Button("Play from Here") { app.player.play(from: PlaybackSync.seekTime(segment, duration: app.player.duration)) }
+                    Button("Bookmark") { app.addNote(transcript: transcript.id, text: String(segment.text.prefix(60)), at: segment.start, segment: segment.id, bookmark: true) }
+                    if let info = transcript.linkInfo {
+                        Button(info.supportsTimestamps ? "Open Video at \(RefinedRules.time(segment.start))" : "Open Video") {
+                            if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) }
+                        }
+                    }
+                    Divider()
+                    Button("Copy Quote") { copyQuote(withLink: false) }
+                    if transcript.linkInfo != nil { Button("Copy Quote with Link") { copyQuote(withLink: true) } }
+                    if transcript.offersSponsorMarking, transcript.sponsorSpan(for: segment) == nil {
+                        Divider()
+                        Button("Mark as Sponsor") { app.store.update(transcript.id) { $0.markSponsor(segment: segment.id) } }
+                    }
+                }
+                .popover(isPresented: Binding(get: { fixing != nil }, set: { if !$0 { fixing = nil } })) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Heard as").refinedFont(.caption).foregroundStyle(Refined.mute)
+                            Text(fixing ?? "").refinedFont(.body, weight: .semibold).foregroundStyle(Refined.ink)
+                        }
+                        TextField("Correct spelling", text: $replacement).textFieldStyle(.roundedBorder).onSubmit { commit() }
+                        Toggle("Remember in Dictionary", isOn: $remember).refinedFont(.meta)
+                        HStack {
+                            Spacer()
+                            Button("Cancel") { fixing = nil }.buttonStyle(RefinedActionStyle())
+                            Button("Fix") { commit() }.buttonStyle(RefinedActionStyle(kind: .strong)).keyboardShortcut(.defaultAction)
+                        }
+                    }
+                    .padding(14).frame(width: 300)
+                }
+            if let mark {
+                MomentChip(time: Marks.clock(mark.at ?? segment.start), source: Marks.shortSource(mark))
+                    .contentShape(Capsule())
+                    .tapArea { app.player.play(from: mark.at ?? segment.start) }
+                    .help("Play from this moment")
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel(Marks.chip(mark) ?? "Moment")
+                    .accessibilityHint("Plays from this moment.")
+                    .accessibilityAction { app.player.play(from: mark.at ?? segment.start) }
+                    .padding(.top, 3)
             }
         }
-        // About 24 pt between speakers; lines from the same speaker sit closer.
-        .padding(.top, showSpeaker && !first ? 18 : 0)
-        .padding(.vertical, 2)
-        .animation(Motion.settle, value: current)
-        .animation(Motion.snap, value: selected)
+        .readingTurn(playing: current, selected: selected, hovered: hover)
+        .onHover { hover = $0 }
+        .accessibilityElement(children: .contain)
+        // About 16 pt more between speakers; lines from the same speaker sit closer.
+        .padding(.top, showSpeaker && !first ? 10 : 0)
     }
 
-    /// The speaker pill's fill (the website's transcript): the source fills in turn, Record, petal, sage, butter, by
-    /// the order speakers first talk (review M-30). Always with fixed ink text, so the name carries the meaning.
-    private func speakerColor(_ id: String) -> Color {
-        let i = SpeakerRotation.firstAppearance(id, in: transcript.segments) ?? transcript.speakers.firstIndex { $0.id == id } ?? 0
-        return SpeakerRotation.fills[i % SpeakerRotation.fills.count]
+    /// The speaker's chip: a menu that moves the line to someone else, renames them, or takes the speaker off.
+    private func speakerMenu(_ sp: String, name: String) -> some View {
+        Menu {
+            ForEach(transcript.speakers) { s in Button(s.label) { app.assign(transcript: transcript.id, segment: segment.id, to: s.id) } }
+            Divider()
+            Button("Rename \(name)…") { renaming = true; newName = name }
+            Button("No speaker") { app.assign(transcript: transcript.id, segment: segment.id, to: nil) }
+        } label: {
+            SpeakerChip(name: name, index: speakerIndex).contentShape(Capsule())
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help("Change or rename the speaker")
+        .accessibilityLabel("Speaker \(name)")
+        .popover(isPresented: $renaming, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Name this speaker").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
+                TextField("Name", text: $newName).textFieldStyle(.roundedBorder).frame(width: 200)
+                    .onSubmit { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }
+                HStack {
+                    Spacer()
+                    Button("Cancel") { renaming = false }.buttonStyle(RefinedActionStyle())
+                    Button("Save") { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }
+                        .buttonStyle(RefinedActionStyle(kind: .strong))
+                }
+            }
+            .padding(14)
+        }
     }
+
     private func commit() {
         guard let from = fixing else { return }
         let to = replacement.trimmingCharacters(in: .whitespaces)
         if !to.isEmpty, to != from { app.correct(transcript: transcript.id, segment: segment.id, from: from, to: to, remember: remember) }
         fixing = nil
-    }
-}
-
-/// A marked line's chip (mockup "Library features", section 3c): the Marked icon, "Moment 4:12", and where it came
-/// from ("· from the Lock Screen"), on butter, the saved wash's color, in ink. Native: the accent's symbol and the same
-/// words on a neutral capsule. Click it to play from the moment.
-struct MarkChip: View {
-    @Environment(\.look) private var look
-    var note: Note
-    var play: () -> Void
-
-    var body: some View {
-        let native = look == .native
-        HStack(spacing: 6) {
-            if native {
-                Image(systemName: "bookmark.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(NativeInk.accent)   // brand: native
-            } else {
-                ArtIcon(art: .iconMarked, size: 13)
-            }
-            Text("Moment").font(.system(size: 12.5, weight: .semibold))
-            Text(Marks.clock(note.at ?? 0)).font(native ? .system(size: 12.5, weight: .medium).monospacedDigit() : Ink.mono(12))
-            // The short form, as the Moments screen says it ("Lock Screen", "Mac · ⌃⌥B"); VoiceOver hears the
-            // sentence (review M-56).
-            if let from = Marks.shortSource(note) { Text("· \(from)").font(.system(size: 12.5)).opacity(0.78) }
-        }
-        .foregroundStyle(native ? Ink.ink : Ink.inkFixed)
-        .lineLimit(1)
-        .padding(.horizontal, 10).frame(height: 24)
-        .background(native ? Ink.ink.opacity(0.07) : Ink.panelButter, in: Capsule())
-        .contentShape(Capsule())
-        .tapArea(play)
-        .help("Play from this moment")
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(Marks.chip(note) ?? "Moment")
-        .accessibilityHint("Plays from this moment.")
-        .accessibilityAction { play() }
     }
 }
 
@@ -293,6 +243,7 @@ struct TranscriptLines: View {
         let _ = playingIDs
         let current = Self.playing(segments, at: clock.time, isPlaying: isPlaying)
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
+        let order = transcript.speakerOrder
         // Moments marked while recording, by line, for their chips (the first on a line).
         let marked = Dictionary(transcript.notes.filter(\.isMark).compactMap { n in n.segmentId.map { ($0, n) } }, uniquingKeysWith: { a, _ in a })
         // Lazy: a long recording has hundreds of lines, each with menus and a popover. Build only what's on screen.
@@ -300,7 +251,7 @@ struct TranscriptLines: View {
         let folds = self.folds.count == segments.count ? self.folds : SponsorFold.places(segments, in: transcript)
         // "unclear 2:10" chips where speech was heard but no words came through (UnclearRules), between the lines.
         let chips = UnclearStyle.chips(transcript, lines: segments)
-        LazyVStack(alignment: .leading, spacing: 0) {
+        LazyVStack(alignment: .leading, spacing: 2) {
             ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
                 // After a folded read, name the speaker again: the line above on screen is someone else's.
                 let afterFold = i > 0 && folds[i - 1].map { !openSponsors.contains($0.span.id) } == true
@@ -311,13 +262,14 @@ struct TranscriptLines: View {
                     SponsorFoldLine(transcript: transcript, span: fold.span, open: openSponsors.contains(fold.span.id)) {
                         if openSponsors.remove(fold.span.id) == nil { openSponsors.insert(fold.span.id) }
                     }
-                    .padding(.leading, 74).padding(.top, i == 0 ? 0 : 8).padding(.bottom, 6)
+                    .padding(.top, i == 0 ? 0 : 8).padding(.bottom, 6)
                 }
-                SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, current: current.contains(s.id), saved: saved.contains(s.id), mark: marked[s.id], selected: selected == s.id, editable: editable, size: textSize, first: i == 0) {
+                SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, speakerIndex: s.speaker.flatMap { order[$0] } ?? 0,
+                            current: current.contains(s.id), marked: saved.contains(s.id) || marked[s.id] != nil, mark: marked[s.id],
+                            selected: selected == s.id, editable: editable, size: textSize, first: i == 0) {
                     selected = selected == s.id ? nil : s.id
                 }
                 .id(s.id)
-                .staggerIn(i < 10 ? i + 2 : -1)
                 .foldedAway(fold.map { !openSponsors.contains($0.span.id) } ?? false)
             }
             if let spans = chips[segments.count] { unclearChips(spans) }
@@ -328,11 +280,11 @@ struct TranscriptLines: View {
         .onChange(of: segments.timingKey) { _, _ in syncPlaying(at: clock.time) }
     }
 
-    /// The chips before a line, in the text column (past the timecodes).
+    /// The chips before a line.
     private func unclearChips(_ spans: [UnclearSpan]) -> some View {
         ForEach(spans, id: \.start) { sp in
             UnclearChip(span: sp, onPlay: { app.player.play(from: sp.start) })
-                .padding(.leading, 84).padding(.vertical, 6)
+                .padding(.vertical, 6)
         }
     }
 

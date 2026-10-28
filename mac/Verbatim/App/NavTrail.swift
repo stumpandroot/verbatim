@@ -5,7 +5,7 @@ import AppKit
 //
 // One history (`NavTrail`) records every navigation in `AppState.go`: going somewhere new (a sidebar click, opening a
 // transcript) starts a new trail from where you are, as a browser or Finder does, and Back and Forward walk it. Verbose
-// style shows a back pill on the transcript's header (`TranscriptBackPill`), Native its toolbar's Back and Forward
+// style shows Back on the transcript's page bar (TranscriptView), Native its toolbar's Back and Forward
 // (NativeChrome.swift); both looks have View › Back and Forward (⌘[ and ⌘]), the mouse's back and forward buttons, and
 // the trackpad's swipe between pages.
 //
@@ -207,28 +207,6 @@ final class NavMenuItems: NSObject, NSMenuItemValidation {
         for i in [separator, back, forward] { i.menu?.removeItem(i) }
         var at = menu.items.firstIndex { $0.title == "Edit Home" }.map { $0 + 1 } ?? menu.items.count
         for i in [separator, back, forward] { menu.insertItem(i, at: at); at += 1 }
-    }
-}
-
-/// The transcript's Back in Verbose style: a line pill with a chevron, named for where you came from (DESIGN.md §11's
-/// pill; Native's Back is in the toolbar). Reads the trail once per render: it changes only by navigating, which
-/// builds a new transcript screen.
-struct TranscriptBackPill: View {
-    @EnvironmentObject var app: AppState
-
-    var body: some View {
-        let trail = NavTrail.shared
-        let name = trail.backName(app)
-        return Button { trail.back(app) } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "chevron.left").font(.system(size: 10.5, weight: .bold))
-                Text(name).truncationMode(.tail).frame(maxWidth: 220, alignment: .leading)
-            }
-        }
-        .buttonStyle(PillButtonStyle(kind: .line, size: .mini))
-        .help("Back to \(name) (⌘[)")
-        .accessibilityLabel("Back to \(name)")
-        .uiTarget("transcript-back")
     }
 }
 

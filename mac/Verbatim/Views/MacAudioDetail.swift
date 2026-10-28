@@ -1,19 +1,19 @@
 import SwiftUI
 import AppKit
 
-// brand: web style
-//
-// An Audio only recording's screen on the Mac (approved mockup "Verbose Brain Dump", section 4, October 27, 2026), in
-// place of the transcript while it has no words: the title you type, the player as the main content (its waveform,
-// moments as ticks, back 5 seconds, play, and the speed), the moments with the names you give them, notes, Share, and
-// Transcribe. Click Transcribe for a plain transcribe (a voice note when it's done), or open its menu to Transcribe As
-// each kind. While it transcribes, the progress sits where Transcribe was. Verbose style draws the reader sheet; Native
-// draws plain sections, with the moments and Details in the inspector (`MacAudioInspector`).
+// An Audio only recording's screen on the Mac (approved mockup "Verbose Brain Dump", section 4, October 27, 2026), on
+// the refined kit (DESIGN.md §13) in both look settings, in place of the transcript while it has no words: the title
+// you type over the kind's chip and when, the player as the main content (AudioPlayerCard: its waveform with the
+// moments as ticks, back 5 seconds, play, and the speed), the moments with the names you give them, notes, Transcribe,
+// and Share. Click Transcribe for a plain transcribe (a voice note when it's done), or open its menu to Transcribe As
+// each kind. While it transcribes, the progress sits where Transcribe was. Native's inspector keeps the moments and
+// Details (`MacAudioInspector`); the page shows the moments while the inspector is closed, and always in Verbose style.
 
 struct MacAudioDetail: View {
     @EnvironmentObject var app: AppState
     var id: UUID
     @Environment(\.look) private var look
+    @EnvironmentObject private var nav: NativeNav
     @ObservedObject private var stages = StageClock.shared
     @State private var note = ""
 
@@ -23,24 +23,38 @@ struct MacAudioDetail: View {
     static var shown: UUID? = nil
 
     var body: some View {
-        ScrollView {
-            if let t {
-                VStack(alignment: .leading, spacing: 18) {
-                    header(t)
-                    MacAudioPlayer(transcript: t, clock: app.player.clock)
-                    if look != .native { MacAudioMoments(transcript: t) }
-                    notes(t)
-                    actions(t)
-                    Text(AudioOnlyCopy.transcribeFooter).font(.system(size: 12.5)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.dim))
+        VStack(spacing: 0) {
+            if look != .native {
+                HStack {
+                    RefinedCircleButton(symbol: "chevron.left", label: "Back to \(NavTrail.shared.backName(app))") { NavTrail.shared.back(app) }
+                        .help("Back to \(NavTrail.shared.backName(app)) (⌘[)")
+                        .uiTarget("audio-back")
+                    Spacer()
                 }
-                .frame(maxWidth: 720, alignment: .leading)
-                .padding(.horizontal, 40).padding(.vertical, 28)
-                .frame(maxWidth: .infinity)
-            } else {
-                Text("This recording was deleted.").foregroundStyle(Ink.mute).padding(40)
+                .padding(.horizontal, 16).frame(height: 52)
             }
+            ScrollView {
+                if let t {
+                    VStack(alignment: .leading, spacing: 22) {
+                        header(t)
+                        MacAudioPlayer(transcript: t, player: app.player, clock: app.player.clock)
+                        if look != .native || !nav.inspector { MacAudioMoments(transcript: t) }
+                        notes(t)
+                        actions(t)
+                        Text(AudioOnlyCopy.transcribeFooter).refinedFont(.meta).foregroundStyle(Refined.mute)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: TranscriptView.column, alignment: .leading)
+                    .padding(.horizontal, 32).padding(.top, look == .native ? 14 : 18).padding(.bottom, 40)
+                    .frame(maxWidth: .infinity)
+                } else {
+                    Text("This recording was deleted.").refinedFont(.body).foregroundStyle(Refined.mute).padding(40)
+                }
+            }
+            .softScrollEdges(.top)
         }
-        .background(Ink.paper)
+        .background(Refined.paper)
+        .onKeyPress(.space) { if TranscriptView.typing { return .ignored }; app.player.toggle(); return .handled }
         .onAppear {
             Self.shown = id
             if let t, let u = app.store.audioURL(for: t) { app.player.loadAsync(u) }
@@ -48,41 +62,40 @@ struct MacAudioDetail: View {
         .onDisappear { app.player.stop(); if Self.shown == id { Self.shown = nil } }
     }
 
-    private func when(_ t: Transcript) -> String {
-        "\(HomeRecentStyle.day(t.createdAt)), \(Formats.style(date: .none, time: .short).string(from: t.createdAt))"
-    }
-
     @ViewBuilder private func header(_ t: Transcript) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Eyebrow(text: t.duration > 0 ? "Audio only · \(HomeRecentStyle.length(t.duration))" : "Audio only")
+        VStack(alignment: .leading, spacing: 10) {
             TextField("Title", text: Binding(get: { t.title }, set: { v in
                 guard v != t.title else { return }
                 app.store.updateDeferred(t.id) { $0.title = v; $0.titleIsAuto = false; $0.titleByModel = false }
             }))
             .textFieldStyle(.plain)
-            .font(look == .native ? .system(size: 26, weight: .bold) : Ink.serif(34))
-            .foregroundStyle(Ink.ink)
+            .refinedFont(.transcriptTitle).foregroundStyle(Refined.ink)
             .accessibilityLabel("Title")
-            Text("\(when(t)) · \(AudioOnlyRules.statusLine(t))").font(.system(size: 13)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.mute))
-            if t.status == .failed, let e = t.error { Text(e).font(.system(size: 12.5)).foregroundStyle(Ink.danger) }
-            KindChip(kind: t.kind, isAuto: t.kindIsAuto, compact: true) { k in app.pickKind(k, for: t.id) }
-                .padding(.top, 2)
+            FlowRow(spacing: 8, lineSpacing: 6) {
+                KindPickerChip(kind: t.kind ?? .audio, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
+                Text(RefinedRules.transcriptWhen(t.createdAt) + " \u{00B7} " + AudioOnlyRules.statusLine(t))
+                    .refinedFont(.meta).foregroundStyle(Refined.mute)
+            }
+            if t.status == .failed, let e = t.error { Text(e).refinedFont(.meta).foregroundStyle(Refined.accentText) }
         }
     }
 
     @ViewBuilder private func notes(_ t: Transcript) -> some View {
         let list = t.notes.filter { $0.at == nil }
         VStack(alignment: .leading, spacing: 8) {
-            if look == .native { Text("Notes").font(.system(size: 13, weight: .semibold)) } else { WebText.serif("Notes", size: 23).foregroundStyle(Ink.ink) }
-            ForEach(list) { n in
-                Text(n.text).font(.system(size: 14)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
-                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
-                    .contextMenu { Button("Delete Note", role: .destructive) { app.deleteNote(transcript: t.id, note: n.id) } }
+            SerifSectionTitle("Notes")
+            if !list.isEmpty {
+                PaperList(list, id: \.id, inset: 14, trailingInset: 14) { n in
+                    Text(n.text).refinedFont(.body).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 14).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
+                        .contextMenu { Button("Delete Note", role: .destructive) { app.deleteNote(transcript: t.id, note: n.id) } }
+                }
             }
             TextField("Add a note…", text: $note)
-                .textFieldStyle(.roundedBorder).font(.system(size: 13))
+                .textFieldStyle(.plain).refinedFont(.body).foregroundStyle(Refined.ink)
+                .padding(.horizontal, 10).frame(minHeight: 30)
+                .background(Refined.field, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.field), style: .continuous))
                 .onSubmit {
                     let text = note.trimmingCharacters(in: .whitespaces)
                     guard !text.isEmpty else { return }
@@ -94,18 +107,19 @@ struct MacAudioDetail: View {
 
     @ViewBuilder private func actions(_ t: Transcript) -> some View {
         HStack(spacing: 8) {
-            PillButton(title: "Share", kind: .line, size: .mini, icon: .iconShare) { share(t) }
             if t.status == .processing {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text(AudioOnlyRules.statusLine(t)).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
-                    if t.processingDevice == Device.id { PillButton(title: "Cancel", kind: .line, size: .mini) { app.coordinator.cancel(t.id) } }
+                    Text(AudioOnlyRules.statusLine(t)).refinedFont(.meta).foregroundStyle(Refined.dim)
+                    if t.processingDevice == Device.id { Button("Cancel") { app.coordinator.cancel(t.id) }.buttonStyle(RefinedActionStyle()) }
                 }
                 .uiTarget("audio-transcribing")
             } else {
                 MacTranscribeMenu(transcript: t)
                     .uiTarget("audio-transcribe")
             }
+            Button("Share") { share(t) }.buttonStyle(RefinedActionStyle())
+                .help("Show the audio file in Finder")
         }
     }
 
@@ -130,118 +144,87 @@ struct MacTranscribeMenu: View {
                 }
             }
         } label: {
-            PillLabel(title: "Transcribe", kind: .dark, size: .mini, icon: .iconDictations, trailing: .chevron)
+            Text("Transcribe")
         } primaryAction: {
             app.transcribeLater(transcript.id)
         }
-        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(RefinedActionStyle(kind: .strong)).fixedSize()
         .disabled(!AudioOnlyRules.canTranscribe(transcript))
         .help("Make a transcript and file it as a voice note. Open the menu to transcribe it as a kind.")
         .accessibilityLabel("Transcribe")
     }
 }
 
-/// The player: the waveform with the played part in the playback color and the moments as ticks, the time and length,
-/// back 5 seconds, play, and the speed. Observes only the clock.
+/// The player, the kit's `AudioPlayerCard`. Observes the player and the clock, so playback redraws this alone.
 struct MacAudioPlayer: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
+    @ObservedObject var player: Player
     @ObservedObject var clock: PlayerClock
-    @Environment(\.look) private var look
 
     private var duration: Double { clock.duration > 0 ? clock.duration : transcript.duration }
     private var loaded: Bool { app.store.audioURL(for: transcript).map { clock.loadedURL == $0 } ?? false }
-    private var played: Double { loaded && duration > 0 ? min(1, clock.time / duration) : 0 }
 
     var body: some View {
-        VStack(spacing: 10) {
-            if look == .native {
-                AudioWave(levels: transcript.waveform, played: played, marks: AudioWave.marks(transcript),
-                          bar: Color.secondary.opacity(0.45), playedColor: Color.primary, mark: Color.accentColor, bars: 90)   // brand: native
-                    .frame(height: 64)
-            } else {
-                AudioWave(levels: transcript.waveform, played: played, marks: AudioWave.marks(transcript),
-                          bar: Ink.ink, playedColor: Ink.panelSage, mark: Ink.butter, bars: 90)
-                    .frame(height: 80)
+        AudioPlayerCard(isPlaying: player.isPlaying, elapsed: loaded ? clock.time : 0, duration: duration,
+                        levels: transcript.waveform, moments: AudioWave.marks(transcript),
+                        speed: PlaybackSync.speedLabel(player.rate), playID: "audio-play",
+                        onPlayPause: { player.toggle() }, onSeek: { player.seek(to: $0) }) {
+            ForEach([Float(1), 1.25, 1.5, 2], id: \.self) { r in
+                Button(PlaybackSync.speedLabel(r)) { player.setRate(r) }
             }
-            HStack {
-                Text(Marks.clock(loaded ? clock.time : 0))
-                Spacer()
-                Text(Marks.clock(duration))
-            }
-            .font(Ink.mono(12)).foregroundStyle(Ink.mute)
-            HStack(spacing: 28) {
-                Button { app.player.seek(to: max(0, clock.time - 5)) } label: { ArtIcon(art: .iconBack5, size: 20) }
-                    .buttonStyle(.plain).help("Back 5 seconds").accessibilityLabel("Back 5 seconds")
-                Button { app.player.toggle() } label: {
-                    ZStack {
-                        Circle().fill(look == .native ? Color.primary.opacity(0.08) : Ink.panelSage)
-                        ArtIcon(art: app.player.isPlaying ? .iconPause : .iconPlay, size: 20).foregroundStyle(look == .native ? Ink.ink : Ink.inkFixed)
-                    }
-                    .frame(width: 46, height: 46)
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.space, modifiers: [])
-                .accessibilityLabel(app.player.isPlaying ? "Pause" : "Play")
-                .uiTarget("audio-play")
-                Menu {
-                    ForEach([Float(1), 1.25, 1.5, 2], id: \.self) { r in
-                        Button(r == 1 ? "1×" : String(format: "%g×", r)) { app.player.setRate(r) }
-                    }
-                } label: { Text(app.player.rate == 1 ? "1×" : String(format: "%g×", app.player.rate)).font(Ink.mono(13)) }
-                .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-                .accessibilityLabel("Speed")
-            }
-            .foregroundStyle(Ink.ink)
         }
-        .padding(18)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(look == .native ? Ink.hairline : Ink.ink, lineWidth: look == .native ? 1 : 1.5))
+        .help("Space plays or pauses")
     }
 }
 
-/// The moments: each one's time (click to play from it), the name you give it, and where it was marked.
+/// The moments: each one's time (click to play from it), the name you give it (double-click or right-click to name
+/// it), and where it was marked.
 struct MacAudioMoments: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
-    @Environment(\.look) private var look
     @State private var naming: UUID? = nil
     @State private var draft = ""
 
     var body: some View {
         let ms = transcript.notes.filter { $0.at != nil }.sorted { ($0.at ?? 0) < ($1.at ?? 0) }
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if look == .native { Text("Moments").font(.system(size: 13, weight: .semibold)) } else { WebText.serif("Moments", size: 23).foregroundStyle(Ink.ink) }
-                if !ms.isEmpty { Text("\(ms.count)").font(Ink.mono(12.5)).foregroundStyle(Ink.mute) }
+        VStack(alignment: .leading, spacing: 8) {
+            SerifSectionTitle(title: "Moments") {
+                if !ms.isEmpty { Text("\(ms.count)").refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute) }
             }
             if ms.isEmpty {
-                Text("Mark a moment while you record and it shows here.").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                Text("Mark a moment while you record and it shows here.").refinedFont(.meta).foregroundStyle(Refined.mute)
+            } else {
+                PaperList(ms, id: \.id, inset: 12, trailingInset: 12) { n in row(n) }
             }
-            ForEach(ms) { n in
-                HStack(spacing: 10) {
-                    Button(Marks.clock(n.at ?? 0)) { app.player.play(from: n.at ?? 0) }
-                        .buttonStyle(.plain).font(Ink.mono(12.5))
-                        .padding(.horizontal, 8).frame(height: 24)
-                        .background(look == .native ? Color.primary.opacity(0.08) : Ink.butter, in: Capsule())
-                        .foregroundStyle(look == .native ? Ink.ink : Ink.inkFixed)
-                        .help("Play from here")
-                    if naming == n.id {
-                        TextField("Name this moment", text: $draft).textFieldStyle(.roundedBorder).font(.system(size: 13))
-                            .onSubmit { rename(n) }
-                    } else {
-                        Text(n.text.isEmpty ? "Add a name" : n.text).font(.system(size: 13))
-                            .foregroundStyle(n.text.isEmpty ? Ink.mute : Ink.ink).lineLimit(1)
-                            .onTapGesture(count: 2) { draft = n.text; naming = n.id }
-                    }
-                    Spacer(minLength: 6)
-                    if let src = Marks.shortSource(n) { Text(src).font(.system(size: 11.5)).foregroundStyle(Ink.mute) }
-                }
-                .contextMenu {
-                    Button("Name This Moment") { draft = n.text; naming = n.id }
-                    Button("Delete Moment", role: .destructive) { app.deleteNote(transcript: transcript.id, note: n.id) }
-                }
+        }
+    }
+
+    private func row(_ n: Note) -> some View {
+        HStack(spacing: 10) {
+            MomentChip(time: Marks.clock(n.at ?? 0))
+                .contentShape(Capsule())
+                .tapArea { app.player.play(from: n.at ?? 0) }
+                .help("Play from here")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Play from \(Marks.clock(n.at ?? 0))")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { app.player.play(from: n.at ?? 0) }
+            if naming == n.id {
+                TextField("Name this moment", text: $draft).textFieldStyle(.roundedBorder).refinedFont(.body)
+                    .onSubmit { rename(n) }
+            } else {
+                Text(n.text.isEmpty ? "Add a name" : n.text).refinedFont(.body)
+                    .foregroundStyle(n.text.isEmpty ? Refined.mute : Refined.ink).lineLimit(1)
+                    .onTapGesture(count: 2) { draft = n.text; naming = n.id }
             }
+            Spacer(minLength: 6)
+            if let src = Marks.shortSource(n) { Text(src).refinedFont(.caption).foregroundStyle(Refined.mute) }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .contextMenu {
+            Button("Name This Moment") { draft = n.text; naming = n.id }
+            Button("Delete Moment", role: .destructive) { app.deleteNote(transcript: transcript.id, note: n.id) }
         }
     }
 
@@ -258,17 +241,18 @@ struct MacAudioInspector: View {
     var transcript: Transcript
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 22) {
                 MacAudioMoments(transcript: transcript)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Details").font(.system(size: 13, weight: .semibold))
+                    Text("Details").refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
                     Picker("Kind", selection: Binding(get: { transcript.kind ?? .audio }, set: { k in app.pickKind(k, for: transcript.id) })) {
                         ForEach(RecordingKind.pickable) { k in Text(k.label).tag(k) }
                     }
-                    Text(AudioOnlyCopy.noTemplate).font(.system(size: 12)).foregroundStyle(Ink.mute)
+                    Text(AudioOnlyCopy.noTemplate).refinedFont(.meta).foregroundStyle(Refined.mute)
                 }
             }
-            .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 28)
+            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 28)
         }
+        .background(Refined.paper)
     }
 }
