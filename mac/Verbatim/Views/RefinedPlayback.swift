@@ -453,10 +453,10 @@ struct RecorderClockPanel: View {
                 .offset(x: 50, y: -40)
         }
         .refinedSurface(Refined.fill(.persimmon, palette), radius: RefinedPlatform.radius(.record))
+        // VoiceOver reads the time when you move to the panel, not on every tick: no `updatesFrequently`.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(status)
         .accessibilityValue(RefinedRules.spokenTime(elapsed))
-        .accessibilityAddTraits(.updatesFrequently)
     }
 
     private func draw(_ ctx: GraphicsContext, _ size: CGSize, ink: Color) {
@@ -486,54 +486,71 @@ struct RecorderClockPanel: View {
 /// waveform (newest on the right, moving only with your voice), your words as they're heard, and the actions the
 /// caller puts in `controls` (Mark moment, Pause, and Stop and transcribe). Soft palette: the persimmon tint. The
 /// fast-changing parts observe `live` on their own, so the rest of the card doesn't redraw with the meter.
+///
+/// Compact is the same card for the Mac's small recording surfaces (the menu bar panel, the meeting panel, and the
+/// Thought bubble): the title and the clock on one line, the detail under them, a shorter waveform, and less padding.
 struct RecordingCard<Words: View, Controls: View>: View {
     var title: String
     var detail: String
     var live: LiveMeter
     var paused = false
+    var compact = false
     @ViewBuilder var words: Words
     @ViewBuilder var controls: Controls
     @CurrentPalette private var palette: AppPalette
 
-    init(title: String, detail: String, live: LiveMeter, paused: Bool = false,
+    init(title: String, detail: String, live: LiveMeter, paused: Bool = false, compact: Bool = false,
          @ViewBuilder words: () -> Words, @ViewBuilder controls: () -> Controls) {
-        self.title = title; self.detail = detail; self.live = live; self.paused = paused
+        self.title = title; self.detail = detail; self.live = live; self.paused = paused; self.compact = compact
         self.words = words(); self.controls = controls()
     }
 
     var body: some View {
         let ink = Refined.onFill(.persimmon, palette)
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 12) {
-                Circle().fill(ink).frame(width: 10, height: 10).opacity(paused ? 0.4 : 1).accessibilityHidden(true)
-                Text(title).refinedFont(.body, weight: .semibold).lineLimit(1).layoutPriority(1)
-                // Full ink, not the mockup's #3E4A43: that measures 3.4:1 on the fill.
-                Text(detail).refinedFont(.body).lineLimit(1)
-                Spacer(minLength: 8)
-                RecordingClock(live: live)
+        VStack(alignment: .leading, spacing: compact ? 10 : 14) {
+            if compact {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Circle().fill(ink).frame(width: 8, height: 8).opacity(paused ? 0.4 : 1).accessibilityHidden(true)
+                        Text(title).refinedFont(.body, weight: .semibold).lineLimit(1)
+                        Spacer(minLength: 8)
+                        RecordingClock(live: live, size: 22)
+                    }
+                    if !detail.isEmpty { Text(detail).refinedFont(.meta).lineLimit(1).padding(.leading, 16) }
+                }
+            } else {
+                HStack(alignment: .center, spacing: 12) {
+                    Circle().fill(ink).frame(width: 10, height: 10).opacity(paused ? 0.4 : 1).accessibilityHidden(true)
+                    Text(title).refinedFont(.body, weight: .semibold).lineLimit(1).layoutPriority(1)
+                    // Full ink, not the mockup's #3E4A43: that measures 3.4:1 on the fill.
+                    Text(detail).refinedFont(.body).lineLimit(1)
+                    Spacer(minLength: 8)
+                    RecordingClock(live: live, size: CGFloat(RefinedRules.TextRole.clock.size(mac: RefinedPlatform.mac)))
+                }
             }
-            RecordingWave(live: live, color: ink, paused: paused).frame(height: 54)
+            RecordingWave(live: live, color: ink, paused: paused, bar: compact ? 3 : 4).frame(height: compact ? 26 : 54)
             words
-            HStack(spacing: 10) { controls }
+            HStack(spacing: compact ? 8 : 10) { controls }
         }
         .foregroundStyle(ink)
-        .padding(.horizontal, 24).padding(.vertical, 20)
+        .padding(.horizontal, compact ? 14 : 24).padding(.vertical, compact ? 12 : 20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .refinedSurface(Refined.fill(.persimmon, palette), radius: RefinedPlatform.radius(.record))
+        .refinedSurface(Refined.fill(.persimmon, palette), radius: RefinedPlatform.radius(compact ? .tile : .record))
         .accessibilityElement(children: .contain)
     }
 }
 
-/// The recording card's clock: minutes and seconds ("01:12") in SF Pro Ultralight with tabular digits.
+/// The recording card's clock: minutes and seconds ("01:12") in SF Pro Ultralight with tabular digits. VoiceOver
+/// reads it when you move to it, not on every tick.
 private struct RecordingClock: View {
     @ObservedObject var live: LiveMeter
+    var size: CGFloat
     var body: some View {
         Text(RefinedRules.minutesClock(live.elapsed))
-            .font(.system(size: CGFloat(RefinedRules.TextRole.clock.size(mac: RefinedPlatform.mac)), weight: .ultraLight))
+            .font(.system(size: size, weight: .ultraLight))
             .monospacedDigit().tracking(-0.5).lineLimit(1)
             .accessibilityLabel("Elapsed")
             .accessibilityValue(RefinedRules.spokenTime(live.elapsed))
-            .accessibilityAddTraits(.updatesFrequently)
     }
 }
 
@@ -543,9 +560,10 @@ private struct RecordingWave: View {
     @ObservedObject var live: LiveMeter
     var color: Color
     var paused: Bool
+    var bar: CGFloat = 4
     var body: some View {
         Canvas { ctx, size in
-            let bar: CGFloat = 4, gap: CGFloat = 3
+            let gap: CGFloat = 3
             let slots = max(1, Int((size.width + gap) / (bar + gap)))
             let levels = live.levels
             for k in 0..<slots {
@@ -554,10 +572,205 @@ private struct RecordingWave: View {
                 let level = levels.isEmpty ? 0 : CGFloat(levels[i])
                 let h = max(4, size.height * min(1, max(0.08, level * 1.4)))
                 let rect = CGRect(x: CGFloat(k) * (bar + gap), y: (size.height - h) / 2, width: bar, height: h)
-                ctx.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(color.opacity(paused ? 0.4 : 1)))
+                ctx.fill(Path(roundedRect: rect, cornerRadius: bar / 2), with: .color(color.opacity(paused ? 0.4 : 1)))
             }
         }
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Recording status, small
+
+/// The live timer capsule (mockup MacRecorder's toolbar): the record dot in system red (an outline while paused), the
+/// minutes and seconds in semibold tabular digits, and a round Stop with the ink stop square. The time is read once a
+/// second, so the toolbar doesn't redraw with the meter. `onCard` draws the capsule's own card where the toolbar has
+/// no glass group of its own (Verbose style); the Native toolbar's glass is the capsule there.
+struct RecordingTimerCapsule: View {
+    var live: LiveMeter
+    var paused = false
+    var onCard = false
+    var stopLabel = "Stop"
+    var stopHint = "Stops the recording and transcribes it."
+    var onStop: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle().fill(paused ? Color.clear : Refined.recordRed)
+                .overlay(Circle().strokeBorder(paused ? Refined.ink : Color.clear, lineWidth: 1.5))
+                .frame(width: 10, height: 10)
+                .accessibilityHidden(true)
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                Text(RefinedRules.minutesClock(live.elapsed))
+                    .font(.system(size: 13, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(Refined.ink)
+                    .accessibilityLabel(paused ? "Paused" : "Recording")
+                    .accessibilityValue(RefinedRules.spokenTime(live.elapsed))
+            }
+            Button(action: onStop) {
+                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.ink).frame(width: 8, height: 8)
+                    .frame(width: 22, height: 22)
+                    .background(Refined.neutral, in: Circle())
+                    .contentShape(Circle())
+            }
+            .buttonStyle(RefinedPress())
+            .help("\(stopLabel) (⌥⇧.)")
+            .accessibilityLabel(stopLabel)
+            .accessibilityHint(stopHint)
+        }
+        .padding(.leading, 12).padding(.trailing, 4)
+        .frame(height: 30)
+        .background { if onCard { Capsule().fill(Refined.card) } }
+        .overlay { if onCard { Capsule().strokeBorder(Refined.separator, lineWidth: 1) } }
+        .fixedSize()
+    }
+}
+
+#if os(iOS)
+/// The minimized recorder (the iPhone, both looks): the persimmon dot (dimmed while paused), "Recording · 4:12" over
+/// your newest words or the kind, then Pause or Resume and Stop (the red square). A tap on the text opens the recorder.
+/// No background of its own: the tab bar's accessory draws the glass in Native, and the bar's card in Verbose style.
+/// VoiceOver reads one element ("Recording, 4 minutes 12 seconds") with Pause or Resume, Stop, and Open as actions.
+struct MiniRecordingBar<Detail: View>: View {
+    @ObservedObject var live: LiveMeter
+    var paused: Bool
+    var saving: Bool
+    var inline = false
+    var onOpen: () -> Void
+    var onPause: () -> Void
+    var onStop: () -> Void
+    @ViewBuilder var detail: Detail
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// Spelled out: the private environment value would keep the synthesized one to this file.
+    init(live: LiveMeter, paused: Bool, saving: Bool, inline: Bool = false, onOpen: @escaping () -> Void,
+         onPause: @escaping () -> Void, onStop: @escaping () -> Void, @ViewBuilder detail: () -> Detail) {
+        self._live = ObservedObject(wrappedValue: live); self.paused = paused; self.saving = saving; self.inline = inline
+        self.onOpen = onOpen; self.onPause = onPause; self.onStop = onStop; self.detail = detail()
+    }
+
+    private var status: String { saving ? "Saving\u{2026}" : paused ? "Paused" : "Recording" }
+    /// "Recording, 4 minutes 12 seconds", as the bar always read.
+    private var spoken: String { saving ? "Saving your recording" : "\(status), \(RefinedRules.spokenTime(live.elapsed))" }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Button(action: onOpen) {
+                HStack(spacing: 10) {
+                    Circle().fill(Refined.persimmon).frame(width: 10, height: 10).opacity(paused || saving ? 0.4 : 1)
+                        .frame(width: 22, height: 22)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("\(status) \u{00B7} \(RefinedRules.time(live.elapsed))")
+                            .refinedFont(.body, weight: .semibold).monospacedDigit().lineLimit(1)
+                            .foregroundStyle(Refined.ink)
+                        if !inline, !typeSize.isAccessibilitySize { detail }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, inline ? 6 : 10)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Button(action: onPause) {
+                Group {
+                    if paused { RecorderPlayGlyph().fill(Refined.ink).frame(width: 12, height: 14).offset(x: 1) }
+                    else { RecorderPauseGlyph().fill(Refined.ink).frame(width: 12, height: 14) }
+                }
+                .frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(RefinedPress())
+            Button(action: onStop) {
+                Group {
+                    if saving { ProgressView().controlSize(.small) }
+                    else { RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Refined.recordRed).frame(width: 15, height: 15) }
+                }
+                .frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(RefinedPress())
+            .padding(.trailing, inline ? 2 : 6)
+        }
+        .disabled(saving)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+        .accessibilityHint("Opens the recorder.")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onOpen() }
+        .accessibilityAction(named: Text(paused ? "Resume" : "Pause")) { onPause() }
+        .accessibilityAction(named: "Stop") { onStop() }
+        .accessibilityAction(named: "Open") { onOpen() }
+    }
+}
+
+/// One of the recorder's round controls (mockup PhoneRecorder): a 56 pt circle on the neutral wash with its glyph, and
+/// its name under it. Mark moment and Pause; Stop is `RecorderStopButton`.
+struct RecorderControl<Glyph: View>: View {
+    var label: String
+    var action: () -> Void
+    @ViewBuilder var glyph: Glyph
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                glyph
+                    .frame(width: 56, height: 56)
+                    .background(Refined.neutral, in: Circle())
+                Text(label).refinedFont(.meta).foregroundStyle(Refined.ink)
+                    .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.85)
+            }
+            .padding(.top, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(RefinedPress())
+        .accessibilityLabel(label)
+    }
+}
+
+/// The recorder's Stop: the system red stop square in a ring (76 pt), with "Stop" under it, or a spinner and
+/// "Saving…" while the recording is saved. Red appears only here and on the record disc (DESIGN.md §13).
+struct RecorderStopButton: View {
+    var saving: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle().strokeBorder(Refined.separator, lineWidth: 4)
+                    if saving { ProgressView() }
+                    else { RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Refined.recordRed).frame(width: 30, height: 30) }
+                }
+                .frame(width: 76, height: 76)
+                Text(saving ? "Saving\u{2026}" : "Stop").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(RefinedPress())
+        .accessibilityLabel(saving ? "Saving" : "Stop")
+    }
+}
+#endif
+
+/// Pause, drawn: two rounded bars (no SF Symbol in the recorder's controls).
+struct RecorderPauseGlyph: Shape {
+    func path(in r: CGRect) -> Path {
+        let w = r.width * 0.34
+        var p = Path()
+        p.addRoundedRect(in: CGRect(x: r.minX, y: r.minY, width: w, height: r.height), cornerSize: CGSize(width: 1.5, height: 1.5))
+        p.addRoundedRect(in: CGRect(x: r.maxX - w, y: r.minY, width: w, height: r.height), cornerSize: CGSize(width: 1.5, height: 1.5))
+        return p
+    }
+}
+
+/// Resume, drawn: a play triangle.
+struct RecorderPlayGlyph: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.midY))
+        p.addLine(to: CGPoint(x: r.minX, y: r.maxY))
+        p.closeSubpath()
+        return p
     }
 }
 
@@ -640,6 +853,52 @@ struct RecordingCard_Previews: PreviewProvider {
         }
     }
 }
+
+struct RecordingTimerCapsule_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 12) {
+            RecordingTimerCapsule(live: LiveMeter(), onCard: true, onStop: {})
+            RecordingTimerCapsule(live: LiveMeter(), paused: true, onCard: true, onStop: {})
+        }
+        .padding(20).background(Refined.paper)
+    }
+}
+
+struct RecordingCardCompact_Previews: PreviewProvider {
+    static var previews: some View {
+        RecordingCard(title: "Recording", detail: "MacBook Pro microphone", live: LiveMeter(), compact: true) {
+            EmptyView()
+        } controls: {
+            Button("Pause") {}.buttonStyle(RefinedActionStyle(ink: Refined.onFill, wash: Refined.readyChip(.full)))
+            Spacer()
+            Button("Stop") {}.buttonStyle(RefinedActionStyle(kind: .strong, ink: Refined.onFill, light: Refined.lift))
+        }
+        .padding(20).frame(width: 320).background(Refined.paper)
+    }
+}
+
+#if os(iOS)
+struct MiniRecordingBar_Previews: PreviewProvider {
+    static var previews: some View {
+        MiniRecordingBar(live: LiveMeter(), paused: false, saving: false, onOpen: {}, onPause: {}, onStop: {}) {
+            Text("Voice note").refinedFont(.meta).foregroundStyle(Refined.mute)
+        }
+        .frame(height: 56).refinedSurface(Refined.card, radius: 14)
+        .padding(16).background(Refined.paper)
+    }
+}
+
+struct RecorderControl_Previews: PreviewProvider {
+    static var previews: some View {
+        HStack(alignment: .top) {
+            RecorderControl(label: "Mark moment", action: {}) { IconGlyph(art: .iconMark, size: 22, color: Refined.ink) }
+            RecorderStopButton(saving: false, action: {})
+            RecorderControl(label: "Pause", action: {}) { RecorderPauseGlyph().fill(Refined.ink).frame(width: 14, height: 18) }
+        }
+        .padding(20).frame(width: 390).background(Refined.paper)
+    }
+}
+#endif
 
 struct RecorderClockPanel_Previews: PreviewProvider {
     static let levels: [Float] = (0..<60).map { Float(0.25 + 0.6 * abs(sin(Double($0) * 0.9))) }

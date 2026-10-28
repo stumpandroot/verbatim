@@ -173,6 +173,23 @@ check("the recorder's clock has hundredths", R.clock(72.48) == "01:12.48" && R.c
 check("the Mac recording card's clock: 01:12, and hours past an hour", R.minutesClock(72.9) == "01:12" && R.minutesClock(0) == "00:00"
       && R.minutesClock(3672) == "1:01:12" && R.minutesClock(-4) == "00:00" && R.minutesClock(.nan) == "00:00")
 check("the clock shows hours past an hour", R.clock(3672.5) == "1:01:12.50")
+
+// MARK: - The recorder
+
+let mockWords = "and the wagons out in the field by the shop in Ephrata. Chris mentioned the Lititz dealer wants a one-page sheet too."
+let split = R.liveWords(mockWords)
+check("the recorder's newest sentence is ink, everything before it mute (mockup PhoneRecorder)",
+      split.older.hasSuffix("Ephrata.") && split.newest == "Chris mentioned the Lititz dealer wants a one-page sheet too.",
+      "\(split.older) | \(split.newest)")
+check("words still changing are always in the newest part",
+      R.liveWords("One. Two three four", changing: 4).newest == "One. Two three four" && R.liveWords("One. Two three", changing: 1).older == "One.")
+check("with no sentence end, the last eight words are ink", R.liveWords((1...12).map(String.init).joined(separator: " ")).older == "1 2 3 4")
+check("a sentence end on the last word doesn't empty the newest part", R.liveWords("Done.").newest == "Done." && R.liveWords("Done.").older.isEmpty)
+check("no words, no parts", R.liveWords("  ") == ("", ""))
+check("the moments line: the count and the newest three times",
+      R.momentsLine([31, 58]) == "2 moments \u{00B7} 0:31 \u{00B7} 0:58" && R.momentsLine([5]) == "1 moment \u{00B7} 0:05"
+      && R.momentsLine([1, 2, 3, 4]) == "4 moments \u{00B7} 0:02 \u{00B7} 0:03 \u{00B7} 0:04" && R.momentsLine([]).isEmpty)
+
 let gmt = { () -> Calendar in var c = Calendar(identifier: .gregorian); c.timeZone = TimeZone(identifier: "UTC")!; return c }()
 func day(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 12) -> Date { gmt.date(from: DateComponents(year: y, month: m, day: d, hour: h))! }
 let posix = Locale(identifier: "en_US_POSIX"), tuesday = day(2026, 10, 27, 15)
@@ -224,7 +241,8 @@ let kit = kitFiles.map { read("\(views)/\($0)") }.joined(separator: "\n")
 for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "KindColorChip", "IconSquare", "SerifSectionTitle",
           "LargeSerifTitle", "ReadingText", "GlassPlayerBar", "RecorderClockPanel", "PaperRow", "WeekCard", "RecordingCard",
           "RefinedActionStyle", "RefinedChip", "RefinedSearchField", "IconSquareRow", "PaperTable", "PaperRowBackground",
-          "RefinedSegmented", "KindPickerChip", "RefinedTagChips", "RefinedCircleButton", "TurnTime", "MomentChip", "AudioPlayerCard"] {
+          "RefinedSegmented", "KindPickerChip", "RefinedTagChips", "RefinedCircleButton", "TurnTime", "MomentChip", "AudioPlayerCard",
+          "RecordingTimerCapsule", "MiniRecordingBar", "RecorderControl"] {
     check("the kit has \(c) with a preview", kit.contains("struct \(c)") && kit.contains("\(c)_Previews"))
 }
 check("the kit reads the palette from where Settings stores it", kit.contains("AppPalette.key, store: AppLook.store"))
@@ -235,6 +253,8 @@ check("the player ticks its moments on the iPhone's waveform as on the Mac's rai
 check("a playing turn takes the playing wash, and a marked line the accent mark, never butter",
       kit.contains("playing ? Refined.playing") && kit.contains("art: .iconMarked, size: size, color: Refined.accentText"))
 check("the segmented control draws the track token", kit.contains("Refined.track"))
+check("the recorder's clocks are read on request, never announced on every tick", !kit.contains(".updatesFrequently"))
+check("the recorder's Stop is the system red square", kit.contains("struct RecorderStopButton") && kit.contains("fill(Refined.recordRed).frame(width: 30, height: 30)"))
 
 let tokens = read("\(views)/Tokens.swift")
 let tableNames = Set((try! NSRegularExpression(pattern: #"static let (\w+) = (Tone|Wash)\("#)).matches(in: tokens, range: NSRange(tokens.startIndex..., in: tokens))

@@ -225,6 +225,32 @@ enum RefinedRules {
         return parts.isEmpty ? "0 seconds" : parts.joined(separator: " ")
     }
 
+    // MARK: The recorder
+
+    /// The recorder's live words split for drawing (mockup PhoneRecorder): what's older in `mute`, and the newest in
+    /// ink. The newest part starts after the last sentence that ended before the final word, and always holds the
+    /// words still changing (`changing`, counted from the end). With no sentence end, the last `newestWords` are ink.
+    static func liveWords(_ text: String, changing: Int = 0, newestWords: Int = 8) -> (older: String, newest: String) {
+        let words = text.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        let n = words.count
+        guard n > 0 else { return ("", "") }
+        var start = 0
+        if n > 1, let end = words[..<(n - 1)].lastIndex(where: { w in [".", "?", "!", "\u{2026}"].contains { w.hasSuffix($0) } }) {
+            start = end + 1
+        } else {
+            start = max(0, n - max(1, newestWords))
+        }
+        start = min(start, max(0, n - max(0, changing)))
+        return (words[..<start].joined(separator: " "), words[start...].joined(separator: " "))
+    }
+
+    /// The recorder's moments line: "2 moments · 0:31 · 0:58", with the newest three times. Empty with none.
+    static func momentsLine(_ times: [Double]) -> String {
+        guard !times.isEmpty else { return "" }
+        let count = times.count == 1 ? "1 moment" : "\(times.count) moments"
+        return ([count] + times.suffix(3).map { time($0) }).joined(separator: " \u{00B7} ")
+    }
+
     /// A day as the Mac Library's Date column says it (mockup MacLibrary): "Today", the weekday for the rest of the
     /// last week ("Mon"), the month and day this year ("Oct 12"), and the date with its year before that ("Oct 12, 2025").
     static func shortDay(_ date: Date, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current) -> String {
