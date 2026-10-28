@@ -231,6 +231,7 @@ One look replaces both Verbose style and Native on the Mac and iPhone (approved 
 | `faint` | `#8E938A` | `#6F7A72` | `#606962`, `#A1A29A` | Chevrons; never text |
 | `accentText` | `#B23F24` | `#FF8A6B` | | Links, the selected tab and chip |
 | `sageText` | `#4F6440` | `#B9CDA3` | | The playing line's time |
+| `danger` | `#B3261E` | `#FF8A80` | `#8C1D18`, `#FFB4AB` | A destructive row's title (Delete all data), on a neutral square |
 | `onFill` | `#26352E` | `#26352E` | | Text and glyphs on a Full fill |
 | `lift` | `#FFFDF9` | `#FFFDF9` | | Under the ready chip (`chipFull`); text on a strong action on a Full fill |
 | `persimmon` | `#FB7350` | `#F27A57` | | The Record card, persimmon badges and chips |

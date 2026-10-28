@@ -60,6 +60,8 @@ for (sname, s) in surfaces {
     pair("mute on \(sname)", H.mute, .tone(s))
 }
 pair("accent text on paper", H.accentText, .tone(H.paper))
+pair("a destructive title (danger) on the card", H.danger, .tone(H.card))
+pair("a destructive title (danger) on paper", H.danger, .tone(H.paper))
 pair("accent text on the card", H.accentText, .tone(H.card))
 pair("accent text on a selected chip or row (persimmon tint)", H.accentText, .tone(H.persimmonTint))
 pair("ink on a selected chip or row (persimmon tint)", H.ink, .tone(H.persimmonTint))
@@ -201,6 +203,19 @@ check("the Library's Date column: Today, a weekday this week, the month and day,
 check("lengths read aloud", R.spokenTime(72) == "1 minute 12 seconds" && R.spokenTime(1) == "1 second" && R.spokenTime(0) == "0 seconds" &&
       R.spokenTime(3600) == "1 hour")
 
+// MARK: - Settings
+
+check("Settings' squares go persimmon, butter, sage, petal down a card, and around again",
+      (0..<6).map { R.settingsHue($0) } == [.persimmon, .butter, .sage, .petal, .persimmon, .butter] && R.settingsHue(-1) == .petal)
+check("a destructive row's square is neutral", R.settingsHue(0, destructive: true) == .neutral)
+let paneRaws = ["general", "transcription", "dictate", "floatingButton", "meetings", "watched", "storage", "privacy", "account", "about", "features", "whatsNew"]
+check("the Mac's panes follow the mockup: Personalization and Recording persimmon, Dictation butter, Privacy and Support neutral",
+      R.settingsPaneHue("general") == .persimmon && R.settingsPaneHue("transcription") == .persimmon && R.settingsPaneHue("dictate") == .butter
+      && R.settingsPaneHue("meetings") == .sage && R.settingsPaneHue("watched") == .butter && R.settingsPaneHue("storage") == .sage
+      && R.settingsPaneHue("privacy") == .neutral && R.settingsPaneHue("account") == .petal && R.settingsPaneHue("about") == .neutral)
+check("most of the Mac's panes carry a color", paneRaws.filter { R.settingsPaneHue($0) == .neutral }.count * 4 <= paneRaws.count)
+check("your initial", R.initial(" tim medina") == "T" && R.initial("") == nil && R.initial("  ") == nil && R.initial("élise") == "É")
+
 // MARK: - The transcript
 
 check("a project's chip takes butter, sage, petal, then persimmon, and around again",
@@ -242,7 +257,7 @@ for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "K
           "LargeSerifTitle", "ReadingText", "GlassPlayerBar", "RecorderClockPanel", "PaperRow", "WeekCard", "RecordingCard",
           "RefinedActionStyle", "RefinedChip", "RefinedSearchField", "IconSquareRow", "PaperTable", "PaperRowBackground",
           "RefinedSegmented", "KindPickerChip", "RefinedTagChips", "RefinedCircleButton", "TurnTime", "MomentChip", "AudioPlayerCard",
-          "RecordingTimerCapsule", "MiniRecordingBar", "RecorderControl"] {
+          "RecordingTimerCapsule", "MiniRecordingBar", "RecorderControl", "InitialBadge", "PaperSection"] {
     check("the kit has \(c) with a preview", kit.contains("struct \(c)") && kit.contains("\(c)_Previews"))
 }
 check("the kit reads the palette from where Settings stores it", kit.contains("AppPalette.key, store: AppLook.store"))

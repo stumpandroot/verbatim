@@ -1082,10 +1082,12 @@ struct IconSquare: View {
     var hue: RefinedHue
     @ScaledMetric private var side: CGFloat
 
-    init(art: BrandArt, hue: RefinedHue) {
+    /// `side` overrides the device's size: the Mac Settings pane's 40 pt square beside its title. The corner and the
+    /// glyph keep their proportions.
+    init(art: BrandArt, hue: RefinedHue, side: CGFloat? = nil) {
         self.art = art
         self.hue = hue
-        _side = ScaledMetric(wrappedValue: CGFloat(RefinedRules.squareSize(mac: RefinedPlatform.mac).side), relativeTo: .body)
+        _side = ScaledMetric(wrappedValue: side ?? CGFloat(RefinedRules.squareSize(mac: RefinedPlatform.mac).side), relativeTo: .body)
     }
 
     var body: some View {
@@ -1095,6 +1097,64 @@ struct IconSquare: View {
             .frame(width: side, height: side)
             .overlay(IconGlyph(art: art, size: side * CGFloat(sizes.glyph / sizes.side), color: Refined.onBadge(hue)))
             .accessibilityHidden(true)
+    }
+}
+
+/// Your initial on a persimmon circle (the You card in Settings, the You page), in the fill's ink; a person's glyph
+/// when there's no name yet. Decorative: the name beside it is what VoiceOver reads.
+struct InitialBadge: View {
+    var name: String
+    @ScaledMetric private var side: CGFloat
+
+    init(name: String, size: CGFloat = 44) {
+        self.name = name
+        _side = ScaledMetric(wrappedValue: size, relativeTo: .title2)
+    }
+
+    var body: some View {
+        Circle().fill(Refined.badge(.persimmon))
+            .frame(width: side, height: side)
+            .overlay {
+                if let letter = RefinedRules.initial(name) {
+                    Text(letter).font(.system(size: side * 0.43, weight: .semibold)).foregroundStyle(Refined.onBadge(.persimmon))
+                } else {
+                    IconGlyph(art: .iconAboutMe, size: side * 0.5, color: Refined.onBadge(.persimmon))
+                }
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+/// A group of rows in a card with an optional label over it and a note under it (Settings' groups on both devices,
+/// the You page): the label in the meta style (iPhone) or semibold (Mac) in `mute`, sentence case, then a `PaperCard`,
+/// then the note in `mute`. VoiceOver reads the label as a header.
+struct PaperSection<Content: View>: View {
+    var title: String? = nil
+    var footer: String? = nil
+    @ViewBuilder var content: Content
+    private let mac = RefinedPlatform.mac
+
+    init(_ title: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title; self.footer = footer; self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: mac ? 8 : 7) {
+            if let title {
+                Text(title).refinedFont(.meta, weight: mac ? .semibold : .regular).foregroundStyle(Refined.mute)
+                    .padding(.horizontal, mac ? 4 : 14)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            PaperCard { content }
+            if let footer {
+                Text(footer).refinedFont(.meta).foregroundStyle(Refined.mute)
+                    .padding(.horizontal, mac ? 4 : 14)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: mac ? 600 : .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -1162,11 +1222,12 @@ struct RefinedLink: View {
 // MARK: - Switches
 
 extension View {
-    /// Switches in the refined look: the system's green on iPhone (as in Apple's own apps), the accent on the Mac.
+    /// Switches in the refined look: the system's green on iPhone (as in Apple's own apps), the accent on the Mac. On
+    /// iPhone it clears any tint the screen sets (Verbose style's root tints ink), so the switch takes the system's own.
     #if os(macOS)
     func refinedSwitchTint() -> some View { tint(Refined.macSwitch) }
     #else
-    func refinedSwitchTint() -> some View { self }
+    func refinedSwitchTint() -> some View { tint(Color?.none) }
     #endif
 }
 
@@ -1428,6 +1489,26 @@ struct RefinedTagChips_Previews: PreviewProvider {
 struct RefinedCircleButton_Previews: PreviewProvider {
     static var previews: some View {
         RefinedPreviewPage { RefinedCircleButton(symbol: "chevron.left", label: "Back") {} }
+    }
+}
+
+struct InitialBadge_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage {
+            HStack(spacing: 12) { InitialBadge(name: "Tim Medina"); InitialBadge(name: ""); InitialBadge(name: "Ginna", size: 64) }
+        }
+    }
+}
+
+struct PaperSection_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage {
+            PaperSection("Personalization and preferences", footer: "Kept on this device.") {
+                IconSquareRow(art: .iconAppearance, hue: .persimmon, title: "Appearance", value: "Match the system")
+                PaperDivider(leading: 56)
+                IconSquareRow(art: .iconHome, hue: .butter, title: "Customize Home")
+            }
+        }
     }
 }
 

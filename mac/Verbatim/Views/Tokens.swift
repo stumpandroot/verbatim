@@ -360,6 +360,9 @@ enum RefinedHex {
     static let accentText = Tone(0xB23F24, 0xFF8A6B)
     /// Sage for text: a playing line's time.
     static let sageText = Tone(0x4F6440, 0xB9CDA3)
+    /// A destructive row's title (Delete all data, Clear saved voices): red, apart from the persimmon accent, on its
+    /// neutral square. Recording's system red stays on the record disc and the stop square.
+    static let danger = Tone(0xB3261E, 0xFF8A80, hc: (0x8C1D18, 0xFFB4AB))
     /// Ink on a Full fill, in both modes: the fills stay light in dark mode, so their text stays ink.
     static let onFill = Tone(0x26352E, 0x26352E)
     /// Reader white in both modes: the ready chip's lift on the Record card.
@@ -431,6 +434,7 @@ enum Refined {
     static let faint = color(RefinedHex.faint)
     static let accentText = color(RefinedHex.accentText)
     static let sageText = color(RefinedHex.sageText)
+    static let danger = color(RefinedHex.danger)
     static let onFill = color(RefinedHex.onFill)
     /// Reader white in both modes: text on an ink action on a Full fill (the recording card's Stop and transcribe).
     static let lift = color(RefinedHex.lift)

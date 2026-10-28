@@ -118,6 +118,36 @@ enum RefinedRules {
         return hues[((colorIndex % hues.count) + hues.count) % hues.count]
     }
 
+    // MARK: Settings
+
+    /// The iPhone's Settings rows take their icon squares' hues in turn down each card (mockup PhoneSettings):
+    /// persimmon, butter, sage, petal, and around again. A destructive row's square is neutral, with a red title.
+    static let settingsRotation: [RefinedHue] = [.persimmon, .butter, .sage, .petal]
+    static func settingsHue(_ index: Int, destructive: Bool = false) -> RefinedHue {
+        if destructive { return .neutral }
+        let n = settingsRotation.count
+        return settingsRotation[((index % n) + n) % n]
+    }
+
+    /// A Mac Settings pane's square in the sidebar and beside its title, by `SettingsTab` raw value (mockup
+    /// MacSettings): Personalization and Recording persimmon, Dictation and Watched folders butter, Ribbon and notch,
+    /// Account, and What's new petal, Meetings, Sync, and Features sage, and Privacy and Support neutral.
+    static func settingsPaneHue(_ raw: String) -> RefinedHue {
+        switch raw {
+        case "general", "transcription": return .persimmon
+        case "dictate", "watched": return .butter
+        case "floatingButton", "account", "whatsNew": return .petal
+        case "meetings", "storage", "features": return .sage
+        default: return .neutral
+        }
+    }
+
+    /// Your initial on the You card and the You page: the first letter of your name, capitalized; nil without a name
+    /// (the badge shows a person instead).
+    static func initial(_ name: String) -> String? {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).first.map { String($0).uppercased() }
+    }
+
     // MARK: Type and size
 
     /// The kit's type roles. Serif (New York) for large titles, section titles, the Record card's title, and the
