@@ -36,8 +36,10 @@ enum TemplateChecks {
     static func run(_ check: (String, Bool) -> Void) {
         let meeting = TemplateLibrary.scenarios[0], reflection = TemplateLibrary.scenarios[7]
         let lib = TemplateLibrary.all(yours: [])
-        check("five built-ins and nine scenarios, Plan my day ninth", TemplateLibrary.builtIn.count == 5 && TemplateLibrary.scenarios.count == 9 && lib.count == 14
-              && TemplateLibrary.scenarios[8].id == TemplateLibrary.planMyDayID)
+        // Two built-ins since the consolidation (October 28, 2026): Make a plan, Journal entry, and Key points left.
+        check("two built-ins and nine scenarios, Plan my day ninth", TemplateLibrary.builtIn.count == 2 && TemplateLibrary.scenarios.count == 9 && lib.count == 11
+              && TemplateLibrary.scenarios[8].id == TemplateLibrary.planMyDayID
+              && !lib.contains { TemplateLibrary.retired[$0.id] != nil } && !lib.map(\.name).contains("Key points"))
         check("every template prompt carries the no-add rule", lib.allSatisfy { TemplatePrompt.instruction($0).hasSuffix(TranscriptActions.noAddRule) })
         check("Meeting notes asks for its four sections as headings", TemplatePrompt.instruction(meeting).contains("1. Summary") && TemplatePrompt.instruction(meeting).contains("4. Open questions"))
 

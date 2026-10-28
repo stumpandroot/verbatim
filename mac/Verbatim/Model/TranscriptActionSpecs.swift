@@ -15,7 +15,10 @@ struct TranscriptActionSpec: Identifiable, Equatable, Hashable {
     var timestamps: Bool = false
 }
 
-/// The five transcript actions: their specs and the rule every prompt carries. Pure Foundation, so the templates
+/// The transcript actions: their specs and the rule every prompt carries. Two are built in (Write a draft and Study
+/// notes); the consolidation (October 28, 2026) retired three, whose specs stay in `retired` so their results, notes,
+/// and saved copies still read: Make a plan merged into Plan my day, Journal entry into Daily reflection, and Key
+/// points was cut (the automatic summary lists key points). Pure Foundation, so the templates
 /// built on them (Templates.swift) are checked on Linux; how they run is in Transcription/TranscriptActions.swift.
 ///
 /// How they run:
@@ -34,7 +37,19 @@ enum TranscriptActions {
     /// Too little to work on below this many words.
     static let minWords = 12
 
-    static let builtIn: [TranscriptActionSpec] = [
+    /// Write a draft and Study notes.
+    static let builtIn: [TranscriptActionSpec] = all.filter { !retiredIDs.contains($0.id) }
+
+    /// Make a plan, Journal entry, and Key points, retired in the consolidation. Never offered; kept so the templates
+    /// that replace them can be found (`TemplateLibrary.current`) and saved copies compared with what they were.
+    static let retired: [TranscriptActionSpec] = all.filter { retiredIDs.contains($0.id) }
+    static let makeAPlanID = UUID(uuidString: "5E7B0A01-F1A0-4C00-9000-000000000001")!
+    static let journalEntryID = UUID(uuidString: "5E7B0A01-F1A0-4C00-9000-000000000002")!
+    static let keyPointsID = UUID(uuidString: "5E7B0A01-F1A0-4C00-9000-000000000005")!
+    static let retiredIDs: Set<UUID> = [makeAPlanID, journalEntryID, keyPointsID]
+
+    /// The five as they shipped before the consolidation, in their old order.
+    private static let all: [TranscriptActionSpec] = [
         TranscriptActionSpec(
             id: UUID(uuidString: "5E7B0A01-F1A0-4C00-9000-000000000001")!,
             name: "Make a plan",
@@ -65,6 +80,8 @@ enum TranscriptActions {
     static let builtInIDs: Set<UUID> = Set(builtIn.map(\.id))
     static func isBuiltIn(_ id: UUID) -> Bool { builtInIDs.contains(id) }
     static func spec(_ id: UUID) -> TranscriptActionSpec? { builtIn.first { $0.id == id } }
+    /// A built-in or retired action's spec, as it shipped.
+    static func anySpec(_ id: UUID) -> TranscriptActionSpec? { all.first { $0.id == id } }
 
     /// The instruction with the no-add rule, even after someone edits it out.
     static func withRule(_ instruction: String) -> String {

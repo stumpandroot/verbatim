@@ -410,7 +410,7 @@ private struct NativeActionsItem: View {
                 Button("Continue Recording") { app.continueRecording(t.id) }
                     .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || t.isAudioOnly || app.recorder.isRecording)
                 Divider()
-                Menu("Run an Action") { ActionsMenuItems { nav.runningAction = $0 } }
+                Menu("Run an Action") { ActionsMenuItems(transcript: t.id) { nav.runningAction = $0 } }
                     .disabled(t.status != .ready)
                 Button(SummaryAction.title(t)) { nav.summarize(t, app: app) }
                     .disabled(t.status != .ready || t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))

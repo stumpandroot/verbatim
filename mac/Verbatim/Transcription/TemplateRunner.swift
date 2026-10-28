@@ -65,6 +65,8 @@ final class TemplateCenter: ObservableObject {
     /// Runs a template on a transcript now (Run, Run again, Run another template). Jumps ahead of automatic runs.
     func run(_ template: UUID, on id: UUID, store: Store, replacing: UUID? = nil, kind: RecordingKind? = nil) {
         self.store = store
+        // A retired template runs what replaced it (TemplateLibrary.retired); a cut one has nothing to run.
+        guard let template = TemplateLibrary.current(template) else { return }
         failures[id] = nil
         if let why = Self.unavailableReason { failures[id] = why; return }
         queue.removeAll { $0.transcript == id && $0.template == template && !$0.auto }
@@ -96,8 +98,9 @@ final class TemplateCenter: ObservableObject {
         self.store = store
         guard automatic else { return }
         for t in store.transcripts where AutoRunRules.resumes(t, device: Device.id) {
-            guard let m = t.autoRun, !queue.contains(where: { $0.transcript == t.id && $0.auto }) else { continue }
-            queue.append(Job(transcript: t.id, template: m.templateId, auto: true, kind: m.kind))
+            guard let m = t.autoRun, !queue.contains(where: { $0.transcript == t.id && $0.auto }),
+                  let template = TemplateLibrary.current(m.templateId) else { continue }
+            queue.append(Job(transcript: t.id, template: template, auto: true, kind: m.kind))
         }
         if !queue.isEmpty { Log.note("templates: picking up \(queue.count) automatic run(s) from before") }
         kick()

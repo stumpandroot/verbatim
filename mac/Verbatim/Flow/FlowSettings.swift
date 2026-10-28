@@ -120,9 +120,38 @@ struct FlowAction: Codable, Identifiable, Equatable {
         FlowAction(name: "Screenplay dialogue", instruction: "Format this as screenplay dialogue: each CHARACTER NAME in capitals on its own line, followed by the line of dialogue. Put actions in brief present-tense lines of their own. Keep the spoken words.", symbol: "film"),
     ] + transcriptBuiltIn
 
-    /// The five transcript actions (TranscriptActions), with their fixed IDs, after the eight above.
-    static let transcriptBuiltIn: [FlowAction] = TranscriptActions.builtIn.map {
-        FlowAction(id: $0.id, name: $0.name, instruction: $0.instruction, symbol: $0.symbol, kind: $0.extracts ? .extract : .rewrite)
+    /// After the eight above: Plan my day and Daily reflection (the templates Make a plan and Journal entry merged into,
+    /// run on text with their template's instruction and their template's ID), then the two transcript actions
+    /// (TranscriptActions), with their fixed IDs. Key points left (consolidation, October 28, 2026).
+    static let transcriptBuiltIn: [FlowAction] =
+        [textAction(TemplateLibrary.planMyDayID, symbol: "list.bullet.clipboard"), textAction(TemplateLibrary.dailyReflectionID, symbol: "book.closed")].compactMap { $0 }
+        + TranscriptActions.builtIn.map {
+            FlowAction(id: $0.id, name: $0.name, instruction: $0.instruction, symbol: $0.symbol, kind: $0.extracts ? .extract : .rewrite)
+        }
+
+    /// A scenario template as a text action: its name and ID, and its instruction for text with no times.
+    static func textAction(_ template: UUID, symbol: String) -> FlowAction? {
+        guard let t = TemplateLibrary.scenarios.first(where: { $0.id == template }) else { return nil }
+        return FlowAction(id: t.id, name: t.name, instruction: TemplatePrompt.instruction(t, forText: true), symbol: symbol, kind: .extract)
+    }
+
+    /// Saved actions with the consolidation's moves applied: an untouched Make a plan becomes Plan my day and an
+    /// untouched Journal entry Daily reflection, in the same place and with the same symbol; an untouched Key points
+    /// goes. One you changed stays as yours (`Consolidation.textActionMove`). Applying it twice changes nothing.
+    static func movingRetired(_ list: [FlowAction]) -> [FlowAction] {
+        var out: [FlowAction] = []
+        for a in list {
+            switch Consolidation.textActionMove(id: a.id, name: a.name, instruction: a.instruction) {
+            case .keep: out.append(a)
+            case .remove: continue
+            case .replace(let id):
+                guard !list.contains(where: { $0.id == id }), !out.contains(where: { $0.id == id }),
+                      var n = transcriptBuiltIn.first(where: { $0.id == id }) else { continue }
+                n.symbol = a.symbol
+                out.append(n)
+            }
+        }
+        return out
     }
 
     /// Lowercased letters and digits only, for matching a spoken name ("client email.") to an action.
@@ -187,8 +216,11 @@ final class FlowSettings: ObservableObject {
         styles = Self.load([AppCategory: FlowStyle].self, "flow.styles") ?? [.email: .formal, .work: .casual, .personal: .casual, .code: .verbatim, .other: .casual]
         snippets = Self.load([Snippet].self, "flow.snippets") ?? []
         positions = Self.load([String: BarPosition].self, "flow.positions") ?? [:]
-        // Saved actions from before the transcript actions: add the five once, after yours (deleting one later sticks).
+        // Saved actions from before the transcript actions: add them once, after yours (deleting one later sticks).
         var saved = Self.load([FlowAction].self, "flow.actions") ?? FlowAction.builtIn
+        // The consolidation: Make a plan and Journal entry become Plan my day and Daily reflection; Key points goes.
+        let moved = FlowAction.movingRetired(saved)
+        if moved != saved { saved = moved; d.set(try? JSONEncoder().encode(saved), forKey: "flow.actions") }
         if !d.bool(forKey: "flow.actions.transcriptAdded") {
             d.set(true, forKey: "flow.actions.transcriptAdded")
             let have = Set(saved.map(\.id))

@@ -591,7 +591,7 @@ struct TranscriptView: View {
                 .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || t.isAudioOnly || app.recorder.isRecording)
                 .help("Record more and add it to the end of this transcript")
             Menu {
-                ActionsMenuItems { runningAction = $0 }
+                ActionsMenuItems(transcript: t.id) { runningAction = $0 }
                 Divider()
                 Button(SummaryAction.title(t)) { summarize(t) }
                     .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))

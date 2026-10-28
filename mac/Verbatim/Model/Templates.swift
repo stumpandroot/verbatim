@@ -1,8 +1,9 @@
 import Foundation
 
 // Templates (mockup "Library features", section 1, October 26, 2026): a template is a name, an instruction, and the
-// sections you want back. The five transcript actions are the Built in templates, eight Scenario templates come with
-// Verbose (nine with Plan my day), and you make your own (synced with the library as `templates.json`, like snippets). Each recording kind can
+// sections you want back. The two transcript actions are the Built in templates (Write a draft and Study notes; the
+// consolidation of October 28, 2026 merged Make a plan into Plan my day and Journal entry into Daily reflection, and
+// cut Key points), nine Scenario templates come with Verbose (the ninth is Plan my day), and you make your own (synced with the library as `templates.json`, like snippets). Each recording kind can
 // have one template that runs on its own when a recording of that kind finishes (Run automatically, kept per device
 // like other settings). Every template prompt carries the no-add rule (TranscriptActions.noAddRule) and runs on device
 // with Apple Intelligence the way the actions do (Transcription/TemplateRunner.swift).
@@ -59,7 +60,7 @@ struct TemplateSection: Codable, Equatable, Hashable, Identifiable {
 
 // MARK: - Template
 
-/// Where a template comes from: the five actions, the eight that come with Verbose, or yours.
+/// Where a template comes from: the two actions, the nine that come with Verbose, or yours.
 enum TemplateOrigin: String, CaseIterable, Identifiable {
     case scenario, yours, builtIn
     var id: String { rawValue }
@@ -146,17 +147,13 @@ enum TemplateGlyph {
 enum TemplateLibrary {
     private static func id(_ n: Int) -> UUID { UUID(uuidString: String(format: "5E7B0A02-F1A0-4C00-9000-%012d", n))! }
 
-    /// The five actions as templates, with the sections each one writes. They run with the action's own instruction.
+    /// The two actions as templates (Write a draft and Study notes), with the sections each one writes. They run with
+    /// the action's own instruction.
     static let builtIn: [TranscriptTemplate] = TranscriptActions.builtIn.map { a in
         let shape: (String, [TemplateSection], [RecordingKind], String) = {
             switch a.name {
-            case "Make a plan": return ("A checklist grouped under short headings", [TemplateSection("Tasks", .checklist, id: sid(a.id, 1))], [.meeting, .note], TemplateGlyph.plan)
-            case "Journal entry": return ("Your words as readable paragraphs", [TemplateSection("Entry", .paragraph, id: sid(a.id, 1))], [.journal], TemplateGlyph.journal)
             case "Write a draft": return ("An email or message from your thoughts", [TemplateSection("Draft", .paragraph, id: sid(a.id, 1))], [.note, .idea], TemplateGlyph.draft)
-            case "Study notes": return ("Topics in order, with key terms in bold", [TemplateSection("Topics", .bullets, id: sid(a.id, 1))], [.talk, .video], TemplateGlyph.study)
-            default: return ("Ideas, quotes with times, and action items",
-                             [TemplateSection("Key ideas", .bullets, id: sid(a.id, 1)), TemplateSection("Notable quotes", .quotes, id: sid(a.id, 2)),
-                              TemplateSection("Action items", .checklist, id: sid(a.id, 3))], [.podcast, .video, .talk], TemplateGlyph.keyPoints)
+            default: return ("Topics in order, with key terms in bold", [TemplateSection("Topics", .bullets, id: sid(a.id, 1))], [.talk, .video], TemplateGlyph.study)
             }
         }()
         var t = TranscriptTemplate(id: a.id, name: a.name, summary: shape.0, instructions: a.instruction, sections: shape.1, kinds: shape.2, glyph: shape.3)
@@ -182,12 +179,38 @@ enum TemplateLibrary {
     /// Plan my day's ID: Brain dump's template from the start (`AutoRunSettings.load`), and the one whose result
     /// draws as a plan with Send to Reminders (DayPlan.swift).
     static let planMyDayID = Transcript.planMyDayID
+    /// Daily reflection's ID: Journal entry merged into it.
+    static let dailyReflectionID = id(8)
+
+    /// The built-in templates the consolidation (October 28, 2026) retired, and what took each one's place: Make a
+    /// plan became Plan my day, Journal entry became Daily reflection, and Key points was cut (nil). Their results
+    /// stay on their transcripts and keep rendering, under the name they ran with.
+    static let retired: [UUID: UUID?] = [
+        TranscriptActions.makeAPlanID: planMyDayID,
+        TranscriptActions.journalEntryID: dailyReflectionID,
+        TranscriptActions.keyPointsID: nil,
+    ]
+
+    /// The template that runs for an ID now: the ID itself, or what replaced a retired one (nil when it was cut).
+    static func current(_ id: UUID) -> UUID? {
+        guard let r = retired[id] else { return id }
+        return r
+    }
+
+    /// Run again on a result: the template to run and the result it replaces. A result from a retired template runs
+    /// its replacement in its place (Make a plan's runs Plan my day); one from a cut template (Key points) has no Run
+    /// again (nil). An automatic result stays marked as automatic and is replaced in place.
+    static func runAgain(_ r: TemplateResult) -> (template: UUID, replacing: UUID?)? {
+        guard let now = current(r.templateId) else { return nil }
+        if now != r.templateId { return (now, r.id) }
+        return (now, r.auto ? r.id : nil)
+    }
 
     /// Plan my day's instruction (approved mockup "Verbose Brain Dump", section 10). The no-add rule is added when it
     /// runs, as for every template.
     static let planMyDayInstruction = "Make a plan for the speaker's day from what they said. Put the three tasks they call most important under Top three, in their order; if they don't name them, use the first three tasks for today in the order said, and say so. Sort the other tasks by when the speaker said they'd do them: Today, Tomorrow, This week, or Someday. Name a day only when the transcript names it. Put tasks with no day under Someday. Put ideas that aren't tasks under Ideas, in the speaker's words. Leave out a section with nothing in it."
 
-    /// The nine that come with Verbose. Plan my day is ninth, a Scenario template: "Built in" means the five Ribbon text
+    /// The nine that come with Verbose. Plan my day is ninth, a Scenario template: "Built in" means the two transcript
     /// actions (TranscriptActions.builtIn).
     static let scenarios: [TranscriptTemplate] = [
         scenario(1, "Meeting notes", "Summary, decisions, action items, open questions", [.meeting], TemplateGlyph.meeting,
@@ -287,7 +310,10 @@ enum TemplatePrompt {
     /// The instruction a template runs with. A built-in action runs with its own instruction unchanged; every other
     /// template is its instruction, then its sections as "## Name" headings in order, then the no-add rule (added
     /// even after someone deletes it).
-    static func instruction(_ t: TranscriptTemplate) -> String {
+    static func instruction(_ t: TranscriptTemplate) -> String { instruction(t, forText: false) }
+
+    /// `forText` is for a template run on text with no line times (Plan my day and Daily reflection as text actions).
+    static func instruction(_ t: TranscriptTemplate, forText: Bool) -> String {
         if let spec = TranscriptActions.spec(t.id) { return TranscriptActions.withRule(spec.instruction) }
         var s = t.instructions
             .replacingOccurrences(of: TranscriptActions.noAddRule, with: "")
@@ -300,7 +326,7 @@ enum TemplatePrompt {
                 + list.joined(separator: " ")
             if t.id == TemplateLibrary.planMyDayID {
                 // Its own instruction leaves out empty sections; each task and idea links back to its line.
-                s += " End each task and idea with the [mm:ss] time of the line it came from."
+                if !forText { s += " End each task and idea with the [mm:ss] time of the line it came from." }
             } else {
                 s += " If the transcript says nothing for a section, write \"None stated.\" under it."
             }
@@ -360,7 +386,9 @@ struct AutoRunSettings: Equatable {
     static func load(_ d: UserDefaults = .standard) -> AutoRunSettings {
         var s = AutoRunSettings()
         if let data = d.data(forKey: assignmentsKey), let raw = try? JSONDecoder().decode([String: String].self, from: data) {
-            s.assignments = raw.compactMapValues(UUID.init(uuidString:))
+            // A kind that ran a retired template runs what replaced it (Make a plan: Plan my day; Journal entry: Daily
+            // reflection), and one that ran Key points turns Off. The next save writes it that way.
+            s.assignments = raw.compactMapValues(UUID.init(uuidString:)).compactMapValues(TemplateLibrary.current)
         }
         // Before this device saved its choices with Brain dump in them (a new install, or a build from before Brain
         // dump): Brain dump starts with Plan my day.

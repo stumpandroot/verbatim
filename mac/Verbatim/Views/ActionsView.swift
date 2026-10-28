@@ -21,14 +21,19 @@ extension FlowAction {
     }
 }
 
-/// The saved actions as menu items, with a way to edit them.
+/// The saved actions as menu items, with a way to edit them. On a transcript (`transcript`), Plan my day and Daily
+/// reflection run as the templates they are, so the result is a template result (a plan with Send to Reminders).
 struct ActionsMenuItems: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var settings = FlowSettings.shared
+    var transcript: UUID? = nil
     var pick: (FlowAction) -> Void
     var body: some View {
         ForEach(settings.actions) { a in
-            Button { pick(a) } label: { Label(a.name, systemImage: a.symbol) }   // brand: system surface (context menu)
+            Button {
+                if let id = transcript, TemplateLibrary.scenarioIDs.contains(a.id) { TemplateCenter.shared.run(a.id, on: id, store: app.store) }
+                else { pick(a) }
+            } label: { Label(a.name, systemImage: a.symbol) }   // brand: system surface (context menu)
         }
         Divider()
         Button("Edit Actions…") { app.dictation.openSettings(tab: .actions) }

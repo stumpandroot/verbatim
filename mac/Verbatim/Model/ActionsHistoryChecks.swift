@@ -5,15 +5,22 @@ import Foundation
 enum ActionsHistoryChecks {
     @MainActor
     static func run(_ check: (String, Bool) -> Void) {
-        // Actions: five, each with the no-add rule, and fixed IDs.
+        // Actions: two built in, each with the no-add rule, and fixed IDs. The consolidation (October 28, 2026) retired
+        // three: Make a plan (into Plan my day), Journal entry (into Daily reflection), and Key points (cut).
         let specs = TranscriptActions.builtIn
-        check("actions: the five built-ins", specs.map(\.name) == ["Make a plan", "Journal entry", "Write a draft", "Study notes", "Key points"]
-              && Set(specs.map(\.id)).count == 5)
+        check("actions: the two built-ins", specs.map(\.name) == ["Write a draft", "Study notes"] && Set(specs.map(\.id)).count == 2)
+        check("actions: three retired, never offered", TranscriptActions.retired.map(\.name) == ["Make a plan", "Journal entry", "Key points"]
+              && TranscriptActions.retired.allSatisfy { !TranscriptActions.isBuiltIn($0.id) && TranscriptActions.anySpec($0.id) != nil })
+        check("actions: Make a plan runs Plan my day, Journal entry Daily reflection, Key points nothing",
+              TemplateLibrary.current(TranscriptActions.makeAPlanID) == TemplateLibrary.planMyDayID
+              && TemplateLibrary.current(TranscriptActions.journalEntryID) == TemplateLibrary.dailyReflectionID
+              && TemplateLibrary.current(TranscriptActions.keyPointsID) == nil)
         check("actions: every prompt says to use only the transcript", specs.allSatisfy { $0.instruction.contains(TranscriptActions.noAddRule) }
               && TranscriptActions.sessionInstructions.contains(TranscriptActions.noAddRule))
         check("actions: an edited prompt keeps the rule", TranscriptActions.withRule("Make a list.").hasSuffix(TranscriptActions.noAddRule)
               && TranscriptActions.withRule(TranscriptActions.noAddRule) == TranscriptActions.noAddRule)
-        check("actions: only Key points reads times", specs.filter(\.timestamps).map(\.name) == ["Key points"])
+        check("actions: no built-in reads times (Key points did)", specs.filter(\.timestamps).isEmpty
+              && TranscriptActions.anySpec(TranscriptActions.keyPointsID)?.timestamps == true)
 
         // Actions read the Original text with corrections, never the Cleaned text.
         var t = Transcript(title: "Plan", source: .voiceMemo, sourceLabel: "Voice memo", duration: 40, audioFileName: nil, model: "")
@@ -25,14 +32,15 @@ enum ActionsHistoryChecks {
         check("actions: run on the original with corrections", src.contains("Call John about the shed.") && src.contains("Order the cedar")
               && !src.contains("CLEANED") && !src.contains("Jon ") && !src.contains("Um."))
         let stamped = TranscriptActions.source(t, timestamps: true)
-        check("actions: Key points sees line times", stamped.contains("[00:00] Call John") && stamped.contains("[00:17] Order"))
+        check("actions: a timed source shows line times", stamped.contains("[00:00] Call John") && stamped.contains("[00:17] Order"))
         let prompt = TranscriptActions.prompt(instruction: specs[0].instruction, text: src, part: (1, 2))
         check("actions: the prompt carries the rule and the transcript", prompt.contains(TranscriptActions.noAddRule)
               && prompt.contains("<transcript>\n" + src) && prompt.contains("part 1 of 2"))
         check("actions: a rewrite works in smaller parts", TranscriptActions.partLimit(extracts: false) < TranscriptActions.partLimit(extracts: true))
         check("actions: a code fence is dropped", TranscriptActions.clean("```\n- [ ] Call John\n```") == "- [ ] Call John")
 
-        // Notes saved from an action keep the AI mark through a save and a load; older notes read without it.
+        // Notes saved from an action keep the AI mark through a save and a load; older notes read without it. A note from
+        // a retired action (Make a plan) still reads and exports with its name.
         let note = Note(text: "- [ ] Call John", aiAction: "Make a plan")
         let back = (try? JSONEncoder().encode(note)).flatMap { try? JSONDecoder().decode(Note.self, from: $0) }
         check("notes: the AI mark round-trips", back == note && back?.aiAction == "Make a plan" && back?.byModel == true)

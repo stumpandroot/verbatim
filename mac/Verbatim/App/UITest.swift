@@ -1387,8 +1387,21 @@ enum UITest {
         // Ask your library and recipes (shared with the iPhone's self-test and mac/tools/test-ask.sh).
         AskChecks.run { check("ask: " + $0, $1) }
         let restored = FlowAction.builtIn
-        check("actions: the five sit alongside the eight in Settings › Actions", restored.count == 13
-              && TranscriptActions.builtIn.allSatisfy { spec in restored.contains { $0.id == spec.id && $0.name == spec.name && $0.instruction.contains(TranscriptActions.noAddRule) } })
+        check("actions: the eight, Plan my day, Daily reflection, and the two transcript actions", restored.count == 12
+              && TranscriptActions.builtIn.allSatisfy { spec in restored.contains { $0.id == spec.id && $0.name == spec.name && $0.instruction.contains(TranscriptActions.noAddRule) } }
+              && restored.contains { $0.id == TemplateLibrary.planMyDayID && $0.name == "Plan my day" && !$0.instruction.contains("[mm:ss]") }
+              && restored.contains { $0.id == TemplateLibrary.dailyReflectionID && $0.name == "Daily reflection" }
+              && !restored.contains { TranscriptActions.retiredIDs.contains($0.id) })
+        // The consolidation: saved copies of the retired three move once; one you changed stays yours.
+        let oldList = [FlowAction.builtIn[0]] + TranscriptActions.retired.map {
+            FlowAction(id: $0.id, name: $0.name, instruction: $0.instruction, symbol: $0.symbol, kind: $0.extracts ? .extract : .rewrite)
+        }
+        let movedList = FlowAction.movingRetired(oldList)
+        check("actions: Make a plan becomes Plan my day, Journal entry Daily reflection, Key points goes",
+              movedList.map(\.name) == [FlowAction.builtIn[0].name, "Plan my day", "Daily reflection"]
+              && movedList[1].symbol == "list.bullet.clipboard" && FlowAction.movingRetired(movedList) == movedList)
+        var mine = oldList[1]; mine.instruction = "Turn this into my shed checklist."
+        check("actions: a Make a plan you changed stays yours", FlowAction.movingRetired([mine]) == [mine])
         let dict = Transcript(title: "d", source: .dictation, sourceLabel: "", duration: 1, audioFileName: nil, model: "")
         check("dictations are kind dictation", dict.kind == .dictation && dict.titleIsAuto && dict.kindIsAuto)
 
@@ -2465,7 +2478,7 @@ extension UITest {
         shown.set(TemplateLibrary.scenarios[7].id, for: .journal)
         shown.set(TemplateLibrary.scenarios[3].id, for: .interview)
         shown.set(TemplateLibrary.scenarios[4].id, for: .talk)
-        shown.set(TemplateLibrary.builtIn[4].id, for: .podcast)
+        shown.set(TemplateLibrary.builtIn[1].id, for: .podcast)
         TemplateSettingsModel.shared.settings = shown
         nav.pane = .library; nav.filter = .all; nav.selected = TemplateLibrary.scenarios[0].id
         app.go(.templates)

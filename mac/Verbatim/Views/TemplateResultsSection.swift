@@ -84,8 +84,11 @@ struct TemplateResultsSection: View {
                 }
             }
             HStack(spacing: 6) {
-                PillButton(title: "Run again", kind: .line, size: .mini, icon: .iconRecent, enabled: center.busyTemplate(transcript.id) == nil) { runAgain(r) }
-                    .uiTarget("result-run-again")
+                // A cut template's result (Key points) has no Run again; a retired one's runs its replacement.
+                if TemplateLibrary.runAgain(r) != nil {
+                    PillButton(title: "Run again", kind: .line, size: .mini, icon: .iconRecent, enabled: center.busyTemplate(transcript.id) == nil) { runAgain(r) }
+                        .uiTarget("result-run-again")
+                }
                 PillButton(title: "Edit", kind: .line, size: .mini) { draft = r.text; editing = r }
                     .uiTarget("result-edit")
                 moreMenu(r, templates)
@@ -182,8 +185,10 @@ struct TemplateResultsSection: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("\(m.name) didn\u{2019}t run").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
             if let note = m.note { Text(note).font(.system(size: 12)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true) }
-            PillButton(title: "Run again", kind: .line, size: .mini) {
-                center.run(m.templateId, on: transcript.id, store: app.store, kind: m.kind)
+            if TemplateLibrary.current(m.templateId) != nil {
+                PillButton(title: "Run again", kind: .line, size: .mini) {
+                    center.run(m.templateId, on: transcript.id, store: app.store, kind: m.kind)
+                }
             }
         }
         .padding(10)
@@ -196,7 +201,8 @@ struct TemplateResultsSection: View {
     /// Run again replaces the result; an edited one asks first. An automatic result stays marked as automatic.
     private func runAgain(_ r: TemplateResult, force: Bool = false) {
         if r.edited && !force { confirmReplace = r; return }
-        center.run(r.templateId, on: transcript.id, store: app.store, replacing: r.auto ? r.id : nil, kind: r.auto ? r.kind : nil)
+        guard let next = TemplateLibrary.runAgain(r) else { return }
+        center.run(next.template, on: transcript.id, store: app.store, replacing: next.replacing, kind: r.auto ? r.kind : nil)
     }
 
     private func editor(_ r: TemplateResult) -> some View {

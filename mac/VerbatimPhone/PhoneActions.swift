@@ -1,8 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// The transcript actions as menu items (TranscriptActions.builtIn): Make a plan, Journal entry, Write a draft,
-/// Study notes, Key points.
+/// The transcript actions as menu items (TranscriptActions.builtIn): Write a draft and Study notes. Plan my day and
+/// Daily reflection, which took Make a plan's and Journal entry's places, are templates (Run a template).
 struct PhoneActionItems: View {
     var pick: (TranscriptActionSpec) -> Void
     var body: some View {

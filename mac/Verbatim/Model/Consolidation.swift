@@ -24,3 +24,25 @@ enum Consolidation {
         d.set(true, forKey: doneKey)
     }
 }
+
+// MARK: - Templates and text actions
+
+extension Consolidation {
+    /// What happens to a saved text action (the Mac's `flow.actions`) whose ID is a retired built-in.
+    enum TextActionMove: Equatable {
+        /// Not a retired built-in, or one you changed: it stays, as yours.
+        case keep
+        /// An untouched Make a plan or Journal entry: the template that replaced it takes its place.
+        case replace(UUID)
+        /// An untouched Key points: it goes.
+        case remove
+    }
+
+    static func textActionMove(id: UUID, name: String, instruction: String) -> TextActionMove {
+        guard let spec = TranscriptActions.retired.first(where: { $0.id == id }) else { return .keep }
+        let ws = CharacterSet.whitespacesAndNewlines
+        guard name.trimmingCharacters(in: ws) == spec.name,
+              instruction.trimmingCharacters(in: ws) == spec.instruction.trimmingCharacters(in: ws) else { return .keep }
+        return TemplateLibrary.current(id).map(TextActionMove.replace) ?? .remove
+    }
+}

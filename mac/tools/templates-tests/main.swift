@@ -15,13 +15,13 @@ let now = Date(timeIntervalSince1970: 1_800_000_000)
 // MARK: Library
 
 let builtIn = TemplateLibrary.builtIn, scenarios = TemplateLibrary.scenarios
-check("five built-ins, the actions, with their IDs", builtIn.map(\.name) == TranscriptActions.builtIn.map(\.name)
+check("two built-ins, the actions, with their IDs", builtIn.map(\.name) == TranscriptActions.builtIn.map(\.name)
       && builtIn.map(\.id) == TranscriptActions.builtIn.map(\.id) && builtIn.allSatisfy { $0.origin == .builtIn })
 check("nine scenarios in the mockup's order, Plan my day last", scenarios.map(\.name) == ["Meeting notes", "1:1", "Client call", "Interview", "Lecture",
                                                                        "Sermon notes", "Brainstorm", "Daily reflection", "Plan my day"],
       "\(scenarios.map(\.name))")
 let allIDs = (builtIn + scenarios).map(\.id)
-check("every template has its own fixed ID", Set(allIDs).count == 14 && scenarios.allSatisfy { $0.origin == .scenario })
+check("every template has its own fixed ID", Set(allIDs).count == 11 && scenarios.allSatisfy { $0.origin == .scenario })
 check("every built-in and scenario has sections and a summary", (builtIn + scenarios).allSatisfy { !$0.sections.isEmpty && !$0.summary.isEmpty })
 let shipped: [TranscriptTemplate] = builtIn + scenarios
 let sectionIDs: [UUID] = shipped.flatMap { t in t.sections.map { $0.id } }
@@ -33,9 +33,9 @@ check("Meeting notes: Summary, Decisions, Action items, Open questions", meeting
 let reflection = scenarios[7]
 check("Daily reflection: What happened, What stood out, For tomorrow, no advice", reflection.sections.map(\.name) == ["What happened", "What stood out", "For tomorrow"]
       && reflection.instructions.contains("Don't add advice") && reflection.kinds == [.journal])
-check("only Interview, Key points, and Plan my day read times", (builtIn + scenarios).filter(\.usesTimestamps).map(\.name) == ["Key points", "Interview", "Plan my day"],
+check("only Interview and Plan my day read times", (builtIn + scenarios).filter(\.usesTimestamps).map(\.name) == ["Interview", "Plan my day"],
       "\((builtIn + scenarios).filter(\.usesTimestamps).map(\.name))")
-check("Journal entry rewrites in order; the rest pull things together", (builtIn + scenarios).filter { !$0.extracts }.map(\.name) == ["Journal entry"])
+check("every template pulls things together (Journal entry, which rewrote in order, left)", (builtIn + scenarios).allSatisfy(\.extracts))
 
 var mine = TemplateLibrary.duplicate(meeting, now: now)
 mine.name = "Website client call"
@@ -46,9 +46,9 @@ let planCopy = TemplateLibrary.duplicate(builtIn[0])
 check("a built-in's copy drops the rule from its editable instruction (it's added back when it runs)", !planCopy.instructions.contains(rule)
       && TemplatePrompt.instruction(planCopy).hasSuffix(rule))
 let all = TemplateLibrary.all(yours: [mine])
-check("library order: Scenarios, Yours, Built in", all.map(\.origin) == Array(repeating: .scenario, count: 9) + [.yours] + Array(repeating: .builtIn, count: 5))
+check("library order: Scenarios, Yours, Built in", all.map(\.origin) == Array(repeating: .scenario, count: 9) + [.yours] + Array(repeating: .builtIn, count: 2))
 check("a template is found by ID among all three", TemplateLibrary.template(mine.id, yours: [mine]) == mine
-      && TemplateLibrary.template(meeting.id, yours: []) == meeting && TemplateLibrary.template(builtIn[4].id, yours: []) == builtIn[4]
+      && TemplateLibrary.template(meeting.id, yours: []) == meeting && TemplateLibrary.template(builtIn[1].id, yours: []) == builtIn[1]
       && TemplateLibrary.template(UUID(), yours: [mine]) == nil)
 check("a built-in or scenario saved by mistake among yours never shows twice", TemplateLibrary.all(yours: [meeting, mine]).filter { $0.id == meeting.id }.count == 1)
 var blank = TemplateLibrary.blank(now: now)
@@ -324,7 +324,38 @@ check("Plan my day: the mockup's instruction, its six sections, times on each li
       && planPrompt.contains("[mm:ss] time of the line it came from") && !planPrompt.contains("None stated") && planPrompt.hasSuffix(rule))
 check("Plan my day's ID follows the scenarios' pattern", TemplateLibrary.planMyDayID.uuidString == String(format: "5E7B0A02-F1A0-4C00-9000-%012d", 9))
 check("Plan my day is Brain dump's, with a day glyph", scenarios[8].kinds == [.brainDump] && scenarios[8].glyph == TemplateGlyph.planDay && scenarios[8].origin == .scenario
-      && TemplateLibrary.planMyDayID == scenarios[8].id && TranscriptActions.builtIn.count == 5)
+      && TemplateLibrary.planMyDayID == scenarios[8].id && TranscriptActions.builtIn.count == 2)
+let planText = TemplatePrompt.instruction(scenarios[8], forText: true)
+check("Plan my day on text asks for no times", planText.hasPrefix(TemplateLibrary.planMyDayInstruction) && !planText.contains("[mm:ss]") && planText.hasSuffix(rule))
+
+// MARK: The consolidation (October 28, 2026)
+
+let mk = TranscriptActions.makeAPlanID, je = TranscriptActions.journalEntryID, kp = TranscriptActions.keyPointsID
+check("retired: Make a plan, Journal entry, and Key points leave the library", [mk, je, kp].allSatisfy { id in !TemplateLibrary.all(yours: []).contains { $0.id == id } }
+      && [mk, je, kp].allSatisfy { TemplateLibrary.template($0, yours: []) == nil })
+check("retired: Make a plan runs Plan my day, Journal entry Daily reflection, Key points nothing",
+      TemplateLibrary.current(mk) == TemplateLibrary.planMyDayID && TemplateLibrary.current(je) == TemplateLibrary.dailyReflectionID
+      && TemplateLibrary.current(kp) == nil && TemplateLibrary.current(meeting.id) == meeting.id && TemplateLibrary.dailyReflectionID == scenarios[7].id)
+let oldPlan = TemplateResult(templateId: mk, name: "Make a plan", text: "## Tasks\n- [ ] Call Sam")
+let oldKeys = TemplateResult(templateId: kp, name: "Key points", text: "## Key ideas\n- Cedar")
+var oldAuto = TemplateResult(templateId: je, name: "Journal entry", text: "## Entry\nA long day.", auto: true, kind: .journal)
+oldAuto.edited = false
+check("retired: Run again on an old Make a plan result runs Plan my day in its place",
+      TemplateLibrary.runAgain(oldPlan).map { $0.template == TemplateLibrary.planMyDayID && $0.replacing == oldPlan.id } == true)
+check("retired: an automatic Journal entry result is replaced by Daily reflection",
+      TemplateLibrary.runAgain(oldAuto).map { $0.template == TemplateLibrary.dailyReflectionID && $0.replacing == oldAuto.id } == true)
+check("retired: a Key points result keeps rendering with no Run again", TemplateLibrary.runAgain(oldKeys) == nil
+      && TemplateResultText.blocks(oldKeys.text) == [.heading("Key ideas"), .bullet("Cedar")])
+let current = TemplateResult(templateId: meeting.id, name: "Meeting notes", text: "x")
+check("a current template's Run again is unchanged", TemplateLibrary.runAgain(current).map { $0.template == meeting.id && $0.replacing == nil } == true)
+let suiteRA = UserDefaults(suiteName: "templates-tests-retired-\(UUID().uuidString)")!
+suiteRA.set(try! JSONEncoder().encode([RecordingKind.meeting.rawValue: mk.uuidString, RecordingKind.journal.rawValue: je.uuidString,
+                                       RecordingKind.podcast.rawValue: kp.uuidString, RecordingKind.talk.rawValue: scenarios[4].id.uuidString]),
+            forKey: AutoRunSettings.assignmentsKey)
+let movedRA = AutoRunSettings.load(suiteRA)
+check("Run automatically: Make a plan moves to Plan my day, Journal entry to Daily reflection, Key points turns Off",
+      movedRA.template(for: .meeting) == TemplateLibrary.planMyDayID && movedRA.template(for: .journal) == TemplateLibrary.dailyReflectionID
+      && movedRA.template(for: .podcast) == nil && movedRA.template(for: .talk) == scenarios[4].id)
 
 // MARK: Audio only
 
