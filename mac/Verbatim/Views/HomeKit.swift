@@ -6,17 +6,15 @@ import AppKit
 import UIKit
 #endif
 
-// Home, shared by the Mac (HomeView) and iPhone (HomeScreen) apps (approved mockup Home D, October 22, 2026): the
-// greeting and counts (pure, self-tested), the brand icons that draw themselves on, the Record panel's meter and its
-// level monitor, the start tiles, This week, the Method band, and the Recent rows. Everything is drawn from BrandArt;
-// nothing here uses SF Symbols.
+// Home, shared by the Mac (HomeView) and iPhone (HomeScreen) apps: the greeting and counts (pure, self-tested), This
+// week's numbers and bars, the Recent rows' styles, the refined Home's tile colors and kinds (DESIGN.md §6, §13), the
+// journal's week dots, the brand icons that draw themselves on (the Mac sidebar), the cards that tilt (`HomeCard`, the
+// Mac's You and Library), and Edit Home's probe for the self-tests. Home's own drawing is the refined kit
+// (RefinedKit.swift); its Record meter and the hover and touch listening retired with the old Home.
 //
-// Motion (DESIGN.md §7): every card tilts toward the pointer, lifts 2 pt, and catches a sheen and an edge light on
-// hover (Mac), and presses in on click or touch (`HomeCard`). Icons draw on when they appear and again on hover. Two
-// things loop, slowly and evenly, and only while on screen: the Method diagrams and the Record meter's breath at
-// rest; the meter shows the real microphone level on hover, touch, and while recording. Springs never bounce. With
-// Reduce Motion or Limit animation everything is still, and the screenshot tour (VERBATIM_UITEST=1) keeps it still
-// so captures repeat.
+// Motion (DESIGN.md §7): `HomeCard` tilts toward the pointer, lifts 2 pt, and catches a sheen and an edge light on
+// hover (Mac), and presses in on click or touch. Springs never bounce. With Reduce Motion or Limit animation
+// everything is still, and the screenshot tour (VERBATIM_UITEST=1) keeps it still so captures repeat.
 
 enum HomeMotion {
     /// Off in the screenshot tour, so Home captures are the same every run.
@@ -112,6 +110,20 @@ struct HomeWeek: Equatable {
     }
 
     var peak: Int { days.map(\.words).max() ?? 0 }
+
+    /// The time saved in This week's words (the refined look): "42 sec", "25 min", "1 hr", "2 hr 14 min".
+    static func savedText(_ s: Double) -> String {
+        if s < 60 { return "\(Int(s.rounded())) sec" }
+        let m = Int((s / 60).rounded())
+        if m < 60 { return "\(m) min" }
+        return m % 60 == 0 ? "\(m / 60) hr" : "\(m / 60) hr \(m % 60) min"
+    }
+
+    /// The seven bars This week's card draws: each day's words as a share of the busiest day.
+    var cardDays: [WeekCard.Day] {
+        let top = Double(max(1, peak))
+        return days.map { WeekCard.Day(share: Double($0.words) / top, isToday: $0.isToday, isFuture: $0.isFuture) }
+    }
 }
 
 enum HomeCounts {
@@ -266,6 +278,11 @@ enum HomeSelfTest {
               && HomeWeek([], now: wed, calendar: cal).secondsSaved(typingWPM: 40) == 0)
         check("home: duration labels", HomeWeek.durationLabel(42) == "42 s" && HomeWeek.durationLabel(18 * 60) == "18 m"
               && HomeWeek.durationLabel(3600) == "1 h" && HomeWeek.durationLabel(82 * 60) == "1 h 22 m")
+        check("home: This week's time saved", HomeWeek.savedText(42) == "42 sec" && HomeWeek.savedText(25 * 60) == "25 min"
+              && HomeWeek.savedText(3600) == "1 hr" && HomeWeek.savedText(134 * 60) == "2 hr 14 min")
+        check("home: This week's bars: today, days to come, and shares of the busiest day",
+              week.cardDays.count == 7 && week.cardDays[3].isToday && week.cardDays[4].isFuture
+              && week.cardDays[2].share == 1 && abs(week.cardDays[3].share - 80.0 / 250) < 0.0001)
 
         var memo = Transcript(title: "m", source: .voiceMemo, sourceLabel: "Voice memo", duration: 67, audioFileName: nil, model: "")
         memo.createdAt = at(21, 9)
@@ -287,10 +304,11 @@ enum HomeSelfTest {
         tiktok.sourceURL = "https://www.tiktok.com/@a/video/1"
         check("home: video link row", HomeRecentStyle(tiktok).chip == "Video" && HomeRecentStyle(tiktok).source == "TikTok")
         check("home: dictation row", HomeRecentStyle(dict).chip == "Dictation")
-        check("home: the meter breathes evenly", abs(HomeMeter.breathScale(t: 0, bar: 0) - 0.42) < 0.0001
-              && abs(HomeMeter.breathScale(t: 2.6, bar: 0) - 0.92) < 0.0001
-              && abs(HomeMeter.breathScale(t: 7.8, bar: 0) - HomeMeter.breathScale(t: 2.6, bar: 0)) < 0.0001
-              && HomeMeter.breathScale(t: 1, bar: 3) < HomeMeter.breathScale(t: 1, bar: 0))
+        check("home: a recent row's kind: its own, a dictation's, or a voice note's", dict.refinedKind == .dictation && memo.refinedKind == nil
+              && tiktok.refinedKind == .video)
+        check("home: tiles are colored by what they do, three at most",
+              HomeTile.refinedHues([.newThought, .journal, .dictate, .importMedia]) == [.neutral, .neutral, .butter, .sage]
+              && HomeTile.refinedHues([.dictate, .importMedia, .whatsPlaying, .appAudio]) == [.butter, .sage, .petal, .neutral])
     }
 }
 
@@ -354,234 +372,6 @@ struct DrawOnGlyph: View {
             withAnimation(.easeOut(duration: duration)) { progress = 1 }
         }
     }
-}
-
-// MARK: - Record meter
-
-/// The Record panel's level bars. With `levels` they show the real microphone level, newest on the right: while
-/// recording, and while the level monitor listens (hover on Mac, touch on iPhone). Otherwise they rest on the
-/// `heights` pattern: breathing slowly and evenly with a `breath` clock (`BreathingHomeMeter`), still without one.
-/// Bars fill the width at `barWidth` with at least `gap` between them.
-struct HomeMeter: View {
-    var barWidth: CGFloat
-    var gap: CGFloat
-    /// Resting heights, 0…1 of the meter's height, repeated across the bars.
-    var heights: [CGFloat]
-    var color: Color = Ink.inkFixed
-    var levels: [Float]? = nil
-    /// The breath's clock in seconds; nil holds the bars still.
-    var breath: Double? = nil
-
-    var body: some View {
-        Canvas { ctx, size in
-            Self.draw(ctx, size, barWidth: barWidth, gap: gap, heights: heights, color: color, levels: levels, breath: breath)
-        }
-        .accessibilityHidden(true)
-    }
-
-    /// The bars in `size`, from (0, 0): the meter's own Canvas, and the Mac Record panel's shared loop (HomeView).
-    static func draw(_ ctx: GraphicsContext, _ size: CGSize, barWidth: CGFloat, gap: CGFloat, heights: [CGFloat], color: Color,
-                     levels: [Float]?, breath: Double?) {
-        let n = max(1, Int((size.width + gap) / (barWidth + gap)))
-        let step = n > 1 ? (size.width - barWidth) / CGFloat(n - 1) : 0
-        let h = size.height
-        for i in 0..<n {
-            var v = heights[i % heights.count]
-            if let levels, !levels.isEmpty {
-                let l = levels[min(levels.count - 1, i * levels.count / n)]
-                v = max(0.1, min(1, CGFloat(l) * 1.6))
-            } else if let breath {
-                v *= CGFloat(breathScale(t: breath, bar: i))
-            } else {
-                v *= stillScale
-            }
-            let bh = max(barWidth, v * h)
-            let rect = CGRect(x: CGFloat(i) * step, y: (h - bh) / 2, width: barWidth, height: bh)
-            ctx.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(color.opacity(0.8)))
-        }
-    }
-
-    /// The breath (DESIGN.md §7): each bar is its resting height × (0.42 + 0.5 × breath), with
-    /// breath = 0.5 − 0.5 cos(2π t / 5.2 − 0.09 i). A 5.2-second cycle that rolls gently from left to right; never random.
-    static func breathScale(t: Double, bar i: Int) -> Double {
-        let breath = 0.5 - 0.5 * cos(2 * Double.pi * t / 5.2 - Double(i) * 0.09)
-        return 0.42 + 0.5 * breath
-    }
-    /// The still bars (Limit animation, the screenshot tour): the middle of the breath.
-    static let stillScale: CGFloat = 0.7
-
-    /// Home D's resting shape (72-pt meter, 35 bars).
-    static let macHeights: [CGFloat] = [8, 24, 48, 28, 60, 32, 16, 44, 20, 8, 28, 52, 22, 36, 12, 32, 56, 24, 14, 40, 8, 22, 48, 18, 34, 6, 24, 44, 18, 32, 12, 40, 20, 28, 10].map { $0 / 72 }
-    static let phoneHeights: [CGFloat] = [6, 14, 28, 16, 36, 20, 8, 24, 12, 6, 16, 30, 12, 22, 8, 18, 32, 14, 8, 24, 6, 12, 28, 10].map { $0 / 44 }
-}
-
-/// The meter at rest: breathing on a `LoopTimeline` (30 fps at most, paused off screen and while the app is
-/// inactive), still with motion limited.
-struct BreathingHomeMeter: View {
-    var barWidth: CGFloat
-    var gap: CGFloat
-    var heights: [CGFloat]
-    var color: Color = Ink.inkFixed
-    @Environment(\.limitMotion) private var limitMotion
-
-    var body: some View {
-        if limitMotion || !HomeMotion.enabled {
-            HomeMeter(barWidth: barWidth, gap: gap, heights: heights, color: color)
-        } else {
-            LoopTimeline(running: true) { now in
-                HomeMeter(barWidth: barWidth, gap: gap, heights: heights, color: color, breath: now.timeIntervalSinceReferenceDate)
-            }
-            .accessibilityHidden(true)
-        }
-    }
-}
-
-/// Live levels for the meter, observed on their own so only the meter re-renders while it listens.
-struct LiveHomeMeter: View {
-    @ObservedObject var live: LiveMeter
-    var barWidth: CGFloat
-    var gap: CGFloat
-    var heights: [CGFloat]
-    var color: Color = Ink.inkFixed
-    var body: some View {
-        HomeMeter(barWidth: barWidth, gap: gap, heights: heights, color: color, levels: live.levels)
-    }
-}
-
-/// The level as the recorder shows it (`RecordingWriter.write`): the first channel's RMS, mapped so speech fills
-/// most of the bar height.
-enum HomeLevel {
-    static func of(_ buffer: AVAudioPCMBuffer) -> Float {
-        guard let ch = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return 0 }
-        let n = Int(buffer.frameLength)
-        var sum: Float = 0
-        for i in 0..<n { sum += ch[i] * ch[i] }
-        let rms = (sum / Float(n)).squareRoot()
-        return min(1, (max(0, rms - 0.004) * 6).squareRoot())
-    }
-}
-
-/// Listens to the microphone for the Record panel's meter while the pointer is over it (Mac) or a finger is on it
-/// (iPhone). Levels only: nothing is written to disk, and the mic closes within a second of leaving. It never asks
-/// for permission: without it, the meter stays still. The system's mic indicator shows while it listens.
-@MainActor
-final class HomeLevelMonitor: ObservableObject {
-    let live = LiveMeter()
-    @Published private(set) var listening = false
-    private let tap = HomeMicTap()
-    private var pending: Task<Void, Never>?
-
-    /// Opens the mic after `delay` (so a pointer passing over, or a quick tap, doesn't open it).
-    func listen(after delay: TimeInterval) {
-        pending?.cancel(); pending = nil
-        guard !listening, HomeMotion.enabled, HomeMicTap.permitted else { return }
-        pending = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            guard !Task.isCancelled else { return }
-            self?.open()
-        }
-    }
-
-    /// Closes the mic after `delay` (well under a second), unless `listen` is called again first.
-    func stop(after delay: TimeInterval = 0) {
-        pending?.cancel(); pending = nil
-        guard listening else { return }
-        guard delay > 0 else { close(); return }
-        pending = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            guard !Task.isCancelled else { return }
-            self?.close()
-        }
-    }
-
-    private func open() {
-        pending = nil
-        listening = true
-        live.reset()
-        let live = self.live
-        let start = Date()
-        tap.open { v in
-            Task { @MainActor in live.push(v, seconds: Date().timeIntervalSince(start), paused: false) }
-        }
-    }
-
-    private func close() {
-        pending = nil
-        listening = false
-        tap.close()
-        live.reset()
-    }
-}
-
-/// The monitor's microphone, opened and closed on its own queue. Mac: the chosen input through `InputUnit`, the
-/// same unit recording uses, so no other device is ever opened. iPhone: an `AVAudioEngine` input tap that mixes
-/// with other audio.
-final class HomeMicTap: @unchecked Sendable {
-    private let queue = DispatchQueue(label: "co.stumpandroot.verbatim.home-level")
-    #if os(macOS)
-    private var unit: InputUnit?
-
-    /// Only when access is already granted; hover never prompts.
-    static var permitted: Bool { AVCaptureDevice.authorizationStatus(for: .audio) == .authorized }
-
-    func open(_ onLevel: @escaping @Sendable (Float) -> Void) {
-        queue.async {
-            guard self.unit == nil, let device = AudioDevices.current() else { return }
-            do {
-                let u = try InputUnit(device: device.id) { buffer in onLevel(HomeLevel.of(buffer)) }
-                try u.start()
-                self.unit = u
-            } catch {
-                Log.note("home meter: couldn't open the microphone: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    func close() {
-        queue.async {
-            self.unit?.dispose()
-            self.unit = nil
-        }
-    }
-    #else
-    private var engine: AVAudioEngine?
-
-    /// Only when access is already granted; a touch never prompts.
-    static var permitted: Bool { AVAudioApplication.shared.recordPermission == .granted }
-
-    func open(_ onLevel: @escaping @Sendable (Float) -> Void) {
-        queue.async {
-            guard self.engine == nil else { return }
-            let s = AVAudioSession.sharedInstance()
-            do {
-                // Mixes with whatever is playing; the recorder sets its own category when it starts. Haptics stay
-                // allowed, so Record's start tap still plays while this meter has the microphone open.
-                if s.category != .playAndRecord && s.category != .record {
-                    try RecordingRoute.setCategory(s, mode: .default, options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth])
-                }
-                RecordingRoute.allowHaptics(s)
-                try s.setActive(true)
-                let e = AVAudioEngine()
-                let format = e.inputNode.outputFormat(forBus: 0)
-                guard format.sampleRate > 0, format.channelCount > 0 else { return }
-                e.inputNode.installTap(onBus: 0, bufferSize: 2048, format: nil) { buffer, _ in onLevel(HomeLevel.of(buffer)) }
-                try e.start()
-                self.engine = e
-            } catch {
-                Log.note("home meter: couldn't open the microphone: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    func close() {
-        queue.async {
-            guard let e = self.engine else { return }
-            e.inputNode.removeTap(onBus: 0)
-            e.stop()
-            self.engine = nil
-        }
-    }
-    #endif
 }
 
 // MARK: - Cards
@@ -730,6 +520,67 @@ enum HomeAnnounce {
         #else
         UIAccessibility.post(notification: .announcement, argument: text)
         #endif
+    }
+}
+
+// MARK: - The refined look's Home (DESIGN.md §6, §13)
+
+extension HomeTile {
+    /// Each pick's color on Home in the refined look, by what it does (`hues`): Dictate butter, Import sage, What's
+    /// playing and App audio petal, and everything else the card; never more than three colored.
+    static func refinedHues(_ picks: [HomeTile]) -> [RefinedHue] {
+        hues(picks).map { h in
+            switch h {
+            case .butter?: return .butter
+            case .sage?: return .sage
+            case .petal?: return .petal
+            case nil: return .neutral
+            }
+        }
+    }
+}
+
+extension Transcript {
+    /// The kind a recent row's badge shows: the recording's own, else what it is (a dictation, a video or podcast
+    /// link, a video file, another app's sound). Nil is a voice note.
+    var refinedKind: RecordingKind? {
+        if let kind { return kind }
+        if isDictation { return .dictation }
+        if LibrarySource.isLink(self) {
+            let p = Platform.of(self)
+            return p == Platform.applePodcasts || p == Platform.spotify ? .podcast : .video
+        }
+        if source == .file { return LibrarySource.isVideoFile(self) ? .video : .audio }
+        if source == .app { return .audio }
+        return nil
+    }
+}
+
+/// This week's seven days as dots on Home's Journal: filled where there's an entry, today ringed, days to come
+/// faint, in ink. Optional weekday letters under them. Decorative: the section says the count.
+struct HomeWeekDots: View {
+    var week: [HomeJournalWeek.Day]
+    var size: CGFloat
+    var letters = false
+
+    var body: some View {
+        let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
+        HStack(spacing: size * 0.9) {
+            ForEach(week, id: \.start) { d in
+                VStack(spacing: 4) {
+                    Circle().fill(d.hasEntry ? Refined.ink : Color.clear)
+                        .overlay(Circle().strokeBorder(d.hasEntry ? Refined.ink : d.isFuture ? Refined.faint.opacity(0.5) : Refined.faint,
+                                                       lineWidth: d.isToday ? 1.6 : 1))
+                        .frame(width: size, height: size)
+                    if letters {
+                        Text(symbols[(Calendar.current.component(.weekday, from: d.start) - 1) % symbols.count])
+                            .refinedFont(.caption, weight: d.isToday ? .semibold : .regular)
+                            .foregroundStyle(d.isToday ? Refined.ink : Refined.mute)
+                    }
+                }
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
