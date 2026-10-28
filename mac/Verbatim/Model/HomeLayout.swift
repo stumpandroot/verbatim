@@ -7,9 +7,9 @@ import Combine
 // shortcut tiles it offers. Each app keeps one layout per look, per device: the iPhone in the App Group (so widgets
 // can read it), the Mac in its own defaults. Nothing syncs.
 //
-// The model is plain Foundation, so mac/tools/test-home-layout.sh runs it on Linux: the defaults that match each
-// look's Home before Edit Home, the tolerant decoding (unknown sections and tiles are ignored, missing ones are added
-// where they belong), the move rules the editor uses, and how the Mac pairs sections in its 7 / 5 grid.
+// The model is plain Foundation, so mac/tools/test-home-layout.sh runs it on Linux: each app's defaults (one Home in
+// both looks since the refined look), the tolerant decoding (unknown sections and tiles are ignored, missing ones are added
+// where they belong), the move rules the editor uses, and how the Mac pairs sections side by side.
 
 /// Which app a layout is for. Some sections and tiles exist on one app only.
 enum HomePlatform: String, Sendable {
@@ -63,8 +63,8 @@ enum HomeSection: String, CaseIterable, Sendable {
     /// Edit Home's second line for the section (the tiles row names its tiles instead).
     func detail(on platform: HomePlatform, look: HomeLook) -> String {
         switch self {
-        // Native has no floating button: the Mac's Record is in the toolbar, the iPhone's in the tab bar.
-        case .record: return look == .verbose ? "The Record panel" : (platform == .mac ? "A Record row; Record is also in the toolbar" : "Record is in the tab bar")
+        // One Home in both looks (the refined look, DESIGN.md §13): the Record card, which turns into the recording.
+        case .record: return platform == .mac ? "The Record card, and the recording while you record" : "The Record card"
         case .tiles: return "Four shortcuts"
         case .week: return "Words, time saved, and recordings"
         case .recent: return "Your latest recordings"
@@ -190,24 +190,21 @@ struct HomeLayout: Equatable, Sendable {
 
     // MARK: Defaults
 
-    /// Home as it was before Edit Home, in each look. Verbose style leads with the Record panel; Premium Native leads
-    /// with This week and hides the Record section, because the floating record button stands in for it. Today's
-    /// thoughts and Journal came later and start hidden, so no one's Home changes until they show them.
+    /// Home as a new install (or Reset) starts it: one Home in both looks since the refined look (DESIGN.md §13,
+    /// October 28, 2026), as its mockup draws it. iPhone: the Record card, the four tiles, a slim This week, and Recent
+    /// recordings. Mac: the Record card, the four tiles in a row, then Recent recordings beside This week. Today's
+    /// thoughts and Journal start hidden. A layout a device already stored keeps its sections, order, and sizes; the
+    /// look is still a key (each look keeps its own layout until the look switch goes).
     static func defaults(_ platform: HomePlatform, _ look: HomeLook) -> HomeLayout {
         func on(_ s: HomeSection, _ size: HomeCardSize) -> Item { Item(section: s, visible: true, size: size) }
         func off(_ s: HomeSection, _ size: HomeCardSize) -> Item { Item(section: s, visible: false, size: size) }
         let items: [Item]
-        switch (platform, look) {
-        case (.phone, .verbose), (.mac, .verbose):
+        switch platform {
+        case .phone:
             items = [on(.record, .large), on(.tiles, .large), on(.week, .compact), on(.recent, .large),
                      off(.thoughts, .large), off(.journal, .large)]
-        case (.phone, .native):
-            items = [on(.week, .large), off(.record, .large), on(.tiles, .compact), on(.recent, .large),
-                     off(.thoughts, .large), off(.journal, .large)]
-        case (.mac, .native):
-            // The Native redesign (October 27, 2026): quick actions, This week as one stat cell, and Recent recordings,
-            // as the iPhone's Home; Record is in the toolbar, so it starts hidden.
-            items = [on(.tiles, .large), on(.week, .large), on(.recent, .large), off(.record, .large),
+        case .mac:
+            items = [on(.record, .large), on(.tiles, .large), on(.recent, .large), on(.week, .large),
                      off(.thoughts, .large), off(.journal, .large)]
         }
         return HomeLayout(items: items, tiles: defaultTiles(platform))
@@ -431,16 +428,17 @@ enum HomeJournalWeek {
 
 // MARK: - The Mac's grid
 
-/// A band of the Mac's Home: one section across the grid, or two side by side (7 / 5 columns).
+/// A band of the Mac's Home: one section across the grid, or two side by side (two thirds and one third).
 struct HomeRow: Identifiable, Equatable, Sendable {
     var items: [HomeLayout.Item]
     var id: HomeSection { items[0].section }
 }
 
 enum HomeRows {
-    /// Large sections that make sense in half the grid; a Compact section is a strip across the whole width.
+    /// Large sections that make sense beside another: Recent recordings, This week, Today's thoughts, and Journal. The
+    /// Record card and the tiles always run across the column, and a Compact section is a strip across it.
     static func pairable(_ item: HomeLayout.Item) -> Bool {
-        item.size == .large
+        item.size == .large && item.section != .record && item.section != .tiles
     }
 
     /// Pairs neighbors that can share a band, left to right, when the window is wide enough; otherwise one per band.

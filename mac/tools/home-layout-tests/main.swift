@@ -1,7 +1,7 @@
 import Foundation
 
-// Edit Home's layout model (Verbatim/Model/HomeLayout.swift): the defaults that match each look's Home before Edit
-// Home, the older settings carried over, decoding stored layouts (unknown sections and tiles ignored, missing ones
+// Edit Home's layout model (Verbatim/Model/HomeLayout.swift): each app's defaults (one Home in both looks since the
+// refined look), the older settings carried over, decoding stored layouts (unknown sections and tiles ignored, missing ones
 // added where they belong), the editor's moves, the four tiles, the Mac's pairing, Today's thoughts and Journal, and the
 // iPhone's tab bar (Verbatim/Model/PhoneTabBar.swift). Not part of any app target; run mac/tools/test-home-layout.sh.
 var passed = 0, failed = 0
@@ -20,19 +20,16 @@ let pn = HomeLayout.defaults(.phone, .native)
 let mv = HomeLayout.defaults(.mac, .verbose)
 let mn = HomeLayout.defaults(.mac, .native)
 
-check("iPhone Verbose style: Record, tiles, This week, Recent recordings, as before",
+// One Home in both looks (the refined look, DESIGN.md §13): each app's defaults are the same in either look.
+check("iPhone: the Record card, tiles, This week, Recent recordings",
       names(pv.shown) == ["record", "tiles", "week", "recent"], "\(names(pv.shown))")
-check("iPhone Verbose style: Record panel and tiles Large, This week a Compact strip",
+check("iPhone: Record card and tiles Large, This week a Compact strip",
       pv.size(.record) == .large && pv.size(.tiles) == .large && pv.size(.week) == .compact && pv.size(.recent) == .large)
-check("iPhone Native: This week, tiles, Recent recordings; the Record section hidden",
-      names(pn.shown) == ["week", "tiles", "recent"] && !pn.isVisible(.record), "\(names(pn.shown))")
-check("iPhone Native: hidden Record keeps its place between This week and the tiles",
-      names(pn.items).prefix(3) == ["week", "record", "tiles"])
-check("iPhone Native: This week Large, tiles Compact", pn.size(.week) == .large && pn.size(.tiles) == .compact)
-check("Mac Verbose style: Record and tiles, This week, Recent recordings (Last dictation left)",
-      names(mv.shown) == ["record", "tiles", "week", "recent"], "\(names(mv.shown))")
-check("Mac Native: quick actions, This week, Recent recordings; Record hidden (the Native redesign)",
-      names(mn.shown) == ["tiles", "week", "recent"] && !mn.isVisible(.record), "\(names(mn.shown))")
+check("iPhone Native starts with the same Home, the Record card included", pn == pv && pn.isVisible(.record))
+check("Mac: the Record card, tiles, then Recent recordings beside This week",
+      names(mv.shown) == ["record", "tiles", "recent", "week"], "\(names(mv.shown))")
+check("Mac: every section Large", mv.shown.allSatisfy { $0.size == .large })
+check("Mac Native starts with the same Home, the Record card included", mn == mv && mn.isVisible(.record))
 // The consolidation (October 28, 2026): eleven sections down to six.
 check("Home's sections: Record, tiles, This week, Recent recordings, Today's thoughts, and Journal",
       HomeSection.allCases.map(\.rawValue) == ["record", "tiles", "week", "recent", "thoughts", "journal"])
@@ -62,7 +59,7 @@ check("Mac: Show This week on Home turned off carries over as a hidden This week
 check("Mac: and in Native", !HomeLayout.initial(.mac, .native, legacy: .init(showWeek: false)).isVisible(.week))
 check("Mac: the switch left on changes nothing", HomeLayout.initial(.mac, .verbose, legacy: .init(showWeek: true)) == mv)
 let recordCard = HomeLayout.initial(.phone, .native, legacy: .init(nativeRecordCard: true))
-check("iPhone Native: Show the Record card carries over, in its old place", names(recordCard.shown) == ["week", "record", "tiles", "recent"], "\(names(recordCard.shown))")
+check("iPhone Native: Show the Record card on (an older setting) leaves the card where it is", names(recordCard.shown) == ["record", "tiles", "week", "recent"], "\(names(recordCard.shown))")
 check("iPhone: the Record card setting doesn't touch Verbose style", HomeLayout.initial(.phone, .verbose, legacy: .init(nativeRecordCard: false)) == pv)
 check("no older settings: the defaults", HomeLayout.initial(.phone, .native, legacy: .init()) == pn)
 check("an install from before keeps the four tiles it had (Live captions)", HomeLayout.initial(.phone, .verbose, legacy: .init(keepsEarlierTiles: true)).tiles
@@ -105,7 +102,7 @@ check("its retired tiles are replaced from the defaults, in order", pc?.tiles ==
 
 let otherApp = json(#"{"items":[{"section":"week","visible":true}],"tiles":["appAudio","thoughtPad","captions"]}"#)
 let o = HomeLayout.decode(otherApp, .phone, .native)
-check("a missing size or visibility takes the default", o?.size(.week) == .large && o?.isVisible(.week) == true)
+check("a missing size or visibility takes the default", o?.size(.week) == .compact && o?.isVisible(.week) == true)
 check("tiles the app doesn't offer are dropped", o?.tiles == [.captions, .dictate, .importMedia, .whatsPlaying], "\(o?.tiles.map(\.rawValue) ?? [])")
 
 // A layout saved before Today's thoughts and Journal existed: they're added after their neighbors, hidden.
@@ -136,8 +133,9 @@ check("showing a hidden one again: also at the end", names(e.shown) == ["record"
 e.setVisible(.week, true)
 check("showing a shown section changes nothing", names(e.shown) == ["record", "tiles", "recent", "journal", "week"])
 var ip = pn
+ip.setVisible(.record, false, inPlace: true)
 ip.setVisible(.record, true, inPlace: true)
-check("a switch elsewhere shows a section where it sits (Appearance's Record card)", names(ip.shown) == ["week", "record", "tiles", "recent"])
+check("a switch elsewhere shows a section where it sits", names(ip.shown) == ["record", "tiles", "week", "recent"])
 var r = pv
 r.moveShown(fromOffsets: IndexSet(integer: 0), toOffset: 2)
 check("drag the first section below the second (List.onMove offsets)", names(r.shown) == ["tiles", "record", "week", "recent"], "\(names(r.shown))")
@@ -154,8 +152,8 @@ check("move a section before another", names(m.shown) == ["recent", "record", "t
 m.moveShown(.recent, before: nil)
 check("move a section to the end", names(m.shown) == ["record", "tiles", "week", "recent"])
 var s = pn
-s.setSize(.week, .compact)
-check("change a section's size", s.size(.week) == .compact && s.size(.tiles) == .compact && names(s.shown) == names(pn.shown))
+s.setSize(.week, .large)
+check("change a section's size", s.size(.week) == .large && s.size(.tiles) == .large && names(s.shown) == names(pn.shown))
 
 // MARK: Tiles
 
@@ -179,18 +177,20 @@ check("tile slots keep their place and skip missing picks", HomeTileSlot.slots([
 // MARK: The Mac's grid
 
 func rowNames(_ rows: [HomeRow]) -> [[String]] { rows.map { names($0.items) } }
-check("Mac Verbose style: Record beside the tiles, This week across, Recent recordings across",
-      rowNames(HomeRows.rows(mv.shown, wide: true)) == [["record", "tiles"], ["week"], ["recent"]], "\(rowNames(HomeRows.rows(mv.shown, wide: true)))")
-// Native Home is one column (NativeHome.swift), so it draws its shown sections in order and never pairs them; a
-// narrow pass of the grid gives that order.
-check("Mac Native: the shown sections in order, one per band",
-      rowNames(HomeRows.rows(mn.shown, wide: false)) == [["tiles"], ["week"], ["recent"]], "\(rowNames(HomeRows.rows(mn.shown, wide: false)))")
+check("Mac: the Record card across, the tiles across, Recent recordings beside This week",
+      rowNames(HomeRows.rows(mv.shown, wide: true)) == [["record"], ["tiles"], ["recent", "week"]], "\(rowNames(HomeRows.rows(mv.shown, wide: true)))")
+check("the Record card and the tiles never pair, even Large and side by side",
+      !HomeRows.pairable(HomeLayout.Item(section: .record, visible: true, size: .large))
+      && !HomeRows.pairable(HomeLayout.Item(section: .tiles, visible: true, size: .large))
+      && HomeRows.pairable(HomeLayout.Item(section: .week, visible: true, size: .large)))
 check("a narrow window stacks every section", HomeRows.rows(mv.shown, wide: false).allSatisfy { $0.items.count == 1 } && HomeRows.rows(mv.shown, wide: false).count == mv.shown.count)
 var g = mv
 g.setSize(.tiles, .compact)
 g.setVisible(.thoughts, true)
-check("a Compact section runs across the grid and breaks the pair", rowNames(HomeRows.rows(g.shown, wide: true)) == [["record"], ["tiles"], ["week"], ["recent", "thoughts"]])
-check("rows are identified by their first section", HomeRows.rows(mv.shown, wide: true).map(\.id) == [.record, .week, .recent])
+g.setSize(.week, .compact)
+check("a Compact section runs across the grid and breaks the pair", rowNames(HomeRows.rows(g.shown, wide: true)) == [["record"], ["tiles"], ["recent"], ["week"], ["thoughts"]],
+      "\(rowNames(HomeRows.rows(g.shown, wide: true)))")
+check("rows are identified by their first section", HomeRows.rows(mv.shown, wide: true).map(\.id) == [.record, .tiles, .recent])
 
 // MARK: Today's thoughts and Journal (October 26, 2026)
 
@@ -199,7 +199,7 @@ check("Today's thoughts and Journal start hidden in every look on both apps", [p
 check("they're offered on both apps, in both looks", [HomePlatform.phone, .mac].allSatisfy { p in HomeLook.allCases.allSatisfy { look in
     HomeSection.thoughts.isAvailable(on: p, look: look) && HomeSection.journal.isAvailable(on: p, look: look) } })
 check("Today's thoughts and Journal didn't change the shown sections", names(pv.shown) == ["record", "tiles", "week", "recent"]
-      && names(mn.shown) == ["tiles", "week", "recent"])
+      && names(mn.shown) == ["record", "tiles", "recent", "week"])
 check("section names", HomeSection.thoughts.title == "Today's thoughts" && HomeSection.journal.title == "Journal")
 // A layout saved by the build before them, with every section it knew: they're added at the end, hidden.
 let before223 = json(#"{"version":1,"items":[{"section":"record","visible":true,"size":"large"},{"section":"tiles","visible":true,"size":"large"},{"section":"week","visible":true,"size":"compact"},{"section":"recent","visible":true,"size":"large"},{"section":"moments","visible":true,"size":"large"},{"section":"lastDictation","visible":false,"size":"compact"},{"section":"projects","visible":false,"size":"compact"},{"section":"queue","visible":false,"size":"compact"}],"tiles":["dictate","import","whatsPlaying","captions"]}"#)
@@ -225,8 +225,8 @@ check("and the layout round-trips with them", shown.encoded().flatMap { HomeLayo
 var macShown = mv
 macShown.setVisible(.thoughts, true)
 macShown.setVisible(.journal, true)
-// With Last dictation gone, Recent recordings pairs with the next Large section.
-check("on the Mac, Large Today's thoughts sits beside Recent recordings, then Journal", rowNames(HomeRows.rows(macShown.shown, wide: true)).suffix(2) == [["recent", "thoughts"], ["journal"]],
+// Recent recordings pairs with This week; shown after them, Today's thoughts and Journal share the next band.
+check("on the Mac, Large Today's thoughts sits beside Journal, under Recent recordings and This week", rowNames(HomeRows.rows(macShown.shown, wide: true)).suffix(2) == [["recent", "week"], ["thoughts", "journal"]],
       "\(rowNames(HomeRows.rows(macShown.shown, wide: true)))")
 
 check("New thought and Journal tiles are on both apps", [HomePlatform.phone, .mac].allSatisfy { HomeTile.available(on: $0).contains(.newThought) && HomeTile.available(on: $0).contains(.journal) })
