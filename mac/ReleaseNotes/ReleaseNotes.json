@@ -172,6 +172,20 @@
           ],
           "text": "Palette offers full color or soft tints for the Record card and tiles.",
           "detail": "Soft trades the persimmon Record card and bright tiles for light tints of the same colors. Find it in Settings › Appearance on iPhone and Settings › Personalization and preferences on the Mac."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "The Library has the new look: serif days, colored badges, and quick filters.",
+          "detail": "Chips for All, Voice notes, Meetings, Thoughts, Audio, Links, and Marked sit under the search field. Filter has every other type, kind, and project."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The Library is one table with colored kinds, quick filters, and sortable columns.",
+          "detail": "Click a row to select it and double-click to open it, in both looks. The Table and List choice is gone, so every Library is the table."
         }
       ]
     },
