@@ -1,7 +1,7 @@
 import Foundation
 
-// The Mac dictation surfaces' pure rules: notch geometry (Flow/NotchGeometry.swift), the floating button's placement
-// and the style choice (Flow/DictationSurface.swift), and the hotkey picker's shortcuts, conflicts, and upgrade
+// The Mac dictation surfaces' pure rules: notch geometry (Flow/NotchGeometry.swift), the style choice and the thought
+// bubble's placement (Flow/DictationSurface.swift), and the hotkey picker's shortcuts, conflicts, and upgrade
 // (Flow/HotkeyRules.swift). Not part of any app target; run mac/tools/test-surfaces.sh.
 var passed = 0, failed = 0
 func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "") {
@@ -84,35 +84,32 @@ check("Ribbon everywhere", DictationSurface.shown(chosen: .ribbon, hasNotch: tru
 check("notch where there is one", DictationSurface.shown(chosen: .notch, hasNotch: true, fallback: .ribbon) == .notch)
 check("pill without a notch (default)", DictationSurface.shown(chosen: .notch, hasNotch: false, fallback: .pill) == .pill)
 check("Ribbon without a notch when chosen", DictationSurface.shown(chosen: .notch, hasNotch: false, fallback: .ribbon) == .ribbon)
-check("floating button everywhere", DictationSurface.shown(chosen: .button, hasNotch: true, fallback: .pill) == .button)
+check("two styles: the Ribbon and the notch", DictationSurface.allCases == [.ribbon, .notch])
 let fresh = UserDefaults(suiteName: "surfaces-tests-\(UUID().uuidString)")!
 check("nothing saved: the Ribbon, as before", DictationSurface.stored(fresh) == .ribbon)
 check("nothing saved: pill without a notch", NotchFallback.stored(fresh) == .pill)
 check("nothing saved: click the notch is on", NotchClick.isOn(fresh))
-check("nothing saved: ink disc, medium", FloatingLook.stored(fresh) == .disc && FloatingSize.stored(fresh) == .medium)
 fresh.set("rocket", forKey: DictationSurface.key)
 check("an unknown value reads as the Ribbon", DictationSurface.stored(fresh) == .ribbon)
+check("nothing to move unless it's the floating button", !DictationSurface.migrateRetired(fresh) && fresh.string(forKey: DictationSurface.key) == "rocket")
+// The floating button retired (October 28, 2026): its value reads as the Ribbon and moves there once.
+fresh.set("button", forKey: DictationSurface.key)
+fresh.set("label", forKey: "flow.button.look")
+check("the retired floating button reads as the Ribbon", DictationSurface.stored(fresh) == .ribbon)
+check("the floating button moves to the Ribbon", DictationSurface.migrateRetired(fresh) && fresh.string(forKey: DictationSurface.key) == "ribbon")
+check("once", !DictationSurface.migrateRetired(fresh) && DictationSurface.stored(fresh) == .ribbon)
+check("its own settings stay for an older build", fresh.string(forKey: "flow.button.look") == "label")
+fresh.set("notch", forKey: DictationSurface.key)
+check("the notch stays the notch", !DictationSurface.migrateRetired(fresh) && DictationSurface.stored(fresh) == .notch)
 
-// MARK: Floating button placement
+// MARK: The thought bubble's placement
 
-check("sizes are 32, 44, 56 pt", FloatingSize.small.points == 32 && FloatingSize.medium.points == 44 && FloatingSize.large.points == 56)
-for look in FloatingLook.allCases {
-    for size in FloatingSize.allCases {
-        let hit = FloatingGeometry.hitSize(FloatingGeometry.restSize(look: look, size: size))
-        check("hit area at least 28 pt: \(look.rawValue) \(size.rawValue)", hit.width >= 28 && hit.height >= 28, "\(hit)")
-    }
-}
-check("the quiet dot is 16 pt at medium", FloatingGeometry.restSize(look: .dot, size: .medium) == CGSize(width: 16, height: 16))
 let vis = CGRect(x: 0, y: 80, width: 1512, height: 870)
 let btn = CGSize(width: 44, height: 44)
 let clamped = FloatingGeometry.clamp(CGPoint(x: -50, y: 2000), in: vis, size: btn)
 check("clamp: pulled back onto the screen", near(clamped.x, 30) && near(clamped.y, 950 - 30), "\(clamped)")
 let inside = FloatingGeometry.clamp(CGPoint(x: 700, y: 500), in: vis, size: btn)
 check("clamp: a spot inside stays put", near(inside.x, 700) && near(inside.y, 500))
-let snappedRight = FloatingGeometry.snap(CGPoint(x: 1450, y: 500), in: vis, size: btn)
-check("snap: slides to the nearest edge (right)", near(snappedRight.x, 1512 - 30) && near(snappedRight.y, 500), "\(snappedRight)")
-let snappedBottom = FloatingGeometry.snap(CGPoint(x: 700, y: 100), in: vis, size: btn)
-check("snap: bottom edge", near(snappedBottom.y, 80 + 30) && near(snappedBottom.x, 700), "\(snappedBottom)")
 let spot = FloatingGeometry.spot(for: CGPoint(x: 756, y: 515), in: vis)
 check("spot: fractions of the visible frame", abs(spot.x - 0.5) < 0.001 && abs(spot.y - 0.5) < 0.001, "\(spot)")
 let smaller = CGRect(x: 0, y: 25, width: 1280, height: 775)

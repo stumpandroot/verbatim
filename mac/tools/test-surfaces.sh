@@ -1,6 +1,6 @@
 #!/bin/bash
 # Compiles the Mac dictation surfaces' pure rules (Verbatim/Flow/NotchGeometry.swift: where the notch is and how big
-# the notch style's shape gets; DictationSurface.swift: which style shows and where the floating button sits;
+# the notch style's shape gets; DictationSurface.swift: which style shows and where the thought bubble sits;
 # HotkeyRules.swift: recorded shortcuts, conflicts, mouse buttons, and the ⌃⌥ Space upgrade) with the cases in
 # surfaces-tests/main.swift, and runs them. Needs only a Swift toolchain (macOS or Linux), not Xcode.
 #   bash mac/tools/test-surfaces.sh

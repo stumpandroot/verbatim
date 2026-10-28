@@ -159,6 +159,8 @@ final class AppState: ObservableObject {
         recorder.onInputSwitched = { [weak self] note in self?.toast = Toast(note) }
         AudioDucker.shared.follow(.voiceNote, recorder.$isRecording.combineLatest(recorder.$isPaused, recorder.$isStarting).map { $0.0 && !$0.1 && !$0.2 })
         HangWatch.start()
+        // The consolidation (October 28, 2026) moves settings for features that merged or retired, once per Mac.
+        ConsolidationMac.migrateSettings()
         dictation.attach(self)
         // Thoughts: ⌃⌥P, the bubble, and the pad's pieces moving in once (Flow/Thoughts.swift).
         ThoughtCapture.shared.attach(self)

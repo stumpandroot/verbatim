@@ -15,10 +15,12 @@ import Combine
 
 /// Settings › Features › Thoughts, and the words a thought shows.
 enum Thoughts {
-    /// Settings › Features › Thoughts › Show the bubble (also in the menu bar's Thoughts group).
+    /// Settings › Features › Thoughts › Show the bubble (also in the menu bar's Thoughts group). Off on a new install
+    /// (consolidation, October 28, 2026); an install from before keeps what it had (ConsolidationMac).
     static let bubbleKey = "thoughts.showBubble"
+    static let bubbleDefault = false
     static var showBubble: Bool {
-        get { UserDefaults.standard.object(forKey: bubbleKey) as? Bool ?? true }
+        get { UserDefaults.standard.object(forKey: bubbleKey) as? Bool ?? bubbleDefault }
         set { UserDefaults.standard.set(newValue, forKey: bubbleKey); refreshBubble() }
     }
     /// The setter is nonisolated; the bubble is main-actor. On the main thread (every caller today) it refreshes at once.

@@ -97,7 +97,8 @@ enum MacSettingsMap {
                 Setting("dictate.typeInstead"),
             ]),
         ]),
-        Pane(raw: "floatingButton", title: "Floating button and Ribbon", sections: [
+        // The floating button retired (October 28, 2026); the pane keeps its raw value, so links still land.
+        Pane(raw: "floatingButton", title: "Ribbon and notch", sections: [
             Section("Where dictation shows", [
                 Setting("dictate.surface", keys: ["flow.surface"]),
                 Setting("dictate.noNotch", keys: ["flow.notch.noNotch"]),
@@ -107,11 +108,6 @@ enum MacSettingsMap {
                 Setting("ribbon.style", keys: ["flow.ribbonStyle"]),
                 Setting("ribbon.mark", keys: ["flow.ribbonMark"]),
                 Setting("ribbon.liveWords", keys: ["flow.liveWords"]),
-            ]),
-            Section("Floating button", [
-                Setting("float.look", keys: ["flow.button.look"]),
-                Setting("float.size", keys: ["flow.button.size"]),
-                Setting("float.mark"), Setting("float.snap"), Setting("float.liveWords"),
             ]),
         ]),
         Pane(raw: "actions", title: "Actions", sections: [

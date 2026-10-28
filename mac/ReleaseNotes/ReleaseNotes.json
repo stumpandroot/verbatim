@@ -1,6 +1,26 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Fewer places to look, nothing lost",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Dictation shows in the Ribbon or the notch. The floating button is gone.",
+          "detail": "If you used the floating button, dictation shows in the Ribbon instead. Change it in Settings › Ribbon and notch."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The thought bubble starts off on a new install.",
+          "detail": "Turn it on in Settings › Features › Thoughts or from the menu bar. If you had it on, it stays on."
+        }
+      ]
+    },
+    {
       "build": "236",
       "date": "2026-10-27",
       "version": "1.0 beta",

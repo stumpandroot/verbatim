@@ -6,7 +6,7 @@ import ApplicationServices
 /// After a paste into a field Verbatim can read, it looks at that field again when you start the next
 /// dictation or after 20 seconds, whichever comes first. Where you replaced a dictated word with a different
 /// one that looks like a name or term (the Mac's spell checker doesn't know it, it isn't a number or a link,
-/// and it sounds similar), the Ribbon (or the notch, or the floating button) asks whether to remember it. Nothing is learned without a yes.
+/// and it sounds similar), the Ribbon (or the notch) asks whether to remember it. Nothing is learned without a yes.
 /// Only the pasted span is compared; nothing else in the field is kept.
 @MainActor
 final class AutoLearn {
@@ -89,7 +89,7 @@ final class AutoLearn {
             body: ask.count == 1 ? "You changed " : "You changed ",
             quote: ask.count == 1 ? "\(first.heard) → \(first.fixed)" : ask.map { "\($0.heard) → \($0.fixed)" }.joined(separator: ", "),
             // With a project picked, the word goes into that project (Dictionary › Use In changes it later). The scope
-            // is in the body, so the button says Remember on every surface (the Ribbon, the notch, the floating button).
+            // is in the body, so the button says Remember on every surface (the Ribbon and the notch).
             after: project.map { ". Next time it's spelled your way in \($0.name)." } ?? ". Next time it's spelled your way.",
             primary: "Remember",
             secondary: "Not now",

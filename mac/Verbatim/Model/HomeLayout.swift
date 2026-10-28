@@ -66,7 +66,8 @@ enum HomeSection: String, CaseIterable, Sendable {
     /// Edit Home's second line for the section (the tiles row names its tiles instead).
     func detail(on platform: HomePlatform, look: HomeLook) -> String {
         switch self {
-        case .record: return look == .native ? "The floating button is always on" : "The Record panel"
+        // Native has no floating button: the Mac's Record is in the toolbar, the iPhone's in the tab bar.
+        case .record: return look == .verbose ? "The Record panel" : (platform == .mac ? "A Record row; Record is also in the toolbar" : "Record is in the tab bar")
         case .tiles: return "Four shortcuts"
         case .week: return "Words, time saved, and recordings"
         case .stats: return "Recordings and time saved"

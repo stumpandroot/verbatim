@@ -348,7 +348,7 @@ struct ElapsedText: View {
 struct ThoughtsMenuSection: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var capture = ThoughtCapture.shared
-    @AppStorage(Thoughts.bubbleKey) private var showBubble = true
+    @AppStorage(Thoughts.bubbleKey) private var showBubble = Thoughts.bubbleDefault
 
     var body: some View {
         let _ = LookSwitch.mark("menu-thoughts")

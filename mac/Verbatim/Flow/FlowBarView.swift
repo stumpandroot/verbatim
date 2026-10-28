@@ -7,7 +7,7 @@ import AppKit
 enum RibbonStyle: String { case paper, ink; static let key = "flow.ribbonStyle" }
 /// What moves with your voice: the logo's three bars or the colophon's tangent rings.
 enum RibbonMark: String { case bars, rings; static let key = "flow.ribbonMark" }
-/// Settings › Dictation › Show words as you speak (the Floating button pane has it too). On by default.
+/// Settings › Dictation › Show words as you speak. On by default.
 enum LiveWordsSetting {
     static let key = "flow.liveWords"
     static var isOn: Bool { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
@@ -490,7 +490,7 @@ struct PromptCard: View {
     let controller: FlowBarController
     /// Runs down while the card waits and holds while the pointer is over it (FlowBarController keeps time).
     let countdown: FlowBarModel.Countdown
-    /// Self-test ids: "ribbon-prompt-primary" on the Ribbon, "button-prompt-primary" beside the floating button.
+    /// Self-test ids: "ribbon-prompt-primary" on the Ribbon.
     var idPrefix = "ribbon"
     @State private var progress: CGFloat = 1
 

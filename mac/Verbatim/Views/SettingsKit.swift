@@ -78,7 +78,7 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
         case .personalization: return "How Verbose looks and sounds, what it knows about you, your voice, and the words it should spell your way."
         case .recording: return "Which model transcribes your recordings, who's talking, and what Verbose does to a transcript when it's ready."
         case .dictate: return "Hold or press your hotkey in any app and Verbose types what you say."
-        case .floatingButton: return "What you see while Verbose listens, cleans up, and pastes: the Ribbon, the notch, or the floating button."
+        case .floatingButton: return "What you see while Verbose listens, cleans up, and pastes: the Ribbon or the notch."
         case .actions: return "Instructions you save once and run on any text: a selection in any app, a dictation, or a whole transcript. Everything runs on this Mac. To turn a whole recording into notes, use Templates."
         case .meetings: return "Record a call as two tracks, your microphone and the meeting app, on this Mac, and live captions for whatever your Mac is playing or hearing. Verbose can notice a call and ask; it never records on its own."
         case .watched: return "Drop audio or video into a watched folder and Verbose transcribes it, then exports the results where you choose, with the text, speaker names, and timecodes set here."
@@ -153,7 +153,7 @@ enum SettingsIndex {
 
         // Dictation
         .init("dictate.enabled", .dictate, "Dictate anywhere", "Off, the hotkey does nothing and dictation doesn't show on screen.", keywords: "dictation voice typing"),
-        .init("dictate.surface", .floatingButton, "Show dictation in", "What you see while Verbose listens, cleans up, and pastes.", keywords: "ribbon notch floating button pill tab where style display screen"),
+        .init("dictate.surface", .floatingButton, "Show dictation in", "What you see while Verbose listens, cleans up, and pastes.", keywords: "ribbon notch pill tab where style display screen"),
         .init("dictate.noNotch", .floatingButton, "On displays without a notch", "External displays and Macs without a notch.", keywords: "external display monitor pill ribbon notch"),
         .init("dictate.notchWords", .floatingButton, "Show words as you speak", "Hover the notch to see them. What's pasted still comes from Verbose's own transcription.", keywords: "live words preview streaming notch"),
         .init("dictate.notchClick", .floatingButton, "Click the notch to dictate", "Point at the notch to see your hotkey; click to start, click again to paste.", keywords: "notch click hover pointer"),
@@ -187,11 +187,6 @@ enum SettingsIndex {
         .init("dictate.typeInstead", .dictate, "Type instead of paste", "For apps that block ⌘V or paste the wrong thing.", keywords: "paste clipboard typing apps"),
 
         // Floating button (its own style since the notch; the Ribbon's settings moved to Dictation)
-        .init("float.look", .floatingButton, "Button", "Ink disc, Bars pill, Quiet dot, or Labeled pill.", keywords: "look disc pill dot labeled style appearance"),
-        .init("float.size", .floatingButton, "Size", "Small is 32 pt, medium 44 pt, large 56 pt. The click target is never smaller than 28 pt.", keywords: "small medium large big"),
-        .init("float.mark", .floatingButton, "Voice mark", "Moves with your voice while you dictate.", keywords: "bars rings level meter"),
-        .init("float.snap", .floatingButton, "Snap to the screen edge", "Off, it stays where you drop it. On, it slides to the nearest edge, like the Ribbon.", keywords: "edge snap drag place position"),
-        .init("float.liveWords", .floatingButton, "Show words as you speak", "A preview of your words beside the button, recognized on this Mac.", keywords: "live words preview streaming"),
 
         // Actions
         .init("actions.list", .actions, "Saved actions", "Name, instruction, and how long text is handled.", keywords: "prompt rewrite summarize instruction"),

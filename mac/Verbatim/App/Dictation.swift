@@ -12,8 +12,8 @@ extension Notification.Name {
 
 /// Verbatim Flow: dictate into any app on the Mac.
 ///
-/// Start with the hotkey (hold to talk, press for hands-free, or either) or by clicking the Ribbon, the notch, or
-/// the floating button (Settings › Dictation › Show dictation in).
+/// Start with the hotkey (hold to talk, press for hands-free, or either) or by clicking the Ribbon or the notch
+/// (Settings › Ribbon and notch › Show dictation in).
 /// Verbatim transcribes on this Mac, cleans the words up for the app you're in (email, chat, code), pastes
 /// them where your cursor is, and puts your clipboard back. Every dictation is kept, with its audio, in
 /// Dictations, so a missed paste is never a lost thought.
@@ -486,7 +486,7 @@ final class DictationController: ObservableObject {
             if e.keyCode == UInt16(kVK_Escape), writingSession != nil { cancelWriting(); return }
             // Esc closes the didn't-paste notice (the words stay on the clipboard and in Dictations).
             if e.keyCode == UInt16(kVK_Escape), rescuing, bar?.model.phase == .prompt { rescuing = false; bar?.dismissPrompt(); return }
-            // Esc closes an error the notch or the floating button holds until you act.
+            // Esc closes an error the notch holds until you act.
             if e.keyCode == UInt16(kVK_Escape), bar?.dismissStickyNotice() == true { return }
             let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if e.keyCode == UInt16(kVK_ANSI_V), mods == [.command, .control] { if !e.isARepeat { pasteLast() }; return }
@@ -597,7 +597,7 @@ final class DictationController: ObservableObject {
         }
     }
 
-    // MARK: Ribbon, notch, and floating button clicks
+    // MARK: Ribbon and notch clicks
 
     func barClicked() {
         if isListening { finish() } else if !isWorking { startFromBar(command: false) }

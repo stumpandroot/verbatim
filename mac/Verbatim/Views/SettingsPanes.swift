@@ -79,7 +79,7 @@ struct UpdateSettingsSection: View {
 // MARK: - Dictation and keyboard
 
 /// Dictation: the hotkey and how it starts, cleanup, tone per kind of app, accuracy, snippets, and Accessibility.
-/// Where dictation shows is on Floating button and Ribbon.
+/// Where dictation shows is on Ribbon and notch.
 struct DictationSettings: View {
     @EnvironmentObject var app: AppState
     var body: some View { DictationForm(dictation: app.dictation) }
@@ -219,7 +219,7 @@ struct DictationForm: View {
     }
 }
 
-// MARK: - Floating button and Ribbon
+// MARK: - Ribbon and notch
 
 // FloatingButtonSettingsPane is in DictationSurfaceSettings.swift, with the rest of the dictation surfaces' settings.
 
@@ -783,7 +783,7 @@ struct FeaturesSettingsPane: View {
 
 /// Features › Thoughts: the hotkey, the bubble, and when a new day's page starts (Flow/Thoughts.swift).
 struct ThoughtsSettingsGroup: View {
-    @AppStorage(Thoughts.bubbleKey) private var showBubble = true
+    @AppStorage(Thoughts.bubbleKey) private var showBubble = Thoughts.bubbleDefault
     @AppStorage(DayPages.newPageHourKey) private var hour = 0
 
     var body: some View {

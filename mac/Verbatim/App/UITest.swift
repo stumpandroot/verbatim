@@ -288,15 +288,23 @@ enum UITest {
         bar.setPhase(.idle)
     }
 
-    /// The notch style (shown as the pill on the runner, whose display has no notch) and the floating button: the
-    /// same prompt and notice clicks as the Ribbon, through their own panels, and a click on the floating button.
+    /// The notch style (shown as the pill on the runner, whose display has no notch): the same prompt and notice clicks
+    /// as the Ribbon, through its own panel. The floating button retired; a stored "button" reads as the Ribbon.
     private static func surfaceSteps(app: AppState) async {
         guard let bar = app.dictation.bar else { fail += 1; Log.note("UITEST FAIL surfaces: no controller"); return }
         let d = UserDefaults.standard
         let saved = d.string(forKey: DictationSurface.key)
         let settle: UInt64 = 1_200_000_000
 
-        for (surface, prefix) in [(DictationSurface.notch, "notch"), (DictationSurface.button, "button")] {
+        // The retired floating button's value moves to the Ribbon, and nothing draws it.
+        d.set(DictationSurface.retiredButton, forKey: DictationSurface.key)
+        bar.refresh()
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        check("surfaces: the retired floating button shows the Ribbon", bar.shown == .ribbon && DictationSurface.stored() == .ribbon)
+        check("surfaces: the floating button's value moves to the Ribbon once", DictationSurface.migrateRetired()
+              && d.string(forKey: DictationSurface.key) == DictationSurface.ribbon.rawValue && !DictationSurface.migrateRetired())
+
+        for (surface, prefix) in [(DictationSurface.notch, "notch")] {
             d.set(surface.rawValue, forKey: DictationSurface.key)
             bar.refresh()
             try? await Task.sleep(nanoseconds: 600_000_000)
@@ -325,25 +333,20 @@ enum UITest {
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
 
-        // A click on the floating button reaches dictation: it starts, or asks for Accessibility (or the mic).
-        await ribbonStep("floating button click reaches dictation", bar, target: "floating-button", check: { bar.model.phase != .idle })
-        if app.dictation.isListening { app.dictation.cancel(quiet: true) }
-        bar.setPhase(.idle)
-
         if let saved { d.set(saved, forKey: DictationSurface.key) } else { d.removeObject(forKey: DictationSurface.key) }
         bar.refresh()
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
-    /// The notch style's and the floating button's states for CI's screenshots (the notch shows as the pill on a
-    /// display without one), then the Ribbon again.
+    /// The notch style's states for CI's screenshots (the notch shows as the pill on a display without one), then the
+    /// Ribbon again.
     private static func surfaceShots(app: AppState) async {
         guard let bar = app.dictation.bar else { return }
         let d = UserDefaults.standard
         let saved = d.string(forKey: DictationSurface.key)
         bar.model.targetName = "Notes"
         bar.model.targetBundleID = "com.apple.Notes"
-        for (surface, prefix) in [(DictationSurface.notch, "08f-notch"), (DictationSurface.button, "08g-floating")] {
+        for (surface, prefix) in [(DictationSurface.notch, "08f-notch")] {
             d.set(surface.rawValue, forKey: DictationSurface.key)
             bar.refresh()
             // The notch is hidden at rest on a display without one (CI's), so there's nothing to point at: no shot.
@@ -680,7 +683,7 @@ enum UITest {
         UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
         await show("09d-settings-dictate")
         UserDefaults.standard.set(SettingsTab.floatingButton.rawValue, forKey: "settingsTab")
-        await show("09h-settings-floating-button")
+        await show("09h-settings-ribbon-notch")
         UserDefaults.standard.set(SettingsTab.actions.rawValue, forKey: "settingsTab")
         await show("09b-settings-actions")
         seedWatchedFolders()

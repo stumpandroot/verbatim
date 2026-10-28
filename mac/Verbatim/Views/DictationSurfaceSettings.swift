@@ -3,13 +3,13 @@ import AppKit
 
 // brand: web style
 //
-// Settings for how dictation shows and starts: Floating button and Ribbon › Where dictation shows (the Ribbon, the
-// notch, or the floating button, with each one's own rows) and the floating button's look, and Dictation and
+// Settings for how dictation shows and starts: Ribbon and notch › Where dictation shows (the Ribbon or the notch,
+// with each one's own rows), and Dictation and
 // keyboard › Hotkey (a list that shows its keys, a shortcut you record, or a mouse side button) and How it starts. Website style (DESIGN.md §11): cards with
 // an ink outline when chosen, keycaps for keys, line mini pills for actions; switches, menus, and segmented
 // controls stay native.
 
-// MARK: - Floating button and Ribbon › Where dictation shows
+// MARK: - Ribbon and notch › Where dictation shows
 
 struct DictationSurfaceRows: View {
     @EnvironmentObject var app: AppState
@@ -52,9 +52,6 @@ struct DictationSurfaceRows: View {
             SettingsToggleRow("ribbon.show", isOn: $flow.showBar)
             ribbonLook
             SettingsToggleRow("ribbon.liveWords", isOn: $liveWords)
-        case .button:
-            // The floating button's own rows follow on this pane (FloatingButtonGroups).
-            EmptyView()
         }
     }
 
@@ -153,18 +150,6 @@ private struct SurfaceThumb: View {
                     .frame(width: 92, height: 14)
                     .background(NotchShape(radius: 6, flare: 3).fill(Ink.notchBlack))
                     Spacer()
-                }
-            case .button:
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        BarsMark(color: Ink.paperFixed).frame(width: 10, height: 11)
-                            .frame(width: 24, height: 24)
-                            .background(Circle().fill(Ink.inkFixed))
-                            .background(Circle().fill(Ink.inkFixed).offset(x: 2, y: 2))
-                    }
-                    .padding(.trailing, 16).padding(.bottom, 14)
                 }
             }
         }
@@ -578,88 +563,16 @@ struct HowItStartsRow: View {
     }
 }
 
-// MARK: - Floating button
+// MARK: - Ribbon and notch
 
+/// Settings › Ribbon and notch (raw value `floatingButton`, kept so links and the stored pane still land): where
+/// dictation shows, with the Ribbon's or the notch's own rows. The floating button retired (October 28, 2026).
 struct FloatingButtonSettingsPane: View {
-    @EnvironmentObject var app: AppState
-    @AppStorage(LiveWordsSetting.key) private var liveWords = true
-    @AppStorage(FloatingLook.key) private var lookRaw = FloatingLook.disc.rawValue
-    @AppStorage(FloatingSize.key) private var sizeRaw = FloatingSize.medium.rawValue
-    @AppStorage(FloatingButtonKeys.mark) private var mark = RibbonMark.bars.rawValue
-    @AppStorage(FloatingButtonKeys.snap) private var snap = false
-    @AppStorage(DictationSurface.key) private var surfaceRaw = DictationSurface.ribbon.rawValue
-
     var body: some View {
         SettingsPane(tab: .floatingButton) {
             SettingsGroup(title: "Where dictation shows") {
                 DictationSurfaceRows()
             }
-            SettingsGroup(title: "Floating button", footer: surfaceRaw == DictationSurface.button.rawValue ? nil
-                          : "It shows once Show dictation in, above, is set to Floating button.") {
-                SettingsRow("float.look", detail: "", stacked: true) {
-                    HStack(spacing: 10) {
-                        ForEach(FloatingLook.allCases) { l in
-                            LookCard(look: l, selected: lookRaw == l.rawValue, keycap: app.dictation.hotkey.keycap) { lookRaw = l.rawValue }
-                        }
-                    }
-                    .frame(maxWidth: 620, alignment: .leading)
-                }
-                SettingsRow("float.size") {
-                    Picker("Size", selection: $sizeRaw) {
-                        ForEach(FloatingSize.allCases) { Text($0.title).tag($0.rawValue) }
-                    }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize()
-                }
-                SettingsRow("float.mark") {
-                    Picker("Voice mark", selection: $mark) {
-                        Text("Three bars").tag(RibbonMark.bars.rawValue)
-                        Text("Rings").tag(RibbonMark.rings.rawValue)
-                    }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize()
-                }
-                SettingsToggleRow("float.snap", isOn: $snap)
-                SettingsToggleRow("float.liveWords", isOn: $liveWords)
-            }
         }
-        .onChange(of: lookRaw) { _, _ in app.dictation.bar?.refresh() }
-        .onChange(of: sizeRaw) { _, _ in app.dictation.bar?.refresh() }
-        .onChange(of: liveWords) { _, on in if on { app.dictation.prepareLiveWords(askPermission: true) } }
-    }
-}
-
-/// One look in Settings › Floating button and Ribbon › Floating button, drawn at rest on a neutral desktop.
-private struct LookCard: View {
-    var look: FloatingLook
-    var selected: Bool
-    var keycap: String
-    var action: () -> Void
-    @State private var hover = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack {
-                Ink.stripeA
-                DesktopHills().fill(Ink.stripeB).padding(.top, 22)
-                FloatingButtonFace(look: look, size: look == .dot ? .medium : .small, phase: .rest,
-                                   levels: VoiceBars.still(5), elapsed: 0, keycap: String(keycap.split(separator: " ").last ?? "⌥"))
-                    .scaleEffect(look == .label ? 0.82 : 1)
-            }
-            .frame(height: 60)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-            Text(look.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
-                .padding(.top, 8).padding(.horizontal, 4)
-        }
-        .padding(6).padding(.bottom, 3)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(selected ? Ink.card : (hover ? Ink.cardHover : Ink.paper), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .overlay { if !selected { RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1) } }
-        .inkEdge(outline: selected, shadow: selected ? InkEdge.row : .zero, radius: Radius.tile)
-        .onHover { hover = $0 }
-        .tapArea(action)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(look.title)
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityAction { action() }
-        .uiTarget("settings-look-\(look.rawValue)")
     }
 }

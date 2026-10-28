@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 // The floating bubble (mockup "Thoughts", section 01): a small ink disc above every app. Click it and a thought starts
-// at once; click again and it's added to today's page. Built like the floating button (DESIGN.md §12.3): a fixed-size,
+// at once; click again and it's added to today's page. Built like the dictation surfaces (DESIGN.md §12): a fixed-size,
 // non-activating panel at `.statusBar` level on every Space and beside full-screen apps, where only the drawn shape
 // takes clicks (gestures and `tapArea`, never SwiftUI Buttons), and it never becomes key or activates Verbose. While a
 // thought records, the disc turns persimmon and shows the Thoughts icon with its wave following the mic, with "Click to
@@ -28,7 +28,7 @@ final class BubbleLayout: ObservableObject {
 final class ThoughtBubble {
     static let shared = ThoughtBubble()
     static let spotsKey = "thoughts.bubble.spots"
-    /// Lower right, above the floating button's default spot.
+    /// Lower right, clear of the Dock's middle and of most windows' controls.
     static let standardSpot = ButtonSpot(x: 0.96, y: 0.32)
     static let disc: CGFloat = 44
     /// Room for the card (up to 330 pt) beside the disc on either side.

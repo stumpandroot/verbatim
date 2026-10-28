@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-// Pieces the notch and the floating button share: their panel, the voice bars, the spinner, and the glyphs.
+// Pieces the notch and the thought bubble share: their panel, the voice bars, the spinner, and the glyphs.
 
 /// A borderless, non-activating panel for a dictation surface: it never becomes key or main, never moves itself onto
 /// the visible frame (the notch's panel sits over the menu bar), and is kept out of screenshots and screen sharing
