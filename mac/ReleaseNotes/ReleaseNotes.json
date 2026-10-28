@@ -6,6 +6,49 @@
       "items": [
         {
           "platforms": [
+            "mac"
+          ],
+          "text": "Home has the new look: a persimmon Record card, colored tiles, Recent, and This week.",
+          "detail": "Click the Record card for a voice note, or right-click it for more ways to record. While you record, it becomes the recording, with Mark moment, Pause, and Stop and transcribe."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Palette offers full color or soft tints for the Record card and tiles.",
+          "detail": "Soft trades the persimmon Record card and bright tiles for light tints of the same colors. Find it in Settings › Appearance on iPhone and Settings › Personalization and preferences on the Mac."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The Library is one table with colored kinds, quick filters, and sortable columns.",
+          "detail": "Click a row to select it and double-click to open it, in both looks. The Table and List choice is gone, so every Library is the table."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Transcripts have the new look: serif text, colored speaker chips, and a glass player.",
+          "detail": "The line playing has a sage wash, and marked lines have a small bookmark. Summary is a tab beside Original and Cleaned, and the player's speed menu has Mark this moment and Follow playback."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Transcripts read in a centered serif column with speaker chips and a glass player.",
+          "detail": "Original, Cleaned, Summary, and a template's result are tabs at the top. Share and More hold Copy, Export, Run a template, and the rest, and moments and details sit in the side column."
+        }
+      ]
+    },
+    {
+      "build": "239",
+      "date": "2026-10-28",
+      "version": "1.0 beta",
+      "title": "iPhone only: a new look for Home and the Library, and fewer places to look",
+      "items": [
+        {
+          "platforms": [
             "iphone"
           ],
           "text": "Plan my day is the one plan maker. Make a plan merged into it.",
@@ -90,15 +133,7 @@
         },
         {
           "platforms": [
-            "mac"
-          ],
-          "text": "Home has the new look: a persimmon Record card, colored tiles, Recent, and This week.",
-          "detail": "Click the Record card for a voice note, or right-click it for more ways to record. While you record, it becomes the recording, with Mark moment, Pause, and Stop and transcribe."
-        },
-        {
-          "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Palette offers full color or soft tints for the Record card and tiles.",
           "detail": "Soft trades the persimmon Record card and bright tiles for light tints of the same colors. Find it in Settings › Appearance on iPhone and Settings › Personalization and preferences on the Mac."
@@ -109,27 +144,6 @@
           ],
           "text": "The Library has the new look: serif days, colored badges, and quick filters.",
           "detail": "Chips for All, Voice notes, Meetings, Thoughts, Audio, Links, and Marked sit under the search field. Filter has every other type, kind, and project."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "The Library is one table with colored kinds, quick filters, and sortable columns.",
-          "detail": "Click a row to select it and double-click to open it, in both looks. The Table and List choice is gone, so every Library is the table."
-        },
-        {
-          "platforms": [
-            "iphone"
-          ],
-          "text": "Transcripts have the new look: serif text, colored speaker chips, and a glass player.",
-          "detail": "The line playing has a sage wash, and marked lines have a small bookmark. Summary is a tab beside Original and Cleaned, and the player's speed menu has Mark this moment and Follow playback."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "Transcripts read in a centered serif column with speaker chips and a glass player.",
-          "detail": "Original, Cleaned, Summary, and a template's result are tabs at the top. Share and More hold Copy, Export, Run a template, and the rest, and moments and details sit in the side column."
         }
       ]
     },
