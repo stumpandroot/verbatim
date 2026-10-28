@@ -38,6 +38,34 @@
           ],
           "text": "Transcripts read in a centered serif column with speaker chips and a glass player.",
           "detail": "Original, Cleaned, Summary, and a template's result are tabs at the top. Share and More hold Copy, Export, Run a template, and the rest, and moments and details sit in the side column."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "The recorder has the new look: the kind in serif and a persimmon clock.",
+          "detail": "Your words show in serif, with the newest sentence darker. Mark moment, Stop, and Pause sit under your thumb, with Discard below. It's the same sheet in both looks."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Minimized, a recording shows its time with Pause and Stop above the tab bar.",
+          "detail": "In Native it's in the tab bar, in the same design. Tap it to bring the recorder back."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "While you record, the toolbar shows the time with a Stop button.",
+          "detail": "In Native, Record sits beside Back and Forward, so it stays in the toolbar in a narrow window with the inspector open."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The menu bar, meeting panel, bubble, and Live captions have the new look.",
+          "detail": "The menu bar panel and the meeting panel show the recording as a small persimmon card, and the meeting banner uses the new cards and buttons."
         }
       ]
     },
