@@ -203,7 +203,9 @@ struct GlassPlayerBar<Options: View>: View {
 
             Group {
                 if let status {
+                    // Read aloud as it shows (a skipped sponsor read); never a dialog.
                     Text(status).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1).fixedSize()
+                        .onAppear { AccessibilityNotification.Announcement(status).post() }
                 } else {
                     Text(RefinedRules.time(elapsed)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.dim)
                         .accessibilityHidden(true)
