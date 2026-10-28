@@ -6,140 +6,70 @@
       "items": [
         {
           "platforms": [
-            "mac"
-          ],
-          "text": "Dictation shows in the Ribbon or the notch. The floating button is gone.",
-          "detail": "If you used the floating button, dictation shows in the Ribbon instead. Change it in Settings › Ribbon and notch."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "The thought bubble starts off on a new install.",
-          "detail": "Turn it on in Settings › Features › Thoughts or from the menu bar. If you had it on, it stays on."
-        },
-        {
-          "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Plan my day is the one plan maker. Make a plan merged into it.",
           "detail": "A kind that ran Make a plan runs Plan my day. Results it made stay on their transcripts, and Run again makes a Plan my day in their place."
         },
         {
           "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Journal entry merged into Daily reflection.",
           "detail": "A kind that ran Journal entry runs Daily reflection. Entries it wrote stay on their transcripts."
         },
         {
           "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "The Key points template is gone. The automatic summary lists key points.",
           "detail": "Key points results stay on their transcripts. A kind that ran it turns Off."
         },
         {
           "platforms": [
-            "mac"
-          ],
-          "text": "Templates holds your text actions too, each marked with where it works.",
-          "detail": "The actions that ran on selected text from Settings › Actions are in Templates, marked Selected text and recordings. Edit, add, and reorder them there."
-        },
-        {
-          "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Moments became the Library's Marked filter.",
           "detail": "Marked lists every recording with a bookmark, a mark, or a note at a time. If Moments was one of your iPhone tabs, Library or Thoughts takes its place."
         },
         {
           "platforms": [
-            "mac"
-          ],
-          "text": "Links became the Library's Links filter, and the sidebar's Links row is gone."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "The sidebar shows Queue only while something is queued or transcribing."
-        },
-        {
-          "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Home has six sections: Record, tiles, This week, Recent, Thoughts, and Journal.",
           "detail": "Queue, Projects, Moments, Last dictation, and Stats left Home. The sidebar, the Library, Dictations, and You keep what they showed."
         },
         {
           "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "New installs start with New thought in place of the Live captions tile.",
           "detail": "Live captions stays in Edit Home, the menus, and its shortcut. If you never changed your tiles, you keep the ones you had."
         },
         {
           "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Home's tiles drop Search, Moments, Queue, and Paste a link.",
           "detail": "Import takes a file or a link. Search with ⌘K on the Mac, or in the Library."
         },
         {
           "platforms": [
-            "mac"
-          ],
-          "text": "The Ribbon and the menu bar no longer list dictations. The menu bar opens Dictations.",
-          "detail": "Your dictations are in Dictations, and Recall (⌥⌘V) brings back recent ones."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "⌘F opens the same search as ⌘K.",
-          "detail": "Find in Transcripts opens Search or ask on Search. The Library's field still filters the Library."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "⌘O opens Import, which takes files, a folder, or a link. ⌘N opens it too."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "Today's page has a note mode, Write or dictate, in place of the Brain dump window.",
-          "detail": "Choose File › Today's Note. Hold ⌃⌥ and talk, or type, then Plan my day. Notes from the Brain dump window are on their day's page."
-        },
-        {
-          "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Record as shows five rows: Voice note, Meeting, Thought, Brain dump, and Audio only.",
           "detail": "Turn Interview, Journal entry, or Talk back on with Edit Record as. If you recorded one in the last 30 days, it stays."
         },
         {
           "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Journal shows in By day once you have an entry or turn on Journal entry.",
           "detail": "On iPhone, Journal is offered as a tab under the same rule."
         },
         {
           "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Ask hides recipes until you turn on Recipes. Recipes you have keep running.",
           "detail": "Turn them on in Ask's More menu, or on iPhone in Settings › Features › Templates."
@@ -186,6 +116,144 @@
           ],
           "text": "The Library is one table with colored kinds, quick filters, and sortable columns.",
           "detail": "Click a row to select it and double-click to open it, in both looks. The Table and List choice is gone, so every Library is the table."
+        }
+      ]
+    },
+    {
+      "build": "238",
+      "date": "2026-10-28",
+      "version": "1.0 beta",
+      "title": "Mac only: fewer places to look, nothing lost",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Dictation shows in the Ribbon or the notch. The floating button is gone.",
+          "detail": "If you used the floating button, dictation shows in the Ribbon instead. Change it in Settings › Ribbon and notch."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The thought bubble starts off on a new install.",
+          "detail": "Turn it on in Settings › Features › Thoughts or from the menu bar. If you had it on, it stays on."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Plan my day is the one plan maker. Make a plan merged into it.",
+          "detail": "A kind that ran Make a plan runs Plan my day. Results it made stay on their transcripts, and Run again makes a Plan my day in their place."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Journal entry merged into Daily reflection.",
+          "detail": "A kind that ran Journal entry runs Daily reflection. Entries it wrote stay on their transcripts."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The Key points template is gone. The automatic summary lists key points.",
+          "detail": "Key points results stay on their transcripts. A kind that ran it turns Off."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Templates holds your text actions too, each marked with where it works.",
+          "detail": "The actions that ran on selected text from Settings › Actions are in Templates, marked Selected text and recordings. Edit, add, and reorder them there."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Moments became the Library's Marked filter.",
+          "detail": "Marked lists every recording with a bookmark, a mark, or a note at a time. If Moments was one of your iPhone tabs, Library or Thoughts takes its place."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Links became the Library's Links filter, and the sidebar's Links row is gone."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The sidebar shows Queue only while something is queued or transcribing."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Home has six sections: Record, tiles, This week, Recent, Thoughts, and Journal.",
+          "detail": "Queue, Projects, Moments, Last dictation, and Stats left Home. The sidebar, the Library, Dictations, and You keep what they showed."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "New installs start with New thought in place of the Live captions tile.",
+          "detail": "Live captions stays in Edit Home, the menus, and its shortcut. If you never changed your tiles, you keep the ones you had."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Home's tiles drop Search, Moments, Queue, and Paste a link.",
+          "detail": "Import takes a file or a link. Search with ⌘K on the Mac, or in the Library."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The Ribbon and the menu bar no longer list dictations. The menu bar opens Dictations.",
+          "detail": "Your dictations are in Dictations, and Recall (⌥⌘V) brings back recent ones."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "⌘F opens the same search as ⌘K.",
+          "detail": "Find in Transcripts opens Search or ask on Search. The Library's field still filters the Library."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "⌘O opens Import, which takes files, a folder, or a link. ⌘N opens it too."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Today's page has a note mode, Write or dictate, in place of the Brain dump window.",
+          "detail": "Choose File › Today's Note. Hold ⌃⌥ and talk, or type, then Plan my day. Notes from the Brain dump window are on their day's page."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Record as shows five rows: Voice note, Meeting, Thought, Brain dump, and Audio only.",
+          "detail": "Turn Interview, Journal entry, or Talk back on with Edit Record as. If you recorded one in the last 30 days, it stays."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Journal shows in By day once you have an entry or turn on Journal entry.",
+          "detail": "On iPhone, Journal is offered as a tab under the same rule."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Ask hides recipes until you turn on Recipes. Recipes you have keep running.",
+          "detail": "Turn them on in Ask's More menu, or on iPhone in Settings › Features › Templates."
         }
       ]
     },
