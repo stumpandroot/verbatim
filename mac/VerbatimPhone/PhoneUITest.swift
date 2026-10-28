@@ -765,6 +765,11 @@ enum PhoneUITest {
         func dots(_ kind: RecordingKind) -> Int {
             app.store.dayPages(kind, hour: hour).filter { cal.isDate($0.day, equalTo: Date(), toGranularity: .month) }.count
         }
+        // By day from the Library: Thoughts is a default tab since the consolidation (build 237), so show the Library
+        // tab first, or the screen on view is the Thoughts tab's page.
+        app.tab = .library
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 400_000_000)
         app.libraryPath.append(ByDayRoute(kind: .idea))
         await show("\(prefix)04g-by-day-thoughts\(suffix)")
         if checks {
