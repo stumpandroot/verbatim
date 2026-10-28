@@ -133,6 +133,7 @@ enum SettingsIndex {
     private static let base: [SettingsEntry] = [
         // General
         .init("general.look", .personalization, "Look", "How Verbose looks on this Mac. Your iPhone has its own setting.", keywords: "native verbose style theme apple stock paper design"),
+        .init("general.palette", .personalization, "Palette", "Full puts persimmon on the Record card and bright colors on Home's tiles. Soft uses light tints of the same colors.", keywords: "color colour soft full tint muted bright pastel theme"),
         .init("general.appearance", .personalization, "Appearance", "Match the system, or always light or dark.", keywords: "dark mode light theme color"),
         .init("general.limitMotion", .personalization, "Limit animation", "Fades instead of movement; illustrations stay still. Always on when Reduce Motion is on in System Settings.", keywords: "reduce motion accessibility animations"),
         .init("general.menuBar", .personalization, "Show in menu bar", "Record from anywhere with the menu bar item, or press ⌥⇧R while Verbose is running.", keywords: "menubar status item record shortcut"),

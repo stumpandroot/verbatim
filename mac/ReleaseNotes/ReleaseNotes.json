@@ -150,6 +150,14 @@
           ],
           "text": "Keyboard settings suggest the keyboard and the Action button to start a session.",
           "detail": "The Control Center switch and the session widget still work. Find them in Settings › Features › Widgets and controls."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Palette offers full color or soft tints for the Record card and tiles.",
+          "detail": "Soft trades the persimmon Record card and bright tiles for light tints of the same colors. Find it in Settings › Appearance on iPhone and Settings › Personalization and preferences on the Mac."
         }
       ]
     },
