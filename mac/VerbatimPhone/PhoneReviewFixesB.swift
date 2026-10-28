@@ -12,10 +12,13 @@ extension PhoneUITest {
     static func reviewFixesPhoneB(_ app: PhoneState) {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") review fixes B: \(name)") }
 
-        // P-25, P-26: one row of four tiles in place of the stacked cards.
-        let tiles = LibraryWaysIn.tiles(dictations: 3, todayThoughts: 0, templates: 13, recipes: 0)
-        check("Library's ways in are one row: Dictations, By day, Templates, Ask", tiles.map(\.name) == ["Dictations", "By day", "Templates", "Ask"])
-        check("By day and Ask show no count at zero", tiles[1].count == nil && tiles[3].count == nil && tiles[0].count == 3)
+        // P-25, P-26, superseded by the refined Library (DESIGN.md §6.8): the places are one card of rows.
+        let places = LibraryScreen.placeRows(dictations: 3, todayThoughts: 0, templates: 13, recipes: 0, projects: 0)
+        check("Library's places are one card: Dictations, By day, Templates, Ask", places.map { $0.title } == ["Dictations", "By day", "Templates", "Ask"])
+        check("By day and Ask show no value at zero", places[1].value == nil && places[3].value == nil && places[0].value == "3")
+        check("Projects joins the card once you have one, and the four first keep their hues",
+              LibraryScreen.placeRows(dictations: 0, todayThoughts: 2, templates: 0, recipes: 1, projects: 2).last.map { $0.title == "Projects" && $0.value == "2" } == true
+              && places.map { $0.hue } == [.butter, .sage, .petal, .neutral])
 
         // P-27: the type chips stay put.
         check("type chips keep a fixed order and keep the chosen type",

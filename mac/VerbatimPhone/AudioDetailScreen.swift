@@ -394,21 +394,20 @@ struct PhoneAudioPlayer: View {
 
 // MARK: - In the Library
 
-/// An Audio only row's play button and waveform: plays here, without opening it. The played part follows playback
-/// while this recording is the one playing.
+/// An Audio only row's play button and waveform in the Library (DESIGN.md §6.8): plays here, without opening it. The
+/// play disc is sage (sage means playback), the played part of the waveform follows playback while this recording is
+/// the one playing, and its moments are butter ticks.
 struct PhoneAudioRowPlayer: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
-    var native: Bool
 
-    var body: some View { RowPlayer(transcript: transcript, native: native, clock: app.player.clock) }
+    var body: some View { RowPlayer(transcript: transcript, clock: app.player.clock) }
 }
 
 /// The row player's body, observing only the playhead's clock.
 private struct RowPlayer: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
-    var native: Bool
     @ObservedObject var clock: PlayerClock
 
     private var url: URL? { app.store.audioURL(for: transcript) }
@@ -419,75 +418,27 @@ private struct RowPlayer: View {
     var body: some View {
         HStack(spacing: 10) {
             Button { play() } label: {
-                if native {
-                    Image(systemName: playing ? "pause.circle.fill" : "play.circle.fill").font(.system(size: 30)).foregroundStyle(NativeInk.accent)   // brand: native
-                } else {
-                    ZStack {
-                        Circle().fill(Ink.panelSage)
-                        IconGlyph(art: playing ? .iconPause : .iconPlay, size: 14, color: Ink.inkFixed)
-                    }
-                    .frame(width: 34, height: 34)
+                ZStack {
+                    Circle().fill(Refined.sage)
+                    IconGlyph(art: playing ? .iconPause : .iconPlay, size: 14, color: Refined.onFill)
                 }
+                .frame(width: 34, height: 34)
+                .frame(minWidth: CGFloat(RefinedRules.minTapTarget), minHeight: CGFloat(RefinedRules.minTapTarget))
+                .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(playing ? "Pause" : "Play")
+            .accessibilityHint("Plays \(transcript.title) here, without opening it.")
             .accessibilityIdentifier("library.audio.play")
-            if native {
-                AudioWave(levels: transcript.waveform, played: played, marks: AudioWave.marks(transcript),
-                          bar: NativeInk.tertiary, playedColor: NativeInk.label, mark: NativeInk.accent, bars: 56)   // brand: native
-                    .frame(height: 26)
-            } else {
-                AudioWave(levels: transcript.waveform, played: played, marks: AudioWave.marks(transcript),
-                          bar: Ink.ink, playedColor: Ink.panelSage, mark: PhoneInk.butter, bars: 54)
-                    .frame(height: 34)
-            }
+            AudioWave(levels: transcript.waveform, played: played, marks: AudioWave.marks(transcript),
+                      bar: Refined.waveRest, playedColor: Refined.played, mark: Refined.butter, bars: 54)
+                .frame(height: 30)
+                .accessibilityHidden(true)
         }
     }
 
     private func play() {
         guard let url else { app.say("The audio isn't on this iPhone yet."); return }
         if isMine, app.player.canPlay { app.player.toggle() } else { app.player.loadAsync(url, autoplay: true) }
-    }
-}
-
-/// Verbose style's Library card for an Audio only recording: the kind dot, the title in the serif, "Audio only · 2:14
-/// PM · 2 moments", the length, the waveform with its play disc, and "No transcript". Tap the card to open it.
-struct PhoneAudioCard: View {
-    @EnvironmentObject var app: PhoneState
-    var transcript: Transcript
-    @ScaledMetric(relativeTo: .body) private var titleSize: CGFloat = 19
-
-    private var meta: String {
-        var parts = ["Audio only", Formats.style(date: .none, time: .short).string(from: transcript.createdAt)]
-        let n = transcript.notes.filter { $0.at != nil }.count
-        if n > 0 { parts.append(n == 1 ? "1 moment" : "\(n) moments") }
-        return parts.joined(separator: " · ")
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button { app.open(transcript.id) } label: {
-                HStack(spacing: 12) {
-                    PhoneKindDot(transcript: transcript, size: 36)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(PhoneRowTitle.title(transcript)).font(Ink.serif(titleSize)).foregroundStyle(.lookInk).lineLimit(1)
-                        Text(meta).font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(1)
-                    }
-                    Spacer(minLength: 6)
-                    if transcript.status == .processing { PhoneRowState(transcript: transcript) }
-                    else { Text(HomeRecentStyle.length(transcript.duration)).font(Ink.mono(13)).foregroundStyle(.lookMute) }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(AudioOnlyRules.accessibilityLabel(transcript))
-            .accessibilityHint("Opens it")
-            PhoneAudioRowPlayer(transcript: transcript, native: false)
-            Text(AudioOnlyRules.statusLine(transcript)).font(.system(size: 12.5)).foregroundStyle(.lookMute)
-        }
-        .padding(12)
-        .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
-        .padding(.vertical, 5)
     }
 }
