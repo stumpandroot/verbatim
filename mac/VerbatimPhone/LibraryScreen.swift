@@ -410,7 +410,7 @@ struct LibraryScreen: View {
     /// The source's color, as on Home: voice notes record, files and links sage, app audio petal, dictation butter.
     static func dot(_ s: LibrarySource) -> Color? {
         switch s {
-        case .all: return nil
+        case .all, .marked: return nil
         case .voiceMemos: return PhoneInk.record
         case .videos, .audioFiles, .links: return PhoneInk.sage
         case .appAudio: return PhoneInk.petal
