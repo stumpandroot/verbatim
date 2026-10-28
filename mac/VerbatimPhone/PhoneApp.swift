@@ -47,6 +47,8 @@ struct PhoneRoot: View {
     @ObservedObject private var rename = RenameCenter.shared
     /// The tabs in the bar (PhoneTabBar.swift); the TabView follows a change at once.
     @ObservedObject private var tabBar = PhoneTabBarStore.shared
+    /// Home's layouts: Native's Record accessory steps aside on Home while its Record card is there.
+    @ObservedObject private var layouts = HomeLayoutStore.shared
     /// The full-screen recorder zooms out of the bar and back into it.
     @Namespace private var recorderZoom
     @Environment(\.look) private var look
@@ -80,8 +82,11 @@ struct PhoneRoot: View {
             }
         }
         // Native: Record in the tab bar's bottom accessory, and a tab bar that shrinks on scroll down (iOS 26;
-        // RecordAccessory.swift). On in both looks, so the tab view keeps its identity when the look changes.
-        .nativeTabChrome(native: look.isNative, hidden: app.readingTranscripts > 0)
+        // RecordAccessory.swift). On in both looks, so the tab view keeps its identity when the look changes. Off while
+        // you read a transcript, and on Home's own screen while its Record card is there (HomeSections.swift).
+        .nativeTabChrome(native: look.isNative, hidden: app.readingTranscripts > 0
+                         || HomeSpacing.hidesRecordAccessory(tab: app.tab, homeAtRoot: app.homePath.isEmpty,
+                                                             recording: app.recordingActive, layout: layouts.layout(look.homeLook)))
         // The tab you leave keeps the look it was drawn in; the one you open follows the current look.
         .onChange(of: app.tab) { old, new in
             tabLooks[old] = look

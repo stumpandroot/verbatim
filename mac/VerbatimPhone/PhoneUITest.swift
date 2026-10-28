@@ -132,7 +132,7 @@ enum PhoneUITest {
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 await show("\(prefix)01-home")
                 if prefix == "p" { homeLayoutCheck(.verbose) }
-                // The rest of Home: This week, Recent recordings, Recent dictations, and the keyboard row.
+                // The rest of Home: This week and Recent recordings.
                 NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-recent")
                 await show("\(prefix)01b-home-recent")
                 NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-top")
@@ -396,9 +396,10 @@ enum PhoneUITest {
                 await show("\(prefix)01-home-native")
                 if prefix == "p" {
                     homeLayoutCheck(.native)
-                    lookCheck("Home in Native shows Record in the tab bar's accessory", NativeRecordAccessory.onScreen > 0 && NativeRecordAccessory.showsRecord)
+                    lookCheck("Home in Native draws the Record card, and Record's accessory steps aside on Home",
+                              HomeProbe.sections[.record] != nil && (NativeRecordAccessory.onScreen == 0 || !NativeRecordPlacement.systemAccessory))
                 }
-                // Premium's recent recordings, as Voicenotes-style items (light only, to keep the tour short).
+                // The rest of Home in Native: the same refined Home (light only, to keep the tour short).
                 if prefix == "p" {
                     NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-recent")
                     await show("p01b-home-recent-native")
@@ -660,14 +661,19 @@ enum PhoneUITest {
         try? await Task.sleep(nanoseconds: 700_000_000)
         await show("p01t-record-accessory-native")
 
-        // On every tab in the bar.
+        // On every tab in the bar but Home, where the Record card stands in for it.
         var missing: [String] = []
-        for t in app.tabBar.tabs {
+        for t in app.tabBar.tabs where t != .home {
             app.tab = t
             try? await Task.sleep(nanoseconds: 700_000_000)
             if NativeRecordAccessory.onScreen == 0 || !NativeRecordAccessory.showsRecord { missing.append(t.rawValue) }
         }
-        check("Record is in the tab bar's accessory on every tab\(missing.isEmpty ? "" : " (missing on \(missing.joined(separator: ", ")))")", missing.isEmpty)
+        check("Record is in the tab bar's accessory on every tab but Home\(missing.isEmpty ? "" : " (missing on \(missing.joined(separator: ", ")))")", missing.isEmpty)
+        app.tab = .home
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        if NativeRecordPlacement.systemAccessory {
+            check("on Home, the Record card takes the accessory's place", NativeRecordAccessory.onScreen == 0 && HomeProbe.sections[.record] != nil)
+        }
         check("no floating record disc is left on any tab", RecordTray.shared.floatingFrames.isEmpty)
         app.tab = .home
         try? await Task.sleep(nanoseconds: 500_000_000)
@@ -1520,13 +1526,14 @@ enum PhoneUITest {
         return find(start)?.viewControllers.count
     }
 
-    /// Home shows the layout for the look and only that one, by which Record card is on screen (build 204's Native
-    /// Home kept Verbose style's Record panel, rings, and tiles under a half-made navigation bar).
+    /// Home draws the refined layout in either look, once: the Home on screen is the one built in the current look
+    /// (build 204's Native Home kept Verbose style's layout under a half-made navigation bar), with the Record card
+    /// when the look's layout shows it.
     private static func homeLayoutCheck(_ look: AppLook) {
         let shown = HomeScreen.recordCardsOnScreen
-        let name = look == .native ? "Home in Native shows the Premium layout (This week card), not Verbose style's Record panel"
-                                   : "Home in Verbose style shows the Record panel, not Native's Record card"
-        lookCheck("\(name) (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))", shown == [look])
+        let record = HomeLayoutStore.shared.layout(look.homeLook).isVisible(.record) == (HomeProbe.sections[.record] != nil)
+        lookCheck("Home in \(look == .native ? "Native" : "Verbose style") draws the refined Home, once (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))",
+                  shown == [look] && record)
     }
 
     /// Edit Home (EditHome.swift, HomeLayout.swift) from Home's button: open it, hide a section (This week), reorder
@@ -1537,7 +1544,6 @@ enum PhoneUITest {
         let store = HomeLayoutStore.shared
         let hl = look.homeLook
         let other: HomeLook = hl == .native ? .verbose : .native
-        let working = { HomeScreen.working(app.store) }
         app.appearance = "light"
         app.homePath = NavigationPath()
         app.tab = .home
@@ -1570,14 +1576,14 @@ enum PhoneUITest {
         check("a hidden section leaves Home (This week)", !after.isVisible(.week) && onScreen[.week] == nil)
         check("two sections swap places", order.count >= 2 && after.shown.prefix(2).map(\.section) == [order[1], order[0]])
         check("Home draws only the shown sections (\(onScreen.keys.map(\.rawValue).sorted().joined(separator: ", ")))",
-              Set(onScreen.keys) == Set(HomeSpacing.drawn(after, working: working(), native: look.isNative).map(\.section)))
+              Set(onScreen.keys) == Set(HomeSpacing.drawn(after).map(\.section)))
         check("a size change reaches Home (tiles \(tileSize.rawValue))", onScreen[.tiles] == tileSize)
         check("a new tile reaches Home (Dictionary for \(dropped.title))", HomeProbe.tiles.contains(.dictionary) && !HomeProbe.tiles.contains(dropped))
         check("the other look keeps its own layout", store.layout(other) == HomeLayout.defaults(.phone, other))
         store.reset(hl)
         try? await Task.sleep(nanoseconds: 1_200_000_000)
         check("Reset puts Home back", store.layout(hl) == HomeLayout.defaults(.phone, hl)
-              && Set(HomeProbe.sections.keys) == Set(HomeSpacing.drawn(store.layout(hl), working: working(), native: look.isNative).map(\.section)))
+              && Set(HomeProbe.sections.keys) == Set(HomeSpacing.drawn(store.layout(hl)).map(\.section)))
         // The same screen from Settings › Personalization › Customize Home (SettingsPages.swift).
         app.tab = .settings
         SettingsPage.open("customizeHome")
@@ -1588,8 +1594,13 @@ enum PhoneUITest {
         app.tab = .home
         try? await Task.sleep(nanoseconds: 600_000_000)
         if look.isNative {
-            check("Record stays in the tab bar's accessory while the Record section is hidden",
+            // With the Record card hidden, Record's accessory comes back on Home.
+            store.update(hl) { $0.setVisible(.record, false) }
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            check("Record comes back in the tab bar's accessory on Home while the Record card is hidden",
                   NativeRecordAccessory.onScreen > 0 && HomeProbe.sections[.record] == nil)
+            store.reset(hl)
+            try? await Task.sleep(nanoseconds: 700_000_000)
         }
     }
 
@@ -1949,7 +1960,8 @@ enum PhoneUITest {
         check("moments become bookmarks; unnamed ones take their line's words once transcribed", notes.map(\.text) == ["", "The price"] && notes.allSatisfy(\.isBookmark)
               && notes.allSatisfy { $0.markSource == MarkSource.phoneApp.rawValue })
         check("moments added to a transcript start after it", notes.map { $0.at ?? -1 } == [642, 718])
-        check("the Record card is off by default in Native", !HomeLayout.defaults(.phone, .native).isVisible(.record))
+        check("the Record card is on Home by default in both looks", HomeLayout.defaults(.phone, .native).isVisible(.record)
+              && HomeLayout.defaults(.phone, .verbose).isVisible(.record))
         // The Native redesign (October 27, 2026): system blue for what you tap, system red only for recording, system
         // backgrounds, and no persimmon in the chrome.
         check("Native's accent is system blue", sameColor(NativeInk.accent, .systemBlue))

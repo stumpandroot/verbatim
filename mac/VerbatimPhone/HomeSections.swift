@@ -1,36 +1,35 @@
 import SwiftUI
 
-// Home's sections that both looks share on iPhone (Edit Home, mockup "premium", section 03): Today's thoughts and
-// Journal, each Compact (one slim row or strip) or Large (the full card); the shortcut tiles' actions; and
-// the Edit Home button at the end of Home. Record, the tiles, This week, and Recent recordings are drawn by each
-// look's Home (HomeScreen.swift, NativeHome.swift). Every view reads `\.look` and draws the look's clothes; the
-// Native branches are stock Apple and marked for the brand check.
+// Home's sections on iPhone beyond the Record card, tiles, This week, and Recent recordings (HomeScreen.swift): Today's
+// thoughts and Journal, each Compact (one slim row) or Large (the card under its serif title); the shortcut tiles'
+// actions; and the Edit Home button at the end of Home. Drawn with the refined kit (DESIGN.md §13) in both looks.
 
 // MARK: - Spacing
 
 enum HomeSpacing {
-    /// Sections with a heading of their own get more room above them.
+    /// Sections with a title of their own get more room above them.
     static func headed(_ item: HomeLayout.Item) -> Bool {
         switch item.section {
-        case .recent, .thoughts, .journal: return item.size == .large
+        case .recent: return true
+        case .thoughts, .journal: return item.size == .large
         default: return false
         }
     }
 
-    /// The gap above a section, as each look's Home spaced it before Edit Home (Verbose: Record 18, tiles 10 under
-    /// Record, This week 12, Recent recordings 24; Native: the first 18, 12 between cards, Recent recordings 28).
-    static func top(_ item: HomeLayout.Item, after previous: HomeLayout.Item?, native: Bool) -> CGFloat {
-        guard let previous else { return 18 }
-        if headed(item) { return native ? 28 : 24 }
-        if !native, previous.section == .record, item.section == .tiles { return 10 }
-        return 12
+    /// The gap above a section (the mockup's 14 between cards; 22 above a titled section; 18 under the greeting).
+    static func top(_ item: HomeLayout.Item, after previous: HomeLayout.Item?) -> CGFloat {
+        guard previous != nil else { return 18 }
+        return headed(item) ? 22 : 14
     }
 
-    /// The sections Home draws: the layout's shown ones. Native draws no Record section: Record is in the tab bar's
-    /// accessory there (RecordAccessory.swift). Queue left Home in the consolidation (the tab badge counts the work), so
-    /// `working` no longer changes anything; it stays for the callers.
-    static func drawn(_ layout: HomeLayout, working: Bool, native: Bool = false) -> [HomeLayout.Item] {
-        layout.shown.filter { !(native && $0.section == .record) }
+    /// The sections Home draws: the layout's shown ones, in both looks. Native's Record accessory steps aside on Home
+    /// while the Record card is drawn (`hidesRecordAccessory`).
+    static func drawn(_ layout: HomeLayout) -> [HomeLayout.Item] { layout.shown }
+
+    /// Whether Native's Record accessory (RecordAccessory.swift) stays off on this tab: on Home's own screen, while
+    /// its Record card is there and nothing is recording (the accessory carries the live recording on every tab).
+    static func hidesRecordAccessory(tab: PhoneState.Tab, homeAtRoot: Bool, recording: Bool, layout: HomeLayout) -> Bool {
+        tab == .home && homeAtRoot && !recording && layout.isVisible(.record)
     }
 }
 
@@ -93,90 +92,28 @@ struct HomeTileButton<Face: View>: View {
                     Button("Paste a link") { app.showLinkSheet = true }
                 } label: { label() }
                 .menuStyle(.button)
-                .buttonStyle(PhoneCardPress())
+                .buttonStyle(RefinedPress())
                 .accessibilityAction(named: "Paste a link") { app.showLinkSheet = true }
             } else {
                 Button { HomeTileAction.run(tile, app) } label: { label() }
-                    .buttonStyle(PhoneCardPress())
+                    .buttonStyle(RefinedPress())
             }
         }
+        .accessibilityLabel(tile.title)
         .accessibilityHint(HomeTileAction.hint(tile))
         .homeTileProbe(tile)
     }
 }
 
-// MARK: - Headings
-
-/// A section's heading: Verbose style's serif with an italic word ("Last *dictation*"), Native's bold title; an
-/// optional link on the right.
-struct HomeSectionHeading: View {
-    var title: String
-    var italic: String? = nil
-    var link: String? = nil
-    var onLink: () -> Void = {}
-    @ScaledMetric(relativeTo: .title2) private var size: CGFloat = 22
-    @Environment(\.look) private var look
-
-    var body: some View {
-        if look.isNative {
-            NativeListHeader(title: nativeTitle, action: link, onAction: onLink)
-        } else {
-            HStack(alignment: .firstTextBaseline) {
-                (Text(title.isEmpty ? "" : title + " ") + Text(italic ?? "").italic())
-                    .lookSerif(size).foregroundStyle(.lookInk)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 8)
-                if let link {
-                    Button(link, action: onLink)
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(.lookAccentText)
-                        .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-}
-
-extension HomeSectionHeading {
-    /// One upright title in Native: "Last dictation", "Projects".
-    fileprivate var nativeTitle: String {
-        guard let italic else { return title }
-        if title.isEmpty { return italic.prefix(1).uppercased() + String(italic.dropFirst()) }
-        return title + " " + italic
-    }
-}
-
-/// A slim card for a Compact section: Verbose style's paper with an ink outline, Native's soft card.
-private struct HomeStrip: ViewModifier {
-    @Environment(\.look) private var look
-    func body(content: Content) -> some View {
-        if look.isNative {
-            content.padding(.horizontal, 16).padding(.vertical, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .nativeCell(radius: 20)
-                .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        } else {
-            content.padding(.horizontal, 14).padding(.vertical, 11)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .phoneOutlined(radius: Radius.record)
-                .contentShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-        }
-    }
-}
-
-extension View {
-    fileprivate func homeStrip() -> some View { modifier(HomeStrip()) }
-}
-
 // MARK: - Today's thoughts
 
-/// Today's thoughts. Large: the latest four under "Today's thoughts", each with its time in mono, then New thought.
-/// Compact: one row with the count and the latest, and New thought beside it. A tap opens today's page (the Thoughts
-/// tab, or Library › By day); New thought opens the recorder on a thought. Thoughts are a kind, so the section is ink in
-/// Verbose style, and New thought is a line pill, never a second persimmon fill beside Record (DESIGN.md §1.3, §14.1).
+/// Today's thoughts. Large: "Today's thoughts" with Today's page, the latest four in a card with their times, then New
+/// thought. Compact: one slim row with the count and the latest, and New thought beside it. A tap opens today's page
+/// (the Thoughts tab, or Library › By day); New thought opens the recorder on a thought. Thoughts are a kind, so the
+/// section stays in ink, and New thought is a quiet button, never a second persimmon fill beside Record.
 struct HomeThoughtsSection: View {
     @EnvironmentObject var app: PhoneState
     var size: HomeCardSize
-    @Environment(\.look) private var look
 
     /// For the self-test: how many of today's thoughts the section counted when it last drew.
     static var shownCount: Int?
@@ -203,53 +140,52 @@ struct HomeThoughtsSection: View {
         HStack(spacing: 10) {
             Button { app.openThoughtPage() } label: {
                 HStack(spacing: 12) {
-                    if !look.isNative { IconGlyph(art: .iconThought, size: 20, color: Ink.ink) }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(HomeThoughts.countLine(page.count)).lookSerif(look.isNative ? 17 : 19, weight: look.isNative ? .semibold : .regular)
-                            .foregroundStyle(.lookInk).lineLimit(1)
+                    IconGlyph(art: .iconThought, size: 20, color: Refined.ink)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(HomeThoughts.countLine(page.count)).refinedFont(.rowTitle, weight: .semibold)
+                            .foregroundStyle(Refined.ink).lineLimit(1)
                         Text(page.last.map(words) ?? "Tap New thought to start today's page.")
-                            .font(.system(size: 13)).foregroundStyle(.lookDim).lineLimit(1)
+                            .refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
                     }
                     Spacer(minLength: 0)
                 }
+                .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
                 .contentShape(Rectangle())
             }
-            .buttonStyle(PhoneCardPress())
+            .buttonStyle(RefinedPress())
             .accessibilityElement(children: .combine)
             .accessibilityHint("Opens today's Thoughts page.")
             newThought(compact: true)
         }
-        .homeStrip()
+        .padding(.leading, 14).padding(.trailing, 8).padding(.vertical, 6)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
     }
 
     private func large(_ page: [Transcript]) -> some View {
         let shown = HomeThoughts.latest(page)
-        return VStack(alignment: .leading, spacing: 10) {
-            HomeSectionHeading(title: "Today's", italic: "thoughts", link: "Today's page") { app.openThoughtPage() }
+        return VStack(alignment: .leading, spacing: 6) {
+            SerifSectionTitle("Today's thoughts", link: "Today's page") { app.openThoughtPage() }
             Button { app.openThoughtPage() } label: {
-                VStack(spacing: 0) {
+                PaperCard {
                     if shown.isEmpty {
-                        Text("Nothing yet today. A thought is one tap away.").font(.system(size: 15)).foregroundStyle(.lookDim)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
+                        Text("Nothing yet today. A thought is one tap away.").refinedFont(.body).foregroundStyle(Refined.dim)
+                            .padding(.horizontal, 14).padding(.vertical, 14)
                     }
                     ForEach(Array(shown.enumerated()), id: \.element.id) { i, t in
+                        if i > 0 { PaperDivider(leading: 14) }
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(look.isNative ? ThoughtText.time(t.createdAt, native: true) : ThoughtText.compactTime(t.createdAt))
-                                .font(look.isNative ? .system(size: 14).monospacedDigit() : Ink.mono(12))
-                                .foregroundStyle(.lookMute)
-                                .lineLimit(1).fixedSize()
-                                .frame(minWidth: look.isNative ? 70 : 52, alignment: .leading)
-                            Text(words(t)).font(.system(size: 15)).foregroundStyle(t.status == .ready ? LookStyle.lookInk : LookStyle.lookDim)
+                            Text(ThoughtText.time(t.createdAt, native: true)).refinedFont(.meta).monospacedDigit()
+                                .foregroundStyle(Refined.mute).lineLimit(1).fixedSize()
+                                .frame(minWidth: 64, alignment: .leading)
+                            Text(words(t)).refinedFont(.body).foregroundStyle(t.status == .ready ? Refined.ink : Refined.dim)
                                 .lineLimit(2).multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
                         }
-                        .padding(.vertical, 10)
-                        if i < shown.count - 1 { Rectangle().fill(.lookHairline).frame(height: look.isNative ? 0.5 : 1) }
+                        .padding(.horizontal, 14).padding(.vertical, 10)
                     }
                 }
-                .homeStrip()
             }
-            .buttonStyle(PhoneCardPress())
+            .buttonStyle(RefinedPress())
             .accessibilityElement(children: .combine)
             .accessibilityLabel(shown.isEmpty ? "No thoughts yet today" : HomeThoughts.countLine(page.count))
             .accessibilityHint("Opens today's Thoughts page.")
@@ -257,33 +193,23 @@ struct HomeThoughtsSection: View {
                 newThought(compact: false)
                 Spacer(minLength: 0)
                 if page.count > shown.count {
-                    Text("\(page.count) today").font(look.isNative ? .system(size: 14).monospacedDigit() : Ink.mono(12)).foregroundStyle(.lookMute)
+                    Text("\(page.count) today").refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
                 }
             }
+            .padding(.top, 4)
         }
     }
 
-    /// New thought: a line pill with the bulb in Verbose style; the accent's soft capsule in Native. In the compact row
-    /// it's the bulb alone in a 34 pt circle in both looks, so the count beside it never cuts off (review P-18).
+    /// New thought: a quiet button with the bulb. In the compact row it's the bulb alone, so the count beside it never
+    /// cuts off (review P-18).
     private func newThought(compact: Bool) -> some View {
         Button { HomeTileAction.startThought(app) } label: {
             HStack(spacing: 7) {
-                if look.isNative {
-                    Image(systemName: "lightbulb").font(.system(size: 14, weight: .semibold))   // brand: native
-                } else {
-                    IconGlyph(art: .iconThought, size: 16, color: Ink.ink)
-                }
-                if !compact { Text("New thought").font(.system(size: 14, weight: .semibold)) }
+                IconGlyph(art: .iconThought, size: 16, color: Refined.ink)
+                if !compact { Text("New thought") }
             }
-            .foregroundStyle(look.isNative ? NativeInk.accent : Ink.ink)
-            .padding(.horizontal, compact ? 0 : 14).frame(minWidth: 34, minHeight: 34)
-            .background {
-                if look.isNative { Capsule().fill(NativeInk.fill) }
-                else { Capsule().fill(Ink.card).overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5)) }
-            }
-            .contentShape(Capsule())
         }
-        .buttonStyle(PhoneCardPress())
+        .buttonStyle(RefinedActionStyle())
         .accessibilityLabel("New thought")
         .accessibilityHint("Records a thought for today's page.")
         .accessibilityIdentifier("home.thoughts.new")
@@ -292,14 +218,13 @@ struct HomeThoughtsSection: View {
 
 // MARK: - Journal
 
-/// Journal. Large: the newest entry under "Journal" (the date, its title, the first line, and a play pill with the
-/// length) over this week's days as dots. Compact: one row with the newest title and the dots. A tap opens Journal By
-/// day (the Journal tab, or inside Library); the play pill opens the entry playing.
+/// Journal. Large: "Journal" with By day, then a card with the newest entry (the date, its title, the first line, and
+/// a play button with the length) over this week's days as dots. Compact: one row with the newest title and the dots.
+/// A tap opens Journal By day (the Journal tab, or inside Library); play opens the entry playing.
 struct HomeJournalSection: View {
     @EnvironmentObject var app: PhoneState
     var size: HomeCardSize
     var now: Date
-    @Environment(\.look) private var look
 
     var body: some View {
         let hour = app.newPageHour
@@ -315,149 +240,91 @@ struct HomeJournalSection: View {
     private func compact(_ latest: Transcript?, _ week: [HomeJournalWeek.Day]) -> some View {
         Button { app.go(.journal) } label: {
             HStack(spacing: 12) {
-                if !look.isNative { IconGlyph(art: .iconNotes, size: 20, color: Ink.ink) }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Journal").lookSerif(look.isNative ? 17 : 19, weight: look.isNative ? .semibold : .regular).foregroundStyle(.lookInk)
-                    Text(latest?.title ?? "No entries yet").font(.system(size: 13)).foregroundStyle(.lookDim).lineLimit(1)
+                IconGlyph(art: .iconNotes, size: 20, color: Refined.ink)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Journal").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                    Text(latest?.title ?? "No entries yet").refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
                 }
                 Spacer(minLength: 8)
-                HomeJournalDots(week: week, size: 8)
+                HomeWeekDots(week: week, size: 8)
             }
-            .homeStrip()
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         }
-        .buttonStyle(PhoneCardPress())
+        .buttonStyle(RefinedPress())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Journal: \(latest?.title ?? "no entries yet")")
         .accessibilityValue(HomeJournalWeek.countLine(week))
         .accessibilityHint("Opens your journal, by day.")
+        .accessibilityAddTraits(.isButton)
     }
 
     private func large(_ latest: Transcript?, _ week: [HomeJournalWeek.Day]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HomeSectionHeading(title: "", italic: "Journal", link: "By day") { app.go(.journal) }
+        VStack(alignment: .leading, spacing: 6) {
+            SerifSectionTitle("Journal", link: "By day") { app.go(.journal) }
             VStack(alignment: .leading, spacing: 12) {
                 Button { app.go(.journal) } label: {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 3) {
                         if let t = latest {
-                            Text(HomeRecentStyle.day(t.createdAt, now: now)).font(look.isNative ? .system(size: 14) : Ink.mono(12)).foregroundStyle(.lookMute)
-                            title(t)
+                            Text(HomeRecentStyle.day(t.createdAt, now: now)).refinedFont(.meta).foregroundStyle(Refined.mute)
+                            Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(2)
                             let first = ThoughtText.words(t)
                             if !first.isEmpty {
-                                Text(first).font(.system(size: 14)).foregroundStyle(.lookDim).lineLimit(2).multilineTextAlignment(.leading)
+                                Text(first).refinedFont(.hint).foregroundStyle(Refined.dim).lineLimit(2).multilineTextAlignment(.leading)
                             }
                         } else {
                             Text("Record with the Journal kind, and your newest entry shows here.")
-                                .font(.system(size: 15)).foregroundStyle(.lookDim).fixedSize(horizontal: false, vertical: true)
+                                .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(PhoneCardPress())
+                .buttonStyle(RefinedPress())
                 .accessibilityElement(children: .combine)
                 .accessibilityHint("Opens your journal, by day.")
                 HStack(spacing: 12) {
                     if let t = latest, t.status == .ready, t.audioFileName != nil, t.duration > 0 { play(t) }
                     Spacer(minLength: 8)
-                    HomeJournalDots(week: week, size: 9, letters: true)
+                    HomeWeekDots(week: week, size: 9, letters: true)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("This week: \(HomeJournalWeek.countLine(week))")
                 }
             }
-            .homeStrip()
+            .padding(14)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         }
     }
 
-    @ViewBuilder private func title(_ t: Transcript) -> some View {
-        let words = t.title.split(separator: " ")
-        if look.isNative || words.count < 2 {
-            Text(t.title).lookSerif(look.isNative ? 17 : 20, weight: look.isNative ? .semibold : .regular).foregroundStyle(.lookInk).lineLimit(2)
-        } else {
-            (Text(words.dropLast().joined(separator: " ") + " ") + Text(String(words.last ?? "")).italic())
-                .lookSerif(20).foregroundStyle(.lookInk).lineLimit(2)
-        }
-    }
-
-    /// The play pill: opens the entry playing.
+    /// Play: opens the entry playing.
     private func play(_ t: Transcript) -> some View {
         Button { app.autoplay = t.id; app.open(t.id) } label: {
             HStack(spacing: 7) {
-                if look.isNative {
-                    Image(systemName: "play.fill").font(.system(size: 12))   // brand: native
-                } else {
-                    ArtIcon(art: .iconPlay, size: 11, lineWidth: 1.4)
-                }
-                Text(HomeRecentStyle.length(t.duration)).font(look.isNative ? .system(size: 15, weight: .semibold).monospacedDigit() : Ink.mono(12))
+                IconGlyph(art: .iconPlay, size: 12, color: Refined.ink)
+                Text(HomeRecentStyle.length(t.duration)).monospacedDigit()
             }
-            .foregroundStyle(.lookInk)
-            .padding(.horizontal, 12).frame(minHeight: 32)
-            .background {
-                if look.isNative { Capsule().fill(NativeInk.fill) }
-                else { Capsule().strokeBorder(Ink.ink, lineWidth: 1.5) }
-            }
-            .contentShape(Capsule())
         }
-        .buttonStyle(PhoneCardPress())
+        .buttonStyle(RefinedActionStyle())
         .accessibilityLabel("Play, \(HomeRecentStyle.length(t.duration))")
         .accessibilityHint("Opens the entry and plays it.")
     }
 }
 
-/// This week's seven days as dots: filled where there's a journal entry, today ringed. Ink in Verbose style, the
-/// accent in Native (DESIGN.md §14.6). Optional weekday letters under them.
-struct HomeJournalDots: View {
-    var week: [HomeJournalWeek.Day]
-    var size: CGFloat
-    var letters = false
-    @Environment(\.look) private var look
-
-    var body: some View {
-        let color = look.isNative ? NativeInk.accent : Ink.ink
-        let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
-        HStack(spacing: size * 0.8) {
-            ForEach(week, id: \.start) { d in
-                VStack(spacing: 4) {
-                    Circle().fill(d.hasEntry ? color : Color.clear)
-                        .overlay(Circle().strokeBorder(color.opacity(d.hasEntry ? 1 : (d.isFuture ? 0.25 : 0.5)), lineWidth: d.isToday ? 1.6 : 1))
-                        .frame(width: size, height: size)
-                    if letters {
-                        Text(symbols[(Calendar.current.component(.weekday, from: d.start) - 1) % symbols.count])
-                            .font(look.isNative ? .system(size: 11, weight: d.isToday ? .bold : .regular) : Ink.mono(12))
-                            .foregroundStyle(.lookMute)
-                    }
-                }
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 // MARK: - Edit Home button
 
-/// The last thing on Home: opens Edit Home. Verbose style: an outlined capsule; Native: a gray capsule with the grid.
+/// The last thing on Home: opens Edit Home, a quiet button centered under the sections.
 struct EditHomeButton: View {
     var action: () -> Void
-    @Environment(\.look) private var look
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                if look.isNative {
-                    Image(systemName: "square.grid.2x2").font(.system(size: 15, weight: .medium))   // brand: native
-                } else {
-                    Image(systemName: "line.3.horizontal").font(.system(size: 14, weight: .semibold))
-                }
-                Text("Edit Home").font(.system(size: 16, weight: .semibold))
+                Image(systemName: "line.3.horizontal").font(.system(size: 14, weight: .semibold))
+                Text("Edit Home")
             }
-            .foregroundStyle(.lookInk)
-            .padding(.horizontal, 20).frame(minHeight: 44)
-            .background {
-                if look.isNative { Capsule().fill(NativeInk.fill) }
-                else { Capsule().strokeBorder(Ink.ink, lineWidth: 1.5) }
-            }
-            .contentShape(Capsule())
         }
-        .buttonStyle(PhoneCardPress())
+        .buttonStyle(RefinedActionStyle())
         .frame(maxWidth: .infinity)
         .accessibilityHint("Show, hide, reorder, and resize Home's sections, and choose its four tiles.")
         .accessibilityIdentifier("home.edit")

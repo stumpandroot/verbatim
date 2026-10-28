@@ -80,16 +80,6 @@ enum NativeRows {
         return HomeRecentStyle.day(t.createdAt, now: now)
     }
 
-    /// Home's line under a recording: "Meeting · Today, 9:00 AM" (the length sits on the right).
-    static func homeMeta(_ t: Transcript, now: Date) -> String {
-        let when = "\(HomeRecentStyle.day(t.createdAt, now: now)), \(Formats.style(date: .none, time: .short).string(from: t.createdAt))"
-        switch t.status {
-        case .processing: return "\(PhoneRowState.shortStage(t)) · \(when)"
-        case .failed: return "Didn't finish · \(when)"
-        case .ready: return "\(kind(t)) · \(when)"
-        }
-    }
-
     /// The Library's second line: "Meeting · 38:12 · Anika, Marcus", "Thought · 0:48 · Transcribing".
     static func libraryMeta(_ t: Transcript) -> String {
         var parts = [kind(t)]
@@ -120,40 +110,6 @@ enum NativeRows {
         guard t.status == .ready else { return "" }
         if let doc = t.document, !doc.isEmpty { return PremiumRules.preview([String(doc.prefix(400))]) }
         return PremiumRules.preview(t.segments.prefix(6).map(\.text))
-    }
-}
-
-/// One recording on Home, in Voice Memos' rhythm: the title, two lines of what was said, then the kind and time with
-/// the length on the right. A row of an inset grouped list; the list draws the chevron and the separator.
-struct NativeRecentRow: View {
-    var transcript: Transcript
-    var now: Date
-    /// The live progress (StageClock) while it transcribes: a tick re-renders the row, not the screen.
-    @ObservedObject private var stages = StageClock.shared
-    private var t: Transcript { stages.applied(to: transcript) }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(PhoneRowTitle.title(t, withTime: false)).font(.headline).foregroundStyle(NativeInk.label).lineLimit(2)
-            let preview = NativeRows.preview(t)
-            if !preview.isEmpty {
-                Text(preview).font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(2)
-            }
-            HStack(spacing: 5) {
-                if t.status == .processing, t.processingDevice == Device.id { ProgressView().controlSize(.mini) }
-                if t.pinned { Image(systemName: "pin.fill").accessibilityLabel("Pinned") }
-                Text(NativeRows.homeMeta(t, now: now)).lineLimit(1)
-                    .foregroundStyle(t.status == .failed ? NativeInk.danger : NativeInk.secondary)
-                Spacer(minLength: 8)
-                if t.status == .ready, t.duration > 0 {
-                    Text(HomeRecentStyle.length(t.duration)).monospacedDigit()
-                }
-            }
-            .font(.footnote).foregroundStyle(NativeInk.secondary)
-            .padding(.top, 3)
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -191,5 +147,26 @@ struct NativeLibraryRow: View {
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: t.showsAudioDetail ? .contain : .combine)
+    }
+}
+
+// MARK: - Navigation subtitle
+
+/// The navigation subtitle (iOS 26), under the large title: Home's date, the Library's count.
+enum NativeSubtitle {
+    static var supported: Bool {
+        if #available(iOS 26, *) { return true }
+        return false
+    }
+}
+
+extension View {
+    /// The navigation subtitle on iOS 26; nothing before it (the screen shows the line itself), or with no text.
+    @ViewBuilder func nativeSubtitle(_ text: String?) -> some View {
+        if let text {
+            if #available(iOS 26, *) { navigationSubtitle(text) } else { self }
+        } else {
+            self
+        }
     }
 }

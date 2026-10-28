@@ -3,7 +3,8 @@ import SwiftUI
 import UIKit
 
 // Record in the Native look (DESIGN.md §13.3; mockup "Verbose Native Redesign", sections 1, 4, and 5): the tab bar's
-// bottom accessory, the slot Apple Music uses for its player, on every tab. A tap records a voice note; touch and hold
+// bottom accessory, the slot Apple Music uses for its player, on every tab but Home's own screen, where the refined
+// Record card stands in for it while it's shown (HomeSpacing.hidesRecordAccessory). A tap records a voice note; touch and hold
 // opens Record as, a system Menu built like Books' reading menu (an icon row for Dictate, Live captions, and Import,
 // then the six ways to record, each with the line that says what it does). While a recording runs, the accessory is
 // the live recording (the time, the kind, Pause, and Stop), and a tap brings the recorder back. The tab bar shrinks

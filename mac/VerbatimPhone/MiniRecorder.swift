@@ -206,14 +206,20 @@ struct MiniRecorderInset: ViewModifier {
     var zoom: Namespace.ID
     @Environment(\.limitMotion) private var limitMotion
     @Environment(\.look) private var look
+    @ObservedObject private var layouts = HomeLayoutStore.shared
 
     private var showing: Bool {
         RecorderPresentation.showsBar(recording: app.recorder.isRecording || app.previewRecording, saving: app.savingRecording)
     }
 
     /// Native before iOS 26: Record (or the live recording) in an opaque bar on every tab, where iOS 26 has the tab
-    /// bar's bottom accessory (RecordAccessory.swift). Off while you read a transcript.
-    private var nativeBar: Bool { look.isNative && !NativeRecordPlacement.systemAccessory && app.readingTranscripts == 0 }
+    /// bar's bottom accessory (RecordAccessory.swift). Off while you read a transcript, and on Home's own screen while
+    /// its Record card is there.
+    private var nativeBar: Bool {
+        look.isNative && !NativeRecordPlacement.systemAccessory && app.readingTranscripts == 0
+            && !HomeSpacing.hidesRecordAccessory(tab: tab, homeAtRoot: app.homePath.isEmpty, recording: app.recordingActive,
+                                                 layout: layouts.layout(look.homeLook))
+    }
 
     func body(content: Content) -> some View {
         content
