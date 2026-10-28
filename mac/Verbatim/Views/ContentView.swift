@@ -100,6 +100,11 @@ struct ContentView: View {
                     Button { withAnimation(Motion.settle) { sidebarOpen.toggle() } } label: { Image(systemName: "sidebar.left") }
                         .help("Hide or show the sidebar")
                 }
+                // While you record or capture an app's audio: the live timer capsule, as Native's toolbar shows it in
+                // Record's place (RecordingStatus.swift).
+                if app.recorder.isRecording || app.capture.isCapturing {
+                    ToolbarItem(id: "verbose.recording", placement: .primaryAction) { ToolbarRecordingStatus(onCard: true) }
+                }
             }
         }
     }

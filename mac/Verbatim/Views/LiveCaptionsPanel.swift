@@ -26,7 +26,7 @@ final class LiveCaptionsPanel {
         p.hidesOnDeactivate = false
         p.isReleasedWhenClosed = false
         p.becomesKeyOnlyIfNeeded = true
-        p.backgroundColor = NSColor(Ink.paper)
+        p.backgroundColor = NSColor(Refined.paper)
         p.title = "Live captions"
         let host = CaptionsHostingView(rootView: LiveCaptionsView(controller: controller, feed: controller.feed).limitMotionRoot())
         p.contentView = host
@@ -145,8 +145,9 @@ enum CaptionsMenu {
 
 // MARK: - View
 
-/// The panel's content, in the paper style of the approved mockup: a mono header with the rings mark, a dotted
-/// rule, and the elapsed time; caption lines in the serif; and a row of controls.
+/// The panel's content on the refined kit (DESIGN.md §6.10), one design in both look settings: the paper page, a
+/// header with the captions glyph, the source, and the elapsed time (SF Pro with tabular digits); caption lines in the
+/// serif, the newest word in the accent; and a row of quiet chips with Save as transcript as the strong action.
 struct LiveCaptionsView: View {
     @ObservedObject var controller: LiveCaptions
     @ObservedObject var feed: CaptionFeed
@@ -167,7 +168,7 @@ struct LiveCaptionsView: View {
         .onChange(of: controller.source) { _, _ in micName = AudioDevices.current()?.name }
         .padding(EdgeInsets(top: 18, leading: 22, bottom: 14, trailing: 22))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Ink.paper)
+        .background(Refined.paper)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Live captions")
     }
@@ -186,13 +187,13 @@ struct LiveCaptionsView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            IconGlyph(art: .iconCaptions, size: 16, color: Ink.mute)
+            IconGlyph(art: .iconCaptions, size: 16, color: Refined.mute)
             Text("Live captions · \(controller.source.title)")
-                .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute).lineLimit(1)
-            DottedRule().frame(height: 1)
+                .refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute).lineLimit(1)
+            Spacer(minLength: 8)
             if showTimecode {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    Text(captionClock(controller.elapsed)).font(Ink.mono(11, weight: .medium)).foregroundStyle(Ink.mute)
+                    Text(captionClock(controller.elapsed)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
                 }
                 .accessibilityLabel("Elapsed time")
             }
@@ -207,14 +208,15 @@ struct LiveCaptionsView: View {
             if feed.history.isEmpty && feed.current.isEmpty {
                 // Never a blank panel: what it's listening to and where the words will go, or why it isn't listening.
                 Text(controller.status ?? Self.waitingLine(controller.source, open: controller.isOpen))
-                    .font(Ink.serif(size.mac * 0.77)).foregroundStyle(Ink.mute)
+                    .font(.system(size: size.mac * 0.77, design: .serif)).foregroundStyle(Refined.mute)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .uiTarget("captions-waiting")
             } else {
+                // Older lines in `mute` (the line before) and `dim`: never lighter than 4.5:1 on paper.
                 CaptionLinesView(feed: feed, size: size.mac,
-                                 older: [(size.mac * 0.77, Ink.mute), (size.mac * 0.7, Ink.mute.opacity(0.7))],
-                                 showSpeakers: controller.showsSpeakers, spacing: 6, currentLimit: 220)
+                                 older: [(size.mac * 0.77, Refined.dim), (size.mac * 0.7, Refined.mute)],
+                                 showSpeakers: controller.showsSpeakers, spacing: 6, currentLimit: 220, refined: true)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -223,9 +225,9 @@ struct LiveCaptionsView: View {
         .clipped()
         .overlay(alignment: .topTrailing) {
             if let status = controller.status, !(feed.history.isEmpty && feed.current.isEmpty) {
-                Text(status).font(.system(size: 11.5)).foregroundStyle(Ink.mute).lineLimit(1)
+                Text(status).refinedFont(.caption).foregroundStyle(Refined.mute).lineLimit(1)
                     .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Ink.paper, in: Capsule())
+                    .background(Refined.paper, in: Capsule())
             }
         }
     }
@@ -233,15 +235,15 @@ struct LiveCaptionsView: View {
     @ViewBuilder private var controls: some View {
         HStack(spacing: 8) {
             if controller.confirmingClose {
-                Text("Close without saving the recording?").font(.system(size: 12.5, weight: .medium)).foregroundStyle(Ink.ink)
+                Text("Close without saving the recording?").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
                 Spacer(minLength: 8)
                 CaptionsChip(title: "Keep captioning") { controller.confirmingClose = false }
                 CaptionsChip(title: "Discard") { controller.close(force: true) }
                 savePill
             } else {
                 Button { controller.close() } label: {
-                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Ink.ink)
-                        .frame(width: 30, height: 30).background(Ink.ink.opacity(0.08), in: Circle())
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Refined.ink)
+                        .frame(width: 30, height: 30).background(Refined.neutral, in: Circle())
                 }
                 .buttonStyle(.plain).help("Close captions").accessibilityLabel("Close captions")
                 CaptionsChip(title: "Source: \(sourceChip)") { sourceMenu() }
@@ -255,7 +257,7 @@ struct LiveCaptionsView: View {
             }
         }
         .padding(.top, 10)
-        .overlay(alignment: .top) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+        .overlay(alignment: .top) { Rectangle().fill(Refined.separator).frame(height: 1) }
     }
 
     /// "Shure MV7", "Zoom", "Zoom + Shure MV7": the microphone by name, as in Record's tile.
@@ -271,14 +273,11 @@ struct LiveCaptionsView: View {
     private var savePill: some View {
         Button { controller.save() } label: {
             HStack(spacing: 7) {
-                Circle().fill(Ink.persimmon).frame(width: 8, height: 8)
-                Text(controller.saving ? "Saving…" : "Save as transcript").font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                Circle().fill(Refined.persimmon).frame(width: 8, height: 8).accessibilityHidden(true)
+                Text(controller.saving ? "Saving…" : "Save as transcript")
             }
-            .foregroundStyle(Ink.onInteractive)
-            .padding(.horizontal, 14).frame(height: 30)
-            .background(Ink.interactive, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(RefinedActionStyle(kind: .strong))
         .disabled(controller.saving || !controller.isOpen)
         .help("Saves the recording and transcribes it with your main engine")
     }
@@ -325,16 +324,17 @@ struct LiveCaptionsView: View {
     }
 }
 
-/// A quiet pill: ink at 8% behind ink text.
+/// A quiet chip (the kit's neutral wash behind ink text) that opens a menu at the pointer.
 struct CaptionsChip: View {
     var title: String
     var action: () -> Void
     @State private var hover = false
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 12.5, weight: .medium)).foregroundStyle(Ink.ink).lineLimit(1)
+            Text(title).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 30)
-                .background(Ink.ink.opacity(hover ? 0.12 : 0.08), in: Capsule())
+                .background(Refined.neutral, in: Capsule())
+                .opacity(hover ? 0.85 : 1)
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)

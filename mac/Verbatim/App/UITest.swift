@@ -553,6 +553,8 @@ enum UITest {
         app.toggleLiveCaptions()
         await show("04c-live-captions")
         LiveCaptions.shared.close(force: true)
+        // The meeting banner's call prompt on the refined kit (DESIGN.md §6.10).
+        await meetingPromptShot("04d-meeting-prompt")
         app.projectFilter = nil; app.go(.library)
         await show("05-library")
         app.libraryKind = .journal
@@ -739,6 +741,7 @@ enum UITest {
         app.toggleLiveCaptions()
         await show("11b-dark-live-captions")
         LiveCaptions.shared.close(force: true)
+        await meetingPromptShot("11e-dark-meeting-prompt")
         if let m = memo { app.go(.transcript(m.id)) }
         await show("12-dark-transcript")
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
@@ -821,6 +824,11 @@ enum UITest {
         await templateShots(app: app, suffix: "-native")
         await askShots(app: app, suffix: "-native")
         await thoughtShots(suffix: "-native")
+        // The recording surfaces drawn the same in Native (DESIGN.md §6.10): Live captions and the meeting banner.
+        app.toggleLiveCaptions()
+        await show("04c-live-captions-native")
+        LiveCaptions.shared.close(force: true)
+        await meetingPromptShot("04d-meeting-prompt-native")
         UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         openSettingsWindow()
         await show("09-settings-general-native")
@@ -1041,9 +1049,18 @@ enum UITest {
               fresh.object(forKey: NativeNav.retiredTableKey) == nil)
 
         // Record in the toolbar (decision 8): a click records a voice note (or asks for the mic); its menu has Dictate,
-        // Live captions, and Import, then Record as's six choices. In the 1000 pt window the open inspector and the
-        // toolbar's search field push Record into the overflow (build 239), so the inspector closes first.
+        // Live captions, and Import, then Record as's six choices. Record is in the leading item beside Back and
+        // Forward, so in the 1000 pt window the open inspector and the search field can't push it into the overflow
+        // (build 239): checked on the Library with the inspector open. The click steps still close the inspector first.
         let hadInspector = nav.inspector
+        app.go(.library)
+        nav.inspector = true
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        let content = window.contentView?.bounds ?? .zero
+        let recordFrame = windowFrames["tb-record"]?()
+        check("native: Record stays in the toolbar, not its overflow, with the inspector open in a \(Int(window.frame.width)) pt window"
+              + " (\(recordFrame.map { "at x \(Int($0.minX)) to \(Int($0.maxX))" } ?? "not drawn"))",
+              recordFrame.map { $0.width > 0 && $0.minX >= 0 && $0.maxX <= content.width && $0.minY >= -60 } ?? false)
         nav.inspector = false
         try? await Task.sleep(nanoseconds: 700_000_000)
         if windowFrames["tb-record"]?() == nil { Log.note("UITEST note: native: Record isn't in the toolbar with the inspector closed either") }
@@ -1055,6 +1072,9 @@ enum UITest {
         if app.showMicSheet {
             app.showMicSheet = false
         } else if app.recorder.isRecording {
+            // While recording, Record's place is the live timer capsule (the refined look's, DESIGN.md §6.10).
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            check("native: while recording, the toolbar shows the live timer capsule", frames["toolbar-recording"] != nil)
             _ = app.recorder.stop()
         }
         try? await Task.sleep(nanoseconds: 600_000_000)
@@ -2301,6 +2321,16 @@ extension UITest {
             app.store.add(t)
         }
         return ids
+    }
+
+    /// The meeting banner's call prompt for CI's screenshots (a stand-in app; nothing records), then hidden.
+    private static func meetingPromptShot(_ name: String) async {
+        let coordinator = MeetingCoordinator.shared
+        coordinator.showTestPrompt(name: "Zoom")
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        await show(name)
+        coordinator.banner.hide()
+        try? await Task.sleep(nanoseconds: 400_000_000)
     }
 
     /// Today's page and the bubble's recording and saved states, for CI's screenshots.

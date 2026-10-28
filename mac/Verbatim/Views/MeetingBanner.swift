@@ -3,9 +3,10 @@ import AppKit
 
 // Meeting capture's floating surfaces (App/MeetingCoordinator.swift): the banner at the top right of the screen
 // with the pointer (a call prompt, the silent-remote warning, the sleep note, short notices) and the consent
-// sheet. Opaque `Ink.card` with a hairline, never text on glass (mac/DESIGN.md §5). The buttons are direct
-// gestures on a flat layer in a panel that takes the first click (`acceptsFirstMouse`), because SwiftUI Buttons
-// lose clicks in non-activating panels on macOS 26 (see TapArea and CardButton in Theme.swift).
+// sheet, on the refined kit (DESIGN.md §6.10, §13) in both look settings: the opaque card with a hairline (they float
+// over other apps), the kit's ink and secondary text, and its quiet and strong actions; never text on glass. The
+// buttons are direct gestures on a flat layer in a panel that takes the first click (`acceptsFirstMouse`), because
+// SwiftUI Buttons lose clicks in non-activating panels on macOS 26 (see TapArea and CardButton in Theme.swift).
 
 // MARK: - Panel
 
@@ -61,8 +62,10 @@ final class MeetingHostingView<Content: View>: NSHostingView<Content> {
 
 // MARK: - Controls
 
-/// A button for meeting surfaces: a direct click gesture on a flat shape (no SwiftUI Button), hover tint, and the
-/// brand's ink (primary), card (secondary), or bare (quiet) look at the button radius.
+/// A button for meeting surfaces, drawn like the kit's actions (`RefinedActionStyle`): a direct click gesture on a flat
+/// shape (no SwiftUI Button), 32 pt with an 8 pt radius. Primary is the strong action (ink with light text), secondary
+/// the quiet one (the neutral wash), quiet bare until the pointer is on it. On the persimmon recording card
+/// (`onFill`), the quiet wash is the ready chip's and the strong action's ink is the card's.
 struct MeetingButton: View {
     enum Style { case primary, secondary, quiet }
     var title: String
@@ -70,26 +73,30 @@ struct MeetingButton: View {
     var icon: BrandArt? = nil
     /// The record dot before the title (the consent sheet's Record).
     var dot = false
+    /// The red stop square before the title (Stop and save).
+    var stopSquare = false
     var enabled = true
     var stretch = false
+    /// The palette of the persimmon card it sits on, or nil on the card or paper.
+    var onFill: AppPalette? = nil
     var target: String? = nil
     var action: () -> Void
     @State private var hover = false
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         HStack(spacing: 6) {
-            if dot { Circle().fill(Ink.persimmon).frame(width: 7, height: 7) }
-            if let icon { ArtIcon(art: icon, size: 13) }
+            if dot { Circle().fill(Refined.recordRed).frame(width: 7, height: 7).accessibilityHidden(true) }
+            if stopSquare { RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.recordRed).frame(width: 9, height: 9).accessibilityHidden(true) }
+            if let icon { IconGlyph(art: icon, size: 13, color: text) }
             Text(title).lineLimit(1)
         }
-        .font(.system(size: 13, weight: style == .primary ? .semibold : .medium))
-        .foregroundStyle(style == .primary ? Ink.onInteractive : Ink.ink)
-        .padding(.horizontal, 12).frame(minHeight: 28)
+        .refinedFont(.hint, weight: .semibold)
+        .foregroundStyle(text)
+        .padding(.horizontal, 14).frame(minHeight: 32)
         .frame(maxWidth: stretch ? .infinity : nil)
         .background(background, in: shape)
-        .overlay(shape.strokeBorder(style == .secondary ? (hover ? Ink.outlineStrong : Ink.hairline) : Color.clear))
-        .opacity(enabled ? 1 : 0.45)
+        .opacity(enabled ? (hover && style != .quiet ? 0.88 : 1) : 0.45)
         .contentShape(shape)
         .onHover { hover = enabled && $0 }
         .animation(Motion.touch, value: hover)
@@ -101,29 +108,38 @@ struct MeetingButton: View {
         .modifier(MeetingTarget(id: target))
     }
 
+    /// The ink where the button sits: the card's on the persimmon fill, the reading ink elsewhere.
+    private var ink: Color { onFill.map { Refined.onFill(.persimmon, $0) } ?? Refined.ink }
+
+    private var text: Color {
+        guard style == .primary else { return ink }
+        if let p = onFill { return p == .full ? Refined.lift : Refined.paper }
+        return Refined.paper
+    }
+
     private var background: Color {
         switch style {
-        case .primary: return Ink.interactive.opacity(hover ? 0.92 : 1)
-        case .secondary: return hover ? Ink.cardHover : Ink.card
-        case .quiet: return Ink.ink.opacity(hover ? 0.07 : 0)
+        case .primary: return ink
+        case .secondary: return onFill.map { Refined.readyChip($0) } ?? Refined.neutral
+        case .quiet: return hover ? (onFill.map { Refined.readyChip($0) } ?? Refined.neutral) : Color.clear
         }
     }
 }
 
-/// A checkbox drawn in the brand: an ink box at the button radius with a check, the label beside it.
+/// A checkbox in the kit's ink: a box at the 4 pt radius with a check, the label beside it.
 struct MeetingCheckbox: View {
     var title: String
     @Binding var isOn: Bool
     var target: String? = nil
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 9) {
-            RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                .strokeBorder(Ink.ink, lineWidth: 1.5)
-                .background(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(isOn ? Ink.ink : Color.clear))
-                .overlay { if isOn { Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Ink.onInteractive) } }
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .strokeBorder(Refined.ink, lineWidth: 1.5)
+                .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(isOn ? Refined.ink : Color.clear))
+                .overlay { if isOn { Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Refined.paper) } }
                 .frame(width: 15, height: 15)
                 .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
-            Text(title).font(.system(size: 13.5)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
+            Text(title).refinedFont(.body).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
         }
         .contentShape(Rectangle())
         .tapArea { isOn.toggle() }
@@ -288,13 +304,12 @@ struct MeetingBannerView: View {
                 content(kind)
                     .padding(.horizontal, 14).padding(.vertical, 12)
                     .frame(width: MeetingBannerController.width, alignment: .leading)
-                    .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
+                    .modifier(FloatingCard())
             } else {
                 Color.clear.frame(width: MeetingBannerController.width, height: 60)
             }
         }
-        .foregroundStyle(Ink.ink)
+        .foregroundStyle(Refined.ink)
     }
 
     @ViewBuilder private func content(_ kind: MeetingBannerKind) -> some View {
@@ -305,14 +320,14 @@ struct MeetingBannerView: View {
                 MeetingButton(title: "Record…", style: .primary, target: "meeting-prompt-record") { act(.record) }
             }
         case .silent(let app):
-            row(icon: .iconAttention, iconColor: Ink.danger, title: MeetingCopy.silentTitle(app), detail: MeetingCopy.silentDetail) {
+            row(icon: .iconAttention, iconColor: Refined.accentText, title: MeetingCopy.silentTitle(app), detail: MeetingCopy.silentDetail) {
                 MeetingButton(title: "Open Settings", target: "meeting-silent-settings") { act(.openSettings) }
                 MeetingButton(title: "Keep my mic only", style: .quiet, target: "meeting-silent-miconly") { act(.keepMicOnly) }
             }
         case .slept:
             row(icon: .iconPause, title: MeetingCopy.sleptTitle, detail: MeetingCopy.sleptDetail) {
                 MeetingButton(title: "Resume", icon: .iconPlay, target: "meeting-slept-resume") { act(.resume) }
-                MeetingButton(title: "Stop and save", style: .primary, icon: .iconStop, target: "meeting-slept-stop") { act(.stopAndSave) }
+                MeetingButton(title: "Stop and save", style: .primary, stopSquare: true, target: "meeting-slept-stop") { act(.stopAndSave) }
             }
         case .notice(let text):
             row(icon: .iconDetails, title: text, detail: nil) {
@@ -321,14 +336,14 @@ struct MeetingBannerView: View {
         }
     }
 
-    private func row<Buttons: View>(icon: BrandArt, iconColor: Color = Ink.ink, title: String, detail: String?, @ViewBuilder buttons: () -> Buttons) -> some View {
+    private func row<Buttons: View>(icon: BrandArt, iconColor: Color = Refined.ink, title: String, detail: String?, @ViewBuilder buttons: () -> Buttons) -> some View {
         HStack(alignment: .top, spacing: 12) {
             IconGlyph(art: icon, size: 22, color: iconColor).padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13.5, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+                Text(title).refinedFont(.rowTitle, weight: .semibold).fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                 if let detail {
-                    Text(detail).font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineSpacing(1.5).fixedSize(horizontal: false, vertical: true)
+                    Text(detail).refinedFont(.meta).foregroundStyle(Refined.dim).lineSpacing(1.5).fixedSize(horizontal: false, vertical: true)
                 }
                 HStack(spacing: 8) { buttons() }.padding(.top, 8)
             }
@@ -445,7 +460,7 @@ struct MeetingConsentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(MeetingCopy.consentTitle).font(Ink.serif(26)).accessibilityAddTraits(.isHeader)
+            Text(MeetingCopy.consentTitle).font(.system(size: 26, design: .serif)).accessibilityAddTraits(.isHeader)
             Text(MeetingCopy.consentBody(model.request?.appName)).modifier(ConsentText())
             Text(MeetingCopy.consentLaw).modifier(ConsentText())
             MeetingCheckbox(title: MeetingCopy.tellEveryone, isOn: $model.copyNotice, target: "meeting-consent-notice")
@@ -461,14 +476,24 @@ struct MeetingConsentView: View {
         }
         .padding(22)
         .frame(width: MeetingConsentController.width, alignment: .leading)
-        .foregroundStyle(Ink.ink)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
+        .foregroundStyle(Refined.ink)
+        .modifier(FloatingCard())
     }
 
     private struct ConsentText: ViewModifier {
         func body(content: Content) -> some View {
-            content.font(.system(size: 13.5)).foregroundStyle(Ink.dim).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
+            content.refinedFont(.body).foregroundStyle(Refined.dim).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// A card that floats over other apps (the meeting banner, the consent sheet, the Thought bubble's cards): the kit's
+/// card at the Mac's card radius with a hairline edge in every mode, since what's behind it could be anything.
+struct FloatingCard: ViewModifier {
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous)
+        content
+            .background(Refined.card, in: shape)
+            .overlay(shape.strokeBorder(Refined.separator, lineWidth: 1))
     }
 }

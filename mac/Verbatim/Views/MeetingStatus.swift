@@ -1,9 +1,10 @@
 import SwiftUI
 import AppKit
 
-// While a meeting records: a menu bar item with the record dot and a running mono timer, shown only while
-// recording (whether or not Settings › General › Show in menu bar is on). Clicking it opens the meeting panel:
-// both tracks with real level meters, Pause, Stop and save, and Copy the chat notice again.
+// While a meeting records: a menu bar item with the record dot and a running timer, shown only while recording
+// (whether or not Settings › General › Show in menu bar is on). Clicking it opens the meeting panel, the refined
+// look's recording card (DESIGN.md §6.10): both tracks with real level meters, Pause, Stop and save, and Copy the chat
+// notice again. One design in both look settings.
 
 /// The two tracks' recent levels and the elapsed time, sampled ten times a second only while the panel is open.
 @MainActor
@@ -71,15 +72,15 @@ final class MeetingStatusController: NSObject {
         item = nil
     }
 
-    /// The dot (persimmon while recording, an outline while paused) and the time. Paused also says so in words,
-    /// so the state never depends on color alone.
+    /// The dot (system red while recording, an outline while paused) and the time in SF Pro with tabular digits, as
+    /// the toolbar's timer capsule draws them. Paused also says so in words, so the state never depends on color alone.
     func update() {
         guard let b = item?.button else { return }
         let s = MeetingSession.shared
         let paused = s.phase == .paused
         let time = MeetingCopy.clock(s.elapsed)
         b.image = Self.dot(filled: !paused)
-        let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .semibold)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         b.attributedTitle = NSAttributedString(string: paused ? " Paused \(time)" : " \(time)", attributes: [.font: font])
         let header = MeetingCopy.recordingHeader(Self.appName(s), paused: paused, micOnly: s.micOnly)
         b.toolTip = "\(header) · \(time)"
@@ -144,7 +145,7 @@ final class MeetingStatusController: NSObject {
         if let i = dots[filled] { return i }
         let img = NSImage(size: NSSize(width: 10, height: 10), flipped: false) { r in
             let path = NSBezierPath(ovalIn: r.insetBy(dx: 1, dy: 1))
-            if filled { NSColor(Ink.persimmon).setFill(); path.fill() } else { NSColor(Ink.ink).setStroke(); path.lineWidth = 1.5; path.stroke() }
+            if filled { NSColor(Refined.recordRed).setFill(); path.fill() } else { NSColor.labelColor.setStroke(); path.lineWidth = 1.5; path.stroke() }
             return true
         }
         img.isTemplate = false
@@ -154,40 +155,45 @@ final class MeetingStatusController: NSObject {
     }
 }
 
-/// The meeting panel from the menu bar item (the approved mockup's "While recording: menu bar panel").
+/// The meeting panel from the menu bar item (the approved mockup's "While recording: menu bar panel"), on the refined
+/// kit: the persimmon recording card with the dot, what's recording, and the clock, then each track on the ready chip's
+/// wash with its level, Pause or Resume and Stop and save, and Copy the chat notice again. Soft palette: the tint.
 struct MeetingRecordingView: View {
     @ObservedObject var session: MeetingSession
     @ObservedObject var meters: MeetingMeters
     var copyNotice: () -> Void
     var stop: () -> Void
     @State private var copied = false
+    @CurrentPalette private var palette: AppPalette
 
     var body: some View {
         let paused = session.phase == .paused
         let app = MeetingStatusController.appName(session)
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Circle().fill(paused ? Color.clear : Ink.persimmon).overlay(Circle().strokeBorder(paused ? Ink.ink : Color.clear, lineWidth: 1.5))
-                    .frame(width: 8, height: 8).accessibilityHidden(true)
+        let ink = Refined.onFill(.persimmon, palette)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Circle().fill(ink).frame(width: 8, height: 8).opacity(paused ? 0.4 : 1).accessibilityHidden(true)
                 Text(MeetingCopy.recordingHeader(app, paused: paused, micOnly: session.micOnly))
-                    .font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    .refinedFont(.body, weight: .semibold).lineLimit(1)
                 Spacer(minLength: 8)
-                Text(MeetingCopy.clock(meters.elapsed)).font(Ink.mono(13, weight: .semibold))
+                Text(MeetingCopy.clock(meters.elapsed)).font(.system(size: 22, weight: .ultraLight)).monospacedDigit()
                     .accessibilityLabel("Elapsed \(MeetingCopy.clock(meters.elapsed))")
             }
             .accessibilityElement(children: .combine)
-            track(icon: .iconAboutMe, name: "You", detail: session.micName, levels: meters.mic)
-            track(icon: .iconSpeakers, name: app ?? "Other apps", detail: systemDetail(app), levels: meters.system, off: session.micOnly)
+            track(icon: .iconAboutMe, name: "You", detail: session.micName, levels: meters.mic, ink: ink)
+            track(icon: .iconSpeakers, name: app ?? "Other apps", detail: systemDetail(app), levels: meters.system, ink: ink, off: session.micOnly)
             HStack(spacing: 8) {
-                MeetingButton(title: paused ? "Resume" : "Pause", icon: paused ? .iconPlay : .iconPause, enabled: session.canPause, stretch: true,
-                              target: "meeting-panel-pause") { session.togglePause() }
-                MeetingButton(title: "Stop and save", style: .primary, icon: .iconStop, stretch: true, target: "meeting-panel-stop", action: stop)
+                MeetingButton(title: paused ? "Resume" : "Pause", style: .secondary, icon: paused ? .iconPlay : .iconPause, enabled: session.canPause,
+                              stretch: true, onFill: palette, target: "meeting-panel-pause") { session.togglePause() }
+                MeetingButton(title: "Stop and save", style: .primary, stopSquare: true, stretch: true, onFill: palette,
+                              target: "meeting-panel-stop", action: stop)
             }
             HStack(spacing: 8) {
-                ArtIcon(art: .iconCopy, size: 13)
-                Text(copied ? "Copied" : "Copy the chat notice again").font(.system(size: 12))
+                IconGlyph(art: .iconCopy, size: 13, color: ink)
+                Text(copied ? "Copied" : "Copy the chat notice again").refinedFont(.meta)
             }
-            .foregroundStyle(Ink.mute)
+            .frame(minHeight: 24)
+            .contentShape(Rectangle())
             .tapArea {
                 copyNotice()
                 copied = true
@@ -201,9 +207,8 @@ struct MeetingRecordingView: View {
         }
         .padding(14)
         .frame(width: MeetingStatusController.panelWidth, alignment: .leading)
-        .foregroundStyle(Ink.ink)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
+        .foregroundStyle(ink)
+        .refinedSurface(Refined.fill(.persimmon, palette), radius: RefinedPlatform.radius(.tile))
     }
 
     private func systemDetail(_ app: String?) -> String {
@@ -212,18 +217,20 @@ struct MeetingRecordingView: View {
         return app.map { "Sound from \($0)" } ?? "Everything this Mac plays"
     }
 
-    private func track(icon: BrandArt, name: String, detail: String, levels: [Float], off: Bool = false) -> some View {
+    /// A track on the ready chip's wash (full ink on it in every mode; the neutral wash falls short with Increase
+    /// Contrast): its glyph, name, what it hears, and its level.
+    private func track(icon: BrandArt, name: String, detail: String, levels: [Float], ink: Color, off: Bool = false) -> some View {
         HStack(spacing: 10) {
-            IconGlyph(art: icon, size: 20, color: off ? Ink.mute : Ink.ink)
+            IconGlyph(art: icon, size: 20, color: ink).opacity(off ? 0.5 : 1)
             VStack(alignment: .leading, spacing: 1) {
-                Text(name).font(.system(size: 13.5, weight: .semibold)).lineLimit(1)
-                Text(detail).font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(1)
+                Text(name).refinedFont(.rowTitle, weight: .semibold).lineLimit(1)
+                Text(detail).refinedFont(.meta).lineLimit(1)
             }
             Spacer(minLength: 8)
-            MeetingLevelMeter(levels: levels).frame(width: 82, height: 22)
+            MeetingLevelMeter(levels: levels, color: ink).frame(width: 82, height: 22)
         }
         .padding(10)
-        .background(Ink.paper, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .background(Refined.readyChip(palette), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 }
@@ -232,6 +239,7 @@ struct MeetingRecordingView: View {
 /// (mac/DESIGN.md §7). With Limit Motion the bars stand still and only say whether sound is arriving.
 struct MeetingLevelMeter: View {
     var levels: [Float]
+    var color: Color = Refined.ink
     @Environment(\.limitMotion) private var limitMotion
     private static let resting: [CGFloat] = [0.35, 0.55, 0.4, 0.7, 0.5, 0.85, 0.45, 0.6, 0.3, 0.65, 0.8, 0.5, 0.4, 0.7, 0.55, 0.9, 0.45, 0.6]
 
@@ -246,7 +254,7 @@ struct MeetingLevelMeter: View {
                 let v: CGFloat = limitMotion ? Self.resting[i % Self.resting.count] : CGFloat(levels[i])
                 let h = max(3, v * size.height)
                 let r = CGRect(x: CGFloat(i) * (w + gap), y: (size.height - h) / 2, width: w, height: h)
-                ctx.fill(Path(roundedRect: r, cornerRadius: w / 2), with: .color(Ink.ink.opacity(limitMotion && !hearing ? 0.3 : 1)))
+                ctx.fill(Path(roundedRect: r, cornerRadius: w / 2), with: .color(color.opacity(limitMotion && !hearing ? 0.3 : 1)))
             }
         }
         .accessibilityElement()

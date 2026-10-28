@@ -334,11 +334,6 @@ struct SettingsResultRow: View {
     }
 }
 
-struct ElapsedText: View {
-    @ObservedObject var live: LiveMeter
-    var body: some View { Text(live.elapsed.timecode).font(.system(size: 13, design: .monospaced)) }
-}
-
 /// The menu bar's Thoughts group, at the top (mockup "Thoughts", section 04): New thought (⌃⌥P from any app), how many
 /// thoughts today's page has, Open today's page, and Show the bubble.
 ///
@@ -422,26 +417,12 @@ struct MenuBarPanel: View {
                 HStack(spacing: 5) { Keycap(keys: "⌥⇧R", size: 10.5); Text("to record") }.font(.system(size: 11)).foregroundStyle(Ink.mute)
             }
             ThoughtsMenuSection()
-            if app.recorder.isRecording {
-                HStack(spacing: 10) {
-                    RecordButton(size: 22)
-                    ElapsedText(live: app.recorder.live)
-                    Spacer()
-                    Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }
-                    Button("Stop") { app.stopRecording() }.buttonStyle(.pillDark())
-                }
-                .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-            } else if app.capture.isCapturing {
-                HStack(spacing: 10) {
-                    ArtIcon(art: .iconVoice, size: 16).foregroundStyle(Ink.iris)
-                    HStack(spacing: 4) { Text("Capturing \(app.capture.appName) ·").font(.system(size: 12.5)); ElapsedText(live: app.capture.live) }
-                    Spacer()
-                    Button("Stop") { app.stopCapture() }.buttonStyle(.pillDark())
-                }
-                .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            if app.recorder.isRecording || app.capture.isCapturing {
+                // The refined recording card, compact (RecordingStatus.swift), in both looks.
+                MenuBarRecordingRow()
             } else {
                 Button { NSApp.activate(ignoringOtherApps: true); app.requestRecord() } label: {
-                    HStack(spacing: 10) { RecordButton(size: 26); Text("Record voice memo").font(.system(size: 13, weight: .medium)); Spacer() }
+                    HStack(spacing: 10) { RecordButton(size: 26); Text("Record a voice note").font(.system(size: 13, weight: .medium)); Spacer() }
                         .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).pressable()

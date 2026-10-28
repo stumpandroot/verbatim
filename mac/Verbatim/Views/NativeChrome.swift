@@ -187,10 +187,14 @@ struct NativeInspector: View {
 
 /// Every screen's toolbar items, declared once at the window, each in the system's glass group (macOS 26). Items keep
 /// their identities as screens change, so AppKit reuses them: the leading item (Back and Forward on every screen, then
-/// the Library's title and count), Record with its menu of kinds (everywhere but a transcript), the center (a
-/// transcript's Original and Cleaned), the screen's own items, and the inspector button. Search is the window's one
-/// system field at the trailing end (`.searchable(placement: .toolbar)`). The leading set never changes, so a screen
-/// change doesn't reshuffle the bar (review M-10).
+/// Record with its menu of kinds everywhere but a transcript), the center (a transcript's tabs), the screen's own items,
+/// and the inspector button. Search is the window's one system field at the trailing end
+/// (`.searchable(placement: .toolbar)`). The leading set never changes, so a screen change doesn't reshuffle the bar
+/// (review M-10).
+///
+/// Record sits in the leading item, beside Back and Forward, so it never goes into the toolbar's overflow: a toolbar
+/// short of room moves its trailing items there first, and in build 239's 1000 pt window the inspector and the search
+/// field pushed a trailing Record out of sight.
 struct NativeToolbar: ToolbarContent {
     let nav: NativeNav
     var screen: Screen
@@ -200,8 +204,6 @@ struct NativeToolbar: ToolbarContent {
         ToolbarItem(id: "native.leading", placement: .navigation) { NativeLeadingItem(nav: nav, screen: screen) }
         if let id = screen.transcriptID {
             ToolbarItem(id: "native.center", placement: .principal) { NativeModePicker(nav: nav, id: id) }
-        } else {
-            ToolbarItem(id: "native.record", placement: .primaryAction) { NativeRecordButton() }
         }
         ToolbarItem(id: "native.actions", placement: .primaryAction) { NativeActionsItem(nav: nav, screen: screen) }
         if screen.hasNativeInspector {
@@ -218,7 +220,8 @@ private struct NativeInspectorButton: View {
     }
 }
 
-/// Back and Forward on every screen. The Library draws its own serif title and count (DESIGN.md §6.8).
+/// Back and Forward on every screen, then Record everywhere but a transcript. The Library draws its own serif title and
+/// count (DESIGN.md §6.8).
 private struct NativeLeadingItem: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var nav: NativeNav
@@ -240,6 +243,9 @@ private struct NativeLeadingItem: View {
                 .disabled(!trail.canGoForward)
                 .help("Forward (⌘])")
                 .accessibilityLabel("Forward")
+            if screen.transcriptID == nil {
+                NativeRecordButton().padding(.leading, 6)
+            }
         }
         .font(.system(size: 14, weight: .medium))
     }
@@ -248,7 +254,8 @@ private struct NativeLeadingItem: View {
 /// Record in the toolbar (mockup section 8; decision 8): a click records a voice note, and the chevron, or a
 /// right-click, opens the menu: Dictate, Live captions, and Import, then Record as's six choices (`RecordKindMenuItems`,
 /// the same items as File › Record As). The dot is system red, flat: the only red Verbose draws, beside the word.
-/// While you record it turns into Stop with the red stop square. The floating record disc retires in Native.
+/// While you record it turns into the live timer capsule (`ToolbarRecordingStatus`, the refined look's, the same in
+/// Verbose style's toolbar): the red dot, the time, and Stop. The floating record disc retires in Native.
 struct NativeRecordButton: View {
     @EnvironmentObject var app: AppState
 
@@ -256,20 +263,8 @@ struct NativeRecordButton: View {
         let busy = app.recorder.isRecording || app.capture.isCapturing
         HStack(spacing: 2) {
             if busy {
-                Button {
-                    if app.recorder.isRecording { app.stopRecording() } else { app.stopCapture() }
-                } label: {
-                    HStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: 2, style: .continuous).fill(NativeInk.record).frame(width: 10, height: 10)
-                        Text("Stop").font(.system(size: 13, weight: .medium))
-                    }
-                    .padding(.horizontal, 6).frame(height: 28).contentShape(Rectangle())
-                }
-                .buttonStyle(.borderless)
-                .help("Stop recording (⌥⇧.)")
-                .accessibilityLabel("Stop")
-                .accessibilityHint("Stops the recording and transcribes it.")
-                .uiWindowTarget("tb-record")
+                ToolbarRecordingStatus(onCard: false)
+                    .uiWindowTarget("tb-record")
             } else {
                 Button { app.requestRecord() } label: {
                     HStack(spacing: 6) {
