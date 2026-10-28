@@ -110,6 +110,8 @@ enum UITest {
             check("Home has no Last dictation section", HomeSection(rawValue: "lastDictation") == nil && HomeProbe.sections.count > 0)
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
             timingSummary("clicks")
+            // The refined Library (DESIGN.md §6.8): the chips, the sort, the columns, and a row's click and double-click.
+            await libraryClicks(app: app, window: window, native: false)
             // Back: the Library comes back where you left it, ⌘[ and the View menu, and Back to Home (App/NavTrail.swift).
             await backSteps(app: app, window: window, native: false)
 
@@ -782,6 +784,7 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 400_000_000)
         nativeChecks()
         await nativeClicks(app: app, window: window)
+        await libraryClicks(app: app, window: window, native: true)
         await backSteps(app: app, window: window, native: true)
         app.go(.home); app.captureMode = "voice"
         await show("01-home-native")
@@ -794,17 +797,13 @@ enum UITest {
         await homeThoughtsSteps(app: app, window: window, look: .native, suffix: "-native")
         app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
         app.go(.library)
-        // The Library opens as a table (mockup section 8): with the inspector, then closed as the mockup draws it, then
-        // the List view with what was said.
+        // The refined Library in Native (DESIGN.md §6.8): with the inspector's preview, then closed as the mockup draws
+        // it. The List view retired with the Table and List choice.
         let inspectorWas = NativeNav.shared.inspector
-        NativeNav.shared.libraryTable = true
         await show("05-library-native")
         NativeNav.shared.inspector = false
         await show("05b-library-table-native")
         NativeNav.shared.inspector = inspectorWas
-        NativeNav.shared.libraryTable = false
-        await show("05c-library-list-native")
-        NativeNav.shared.libraryTable = true
         if let m = memo { app.go(.transcript(m)) }
         await show("06-transcript-native")
         app.go(.byDay(.idea))
@@ -1011,36 +1010,27 @@ enum UITest {
     /// double-click opens), and the toolbar's Back.
     private static func nativeClicks(app: AppState, window: NSWindow) async {
         let nav = NativeNav.shared
-        nav.libraryTable = false
         app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
         app.go(.queue)
         try? await Task.sleep(nanoseconds: 700_000_000)
         await step("native: sidebar Home goes home", window, target: "side-home", check: { app.screen == .home })
         await step("native: sidebar Library opens the Library", window, target: "side-library", check: { app.screen == .library })
-        let first = Store.group(NativeLibraryScope.list(app), sort: LibrarySort(rawValue: UserDefaults.standard.string(forKey: LibrarySort.key) ?? "") ?? .newest).first?.items.first?.id
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        // The one table in both looks (DESIGN.md §6.8): a click selects a row for the inspector, a double-click opens it.
+        let first = LibraryView.shownOrder.first
         if windowFrames["lib-item-1"]?() != nil {
-            await step("native: clicking a Library item selects it", window, target: "lib-item-1",
+            await step("native: clicking a Library row selects it", window, target: "lib-item-1",
                        check: { app.screen == .library && nav.librarySelection != nil && nav.librarySelection != first })
         }
-        await step("native: double-clicking a Library item opens its transcript", window, target: "lib-item-0", clicks: 2,
+        await step("native: double-clicking a Library row opens its transcript", window, target: "lib-item-0", clicks: 2,
                    check: { app.screen.transcriptID != nil && app.screen.transcriptID == first })
         await step("native: the toolbar's Back returns to the Library", window, target: "tb-back", check: { app.screen == .library })
         await step("native: Open Transcript in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
-
-        // The Library as a table (mockup section 8): the default, and a click on a row selects it for the inspector.
         let fresh = UserDefaults(suiteName: "co.stumpandroot.verbatim.uitest.native") ?? .standard
-        fresh.removeObject(forKey: NativeNav.tableKey)
-        check("native: the Library opens as a table until you pick List", NativeNav.storedTable(fresh))
-        nav.libraryTable = true
-        nav.librarySelection = nil
-        app.go(.library)
-        try? await Task.sleep(nanoseconds: 900_000_000)
-        if windowFrames["lib-cell-1"]?() != nil {
-            await step("native: clicking a table row selects it", window, target: "lib-cell-1",
-                       check: { app.screen == .library && nav.librarySelection != nil && nav.librarySelection != first })
-        } else {
-            check("native: the table shows its rows", windowFrames["lib-cell-0"]?() != nil)
-        }
+        fresh.set(false, forKey: NativeNav.retiredTableKey)
+        NativeNav.retireTableChoice(fresh)
+        check("native: the Library's old Table and List choice is removed, so every Library is the table",
+              fresh.object(forKey: NativeNav.retiredTableKey) == nil)
 
         // Record in the toolbar (decision 8): a click records a voice note (or asks for the mic); its menu has Dictate,
         // Live captions, and Import, then Record as's six choices.
@@ -1055,6 +1045,65 @@ enum UITest {
             _ = app.recorder.stop()
         }
         try? await Task.sleep(nanoseconds: 600_000_000)
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// The refined Library (DESIGN.md §6.8) in one look, clicked: it's the one Library on screen, built in this look;
+    /// a chip filters and clears the rest, All clears it; a column title sorts and a second click turns the order
+    /// around, writing the Library's sort where it can; and (Verbose style, as Native's clicks cover it) a click
+    /// selects a row and a double-click opens it.
+    static func libraryClicks(app: AppState, window: NSWindow, native: Bool) async {
+        let tag = native ? "library (native)" : "library"
+        let look: AppLook = native ? .native : .verbose
+        func target(_ id: String) -> CGRect? { windowFrames[id]?() ?? frames[id] }
+        let sortWas = UserDefaults.standard.string(forKey: LibrarySort.key)
+        app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all; app.search = ""
+        app.go(.library)
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        check("\(tag): one refined Library on screen, built in this look (\(LibraryView.onScreen.map(\.rawValue).sorted().joined(separator: ", ")))",
+              LibraryView.onScreen == [look])
+        let drawn = ["kind-all", "source-voiceMemos", "kind-meeting", "kind-idea", "kind-audio", "source-links", "source-marked",
+                     "library-sort", "lib-sort-name", "lib-sort-date", "lib-table"]
+        let missing = drawn.filter { target($0) == nil }
+        check("\(tag): the seven chips, the sort, and the table's columns are drawn\(missing.isEmpty ? "" : " (missing \(missing.joined(separator: ", ")))")",
+              missing.isEmpty)
+
+        // A chip filters and clears the rest; All clears it.
+        await step("\(tag): the Meetings chip shows meetings", window, target: "kind-meeting",
+                   check: { app.libraryKind == .meeting && app.libraryFilter == .all })
+        await step("\(tag): the Voice notes chip shows voice notes and clears Meetings", window, target: "source-voiceMemos",
+                   check: { app.libraryFilter.source == .voiceMemos && app.libraryKind == nil })
+        await step("\(tag): All clears the filter", window, target: "kind-all", check: { app.libraryFilter == .all && app.libraryKind == nil })
+
+        // The columns sort: Name A to Z, then Z to A, then back to Newest first.
+        func titles() -> [String] { LibraryView.shownOrder.compactMap { app.store.transcript($0)?.title } }
+        await step("\(tag): the Name column sorts A to Z, and writes the Library's sort", window, target: "lib-sort-name", check: {
+            let t = titles()
+            return UserDefaults.standard.string(forKey: LibrarySort.key) == LibrarySort.title.rawValue
+                && t == t.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        })
+        await step("\(tag): a second click turns the order around", window, target: "lib-sort-name", check: {
+            let t = titles()
+            return t == t.sorted { $0.localizedStandardCompare($1) == .orderedDescending }
+        })
+        await step("\(tag): the Date column sorts newest first", window, target: "lib-sort-date",
+                   check: { UserDefaults.standard.string(forKey: LibrarySort.key) == LibrarySort.newest.rawValue })
+
+        if !native, LibraryView.shownOrder.count >= 2 {
+            let order = LibraryView.shownOrder
+            NativeNav.shared.librarySelection = nil
+            await step("\(tag): a click selects a row", window, target: "lib-item-1",
+                       check: { app.screen == .library && NativeNav.shared.librarySelection == order[1] })
+            await step("\(tag): a double-click opens it", window, target: "lib-item-0", clicks: 2,
+                       check: { app.screen == .transcript(order[0]) })
+            app.go(.library)
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            check("\(tag): the row you opened is selected when the Library comes back", NativeNav.shared.librarySelection == order[0])
+        }
+        if let sortWas { UserDefaults.standard.set(sortWas, forKey: LibrarySort.key) }
+        ScreenPlaces.shared.reset()
+        NativeNav.shared.librarySelection = nil
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
@@ -2872,7 +2921,6 @@ extension UITest {
             app.libraryKind = nil
             ScreenPlaces.shared.reset()
         }
-        if native { NativeNav.shared.libraryTable = false }
         app.projectFilter = nil; app.libraryFilter = .all; app.libraryKind = .meeting
         app.go(.library)
         app.search = "Backtrail"
@@ -2933,7 +2981,8 @@ extension UITest {
             }
             check("\(tag): the selected row opens from the scrolled Library", app.screen == .transcript(row))
         } else {
-            await step("\(tag): clicking a row in the scrolled Library opens it", window, target: target,
+            // A click selects and a double-click opens, in both looks (the one Library table, DESIGN.md §6.8).
+            await step("\(tag): double-clicking a row in the scrolled Library opens it", window, target: target, clicks: 2,
                        check: { app.screen == .transcript(row) })
         }
         oneScreen("opening a transcript from the scrolled Library\(native ? " (native)" : "")", app: app)
@@ -3038,7 +3087,8 @@ extension UITest {
         check("\(name): a dictation's meta says Cleaned once (M-23)",
               DictationMeta.parts(app: "Mail", level: "Clean", byVoice: false, cleaned: true) == ["Mail", "Cleaned"]
               && DictationMeta.parts(app: "Messages", level: "Literal", byVoice: false, cleaned: false) == ["Messages", "Literal"])
-        check("\(name): the table's Status column fits Transcribing (M-22)", NativeLibraryView.statusMinWidth >= 104)
+        check("\(name): the table's People or source column fits Transcribing in the test window (M-22)",
+              LibraryColumns(width: 1000 - 232 - 2 * 40).people >= 104)
         // Transcript
         check("\(name): playback is sage, not Record (M-24)", PlayerDock.playFill == Ink.panelSage && PlayerDock.playFill != Ink.panelRecord)
         let segs = [Segment(start: 0, end: 1, text: "Hi.", speaker: "S2"), Segment(start: 1, end: 2, text: "Hello.", speaker: "S1"),

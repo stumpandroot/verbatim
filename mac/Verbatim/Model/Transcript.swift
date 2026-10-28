@@ -69,6 +69,22 @@ enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
         case .audio: return "Audio only"
         }
     }
+    /// The kind as a filter or a list names it: "Meetings", "Thoughts", "Audio".
+    var plural: String {
+        switch self {
+        case .journal: return "Journal"
+        case .idea: return "Thoughts"
+        case .meeting: return "Meetings"
+        case .note: return "Notes"
+        case .dictation: return "Dictations"
+        case .podcast: return "Podcasts"
+        case .video: return "Videos"
+        case .talk: return "Talks"
+        case .interview: return "Interviews"
+        case .brainDump: return "Brain dumps"
+        case .audio: return "Audio"
+        }
+    }
     /// The kinds a person can pick; dictation is set automatically for dictations. Brain dump and Audio only come last,
     /// as they do in Record as.
     static let pickable: [RecordingKind] = [.journal, .idea, .meeting, .note, .podcast, .video, .talk, .interview, .brainDump, .audio]

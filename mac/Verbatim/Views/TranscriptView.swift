@@ -327,7 +327,7 @@ struct TranscriptView: View {
     private func nativeMeta(_ t: Transcript) -> String {
         var parts = [t.kind?.label ?? Self.sourceName(t)]
         parts.append(Formats.pattern("EEEE, MMMM d").string(from: t.createdAt) + ", " + Formats.style(date: .none, time: .short).string(from: t.createdAt))
-        if !WebStatus.isTextOnly(t) { parts.append(NativeLibraryView.length(t.duration)) }
+        if !WebStatus.isTextOnly(t) { parts.append(HomeRecentStyle.length(t.duration)) }
         let named = t.speakers.map(\.name).filter { !$0.isEmpty && !$0.hasPrefix("Speaker ") }
         if named.count >= 2 { parts.append(named.prefix(3).joined(separator: ", ")) }
         else if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }

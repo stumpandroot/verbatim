@@ -205,6 +205,7 @@ enum PhoneUITest {
                 }
                 app.tab = .library
                 await show("\(prefix)04-library")
+                if prefix == "p" { libraryLayoutCheck(.verbose) }
                 app.libraryPath.append(DictationsRoute())
                 await show("\(prefix)04d-dictations")
                 app.libraryPath = NavigationPath()
@@ -430,6 +431,7 @@ enum PhoneUITest {
                 }
                 app.tab = .library
                 await show("\(prefix)04-library-native")
+                if prefix == "p" { libraryLayoutCheck(.native) }
                 app.libraryPath.append(DictationsRoute())
                 await show("\(prefix)04d-dictations-native")
                 app.libraryPath = NavigationPath()
@@ -1541,6 +1543,19 @@ enum PhoneUITest {
         let record = HomeLayoutStore.shared.layout(look.homeLook).isVisible(.record) == (HomeProbe.sections[.record] != nil)
         lookCheck("Home in \(look == .native ? "Native" : "Verbose style") draws the refined Home, once (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))",
                   shown == [look] && record)
+    }
+
+    /// The Library draws its one refined layout in either look (DESIGN.md §6.8), once: the Library on screen is the one
+    /// built in the current look, with the mockup's seven chips and the card of places.
+    private static func libraryLayoutCheck(_ look: AppLook) {
+        let shown = LibraryScreen.onScreen
+        lookCheck("Library in \(look == .native ? "Native" : "Verbose style") draws the refined Library, once (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))",
+                  shown == [look])
+        lookCheck("Library's chips are All, Voice notes, Meetings, Thoughts, Audio, Links, and Marked",
+                  LibraryChip.allCases.map(\.label) == ["All", "Voice notes", "Meetings", "Thoughts", "Audio", "Links", "Marked"])
+        let places = LibraryScreen.placeRows(dictations: 1, todayThoughts: 1, templates: 1, recipes: 1, projects: 1).map { $0.id }
+        lookCheck("Library's places keep the self-test's identifiers",
+                  places == ["library.dictations", "library.byDay", "library.templates", "library.ask", "library.projects"])
     }
 
     /// Edit Home (EditHome.swift, HomeLayout.swift) from Home's button: open it, hide a section (This week), reorder

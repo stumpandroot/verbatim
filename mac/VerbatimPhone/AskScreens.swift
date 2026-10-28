@@ -10,27 +10,16 @@ struct AskRoute: Hashable { var query: String? = nil }
 struct RecipesRoute: Hashable {}
 struct RecipeRoute: Hashable { var id: UUID }
 
-/// "Ask about “…”" under the Library's search field, in both looks.
+/// "Ask about “…”" under the Library's search field (DESIGN.md §6.8): a row of the Library's card that opens Ask with
+/// what you typed. A button that pushes, so the list adds no chevron of its own.
 struct AskAboutRow: View {
+    @EnvironmentObject var app: PhoneState
     var query: String
-    @Environment(\.look) private var look
     var body: some View {
-        NavigationLink(value: AskRoute(query: query)) {
-            HStack(spacing: 10) {
-                if look.isNative {
-                    Image(systemName: "questionmark.bubble").font(.system(size: 16, weight: .medium)).foregroundStyle(NativeInk.accent)   // brand: native
-                } else {
-                    IconGlyph(art: .iconAsk, size: 18, color: Ink.ink)
-                }
-                Text("Ask about \u{201C}\(query)\u{201D}").font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
-                Spacer(minLength: 6)
-                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute)
-            }
-            .padding(.horizontal, 14).frame(minHeight: 48)
-            .modifier(AskCardSurface(radius: Radius.row))
-            .contentShape(Rectangle())
+        Button { app.pushHere(AskRoute(query: query)) } label: {
+            IconSquareRow(art: .iconAsk, hue: .neutral, title: "Ask about \u{201C}\(query)\u{201D}")
         }
-        .buttonStyle(PhoneCardPress())
+        .buttonStyle(RefinedPress())
         .accessibilityIdentifier("library.askAbout")
         .accessibilityHint("Answers from your recordings, with the passages it used")
     }

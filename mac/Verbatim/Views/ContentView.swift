@@ -183,7 +183,8 @@ struct ContentView: View {
     @ViewBuilder private var screen: some View {
         switch app.screen {
         case .home: HomeView()
-        case .library: if look == .native { NativeLibraryView() } else { LibraryView() }
+        // One Library in both looks (DESIGN.md §6.8).
+        case .library: LibraryView()
         case .queue: QueueView()
         case .trash: TrashView()
         case .dictionary: DictionaryView()

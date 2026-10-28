@@ -65,6 +65,12 @@ pair("accent text on a selected chip or row (persimmon tint)", H.accentText, .to
 pair("ink on a selected chip or row (persimmon tint)", H.ink, .tone(H.persimmonTint))
 pair("ink on a quiet chip on paper", H.ink, .wash(H.neutral, over: H.paper))
 pair("ink on a quiet chip on the card", H.ink, .wash(H.neutral, over: H.card))
+pair("mute on a selected row (persimmon tint), the Library table's other columns", H.mute, .tone(H.persimmonTint))
+pair("dim on a selected row (persimmon tint)", H.dim, .tone(H.persimmonTint))
+for (n, t) in [("ink", H.ink), ("dim", H.dim), ("mute", H.mute)] {
+    pair("\(n) on a striped row (the Library table's alternating wash)", t, .wash(H.stripe, over: H.card))
+}
+pair("the selected chip's accent text on the persimmon tint, on paper", H.accentText, .tone(H.persimmonTint))
 pair("dim on a segmented track (the options not chosen)", H.dim, .tone(H.track))
 pair("the playing line's time (sage text) on its wash, on paper", H.sageText, .wash(H.playing, over: H.paper))
 pair("the playing line's time (sage text) on its wash, on the card", H.sageText, .wash(H.playing, over: H.card))
@@ -167,6 +173,14 @@ check("the recorder's clock has hundredths", R.clock(72.48) == "01:12.48" && R.c
 check("the Mac recording card's clock: 01:12, and hours past an hour", R.minutesClock(72.9) == "01:12" && R.minutesClock(0) == "00:00"
       && R.minutesClock(3672) == "1:01:12" && R.minutesClock(-4) == "00:00" && R.minutesClock(.nan) == "00:00")
 check("the clock shows hours past an hour", R.clock(3672.5) == "1:01:12.50")
+let gmt = { () -> Calendar in var c = Calendar(identifier: .gregorian); c.timeZone = TimeZone(identifier: "UTC")!; return c }()
+func day(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 12) -> Date { gmt.date(from: DateComponents(year: y, month: m, day: d, hour: h))! }
+let posix = Locale(identifier: "en_US_POSIX"), tuesday = day(2026, 10, 27, 15)
+func short(_ d: Date) -> String { R.shortDay(d, now: tuesday, calendar: gmt, locale: posix) }
+check("the Library's Date column: Today, a weekday this week, the month and day, then the year",
+      short(day(2026, 10, 27, 1)) == "Today" && short(day(2026, 10, 26)) == "Mon" && short(day(2026, 10, 21)) == "Wed"
+      && short(day(2026, 10, 20)) == "Oct 20" && short(day(2025, 3, 2)) == "Mar 2, 2025",
+      [short(day(2026, 10, 27, 1)), short(day(2026, 10, 26)), short(day(2026, 10, 21)), short(day(2026, 10, 20)), short(day(2025, 3, 2))].joined(separator: " | "))
 check("lengths read aloud", R.spokenTime(72) == "1 minute 12 seconds" && R.spokenTime(1) == "1 second" && R.spokenTime(0) == "0 seconds" &&
       R.spokenTime(3600) == "1 hour")
 
@@ -188,7 +202,7 @@ for f in kitFiles {
 let kit = kitFiles.map { read("\(views)/\($0)") }.joined(separator: "\n")
 for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "KindColorChip", "IconSquare", "SerifSectionTitle",
           "LargeSerifTitle", "ReadingText", "GlassPlayerBar", "RecorderClockPanel", "PaperRow", "WeekCard", "RecordingCard",
-          "RefinedActionStyle"] {
+          "RefinedActionStyle", "RefinedChip", "RefinedSearchField", "IconSquareRow", "PaperTable", "PaperRowBackground"] {
     check("the kit has \(c) with a preview", kit.contains("struct \(c)") && kit.contains("\(c)_Previews"))
 }
 check("the kit reads the palette from where Settings stores it", kit.contains("AppPalette.key, store: AppLook.store"))

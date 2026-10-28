@@ -218,6 +218,22 @@ enum RefinedRules {
         return parts.isEmpty ? "0 seconds" : parts.joined(separator: " ")
     }
 
+    /// A day as the Mac Library's Date column says it (mockup MacLibrary): "Today", the weekday for the rest of the
+    /// last week ("Mon"), the month and day this year ("Oct 12"), and the date with its year before that ("Oct 12, 2025").
+    static func shortDay(_ date: Date, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current) -> String {
+        func formatted(_ template: String) -> String {
+            let f = DateFormatter()
+            f.locale = locale; f.calendar = calendar; f.timeZone = calendar.timeZone
+            f.setLocalizedDateFormatFromTemplate(template)
+            return f.string(from: date)
+        }
+        if calendar.isDate(date, inSameDayAs: now) { return "Today" }
+        let today = calendar.startOfDay(for: now)
+        if let weekAgo = calendar.date(byAdding: .day, value: -6, to: today), date >= weekAgo, date < today { return formatted("EEE") }
+        if calendar.isDate(date, equalTo: now, toGranularity: .year) { return formatted("MMM d") }
+        return formatted("MMM d yyyy")
+    }
+
     // MARK: Contrast (WCAG 2.x)
 
     /// Relative luminance of an sRGB color given as 0xRRGGBB.

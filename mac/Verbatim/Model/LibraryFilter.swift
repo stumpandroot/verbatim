@@ -175,6 +175,62 @@ struct LibraryFilter: Equatable, Hashable {
     }
 }
 
+/// The Library's quick filters in the refined look (DESIGN.md §6.8; mockups PhoneLibrary and MacLibrary): All, Voice
+/// notes, Meetings, Thoughts, Audio (Audio only), Links, and Marked, always in this order so the row never shifts.
+/// Each one is a type, a kind, or neither (All); choosing one clears the rest. Every other filter (another type or
+/// kind, Pinned, In progress, a project) lives in the filter menu, and while one is on the Library shows it as a chosen
+/// chip of its own (`otherLabel`), so you can see it and clear it.
+enum LibraryChip: String, CaseIterable, Identifiable {
+    case all, voiceNotes, meetings, thoughts, audio, links, marked
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .all: return "All"
+        case .voiceNotes: return "Voice notes"
+        case .meetings: return "Meetings"
+        case .thoughts: return "Thoughts"
+        case .audio: return "Audio"
+        case .links: return "Links"
+        case .marked: return "Marked"
+        }
+    }
+
+    /// The type the chip filters by (All for a kind chip).
+    var source: LibrarySource {
+        switch self {
+        case .voiceNotes: return .voiceMemos
+        case .links: return .links
+        case .marked: return .marked
+        default: return .all
+        }
+    }
+
+    /// The kind the chip filters by, or nil for a type chip and All.
+    var kind: RecordingKind? {
+        switch self {
+        case .meetings: return .meeting
+        case .thoughts: return .idea
+        case .audio: return .audio
+        default: return nil
+        }
+    }
+
+    /// The chip that shows exactly this filter, or nil when it's one the chips don't name (a platform within Links
+    /// still counts as Links).
+    static func matching(_ filter: LibraryFilter, kind: RecordingKind?) -> LibraryChip? {
+        allCases.first { $0.source == filter.source && $0.kind == kind }
+    }
+
+    /// The name of a filter the chips don't name, for its own chosen chip: "Journal", "Videos", "Voice notes,
+    /// Meetings" (a type and a kind together, which the Mac's menu can leave on). Nil when a chip names it.
+    static func otherLabel(_ filter: LibraryFilter, kind: RecordingKind?) -> String? {
+        guard matching(filter, kind: kind) == nil else { return nil }
+        let parts = [filter.source == .all ? nil : filter.source.label, kind?.plural].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+}
+
 /// Adding Library transcripts to a project. A transcript belongs to at most one project (`Transcript.projectId`), so
 /// adding one that's in another project moves it.
 enum ProjectAdd {

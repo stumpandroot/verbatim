@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 // The refined look's kit (DESIGN.md §13), shared by the Mac and iPhone apps: the content layer that Verbose draws
 // while Apple draws the chrome. Warm paper, off-white cards with no outlines or hard shadows, butter, sage, and petal
@@ -406,6 +409,142 @@ struct RefinedActionStyle: ButtonStyle {
     }
 }
 
+// MARK: - Filters and search
+
+/// A filter chip (the Library's All, Voice notes, Meetings, …): a capsule on the neutral wash with ink text at rest,
+/// and the persimmon tint with accent text in semibold when chosen. No outline. On iPhone the tap target is 44 pt
+/// tall around the capsule. VoiceOver reads it as a button, selected when chosen; put chips in a `RefinedChipRow`.
+struct RefinedChip: View {
+    var title: String
+    var selected: Bool
+    var action: () -> Void
+    private let mac = RefinedPlatform.mac
+
+    var body: some View {
+        Button(action: action) {
+            Text(title).refinedFont(.hint, weight: selected ? .semibold : .regular).lineLimit(1)
+                .foregroundStyle(selected ? Refined.accentText : Refined.ink)
+                .padding(.horizontal, mac ? 12 : 14).padding(.vertical, mac ? 5 : 7)
+                .background(selected ? Refined.persimmonTint : Refined.neutral, in: Capsule())
+                .frame(minHeight: mac ? 26 : CGFloat(RefinedRules.minTapTarget))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// A row of filter chips, read by VoiceOver as one group ("Filter"): one line that scrolls sideways, with the page's
+/// margin inside it so the first chip lines up with the content and the last one scrolls clear of the edge.
+struct RefinedChipRow<Content: View>: View {
+    var label = "Filter"
+    var margin: CGFloat = 0
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) { content }
+                .padding(.horizontal, margin)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(label)
+    }
+}
+
+/// A search field on the page, for a screen whose window has no system search field (the Mac Library in Verbose
+/// style): the field color, a magnifying glass, the prompt, an optional shortcut at the end ("⌘K"), and a clear
+/// button. Return runs `onSubmit`.
+struct RefinedSearchField: View {
+    @Binding var text: String
+    var prompt: String
+    var shortcut: String?
+    var onSubmit: () -> Void
+    @FocusState private var focused: Bool
+    private let mac = RefinedPlatform.mac
+
+    init(text: Binding<String>, prompt: String, shortcut: String? = nil, onSubmit: @escaping () -> Void = {}) {
+        _text = text; self.prompt = prompt; self.shortcut = shortcut; self.onSubmit = onSubmit
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").font(.system(size: mac ? 12 : 15, weight: .medium)).foregroundStyle(Refined.mute)
+                .accessibilityHidden(true)
+            TextField(prompt, text: $text, prompt: Text(prompt).foregroundStyle(Refined.mute))
+                .textFieldStyle(.plain)
+                .refinedFont(.body)
+                .foregroundStyle(Refined.ink)
+                .focused($focused)
+                .onSubmit(onSubmit)
+                .accessibilityLabel(prompt)
+            if !text.isEmpty {
+                Button { text = ""; focused = true } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: mac ? 12 : 15)).foregroundStyle(Refined.mute)
+                        .frame(minWidth: mac ? 20 : 44, minHeight: mac ? 20 : 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            } else if let shortcut {
+                Text(shortcut).refinedFont(.caption).foregroundStyle(Refined.mute).accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, mac ? 8 : 10)
+        .frame(minHeight: mac ? 30 : 38)
+        .background(Refined.field, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.field), style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.field), style: .continuous))
+    }
+}
+
+#if os(iOS)
+/// The system's search field (`UISearchTextField`, the field `.searchable` draws) placed on the page under a screen's
+/// serif title (the iPhone Library), where the navigation bar's drawer would put it above the title: the system's
+/// magnifying glass, clear button, keyboard, and Dynamic Type, on the field color. Return runs `onSubmit`.
+struct SystemSearchField: UIViewRepresentable {
+    @Binding var text: String
+    var prompt: String
+    var onSubmit: () -> Void = {}
+
+    func makeUIView(context: Context) -> UISearchTextField {
+        let f = UISearchTextField()
+        f.placeholder = prompt
+        f.accessibilityLabel = prompt
+        f.font = .preferredFont(forTextStyle: .body)
+        f.adjustsFontForContentSizeCategory = true
+        f.backgroundColor = Refined.uiColor(RefinedHex.field)
+        f.textColor = Refined.uiColor(RefinedHex.ink)
+        f.returnKeyType = .search
+        f.autocorrectionType = .no
+        f.autocapitalizationType = .none
+        f.delegate = context.coordinator
+        f.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .editingChanged)
+        f.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        f.text = text
+        return f
+    }
+
+    func updateUIView(_ f: UISearchTextField, context: Context) {
+        context.coordinator.parent = self
+        if f.text != text { f.text = text }
+        if f.placeholder != prompt { f.placeholder = prompt; f.accessibilityLabel = prompt }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: SystemSearchField
+        init(_ parent: SystemSearchField) { self.parent = parent }
+        @objc func changed(_ f: UITextField) { parent.text = f.text ?? "" }
+        func textFieldShouldClear(_ f: UITextField) -> Bool { parent.text = ""; return true }
+        func textFieldShouldReturn(_ f: UITextField) -> Bool {
+            f.resignFirstResponder()
+            parent.onSubmit()
+            return true
+        }
+    }
+}
+#endif
+
 // MARK: - Cards and rows
 
 /// The off-white grouped container (Recent, Library's rows, Settings' groups): no outline, no shadow, the card
@@ -454,13 +593,16 @@ struct PaperList<Data: RandomAccessCollection, ID: Hashable, Row: View>: View {
     }
 }
 
-/// A recording as a row in a card (Home's Recent): on iPhone the kind's badge, the title over its meta line, and a
-/// trailing length; on the Mac one line, the kind's dot, the title, the meta, and the trailing length. `trailing`
-/// takes the place of the length when it's set (a stage while it transcribes).
+/// A recording as a row in a card (Home's Recent, the iPhone Library): on iPhone the kind's badge (34 pt on Home, 32 in
+/// the Library), the title over its meta line, and a trailing length; on the Mac one line, the kind's dot, the title,
+/// the meta, and the trailing length. `trailing` takes the place of the length when it's set (a stage while it
+/// transcribes). A pinned recording shows the pin before its title.
 struct PaperRow<Trailing: View>: View {
     var kind: RecordingKind?
     var title: String
     var meta: String
+    var badge: CGFloat = 34
+    var pinned = false
     @ViewBuilder var trailing: Trailing
     private let mac = RefinedPlatform.mac
 
@@ -468,6 +610,7 @@ struct PaperRow<Trailing: View>: View {
         if mac {
             HStack(spacing: 12) {
                 KindBadge(kind: kind, size: 8)
+                if pinned { IconGlyph(art: .iconPin, size: 12, color: Refined.mute).accessibilityHidden(true) }
                 Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(meta).refinedFont(.rowTitle).foregroundStyle(Refined.mute).lineLimit(1)
@@ -478,9 +621,12 @@ struct PaperRow<Trailing: View>: View {
             .contentShape(Rectangle())
         } else {
             HStack(spacing: 12) {
-                KindBadge(kind: kind)
+                KindBadge(kind: kind, size: badge)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                    HStack(spacing: 5) {
+                        if pinned { IconGlyph(art: .iconPin, size: 13, color: Refined.mute).accessibilityHidden(true) }
+                        Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                    }
                     Text(meta).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -490,6 +636,78 @@ struct PaperRow<Trailing: View>: View {
             .frame(maxWidth: .infinity, minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
             .contentShape(Rectangle())
         }
+    }
+}
+
+/// A card with a header that stays at the top of the scroll view while its rows scroll under it (the Mac Library's
+/// table: the column titles over the recordings). Lazy, so a library of hundreds builds only the rows on screen. Put
+/// it in a vertical scroll view.
+struct PaperTable<Header: View, Rows: View>: View {
+    @ViewBuilder var header: Header
+    @ViewBuilder var rows: Rows
+
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+            Section {
+                rows
+            } header: {
+                VStack(spacing: 0) {
+                    header
+                    PaperDivider(leading: 0)
+                }
+                .background(Refined.card)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+    }
+}
+
+/// One row's share of a card in a system `List` (the iPhone Library, whose rows keep swipe actions and selection): the
+/// card fill, rounded at the group's first row's top corners and its last row's bottom corners, inset from the
+/// screen's edges. Under Increase Contrast it takes the card's hairline edge. Use it as `.listRowBackground(…)`, and
+/// draw `PaperDivider`s between rows yourself.
+struct PaperRowBackground: View {
+    var first: Bool
+    var last: Bool
+    var inset: CGFloat = 20
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    init(first: Bool, last: Bool, inset: CGFloat = 20) { self.first = first; self.last = last; self.inset = inset }
+
+    var body: some View {
+        let r = RefinedPlatform.radius(.card)
+        let shape = UnevenRoundedRectangle(topLeadingRadius: first ? r : 0, bottomLeadingRadius: last ? r : 0,
+                                           bottomTrailingRadius: last ? r : 0, topTrailingRadius: first ? r : 0, style: .continuous)
+        shape.fill(Refined.card)
+            .overlay { if contrast == .increased { shape.strokeBorder(Refined.separator, lineWidth: 1) } }
+            .padding(.horizontal, inset)
+    }
+}
+
+/// A row that opens a place (the Library's Dictations, By day, Templates, Ask, and Projects): an `IconSquare`, the
+/// name, an optional value in the meta color ("3", "7 today"), and a chevron. It draws no button of its own: put it
+/// in one, or in a NavigationLink. VoiceOver reads the name and the value.
+struct IconSquareRow: View {
+    var art: BrandArt
+    var hue: RefinedHue
+    var title: String
+    var value: String? = nil
+    private let mac = RefinedPlatform.mac
+
+    var body: some View {
+        HStack(spacing: 12) {
+            IconSquare(art: art, hue: hue)
+            Text(title).refinedFont(.body).foregroundStyle(Refined.ink).lineLimit(1)
+            Spacer(minLength: 8)
+            if let value { Text(value).refinedFont(.body).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1) }
+            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.faint)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 14).padding(.vertical, mac ? 6 : 7)
+        .frame(maxWidth: .infinity, minHeight: mac ? 34 : CGFloat(RefinedRules.minTapTarget), alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -615,6 +833,16 @@ extension RecordingKind {
     /// The kind's color in the refined look (DESIGN.md §13): kinds get colors again, each with its glyph and name.
     var refinedHue: RefinedHue { RefinedRules.kindHue(rawValue) }
 
+    /// A kind as one recording of it says it, in the refined look's rows and chips: "Meeting", "Voice note" (a note,
+    /// and nil), "Thought", "Audio only".
+    static func refinedName(_ kind: RecordingKind?) -> String {
+        switch kind {
+        case nil, .note?: return "Voice note"
+        case .idea?: return "Thought"
+        case let k?: return k.label
+        }
+    }
+
     /// The kind's fine-line glyph on its badge (the Record as glyphs where the kind has one).
     var refinedArt: BrandArt {
         switch self {
@@ -676,7 +904,7 @@ struct KindColorChip: View {
 
     init(title: String, hue: RefinedHue) { self.title = title; self.hue = hue }
     init(kind: RecordingKind?) {
-        self.init(title: kind.map { $0 == .note ? "Voice note" : $0.label } ?? "Voice note", hue: RefinedRules.kindHue(kind?.rawValue))
+        self.init(title: RecordingKind.refinedName(kind), hue: RefinedRules.kindHue(kind?.rawValue))
     }
 
     var body: some View {
@@ -938,6 +1166,70 @@ struct RefinedActionStyle_Previews: PreviewProvider {
                 Button("Stop and transcribe") {}.buttonStyle(RefinedActionStyle(kind: .strong))
             }
         }
+    }
+}
+
+struct RefinedChip_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage {
+            RefinedChipRow {
+                ForEach(["All", "Voice notes", "Meetings", "Thoughts", "Audio", "Links", "Marked"], id: \.self) { c in
+                    RefinedChip(title: c, selected: c == "All") {}
+                }
+            }
+        }
+    }
+}
+
+struct RefinedSearchField_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage {
+            RefinedSearchField(text: .constant(""), prompt: "Search or ask", shortcut: RefinedPlatform.mac ? "⌘K" : nil)
+            RefinedSearchField(text: .constant("wagons"), prompt: "Search or ask")
+        }
+    }
+}
+
+struct IconSquareRow_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage {
+            PaperCard {
+                IconSquareRow(art: .iconDictations, hue: .butter, title: "Dictations", value: "3")
+                PaperDivider(leading: 56)
+                IconSquareRow(art: .iconCalendar, hue: .sage, title: "By day", value: "7 today")
+                PaperDivider(leading: 56)
+                IconSquareRow(art: .iconSummaries, hue: .petal, title: "Templates", value: "14")
+            }
+        }
+    }
+}
+
+struct PaperTable_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage {
+            PaperTable {
+                Text("Name").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+                    .padding(.horizontal, 16).padding(.vertical, 9)
+            } rows: {
+                ForEach(0..<4) { i in
+                    Text("Recording \(i + 1)").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                        .padding(.horizontal, 16).padding(.vertical, 9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(i == 0 ? Refined.persimmonTint : i.isMultiple(of: 2) ? Refined.stripe : Color.clear)
+                }
+            }
+        }
+    }
+}
+
+struct PaperRowBackground_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 0) {
+            Text("First").padding(14).frame(maxWidth: .infinity, alignment: .leading).background(PaperRowBackground(first: true, last: false, inset: 0))
+            Text("Last").padding(14).frame(maxWidth: .infinity, alignment: .leading).background(PaperRowBackground(first: false, last: true, inset: 0))
+        }
+        .padding(20)
+        .background(Refined.paper)
     }
 }
 
