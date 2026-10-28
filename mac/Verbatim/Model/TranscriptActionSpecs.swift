@@ -1,8 +1,7 @@
 import Foundation
 
-/// One of the actions that turn a whole transcript into something new: a plan, a journal entry, a draft, study
-/// notes, key points. Shared by the Mac (where they sit alongside the saved actions in Settings › Actions and stay
-/// editable) and the iPhone (built-in list).
+/// One of the actions that turn a whole transcript into something new: a draft or study notes. Shared by the Mac
+/// (where they're also text actions, in Templates) and the iPhone (built-in list).
 struct TranscriptActionSpec: Identifiable, Equatable, Hashable {
     let id: UUID
     var name: String

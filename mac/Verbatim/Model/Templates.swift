@@ -81,6 +81,33 @@ enum TemplateOrigin: String, CaseIterable, Identifiable {
     }
 }
 
+/// Where a template works (consolidation, October 28, 2026: one Templates list holds the Mac's text actions and the
+/// transcript templates, each marked): on text you select in any app (the Ribbon's menu), on a recording (Run a
+/// template, Run automatically, a transcript's Actions), or both.
+enum TemplateScope: String, CaseIterable, Sendable {
+    case text, recording, both
+    var title: String {
+        switch self {
+        case .text: return "Selected text"
+        case .recording: return "Recordings"
+        case .both: return "Selected text and recordings"
+        }
+    }
+    var onText: Bool { self != .recording }
+    var onRecording: Bool { self != .text }
+
+    /// A template works on recordings; one that's also a text action (Plan my day, Daily reflection, Write a draft,
+    /// Study notes, on the Mac) works on selected text too.
+    static func of(template id: UUID, textActions: Set<UUID>) -> TemplateScope { textActions.contains(id) ? .both : .recording }
+
+    /// A text action of yours or one that comes with Verbose: the Ribbon's menu on selected text, and a transcript's or a
+    /// dictation's Actions menu on the Mac, so both.
+    static let textAction = TemplateScope.both
+
+    /// A row's meta line: "Selected text and recordings · Summary, decisions, action items".
+    static func metaLine(_ scope: TemplateScope, _ rest: String) -> String { rest.isEmpty ? scope.title : scope.title + " · " + rest }
+}
+
 /// A template: a name, a short description, the instruction, its sections in order, and the kinds it suits. Yours
 /// sync through the Store (`templates.json`, SyncMerge), so `updatedAt` stamps each change.
 struct TranscriptTemplate: Codable, Equatable, Identifiable, Hashable, SyncEntry {

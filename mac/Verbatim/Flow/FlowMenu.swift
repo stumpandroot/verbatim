@@ -206,7 +206,7 @@ struct FlowMenuView: View {
                 Rectangle().fill(Paper.rule).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 5)
                 MenuRow(highlighted: false, action: { actions.editActions(); close() }) {
                     ArtIcon(art: .iconQuality, size: 16).foregroundStyle(Paper.dim).frame(width: 20)
-                    Text("Edit actions…").font(.system(size: 13)).foregroundStyle(Paper.ink)
+                    Text("Edit in Templates…").font(.system(size: 13)).foregroundStyle(Paper.ink)
                     Spacer(minLength: 0)
                 }
             case nil:

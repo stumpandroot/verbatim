@@ -5,13 +5,15 @@ import AppKit
 //
 // Make › Templates in the main window (mockup "Library features", sections 1a to 1c): the template library with
 // filters, a template's sections and Run automatically chips beside it, the editor for your own, and Run automatically
-// (one template or Off per kind, and three options). Built from the website-style kit (WebStyle.swift), which draws
+// (one template or Off per kind, and three options). Since the consolidation (October 28, 2026) it's the one list of
+// what turns words into something else: the transcript templates and the text actions the Ribbon's menu runs on
+// selected text (Settings › Actions moved here), each marked with where it works (`TemplateScope`). Built from the website-style kit (WebStyle.swift), which draws
 // Premium Native too; the Native library is a grid of white cards (§13.2).
 
 enum TemplatesPane: String { case library, auto }
 
-/// The library's chips: All, one origin, or the ones that run automatically.
-enum TemplateFilter: Hashable { case all, origin(TemplateOrigin), auto }
+/// The library's chips: All, one origin, the ones that run automatically, or the ones that work on selected text.
+enum TemplateFilter: Hashable { case all, origin(TemplateOrigin), auto, text }
 
 /// The Templates screen's state, kept across visits.
 @MainActor
@@ -27,6 +29,13 @@ final class TemplatesNav: ObservableObject {
     @Published var tryOn: TemplateTryOn? = nil
 
     func newTemplate() { editingIsNew = true; editing = TemplateLibrary.blank() }
+    /// A new text action at the end of the list, selected so its fields are ready to fill in.
+    func newTextAction() {
+        let a = FlowAction(name: "New action", instruction: "")
+        FlowSettings.shared.actions.append(a)
+        if filter != .all { filter = .text }
+        selected = a.id
+    }
     func duplicate(_ t: TranscriptTemplate) { editingIsNew = true; editing = TemplateLibrary.duplicate(t) }
     func edit(_ t: TranscriptTemplate) { editingIsNew = false; editing = t }
 }
@@ -87,78 +96,126 @@ struct TemplateLibraryPane: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var nav = TemplatesNav.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
+    @ObservedObject private var flow = FlowSettings.shared
+    @State private var confirmRestore = false
     @Environment(\.look) private var look
 
     var body: some View {
         let all = app.store.allTemplates
         let settings = auto.settings.pruned(existing: Set(all.map(\.id)))
-        let shown = filtered(all, settings)
-        let selected = shown.first { $0.id == nav.selected } ?? shown.first
+        let textIDs = Set(flow.actions.map(\.id))
+        // Text actions that are also templates (Plan my day, Write a draft, …) show once, as the template.
+        let templateIDs = Set(all.map(\.id))
+        let texts = flow.actions.filter { !templateIDs.contains($0.id) }
+        let shown = filtered(all, settings, textIDs)
+        let shownTexts = nav.filter == .all || nav.filter == .text ? texts : []
+        let pickedText = shownTexts.first { $0.id == nav.selected }
+        let pickedTemplate = shown.first { $0.id == nav.selected } ?? (pickedText == nil ? shown.first : nil)
+        let fallbackText = pickedTemplate == nil ? (pickedText ?? shownTexts.first) : nil
         return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                PageTitle(title: "Templates", count: "\(all.count) templates",
-                          lede: "Turn a transcript into notes, a plan, or a draft. Pick one per kind to run when a recording finishes. For text you select in any app, use Actions in Settings.") {
+                PageTitle(title: "Templates", count: "\(all.count + texts.count) templates",
+                          lede: "Turn a recording into notes, a plan, or a draft, or rework text you select in any app. Each says where it works. Pick one per kind to run when a recording finishes.") {
                     HStack(spacing: 8) {
                         TemplatesPaneSwitch()
+                        PillButton(title: "New text action", kind: .line, size: .mini, icon: .webPlus) { nav.newTextAction() }
+                            .uiTarget("templates-new-text")
                         PillButton(title: "New template", kind: .dark, size: .mini, icon: .webPlus) { nav.newTemplate() }
                             .uiTarget("templates-new")
                     }
                 }
-                chips(all, settings)
+                chips(all, settings, textIDs: textIDs, texts: texts.count)
                 HStack(alignment: .top, spacing: 22) {
                     Group {
-                        if look == .native { grid(shown, settings, selected: selected?.id) } else { list(shown, settings, selected: selected?.id) }
+                        if look == .native { grid(shown, settings, textIDs: textIDs, texts: shownTexts, selected: pickedTemplate?.id ?? fallbackText?.id) }
+                        else { list(shown, settings, textIDs: textIDs, texts: shownTexts, selected: pickedTemplate?.id ?? fallbackText?.id) }
                     }
                     .frame(maxWidth: .infinity, alignment: .topLeading)
-                    if let selected {
-                        TemplateDetailCard(template: selected)
+                    if let t = pickedTemplate {
+                        TemplateDetailCard(template: t, scope: TemplateScope.of(template: t.id, textActions: textIDs))
                             .frame(width: 340)
-                            .id(selected.id)
+                            .id(t.id)
+                    } else if let a = fallbackText {
+                        TextActionDetailCard(actionID: a.id)
+                            .frame(width: 340)
+                            .id(a.id)
                     }
                 }
             }
             .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, 40)
             .frame(maxWidth: 1180, alignment: .leading)
         }
+        .confirmationDialog("Restore the text actions that come with Verbose?", isPresented: $confirmRestore) {
+            Button("Restore", role: .destructive) { flow.actions = FlowAction.builtIn; nav.selected = nil }
+        } message: { Text("Replaces your text actions with the \(FlowAction.builtIn.count) that come with Verbose. Text actions you added or changed are removed. Your templates stay.") }
     }
 
-    private func filtered(_ all: [TranscriptTemplate], _ s: AutoRunSettings) -> [TranscriptTemplate] {
+    private func filtered(_ all: [TranscriptTemplate], _ s: AutoRunSettings, _ textIDs: Set<UUID>) -> [TranscriptTemplate] {
         switch nav.filter {
         case .all: return all
         case .origin(let o): return TemplateLibrary.filtered(all, origin: o, autoOnly: false, settings: s)
         case .auto: return TemplateLibrary.filtered(all, origin: nil, autoOnly: true, settings: s)
+        case .text: return all.filter { textIDs.contains($0.id) }
         }
     }
 
-    private func chips(_ all: [TranscriptTemplate], _ s: AutoRunSettings) -> some View {
+    private func chips(_ all: [TranscriptTemplate], _ s: AutoRunSettings, textIDs: Set<UUID>, texts: Int) -> some View {
         let autoCount = all.filter { !s.kinds(for: $0.id).isEmpty }.count
         return HStack(spacing: 6) {
-            FilterChip(title: "All", count: all.count, selected: nav.filter == .all) { nav.filter = .all }
+            FilterChip(title: "All", count: all.count + texts, selected: nav.filter == .all) { nav.filter = .all }
             ForEach([TemplateOrigin.builtIn, .scenario, .yours]) { o in
                 FilterChip(title: o.title, count: all.filter { $0.origin == o }.count, selected: nav.filter == .origin(o)) { nav.filter = .origin(o) }
                     .uiTarget("templates-filter-\(o.rawValue)")
             }
             FilterChip(title: "Runs automatically", count: autoCount, selected: nav.filter == .auto) { nav.filter = .auto }
+            FilterChip(title: "On selected text", count: texts + all.filter { textIDs.contains($0.id) }.count, selected: nav.filter == .text) { nav.filter = .text }
+                .uiTarget("templates-filter-text")
         }
     }
 
-    /// Verbose: flat rows under "Scenarios · 8" headers.
-    private func list(_ shown: [TranscriptTemplate], _ s: AutoRunSettings, selected: UUID?) -> some View {
+    /// Verbose: flat rows under "Scenarios · 8" headers, then the text actions.
+    private func list(_ shown: [TranscriptTemplate], _ s: AutoRunSettings, textIDs: Set<UUID>, texts: [FlowAction], selected: UUID?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(TemplateOrigin.allCases) { o in
                 let items = shown.filter { $0.origin == o }
                 if !items.isEmpty {
                     DayHeader(text: "\(o.title) · \(items.count)").padding(.top, o == TemplateOrigin.allCases.first ? 0 : 14).padding(.bottom, 2)
-                    ForEach(items) { t in row(t, s, selected: t.id == selected) }
+                    ForEach(items) { t in row(t, s, scope: TemplateScope.of(template: t.id, textActions: textIDs), selected: t.id == selected) }
                 }
             }
-            if shown.isEmpty {
+            if !texts.isEmpty {
+                DayHeader(text: "Text actions · \(texts.count)").padding(.top, shown.isEmpty ? 0 : 14).padding(.bottom, 2)
+                ForEach(texts) { a in textRow(a, selected: a.id == selected) }
+                TextLink(title: "Restore the text actions that come with Verbose", glyph: .none) { confirmRestore = true }
+                    .padding(.top, 8).padding(.leading, 12)
+            }
+            if shown.isEmpty && texts.isEmpty {
                 Text("No templates here yet. Choose New template to make your own.").font(.system(size: 13.5)).foregroundStyle(Ink.dim).padding(.vertical, 12)
             }
         }
     }
 
-    private func row(_ t: TranscriptTemplate, _ s: AutoRunSettings, selected: Bool) -> some View {
+    /// A text action of yours or one that comes with Verbose: it works on selected text and on recordings.
+    private func textRow(_ a: FlowAction, selected: Bool) -> some View {
+        FlatRowButton(selected: selected, action: { nav.selected = a.id }) { _ in
+            HStack(spacing: 14) {
+                IconGlyph(art: a.art, size: 17, color: Ink.ink)
+                    .frame(width: 34, height: 34)
+                    .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    let parts = TemplateTitle.split(a.name.isEmpty ? "Untitled action" : a.name)
+                    WebText.serif(parts.0, italic: parts.1, size: 19).foregroundStyle(Ink.ink).lineLimit(1)
+                    Text(TemplateScope.metaLine(TemplateScope.textAction, a.kind.title)).font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 9)
+        }
+        .accessibilityLabel((a.name.isEmpty ? "Untitled action" : a.name) + ", works on " + TemplateScope.textAction.title.lowercased())
+        .uiTarget("text-action-row-\(a.id.uuidString.prefix(8))")
+    }
+
+    private func row(_ t: TranscriptTemplate, _ s: AutoRunSettings, scope: TemplateScope, selected: Bool) -> some View {
         let parts = TemplateTitle.split(t.name)
         let kinds = s.kinds(for: t.id)
         return FlatRowButton(selected: selected, action: { nav.selected = t.id }) { _ in
@@ -169,20 +226,20 @@ struct TemplateLibraryPane: View {
                 // The auto state goes in the meta line, so the name has the whole row (review M-31).
                 VStack(alignment: .leading, spacing: 2) {
                     WebText.serif(parts.0, italic: parts.1, size: 19).foregroundStyle(Ink.ink).lineLimit(1)
-                    Text(TemplateAutoBadge.metaLine(summary: TemplateLibrary.summaryLine(t), kinds: kinds))
+                    Text(TemplateScope.metaLine(scope, TemplateAutoBadge.metaLine(summary: TemplateLibrary.summaryLine(t), kinds: kinds)))
                         .font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(1)
                 }
                 Spacer(minLength: 8)
             }
             .padding(.horizontal, 12).padding(.vertical, 9)
         }
-        .accessibilityLabel(t.name + (kinds.isEmpty ? "" : ", runs automatically for " + kinds.map(\.label).joined(separator: ", ")))
+        .accessibilityLabel(t.name + ", works on " + scope.title.lowercased() + (kinds.isEmpty ? "" : ", runs automatically for " + kinds.map(\.label).joined(separator: ", ")))
         .uiTarget("template-row-\(t.id.uuidString.prefix(8))")
     }
 
     // brand: native begin
     /// Premium Native: white cards with the symbol in the accent, three to a row, under plain headers.
-    private func grid(_ shown: [TranscriptTemplate], _ s: AutoRunSettings, selected: UUID?) -> some View {
+    private func grid(_ shown: [TranscriptTemplate], _ s: AutoRunSettings, textIDs: Set<UUID>, texts: [FlowAction], selected: UUID?) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(TemplateOrigin.allCases) { o in
                 let items = shown.filter { $0.origin == o }
@@ -191,14 +248,42 @@ struct TemplateLibraryPane: View {
                         .padding(.top, o == TemplateOrigin.allCases.first ? 0 : 10)
                         .accessibilityAddTraits(.isHeader)
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 12)], alignment: .leading, spacing: 12) {
-                        ForEach(items) { t in card(t, s, selected: t.id == selected) }
+                        ForEach(items) { t in card(t, s, scope: TemplateScope.of(template: t.id, textActions: textIDs), selected: t.id == selected) }
                     }
                 }
+            }
+            if !texts.isEmpty {
+                Text("Text Actions").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                    .padding(.top, shown.isEmpty ? 0 : 10)
+                    .accessibilityAddTraits(.isHeader)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 12)], alignment: .leading, spacing: 12) {
+                    ForEach(texts) { a in textCard(a, selected: a.id == selected) }
+                }
+                Button("Restore Text Actions…") { confirmRestore = true }.buttonStyle(.link).font(.system(size: 12.5))
             }
         }
     }
 
-    private func card(_ t: TranscriptTemplate, _ s: AutoRunSettings, selected: Bool) -> some View {
+    private func textCard(_ a: FlowAction, selected: Bool) -> some View {
+        Button { nav.selected = a.id } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                Image(systemName: a.symbol).font(.system(size: 17)).foregroundStyle(NativeInk.accent)
+                    .frame(width: 24, height: 24, alignment: .leading)
+                    .padding(.bottom, 4)
+                Text(a.name.isEmpty ? "Untitled action" : a.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
+                Text(TemplateScope.metaLine(TemplateScope.textAction, a.kind.title)).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+            .contentShape(Rectangle())
+            .modifier(TemplateCardSurface(selected: selected))
+        }
+        .buttonStyle(.plain)
+        .uiTarget("text-action-row-\(a.id.uuidString.prefix(8))")
+    }
+
+    private func card(_ t: TranscriptTemplate, _ s: AutoRunSettings, scope: TemplateScope, selected: Bool) -> some View {
         let kinds = s.kinds(for: t.id)
         return Button { nav.selected = t.id } label: {
             VStack(alignment: .leading, spacing: 5) {
@@ -207,7 +292,7 @@ struct TemplateLibraryPane: View {
                     .frame(width: 24, height: 24, alignment: .leading)
                     .padding(.bottom, 4)
                 Text(t.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
-                Text(TemplateLibrary.summaryLine(t)).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(2)
+                Text(TemplateScope.metaLine(scope, TemplateLibrary.summaryLine(t))).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 if !kinds.isEmpty {
                     Label("Runs for " + kinds.map(\.label).joined(separator: ", "), systemImage: "arrow.counterclockwise")
@@ -251,6 +336,8 @@ struct TemplateAutoBadge: View {
 struct TemplateDetailCard: View {
     @EnvironmentObject var app: AppState
     var template: TranscriptTemplate
+    /// Where it works: recordings, and selected text too when it's also a text action.
+    var scope: TemplateScope = .recording
     @ObservedObject private var nav = TemplatesNav.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @State private var confirmDelete = false
@@ -266,6 +353,8 @@ struct TemplateDetailCard: View {
                     .accessibilityAddTraits(.isHeader)
                 Text(TemplateLibrary.summaryLine(template)).font(.system(size: 13)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
+                Text("Works on " + scope.title.lowercased()).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
+                    .uiTarget("template-scope")
             }
             VStack(alignment: .leading, spacing: 0) {
                 Text("Sections").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).padding(.bottom, 4)

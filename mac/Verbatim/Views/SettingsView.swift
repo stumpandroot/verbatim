@@ -88,7 +88,6 @@ struct SettingsView: View {
         case .recording: RecordingSettingsPane()
         case .dictate: DictationSettings()
         case .floatingButton: FloatingButtonSettingsPane()
-        case .actions: ActionSettings()
         case .meetings: MeetingsSettingsPane()
         case .watched: WatchedFoldersPane()
         case .storage: StorageSettingsPane()

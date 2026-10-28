@@ -16,11 +16,12 @@ import AppKit
 /// A Settings pane, in sidebar order: the iPhone's seven groups plus the Mac-only panes (MacSettingsMap, from the
 /// premium mockup's section 02). Raw values persist in "settingsTab" and in links from the Ribbon, the welcome tour, and
 /// Home: a pane that took over an old one keeps its raw value (`general`, `transcription`, `dictate`, `floatingButton`,
-/// `actions`, `meetings`, `watched`, `storage`, `privacy`, `about`, `whatsNew`), and the old Speakers, Live captions,
-/// and Export panes' values open the panes they moved into. `whatsNew` is the release notes (WhatsNewPane.swift),
+/// `meetings`, `watched`, `storage`, `privacy`, `about`, `whatsNew`), and the old Speakers, Live captions, and Export
+/// panes' values open the panes they moved into. The old Actions pane's value opens Dictation and keyboard, whose
+/// "Text actions" row opens Templates, where the text actions moved (consolidation, October 28, 2026). `whatsNew` is the release notes (WhatsNewPane.swift),
 /// opened by the version at the foot of the sidebar, Verbose › What's New…, and Home's note after an update.
 enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
-    case personalization, recording, dictate, floatingButton, actions, meetings, watched
+    case personalization, recording, dictate, floatingButton, meetings, watched
     case storage, privacy, account, support, features, whatsNew
 
     var rawValue: String {
@@ -29,7 +30,6 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
         case .recording: return "transcription"
         case .dictate: return "dictate"
         case .floatingButton: return "floatingButton"
-        case .actions: return "actions"
         case .meetings: return "meetings"
         case .watched: return "watched"
         case .storage: return "storage"
@@ -45,9 +45,8 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
         switch rawValue {
         case "general": self = .personalization
         case "transcription", "speakers": self = .recording
-        case "dictate": self = .dictate
+        case "dictate", "actions": self = .dictate
         case "floatingButton": self = .floatingButton
-        case "actions": self = .actions
         case "meetings", "captions": self = .meetings
         case "watched", "export": self = .watched
         case "storage": self = .storage
@@ -79,7 +78,6 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
         case .recording: return "Which model transcribes your recordings, who's talking, and what Verbose does to a transcript when it's ready."
         case .dictate: return "Hold or press your hotkey in any app and Verbose types what you say."
         case .floatingButton: return "What you see while Verbose listens, cleans up, and pastes: the Ribbon or the notch."
-        case .actions: return "Instructions you save once and run on any text: a selection in any app, a dictation, or a whole transcript. Everything runs on this Mac. To turn a whole recording into notes, use Templates."
         case .meetings: return "Record a call as two tracks, your microphone and the meeting app, on this Mac, and live captions for whatever your Mac is playing or hearing. Verbose can notice a call and ask; it never records on its own."
         case .watched: return "Drop audio or video into a watched folder and Verbose transcribes it, then exports the results where you choose, with the text, speaker names, and timecodes set here."
         case .storage: return "Where your library, models, and kept video live, how links sign in, and whether they sync with your iPhone."
@@ -101,7 +99,6 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
         case .recording: return .iconQuality
         case .dictate: return .iconDictations
         case .floatingButton: return .iconVoice
-        case .actions: return .iconAI
         case .meetings: return .iconCaptions
         case .watched: return .iconFolder
         case .storage: return .iconSync
@@ -182,6 +179,7 @@ enum SettingsIndex {
         .init("dictate.context", .dictate, "Use the text around your cursor", "Verbose reads the app's name and the text near your cursor so names are spelled right and the tone matches. Password fields are never read, and nothing leaves this Mac.", keywords: "context privacy"),
         .init("dictate.boost", .dictate, "Listen for my Dictionary words", "Parakeet listens for the words in your Dictionary as you speak (a small extra model downloads once). Works best with fewer than 100 words.", keywords: "vocabulary accuracy boost"),
         .init("dictate.autoLearn", .dictate, "Learn from my fixes", "When you correct a name or term right after it's pasted, Verbose asks whether to remember it. Nothing is learned unless you say yes.", keywords: "dictionary corrections learn"),
+        .init("dictate.textActions", .dictate, "Text actions", "Instructions you run on text you select in any app, from the Ribbon's menu. They're in Templates, marked Selected text, with your transcript templates.", keywords: "actions ribbon selected text rewrite translate tighten client email edit actions templates"),
         .init("dictate.snippets", .dictate, "Snippets", "Say a trigger like “my calendar link” and Verbose pastes the saved text: a link, an address, a sign-off.", keywords: "text expansion shortcut"),
         .init("dictate.accessibility", .dictate, "Accessibility access", "macOS requires this so Verbose can notice the hotkey, see which app and text field you're in, and press ⌘V there.", keywords: "permission privacy system settings"),
         .init("dictate.typeInstead", .dictate, "Type instead of paste", "For apps that block ⌘V or paste the wrong thing.", keywords: "paste clipboard typing apps"),
@@ -189,9 +187,6 @@ enum SettingsIndex {
         // Floating button (its own style since the notch; the Ribbon's settings moved to Dictation)
 
         // Actions
-        .init("actions.list", .actions, "Saved actions", "Name, instruction, and how long text is handled.", keywords: "prompt rewrite summarize instruction"),
-        .init("actions.add", .actions, "Add an action", keywords: "new create"),
-        .init("actions.restore", .actions, "Restore built-in actions", "Replaces your actions with the eight that come with Verbose.", keywords: "reset defaults"),
 
         // Models and language
         .init("models.quality", .recording, "Quality", "Parakeet is the default: fast on Apple silicon with word timings. Whisper is the alternate for languages Parakeet misses.", keywords: "model engine whisper parakeet language accuracy speed"),

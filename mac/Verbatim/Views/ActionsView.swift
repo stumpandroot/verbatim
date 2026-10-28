@@ -36,7 +36,7 @@ struct ActionsMenuItems: View {
             } label: { Label(a.name, systemImage: a.symbol) }   // brand: system surface (context menu)
         }
         Divider()
-        Button("Edit Actions…") { app.dictation.openSettings(tab: .actions) }
+        Button("Edit in Templates…") { app.dictation.openTemplates(text: true) }
     }
 }
 
@@ -179,75 +179,82 @@ struct ActionSheet: View {
     }
 }
 
-/// Settings › Actions: add, edit, reorder, and remove saved actions.
-struct ActionSettings: View {
+/// A text action beside the Templates list (Settings › Actions moved here in the consolidation, October 28, 2026): its
+/// name, instruction, and how long text is handled, edited in place, with Move up, Move down, and Delete. It works on
+/// text you select in any app (the Ribbon's menu) and on recordings (a transcript's or a dictation's Actions menu).
+struct TextActionDetailCard: View {
+    var actionID: UUID
     @ObservedObject private var settings = FlowSettings.shared
-    @State private var editing: FlowAction.ID? = nil
-    @State private var confirmRestore = false
+    @ObservedObject private var nav = TemplatesNav.shared
+    @State private var confirmDelete = false
+
+    private var index: Int? { settings.actions.firstIndex { $0.id == actionID } }
 
     var body: some View {
-        SettingsPane(tab: .actions) {
-            // No section title: the page is already titled Actions.
-            SettingsGroup {
-                SettingsRow("actions.list", stacked: true) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach($settings.actions) { $a in
-                            DisclosureGroup(isExpanded: Binding(get: { editing == a.id }, set: { editing = $0 ? a.id : nil })) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    TextField("Name", text: $a.name).textFieldStyle(.roundedBorder)
-                                    Text("Instruction").font(.system(size: 12)).foregroundStyle(Ink.mute)
-                                    TextEditor(text: $a.instruction).font(.system(size: 13)).frame(minHeight: 70)
-                                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Ink.hairline))
-                                    Picker("Long text", selection: $a.kind) {
-                                        ForEach(FlowAction.Kind.allCases) { k in Text(k.title).tag(k) }
-                                    }
-                                    .fixedSize()
-                                    Text(a.kind == .rewrite ? "Long text is done in parts, kept in order." : "Long text is done in parts, then the results are merged into one.")
-                                        .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
-                                    if TranscriptActions.isBuiltIn(a.id) {
-                                        Text("On a transcript, this action reads the Original text with your corrections, never the Cleaned text, and adds nothing the transcript doesn't say.")
-                                            .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
-                                    }
-                                    HStack {
-                                        Button("Move up") { move(a.id, by: -1) }.buttonStyle(.settingsPill).disabled(settings.actions.first?.id == a.id)
-                                        Button("Move down") { move(a.id, by: 1) }.buttonStyle(.settingsPill).disabled(settings.actions.last?.id == a.id)
-                                        Spacer()
-                                        Button("Delete", role: .destructive) {
-                                            // After the row's fields let go of their bindings, or AppKit can read a removed index.
-                                            let id = a.id
-                                            editing = nil
-                                            DispatchQueue.main.async { settings.actions.removeAll { $0.id == id } }
-                                        }
-                                        .buttonStyle(SettingsDangerPillStyle())
-                                    }
-                                }
-                                .padding(.vertical, 6)
-                            } label: {
-                                Label { Text(a.name.isEmpty ? "Untitled action" : a.name) } icon: { ArtIcon(art: a.art, size: 15) }
-                                    .font(.system(size: 13.5))
-                            }
-                        }
-                    }
+        if let i = index {
+            let a = settings.actions[i]
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Eyebrow(text: "Text action")
+                    let parts = TemplateTitle.split(a.name.isEmpty ? "Untitled action" : a.name)
+                    WebText.serif(parts.0, italic: parts.1, size: 28).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Works on " + TemplateScope.textAction.title.lowercased()).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
+                    Text("Select text in any app and choose it from the Ribbon's menu, or run it from a transcript's or a dictation's Actions menu.")
+                        .font(.system(size: 12.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
                 }
-                SettingsRow("actions.add") {
-                    Button("Add action") {
-                        let new = FlowAction(name: "New action", instruction: "")
-                        settings.actions.append(new); editing = new.id
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Name").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
+                    TextField("Name", text: field(\.name)).textFieldStyle(.roundedBorder)
+                        .uiTarget("text-action-name")
+                    Text("Instruction").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
+                    TextEditor(text: field(\.instruction)).font(.system(size: 13)).frame(minHeight: 90)
+                        .scrollContentBackground(.hidden).padding(4)
+                        .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
+                        .accessibilityLabel("Instruction")
+                    Picker("Long text", selection: field(\.kind)) {
+                        ForEach(FlowAction.Kind.allCases) { k in Text(k.title).tag(k) }
                     }
-                    .buttonStyle(.settingsPrimaryPill)
+                    .fixedSize()
+                    Text(a.kind == .rewrite ? "Long text is done in parts, kept in order." : "Long text is done in parts, then the results are merged into one.")
+                        .font(.system(size: 11.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
                 }
-                SettingsRow("actions.restore") {
-                    Button("Restore built-in actions…") { confirmRestore = true }.buttonStyle(.settingsPill)
+                HStack(spacing: 8) {
+                    PillButton(title: "Move up", kind: .line, size: .mini, enabled: i > 0) { move(by: -1) }
+                    PillButton(title: "Move down", kind: .line, size: .mini, enabled: i < settings.actions.count - 1) { move(by: 1) }
+                }
+                Button("Delete text action…", role: .destructive) { confirmDelete = true }
+                    .buttonStyle(.plain).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.danger)
+                    .uiTarget("text-action-delete")
+                HStack(alignment: .top, spacing: 7) {
+                    IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
+                    Text("On this Mac with Apple Intelligence. Nothing leaves it.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .modifier(TemplateCardSurface())
+            .confirmationDialog("Delete \u{201C}\(a.name)\u{201D}?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) {
+                    // After the fields let go of their bindings, or AppKit can read a removed index.
+                    nav.selected = nil
+                    DispatchQueue.main.async { settings.actions.removeAll { $0.id == actionID } }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { Text("It leaves the Ribbon's menu and the Actions menus. Restore the ones that come with Verbose from the list.") }
         }
-        .confirmationDialog("Restore the built-in actions?", isPresented: $confirmRestore) {
-            Button("Restore", role: .destructive) { settings.actions = FlowAction.builtIn }
-        } message: { Text("Replaces your actions with the \(FlowAction.builtIn.count) that come with Verbose, including Make a plan, Journal entry, Write a draft, Study notes, and Key points. Actions you added or changed are removed.") }
     }
 
-    private func move(_ id: UUID, by d: Int) {
-        guard let i = settings.actions.firstIndex(where: { $0.id == id }) else { return }
+    /// A binding to one field of this action, by ID, so a reorder or a delete elsewhere never writes the wrong one.
+    private func field<V>(_ path: WritableKeyPath<FlowAction, V>) -> Binding<V> {
+        Binding(get: { settings.actions.first { $0.id == actionID }.map { $0[keyPath: path] } ?? FlowAction(name: "", instruction: "")[keyPath: path] },
+                set: { v in if let i = settings.actions.firstIndex(where: { $0.id == actionID }) { settings.actions[i][keyPath: path] = v } })
+    }
+
+    private func move(by d: Int) {
+        guard let i = index else { return }
         let j = i + d
         guard settings.actions.indices.contains(j) else { return }
         settings.actions.swapAt(i, j)

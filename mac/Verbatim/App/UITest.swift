@@ -684,8 +684,6 @@ enum UITest {
         await show("09d-settings-dictate")
         UserDefaults.standard.set(SettingsTab.floatingButton.rawValue, forKey: "settingsTab")
         await show("09h-settings-ribbon-notch")
-        UserDefaults.standard.set(SettingsTab.actions.rawValue, forKey: "settingsTab")
-        await show("09b-settings-actions")
         seedWatchedFolders()
         UserDefaults.standard.set(SettingsTab.watched.rawValue, forKey: "settingsTab")
         await show("09e-settings-watched")
@@ -752,8 +750,6 @@ enum UITest {
             NSApp.sendAction(action, to: item.target, from: item)
         }
         await show("21-dark-settings-dictate")
-        UserDefaults.standard.set(SettingsTab.actions.rawValue, forKey: "settingsTab")
-        await show("22-dark-settings-actions")
         UserDefaults.standard.set(SettingsTab.watched.rawValue, forKey: "settingsTab")
         await show("23-dark-settings-watched")
         UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
@@ -2332,6 +2328,18 @@ extension UITest {
         await step("templates: New template opens the editor", window, target: "templates-new", check: { nav.editing != nil && nav.editingIsNew })
         nav.editing = nil
         try? await Task.sleep(nanoseconds: 600_000_000)
+        // One Templates list (consolidation, October 28, 2026): the text actions Settings › Actions held are here.
+        let actionsBefore = FlowSettings.shared.actions
+        await step("templates: On selected text lists the text actions", window, target: "templates-filter-text", check: { nav.filter == .text })
+        await step("templates: New text action adds one and selects it", window, target: "templates-new-text",
+                   check: { FlowSettings.shared.actions.count == actionsBefore.count + 1 && nav.selected == FlowSettings.shared.actions.last?.id })
+        check("templates: a text action works on selected text and recordings", TemplateScope.textAction == .both
+              && TemplateScope.of(template: TemplateLibrary.planMyDayID, textActions: Set(FlowSettings.shared.actions.map(\.id))) == .both)
+        check("templates: the old Actions pane's link opens Dictation and keyboard", SettingsTab(rawValue: "actions") == .dictate
+              && !SettingsTab.allCases.map(\.rawValue).contains("actions"))
+        FlowSettings.shared.actions = actionsBefore
+        nav.filter = .all; nav.selected = TemplateLibrary.scenarios[0].id
+        try? await Task.sleep(nanoseconds: 400_000_000)
 
         // Record a kind: the picked kind waits for the recording; a plain Record leaves it to AutoLabel.
         app.requestRecord(kind: .interview)
@@ -2486,6 +2494,10 @@ extension UITest {
         nav.pane = .auto
         await show("05q-templates-auto\(suffix)")
         nav.pane = .library
+        // One Templates list: the text actions Settings › Actions held, marked with where they work, one selected.
+        nav.filter = .text; nav.selected = FlowSettings.shared.actions.first { TemplateLibrary.template($0.id, yours: []) == nil }?.id
+        await show("05s-templates-text\(suffix)")
+        nav.filter = .all; nav.selected = TemplateLibrary.scenarios[0].id
         if suffix.isEmpty {
             var draft = TemplateLibrary.duplicate(TemplateLibrary.scenarios[2])
             draft.name = "Website client call"

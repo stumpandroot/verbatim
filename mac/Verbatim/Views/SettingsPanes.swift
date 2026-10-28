@@ -186,6 +186,13 @@ struct DictationForm: View {
                     }
                 }
             }
+            // Settings › Actions moved into Templates (consolidation, October 28, 2026).
+            SettingsGroup(title: "Text actions") {
+                SettingsRow("dictate.textActions") {
+                    Button("Open Templates") { dictation.openTemplates(text: true) }.buttonStyle(.settingsPill)
+                        .uiTarget("settings-open-templates")
+                }
+            }
             SettingsGroup(title: "Permissions and pasting") {
                 SettingsRow("dictate.accessibility") {
                     HStack(spacing: 8) {

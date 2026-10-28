@@ -41,6 +41,13 @@
           ],
           "text": "The Key points template is gone. The automatic summary lists key points.",
           "detail": "Key points results stay on their transcripts. A kind that ran it turns Off."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Templates holds your text actions too, each marked with where it works.",
+          "detail": "The actions that ran on selected text from Settings › Actions are in Templates, marked Selected text and recordings. Edit, add, and reorder them there."
         }
       ]
     },

@@ -121,7 +121,8 @@ check("Mac: every stored key appears exactly once", duplicates(macKeys).isEmpty,
 let macMissingKeys = macKeys.filter { !storedSomewhere($0) }
 check("Mac: every key is one the app stores", macMissingKeys.isEmpty, "\(macMissingKeys)")
 let sidebar = MacSettingsMap.panes.filter(\.inSidebar).map(\.title)
-check("Mac: twelve panes in the sidebar, the seven groups among them", sidebar.count == 12 &&
+// Eleven since the consolidation (October 28, 2026): Settings › Actions moved into Templates.
+check("Mac: eleven panes in the sidebar, the seven groups among them", sidebar.count == 11 && !sidebar.contains("Actions") &&
       PhoneSettingsMap.groups.map(\.title).allSatisfy(sidebar.contains), "\(sidebar)")
 
 // SettingsTab: each case's raw value, and the old raw values it still reads.

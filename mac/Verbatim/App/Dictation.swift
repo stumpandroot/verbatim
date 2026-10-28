@@ -1308,6 +1308,17 @@ final class DictationController: ObservableObject {
         }
     }
 
+    /// Make › Templates in the main window, where the text actions live (Settings › Actions moved there in the
+    /// consolidation, October 28, 2026). `text` shows only what works on selected text.
+    func openTemplates(text: Bool = false) {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
+        let nav = TemplatesNav.shared
+        nav.pane = .library
+        if text { nav.filter = .text }
+        app?.go(.templates)
+    }
+
     func openHistory() {
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)

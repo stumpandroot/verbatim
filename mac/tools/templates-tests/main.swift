@@ -348,6 +348,12 @@ check("retired: a Key points result keeps rendering with no Run again", Template
       && TemplateResultText.blocks(oldKeys.text) == [.heading("Key ideas"), .bullet("Cedar")])
 let current = TemplateResult(templateId: meeting.id, name: "Meeting notes", text: "x")
 check("a current template's Run again is unchanged", TemplateLibrary.runAgain(current).map { $0.template == meeting.id && $0.replacing == nil } == true)
+check("one Templates list: a template is on recordings, and on selected text too when it's a text action",
+      TemplateScope.of(template: meeting.id, textActions: []) == .recording
+      && TemplateScope.of(template: TemplateLibrary.planMyDayID, textActions: [TemplateLibrary.planMyDayID]) == .both
+      && TemplateScope.textAction.onText && TemplateScope.textAction.onRecording && !TemplateScope.recording.onText)
+check("each is marked", TemplateScope.metaLine(.both, "Rewrites the text") == "Selected text and recordings · Rewrites the text"
+      && TemplateScope.metaLine(.recording, "") == "Recordings" && TemplateScope.text.title == "Selected text")
 let suiteRA = UserDefaults(suiteName: "templates-tests-retired-\(UUID().uuidString)")!
 suiteRA.set(try! JSONEncoder().encode([RecordingKind.meeting.rawValue: mk.uuidString, RecordingKind.journal.rawValue: je.uuidString,
                                        RecordingKind.podcast.rawValue: kp.uuidString, RecordingKind.talk.rawValue: scenarios[4].id.uuidString]),

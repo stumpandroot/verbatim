@@ -91,6 +91,8 @@ enum MacSettingsMap {
             ]),
             Section("Accuracy", [Setting("dictate.boost"), Setting("dictate.autoLearn")]),
             Section("Snippets", [Setting("dictate.snippets")]),
+            // Settings › Actions moved into Templates (consolidation, October 28, 2026); this row points there.
+            Section("Text actions", [Setting("dictate.textActions")]),
             Section("Permissions and pasting", [
                 Setting("dictate.accessibility"),
                 Setting("dictate.alwaysCopy", keys: ["dictation.alwaysCopy"]),
@@ -109,9 +111,6 @@ enum MacSettingsMap {
                 Setting("ribbon.mark", keys: ["flow.ribbonMark"]),
                 Setting("ribbon.liveWords", keys: ["flow.liveWords"]),
             ]),
-        ]),
-        Pane(raw: "actions", title: "Actions", sections: [
-            Section(nil, [Setting("actions.list"), Setting("actions.add"), Setting("actions.restore")]),
         ]),
         Pane(raw: "meetings", title: "Meetings and captions", sections: [
             Section("Meetings", [Setting("meetings.notice"), Setting("meetings.copyNotice"), Setting("meetings.mic"), Setting("meetings.apps")]),
