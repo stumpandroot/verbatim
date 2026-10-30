@@ -55,11 +55,11 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private var pendingStart: Double?
     /// Sponsor reads to jump past (Settings › Skip sponsor reads), set by the transcript screen (`skipsSponsors`).
     private(set) var skipSpans: [(start: Double, end: Double)] = []
-    /// Which transcript screen set `skipSpans`, so one leaving never clears another's (bug: a look switch or opening
-    /// one transcript from another turned skipping off).
+    /// Which transcript screen set `skipSpans`, so one leaving never clears another's (bug: a rebuilt screen or
+    /// opening one transcript from another turned skipping off).
     private var spanHolds = ScreenHolds<UUID>()
     /// Which transcript screens are showing, so the one leaving stops playback only when it's the last one for its
-    /// transcript (a look switch builds the new screen before the old one goes).
+    /// transcript (a rebuilt screen can appear before the old one goes).
     private var screenHolds = ScreenHolds<UUID>()
     /// The playhead at the last tick or seek: playback that crosses into a read skips it; a seek into one doesn't.
     private var lastTick: TimeInterval = 0

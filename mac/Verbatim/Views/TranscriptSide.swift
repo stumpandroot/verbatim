@@ -2,8 +2,8 @@ import SwiftUI
 import AppKit
 
 // The Mac transcript's parts around the reading column, on the refined kit (DESIGN.md §13):
-// the side column (the inspector in Native, a column beside the text in Verbose style) with Moments, Speakers, Export
-// and Copy for AI, and Details; the Share and More menus (the toolbar's in Native, the page's in Verbose style); the
+// the side column (the window's inspector) with Moments, Speakers, Export and Copy for AI, and Details; the toolbar's
+// Share and More menus; the
 // glass player bar; and the kind-change offer under the header.
 
 // MARK: - Side column
@@ -256,7 +256,7 @@ private struct TranscriptLanguageMenuMac: View {
 // MARK: - Share and More
 
 /// Share's items: copy the tab you're on (⇧⌘C), with timestamps, the other version, the engine's words, for AI, and
-/// Export. The toolbar's Share in Native and the page's in Verbose style.
+/// Export. The toolbar's Share.
 struct TranscriptShareItems: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
@@ -277,7 +277,7 @@ struct TranscriptShareItems: View {
 
 /// More's items: Mark This Moment, Continue Recording, Run a Template, Run an Action, Summarize, Review Changes, the
 /// words to show and Select Text, Follow Playback, Transcribe Again with Whisper Turbo, and Text Size. The toolbar's
-/// More in Native and the page's in Verbose style.
+/// More.
 struct TranscriptMoreItems: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript

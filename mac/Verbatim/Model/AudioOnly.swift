@@ -101,7 +101,7 @@ extension Transcript {
 enum AudioOnlyCopy {
     /// After Stop.
     static let saved = "Saved. No transcript."
-    /// The recorder's headline (Verbose style).
+    /// The recorder's headline.
     static let headline = "Go ahead, I\u{2019}ll keep the sound."
     /// Stop's name on the recorder.
     static let stop = "Stop and save"

@@ -6,8 +6,8 @@ import SwiftUI
 // the meeting panel, the Thought bubble, Live captions, and the meeting banner draw the kit in their own files.
 
 /// The toolbar while you record or capture an app's audio (mockup MacRecorder): `RecordingTimerCapsule` with the red
-/// dot, the time, and Stop (⌥⇧.; Cancel while the microphone starts). In Native it's Record's place in the toolbar
-/// (NativeChrome.swift), in the system's glass group; in Verbose style a toolbar item of its own, on the card.
+/// dot, the time, and Stop (⌥⇧.; Cancel while the microphone starts), in Record's place in the toolbar (MacChrome.swift),
+/// in the system's glass group.
 struct ToolbarRecordingStatus: View {
     @EnvironmentObject var app: AppState
     var onCard: Bool

@@ -7,7 +7,7 @@ import UIKit
 // while Apple draws the chrome. Warm paper, off-white cards with no outlines or hard shadows, butter, sage, and petal
 // tiles, the persimmon Record card with its rings, colored kind badges and speaker chips, colored icon squares, and
 // the serif for large titles, section titles, and reading text. Colors come from `Refined` (Tokens.swift) through
-// `RefinedRules`; nothing here picks a hex value or a Verbose-style token. The player bar, the recorder's clock panel,
+// `RefinedRules`; nothing here picks a hex value. The player bar, the recorder's clock panel,
 // and reading text are in RefinedPlayback.swift.
 //
 // Every size scales with Dynamic Type on iPhone, tap targets are 44 pt or larger, Limit animation stills the rings and
@@ -893,7 +893,7 @@ struct RefinedTagChips: View {
     }
 }
 
-/// A round button on the page with a glyph and no title (the Mac transcript's Back in Verbose style, where the window
+/// A round button on the page with a glyph and no title (You's previous and next on the Mac, where the window
 /// has no toolbar items of its own): the card in a 30 pt circle.
 struct RefinedCircleButton: View {
     var symbol: String
@@ -1431,7 +1431,7 @@ struct RefinedLink: View {
 
 extension View {
     /// Switches in the refined look: the system's green on iPhone (as in Apple's own apps), the accent on the Mac. On
-    /// iPhone it clears any tint the screen sets (Verbose style's root tints ink), so the switch takes the system's own.
+    /// iPhone it clears any tint the screen sets (a root may tint), so the switch takes the system's own.
     #if os(macOS)
     func refinedSwitchTint() -> some View { tint(Refined.macSwitch) }
     #else

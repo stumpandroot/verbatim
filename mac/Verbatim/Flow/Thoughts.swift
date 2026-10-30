@@ -43,7 +43,7 @@ enum Thoughts {
     /// "Mac", "iPhone", or "Apple Watch": where it was recorded, in the sans meta line under a thought.
     static func origin(_ t: Transcript) -> String { ThoughtText.origin(t) }
 
-    /// "9:40" in Verbose (mono, like a transcript's timecode), "9:40 AM" in Native.
+    /// "9:40" (`native: false`, like a transcript's timecode) or "9:40 AM" (`native: true`, the system's short time).
     static func time(_ date: Date, native: Bool) -> String { ThoughtText.time(date, native: native) }
 
     /// The page's words for Copy and Send, a blank line between thoughts.

@@ -218,11 +218,11 @@ let broken = #"{"title":"x","source":"link","segments":[],"sponsors":"not a list
 check("spans in a shape this build can't read don't fail the file", (try? dec.decode(Transcript.self, from: Data(broken.utf8)))?.sponsors == nil
       && (try? dec.decode(Transcript.self, from: Data(broken.utf8))) != nil)
 
-// Which screen holds the spans (and playback): a look switch builds the new screen first; opening one transcript from
-// another can run in either order.
+// Which screen holds the spans (and playback): a rebuilt screen can appear before the old one goes; opening one
+// transcript from another can run in either order.
 var holds = ScreenHolds<String>()
 holds.hold("A"); holds.hold("A")
-check("a look switch's old screen leaving keeps the spans", holds.release("A") == false && holds.isHeld("A"))
+check("an old screen leaving after the new one appears keeps the spans", holds.release("A") == false && holds.isHeld("A"))
 check("the last screen leaving clears them", holds.release("A") == true && !holds.isHeld("A") && holds.owner == nil)
 var ab = ScreenHolds<String>()
 ab.hold("A"); ab.hold("B")

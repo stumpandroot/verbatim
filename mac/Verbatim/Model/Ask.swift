@@ -735,8 +735,8 @@ struct AskResult: Codable, Equatable, Identifiable {
     static func plural(_ n: Int, _ one: String, _ many: String) -> String { n == 1 ? "1 \(one)" : "\(n) \(many)" }
 
     /// "On this Mac with Apple Intelligence. Nothing leaves it. Verbose found 9 passages in 2 recordings first, then
-    /// answered from them." (the on-device promise reads the same in Templates, Ask, and You). Premium Native's is
-    /// shorter: "From 9 passages in 2 recordings, answered on this Mac."
+    /// answered from them." (the on-device promise reads the same in Templates, Ask, and You). `native: true` is
+    /// shorter, for the iPhone: "From 9 passages in 2 recordings, answered on this iPhone."
     func footer(native: Bool) -> String {
         let counts = "\(Self.plural(passageCount, "passage", "passages")) in \(Self.plural(recordingCount, "recording", "recordings"))"
         return native ? "From \(counts), answered on this \(device)."

@@ -13,8 +13,7 @@ struct TemplateResultsSection: View {
     var transcript: Transcript
     /// In the reading column (Show the result first), where there's room for a wider card.
     var inline = false
-    /// The "Run a template" pill when there's no result. Verbose style's transcript has it in its tool row, so its
-    /// sections leave it out (review M-26); Native's inspector keeps it.
+    /// The "Run a template" pill when there's no result. Off where the screen offers it elsewhere (review M-26).
     var runRow = true
     /// The kind-change offer ("Now a Journal. Run Daily reflection?"). The transcript shows it under its header
     /// (`KindOfferRow`), so its result tab leaves it out.

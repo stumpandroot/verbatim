@@ -544,7 +544,7 @@ struct PromptCard: View {
     }
 }
 
-/// The prompt's answer buttons, as pills (DESIGN.md §11.5): ink-filled for the main answer, a 1.5 pt line for the other.
+/// The prompt's answer buttons, as pills: ink-filled for the main answer, a 1.5 pt line for the other.
 private struct PromptButtonLabel: View {
     var title: String
     var filled: Bool

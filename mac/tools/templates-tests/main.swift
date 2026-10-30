@@ -222,8 +222,8 @@ check("VoiceOver actions", RecordChoice.all.map(\.actionName) == ["Record a voic
                                                                 "Record a brain dump", "Record audio only"])
 check("each choice has its own custom symbol", Set(RecordChoice.all.map(\.symbolName)).count == 8
       && RecordChoice.all.map(\.symbolName) == ["rec.voice", "rec.meeting", "rec.interview", "rec.journal", "rec.talk", "thought", "rec.braindump", "rec.audio"])
-check("Native symbols: Voice note is mic, Audio only the waveform, Brain dump the head", RecordChoice.voiceNote.nativeSymbol == "mic"
-      && RecordChoice.kind(.audio).nativeSymbol == "waveform" && RecordChoice.kind(.brainDump).nativeSymbol == "brain.head.profile")
+check("menu symbols: Voice note is mic, Audio only the waveform, Brain dump the head", RecordChoice.voiceNote.menuSymbol == "mic"
+      && RecordChoice.kind(.audio).menuSymbol == "waveform" && RecordChoice.kind(.brainDump).menuSymbol == "brain.head.profile")
 check("Voice note leaves the kind to AutoLabel; Thought files as Thoughts", RecordChoice.voiceNote.kind == nil && RecordChoice.thought.kind == .idea
       && RecordChoice.kind(.meeting).kind == .meeting)
 var trayAuto = AutoRunSettings()

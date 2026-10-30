@@ -133,7 +133,7 @@ struct RecordAsMenu: View {
             ForEach(rows.visible) { c in
                 // A menu item's second Text is its subtitle.
                 Button { app.startRecordChoice(c) } label: {
-                    Label(c.name, systemImage: c.nativeSymbol)
+                    Label(c.name, systemImage: c.menuSymbol)
                     Text(RecordAsMenu.hint(c, settings: settings, templates: templates))
                 }
             }

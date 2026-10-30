@@ -591,7 +591,7 @@ enum PhoneUITest {
         check("the menu lists Voice note, Meeting, Interview, Journal entry, Talk, Thought, Brain dump, and Audio only",
               RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought", "Brain dump", "Audio only"])
         check("menu symbols: Voice note mic, Audio only waveform, Brain dump the head",
-              RecordChoice.voiceNote.nativeSymbol == "mic" && RecordChoice.kind(.audio).nativeSymbol == "waveform" && RecordChoice.kind(.brainDump).nativeSymbol == "brain.head.profile")
+              RecordChoice.voiceNote.menuSymbol == "mic" && RecordChoice.kind(.audio).menuSymbol == "waveform" && RecordChoice.kind(.brainDump).menuSymbol == "brain.head.profile")
         check("Voice note's line says Verbose picks the kind",
               RecordAsMenu.hint(.voiceNote, settings: shown, templates: app.store.allTemplates) == "Verbose picks the kind")
         check("a kind with a template says what runs",

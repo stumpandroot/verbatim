@@ -16,14 +16,14 @@
             "iphone"
           ],
           "text": "The recorder has the new look: the kind in serif and a persimmon clock.",
-          "detail": "Your words show in serif, with the newest sentence darker. Mark moment, Stop, and Pause sit under your thumb, with Discard below. It's the same sheet in both looks."
+          "detail": "Your words show in serif, with the newest sentence darker. Mark moment, Stop, and Pause sit under your thumb, with Discard below."
         },
         {
           "platforms": [
             "iphone"
           ],
           "text": "Minimized, a recording shows its time with Pause and Stop in the tab bar.",
-          "detail": "It rides in the tab bar's accessory in both look settings. Tap it to bring the recorder back."
+          "detail": "It rides in the tab bar's accessory. Tap it to bring the recorder back."
         },
         {
           "platforms": [
@@ -38,13 +38,6 @@
           ],
           "text": "The You page shows your week, About me, your voice, and cleanup in cards.",
           "detail": "Typing speed and your pace sit under This week. Tap your name to change it."
-        },
-        {
-          "platforms": [
-            "iphone"
-          ],
-          "text": "In Appearance, the look is one row with a menu.",
-          "detail": "On the Mac it's a pop-up in Personalization. Picking a look still switches at once."
         },
         {
           "platforms": [
@@ -77,14 +70,14 @@
             "mac"
           ],
           "text": "The sidebar and toolbar have the new look, with Settings at the foot of the sidebar.",
-          "detail": "The sidebar is a paper gray with each place's glyph in persimmon. Back, Forward, Record, and Search or ask sit in the toolbar in both look settings."
+          "detail": "The sidebar is a paper gray with each place's glyph in persimmon. Back, Forward, Record, and Search or ask sit in the toolbar."
         },
         {
           "platforms": [
             "iphone"
           ],
           "text": "The tab bar has the new look, with Record above it on every tab but Home.",
-          "detail": "Record sits in the tab bar's accessory in both look settings. Tap for a voice note, or touch and hold for Record as."
+          "detail": "Record sits in the tab bar's accessory. Tap for a voice note, or touch and hold for Record as."
         },
         {
           "platforms": [
@@ -106,6 +99,29 @@
           ],
           "text": "Thoughts, By day, Templates, Ask, Dictations, and Dictionary have the new look.",
           "detail": "So do Plan my day, Send to Reminders, Recently Deleted, What's new, Edit Home, onboarding, the Cleaned tab, and the Export and Add from Library sheets."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Verbose has one look. The Look setting is gone; Palette chooses full color or soft tints.",
+          "detail": "Your Home keeps the sections and tiles you had in the look you used. Onboarding no longer asks you to pick a look."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "The keyboard has the new look: card keys, ink letters, and a persimmon dictate button.",
+          "detail": "The Outline style is a card with a persimmon ring. Settings › Keyboard › Dictate button still sets its size, place, and style."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Widgets and the Live Activity have the new look: cards, serif titles, and the record disc.",
+          "detail": "This week's widget no longer has a Color option. Widgets you already placed keep working."
         }
       ]
     },

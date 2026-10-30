@@ -583,8 +583,8 @@ private struct RecordingWave: View {
 
 /// The live timer capsule (mockup MacRecorder's toolbar): the record dot in system red (an outline while paused), the
 /// minutes and seconds in semibold tabular digits, and a round Stop with the ink stop square. The time is read once a
-/// second, so the toolbar doesn't redraw with the meter. `onCard` draws the capsule's own card where the toolbar has
-/// no glass group of its own (Verbose style); the Native toolbar's glass is the capsule there.
+/// second, so the toolbar doesn't redraw with the meter. `onCard` draws the capsule's own card where there's no
+/// glass group under it (the previews); in the toolbar, its glass is the capsule.
 struct RecordingTimerCapsule: View {
     var live: LiveMeter
     var paused = false
@@ -628,7 +628,7 @@ struct RecordingTimerCapsule: View {
 #if os(iOS)
 /// The minimized recorder (the iPhone): the persimmon dot (dimmed while paused), "Recording · 4:12" over
 /// your newest words or the kind, then Pause or Resume and Stop (the red square). A tap on the text opens the recorder.
-/// No background of its own: the tab bar's accessory draws the glass in Native, and the bar's card in Verbose style.
+/// No background of its own: the tab bar's accessory draws the glass, or the bar's card before iOS 26.
 /// VoiceOver reads one element ("Recording, 4 minutes 12 seconds") with Pause or Resume, Stop, and Open as actions.
 struct MiniRecordingBar<Detail: View>: View {
     @ObservedObject var live: LiveMeter

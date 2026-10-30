@@ -37,7 +37,7 @@ final class WindowNav: ObservableObject {
     @Published var selectedSegment: UUID?
     /// The Library item whose preview the inspector shows, and the row Back comes back to.
     @Published var librarySelection: UUID?
-    /// Native's old Table and List choice for the Library. The refined Library is the table only (DESIGN.md §6.8), so
+    /// The old Table and List choice for the Library. The refined Library is the table only (DESIGN.md §6.8), so
     /// the stored choice is removed at launch.
     static let retiredTableKey = "native.libraryTable"
     /// An action running on the open transcript (its sheet), and why Summarize can't run here.

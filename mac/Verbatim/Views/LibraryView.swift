@@ -623,7 +623,7 @@ struct LibraryRowTarget: ViewModifier {
 }
 
 extension View {
-    /// The self-test's handle on a Library control, in SwiftUI's frames and the window's (Native's split view hosts
+    /// The self-test's handle on a Library control, in SwiftUI's frames and the window's (the split view hosts
     /// its detail apart from the window's content, so its clicks use the window's).
     func libraryTarget(_ id: String) -> some View { uiWindowTarget(id).uiTarget(id) }
 }

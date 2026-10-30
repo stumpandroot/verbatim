@@ -2,7 +2,7 @@ import SwiftUI
 
 /// While the library loads at launch (`Store.isLoaded`): the screen's own background, and after a moment a small
 /// spinner. A quick load shows nothing extra; a big one shows it's on its way. The caller supplies the background, so
-/// it matches each look.
+/// it matches the screen.
 struct LibraryLoadingView: View {
     @State private var shown = false
 

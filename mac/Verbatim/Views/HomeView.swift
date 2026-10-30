@@ -311,17 +311,6 @@ struct HomeView: View {
         }
     }
 
-    /// A slot's fill in Verbose style's Edit Home (butter, sage, petal, then card white). Home itself colors tiles by
-    /// what they do (`HomeTile.refinedHues`).
-    static func tileFill(_ slot: Int) -> Color? {
-        switch slot {
-        case 0: return Refined.butter
-        case 1: return Refined.sage
-        case 2: return Refined.petal
-        default: return nil
-        }
-    }
-
     /// The four tiles you picked, in one row: Large 84 pt with the glyph, Compact 58 pt with the name alone.
     private func tiles(_ picks: [HomeTile], compact: Bool) -> some View {
         let hues = HomeTile.refinedHues(picks)

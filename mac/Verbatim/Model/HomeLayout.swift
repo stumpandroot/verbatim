@@ -32,7 +32,7 @@ enum HomeCardSize: String, CaseIterable, Sendable {
 ///
 /// The consolidation (October 28, 2026) took Home from eleven sections to these six. Queue (the sidebar's Queue row on
 /// the Mac, the tab badge on iPhone), Projects (the sidebar and the Library), Moments (the Library's Marked filter),
-/// Last dictation (Dictations and Recall), and the Mac Native's Stats (This week and You) left. A stored layout that
+/// Last dictation (Dictations and Recall), and the Mac's Stats (This week and You) left. A stored layout that
 /// names them is read without them (`HomeLayout.from` skips what it doesn't know), so nothing else changes.
 enum HomeSection: String, CaseIterable, Sendable {
     case record, tiles, week, recent, thoughts, journal
@@ -132,9 +132,9 @@ enum HomeTile: String, CaseIterable, Sendable {
     /// The picker's tiles for an app, in the picker's order.
     static func available(on platform: HomePlatform) -> [HomeTile] { allCases.filter { $0.isAvailable(on: platform) } }
 
-    /// The capture mode's hue a tile wears in Verbose style, by what it does, never by its slot (DESIGN.md §1, review
-    /// P-14): Dictate butter, Import sage, What's playing and App audio petal. Everything else (Live captions, New
-    /// thought, Journal, the tools) is a card with an ink outline.
+    /// The capture mode's hue a tile wears, by what it does, never by its slot (DESIGN.md §1, review P-14): Dictate
+    /// butter, Import sage, What's playing and App audio petal. Everything else (Live captions, New thought, Journal,
+    /// the tools) is the card. The views map it to the palette (`HomeTile.refinedHues`, Views/HomeKit.swift).
     var hue: HomeTileHue? {
         switch self {
         case .dictate: return .butter
@@ -156,7 +156,7 @@ enum HomeTile: String, CaseIterable, Sendable {
     }
 }
 
-/// A Home tile's capture-mode hue in Verbose style (`HomeTile.hue`).
+/// A Home tile's capture-mode hue (`HomeTile.hue`).
 enum HomeTileHue: Sendable { case butter, sage, petal }
 
 /// A picked tile and its slot (0 to 3). Home's tiles are identified by the tile, so a new pick appears as a new tile.
@@ -408,7 +408,7 @@ enum HomeLookMigration {
 
 // MARK: - The refined Home's Record card (October 28, 2026)
 
-/// Home leads with the Record card (DESIGN.md §13). A layout a device saved before the refined Home (Native's hid the
+/// Home leads with the Record card (DESIGN.md §13). A layout a device saved before the refined Home (some hid the
 /// card, since Record sat in the toolbar or the tab bar) gets the card turned on once, at the top of Home; every other section, size, and tile stays as saved. The flag keeps it to once per device, so a card
 /// hidden again afterward stays hidden.
 enum HomeRefinedMigration {

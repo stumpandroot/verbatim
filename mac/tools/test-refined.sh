@@ -2,8 +2,9 @@
 # Checks the refined look (DESIGN.md §13): lifts the `RefinedHex` table out of Verbatim/Views/Tokens.swift (the block
 # between "refined-table begin" and "refined-table end"), compiles it with Verbatim/Views/RefinedRules.swift and the
 # cases in refined-tests/main.swift, and runs them: every text pair the kit draws reaches 4.5:1 in light, dark, and
-# both with Increase Contrast; the Palette setting's mapping; the kinds' colors; and the speakers' rotation. The cases
-# also read the kit's sources to check they take colors from the tokens only. Needs only a Swift toolchain, not Xcode.
+# both with Increase Contrast; the Palette setting's mapping; the kinds' colors; the speakers' rotation; and the rules the
+# older looks' tests used to cover (the date line, speaker shares, the Library's sort, Back and Forward, where the
+# appearance settings are kept). The cases also read the kit's sources to check they take colors from the tokens only. Needs only a Swift toolchain, not Xcode.
 #   bash mac/tools/test-refined.sh
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"

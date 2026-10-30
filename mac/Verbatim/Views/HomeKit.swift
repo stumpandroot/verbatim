@@ -190,7 +190,7 @@ struct HomeRecentStyle {
     struct MetaPart: Equatable { var text: String; var failed = false }
 
     /// "Voice note · 7:50 · Today". `compact` leaves out "Voice note" (iPhone).
-    /// `day: false` leaves the day out, for items whose date line already says it (Premium Native's items; review M-09).
+    /// `day: false` leaves the day out, for items whose date line already says it (review M-09).
     static func metaParts(_ t: Transcript, style: HomeRecentStyle, compact: Bool, day showDay: Bool = true, now: Date = Date(), calendar: Calendar = .current) -> [MetaPart] {
         var parts: [MetaPart] = []
         if !(compact && style.source == "Voice note") { parts.append(MetaPart(text: style.source)) }
@@ -454,7 +454,7 @@ struct HomeWeekDots: View {
 // MARK: - Edit Home (HomeLayout.swift)
 
 extension HomeTile {
-    /// The tile's line icon in Verbose style.
+    /// The tile's line icon.
     var art: BrandArt {
         switch self {
         case .dictate, .dictations: return .iconDictations

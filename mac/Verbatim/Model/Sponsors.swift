@@ -167,8 +167,8 @@ enum SponsorSkip {
 }
 
 /// Which screens hold something per item (the player's sponsor spans, the transcript that owns playback). SwiftUI
-/// doesn't order one screen's `onDisappear` against the next one's `onAppear`: a look switch builds the new transcript
-/// screen before the old one goes, and opening one transcript from another can run either way round. Counting the
+/// doesn't order one screen's `onDisappear` against the next one's `onAppear`: a rebuilt transcript screen can appear
+/// before the old one goes, and opening one transcript from another can run either way round. Counting the
 /// screens per item, and remembering which item was set last, makes the release safe in both orders.
 struct ScreenHolds<ID: Hashable> {
     /// The item the last screen to appear (or update) set things for.

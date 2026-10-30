@@ -51,7 +51,7 @@ struct RecipeSchedule: Codable, Equatable {
     }
     /// "Every Friday at 4:00 PM".
     var label: String { "Every \(Self.dayName(weekday)) at \(time)" }
-    /// "Fridays, 4:00 PM" (Premium Native).
+    /// "Fridays, 4:00 PM".
     var shortLabel: String { "\(Self.dayName(weekday))s, \(time)" }
 }
 

@@ -1473,7 +1473,7 @@ enum UITest {
         check("settings search needs every word", SettingsIndex.search("sync iphone").map(\.id) == ["storage.icloud"] && SettingsIndex.search("sync icloud").map(\.id).contains("storage.icloud") && SettingsIndex.search("   ").isEmpty)
         check("every settings pane is searchable", SettingsTab.allCases.allSatisfy { t in SettingsIndex.all.contains { $0.section == t } })
         check("settings ids are unique", Set(SettingsIndex.all.map(\.id)).count == SettingsIndex.all.count)
-        // The welcome tour's steps (OnboardingView.swift), and no Look setting (the look switch retired, DESIGN.md §13).
+        // The welcome tour's steps (OnboardingView.swift), and no Look setting (one look since step 7, DESIGN.md §13).
         check("onboarding: the tour has five steps, permissions after the welcome", OnboardingStep.count == 5 && OnboardingStep.at(1) == .permissions)
         check("settings: there's no Look setting, and Palette is searchable",
               !SettingsIndex.all.contains { $0.id == "general.look" } && SettingsIndex.search("palette").map(\.id).contains("general.palette"))

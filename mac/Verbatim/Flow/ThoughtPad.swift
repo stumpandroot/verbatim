@@ -180,10 +180,8 @@ final class ThoughtPadPanel: NSPanel {
 // MARK: - The page
 
 /// The panel's root: today's page while it's open, an empty view while it's closed. AppKit keeps a closed panel's
-/// views, and the page observes the look, Limit Motion, the library, Thoughts, dictation, and actions: closed, it
-/// re-rendered on every one of their changes, and at a look switch it built the whole page again in the new look
-/// (build 219: part of the 330 ms the Mac's look switches grew, once the self-test had opened the page). The page is
-/// built again, in the current look, when it opens.
+/// views, and the page observes Limit Motion, the library, Thoughts, dictation, and actions: closed, it re-rendered
+/// on every one of their changes (build 219). The page is built again when it opens.
 private struct ThoughtPadRoot: View {
     let controller: ThoughtPadController
     let dictation: DictationController

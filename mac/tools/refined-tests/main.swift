@@ -296,6 +296,20 @@ for f in kitFiles {
     check("\(f) takes no old `Ink` tokens", s.range(of: #"\bInk\.(?!make)"#, options: .regularExpression) == nil)
     check("\(f) reads Limit animation, not only Reduce Motion", !s.contains("accessibilityReduceMotion") || s.contains("limitMotion"))
 }
+// One look (step 7): no target draws from the old tokens or reads a look setting any more.
+var stale: [String] = []
+let fm = FileManager.default
+for dir in ["Verbatim", "VerbatimPhone", "VerbatimKeyboard", "VerbatimWidgets", "VerbatimMacWidgets", "VerbatimWatch",
+            "VerbatimWatchWidgets", "VerbatimShare", "VerbatimBroadcast"] {
+    guard let walk = fm.enumerator(atPath: "\(mac)/\(dir)") else { continue }
+    for case let f as String in walk where f.hasSuffix(".swift") {
+        let s = read("\(mac)/\(dir)/\(f)")
+        if s.range(of: #"(?<![A-Za-z])(Ink|PremiumInk|NativeInk|PhoneInk)\.|\bAppLook\b|\.lookRoot\(|@Environment\(\\\.look\)"#, options: .regularExpression) != nil {
+            stale.append("\(dir)/\(f)")
+        }
+    }
+}
+check("no target uses the old tokens or the look setting", stale.isEmpty, stale.joined(separator: ", "))
 let kit = kitFiles.map { read("\(views)/\($0)") }.joined(separator: "\n")
 for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "KindChip", "IconSquare", "SectionTitle",
           "LargeSerifTitle", "ReadingText", "GlassPlayerBar", "RecorderClockPanel", "PaperRow", "WeekCard", "RecordingCard",

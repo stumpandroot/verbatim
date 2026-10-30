@@ -521,7 +521,7 @@ private struct RecallRow: View {
     }
 }
 
-/// The selected row's Paste: a mini dark pill (DESIGN.md §11.5).
+/// The selected row's Paste: a mini dark pill.
 private struct RecallPasteButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

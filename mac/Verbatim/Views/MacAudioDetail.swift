@@ -225,7 +225,7 @@ struct MacAudioMoments: View {
     }
 }
 
-/// Native: the inspector beside an Audio only recording: its moments and its kind.
+/// The inspector beside an Audio only recording: its moments and its kind.
 struct MacAudioInspector: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript

@@ -4,7 +4,7 @@ import SwiftUI
 // and a result's sections drawn as headings, paragraphs, bullets, and checklist lines.
 
 extension TranscriptTemplate {
-    /// The template's line icon in Verbose style.
+    /// The template's line icon.
     var art: BrandArt {
         switch glyph {
         case TemplateGlyph.plan: return .iconQueue
@@ -22,7 +22,7 @@ extension TranscriptTemplate {
     }
 }
 
-/// "Meeting *notes*": a name with its last word in italic, where the look has the serif.
+/// "Meeting *notes*": a name split before its last word, for titles that set it apart.
 enum TemplateTitle {
     static func split(_ name: String) -> (String, String?) {
         let words = name.split(separator: " ")

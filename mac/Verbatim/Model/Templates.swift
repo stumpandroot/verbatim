@@ -120,7 +120,7 @@ struct TranscriptTemplate: Codable, Equatable, Identifiable, Hashable, SyncEntry
     var sections: [TemplateSection]
     /// The kinds it suits ("Use it for"): listed first in Run automatically's menus.
     var kinds: [RecordingKind]
-    /// Its icon, by name (`TemplateGlyph`): the views map it to a BrandArt glyph or an SF Symbol in Native.
+    /// Its icon, by name (`TemplateGlyph`): the views map it to a BrandArt glyph.
     var glyph: String = TemplateGlyph.custom
     var createdAt = Date()
     var updatedAt: Date? = nil
@@ -160,7 +160,7 @@ struct TranscriptTemplate: Codable, Equatable, Identifiable, Hashable, SyncEntry
     var extracts: Bool { TranscriptActions.spec(id)?.extracts ?? true }
 }
 
-/// Icon names for templates. The views draw each as a BrandArt glyph (Verbose) or an SF Symbol (Native).
+/// Icon names for templates. The views draw each as a BrandArt glyph.
 enum TemplateGlyph {
     static let plan = "plan", journal = "journal", draft = "draft", study = "study", keyPoints = "keyPoints"
     static let meeting = "meeting", oneOnOne = "oneOnOne", client = "client", interview = "interview", lecture = "lecture"
@@ -773,8 +773,8 @@ enum RecordChoice: Hashable, Identifiable {
         }
     }
 
-    /// The SF Symbol in the Native look.
-    var nativeSymbol: String {
+    /// The SF Symbol in the iPhone's system Record as menu (the tab bar accessory's), a system surface (DESIGN.md §3).
+    var menuSymbol: String {
         switch self {
         case .voiceNote: return "mic"
         case .kind(.meeting): return "person.2"

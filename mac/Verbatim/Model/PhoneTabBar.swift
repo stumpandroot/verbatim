@@ -7,7 +7,7 @@ import Combine
 // three tabs between them that you pick and order. The default is Library and Thoughts: Moments left the bar in the
 // consolidation (October 28, 2026) and became the Library's Marked filter, so a stored Moments tab becomes Library, or
 // Thoughts when Library is already there (`PhoneTabBar.replacingMoments`).
-// Kept per device in the App Group, like the look (`appearance.tabBar`); nothing syncs.
+// Kept per device in the App Group, like the palette (`appearance.tabBar`); nothing syncs.
 //
 // Plain Foundation, so mac/tools/test-home-layout.sh runs it on Linux: the default, tolerant decoding, picking and
 // ordering, where a removed tab's selection goes, and where a screen opens when its tab isn't in the bar.
