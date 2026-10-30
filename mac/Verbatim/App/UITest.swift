@@ -909,15 +909,23 @@ enum UITest {
         await step("\(tag): double-clicking a Library row opens its transcript", window, target: "lib-item-0", clicks: 2,
                    check: { app.screen.transcriptID != nil && app.screen.transcriptID == first })
         await step("\(tag): the toolbar's Back returns to the Library", window, target: "tb-back", check: { app.screen == .library })
+        // The chrome's frames on the Library, before the preview opens a transcript.
+        let chromeIDs = ["side-home", "side-library", "side-settings", "tb-back", "tb-record"]
+        let missing = chromeIDs.filter { id in (windowFrames[id]?() ?? frames[id]) == nil }
+        check("chrome: the sidebar and toolbar draw Home, Library, Settings, Back, and Record\(missing.isEmpty ? "" : " (missing \(missing.joined(separator: ", ")))")",
+              missing.isEmpty)
         // The preview lives in the inspector, which is remembered per Mac and may be closed when this pass starts:
         // open it, let it lay out, then click its Open Transcript.
         let inspectorWas = nav.inspector
         nav.inspector = true
         try? await Task.sleep(nanoseconds: 700_000_000)
         await step("\(tag): Open Transcript in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        let missingOnTranscript = chromeIDs.filter { id in (windowFrames[id]?() ?? frames[id]) == nil }
+        Log.note("UITEST chrome on a transcript with the inspector open: missing \(missingOnTranscript.isEmpty ? "nothing" : missingOnTranscript.joined(separator: ", "))")
         nav.inspector = inspectorWas
-        let chrome = ["side-home", "side-library", "side-settings", "tb-back", "tb-record"].map { id in windowFrames[id]?() ?? frames[id] }
-        check("chrome: the sidebar and toolbar draw Home, Library, Settings, Back, and Record", chrome.allSatisfy { $0 != nil })
+        app.go(.library)
+        try? await Task.sleep(nanoseconds: 500_000_000)
         let fresh = UserDefaults(suiteName: "co.stumpandroot.verbatim.uitest.table") ?? .standard
         fresh.set(false, forKey: WindowNav.retiredTableKey)
         WindowNav.retireTableChoice(fresh)
