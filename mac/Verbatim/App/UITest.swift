@@ -1111,7 +1111,13 @@ enum UITest {
         await step("\(tag): double-clicking a Library row opens its transcript", window, target: "lib-item-0", clicks: 2,
                    check: { app.screen.transcriptID != nil && app.screen.transcriptID == first })
         await step("\(tag): the toolbar's Back returns to the Library", window, target: "tb-back", check: { app.screen == .library })
+        // The preview lives in the inspector, which is remembered per Mac and may be closed when this pass starts:
+        // open it, let it lay out, then click its Open Transcript.
+        let inspectorWas = nav.inspector
+        nav.inspector = true
+        try? await Task.sleep(nanoseconds: 700_000_000)
         await step("\(tag): Open Transcript in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
+        nav.inspector = inspectorWas
         // The sidebar and toolbar are one design: the same frames in both looks.
         let chrome = ["side-home", "side-library", "side-settings", "tb-back", "tb-record"].map { id in windowFrames[id]?() ?? frames[id] }
         if native {
