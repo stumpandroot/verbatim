@@ -667,6 +667,8 @@ enum UITest {
         await show("07b-dictations")
         app.go(.activity)
         await show("07c-you")
+        let youRefined = YouView.onScreen.contains(AppLook.current)
+        Log.note("UITEST \(youRefined ? "PASS" : "FAIL") you: the You page draws the refined layout in \(AppLook.current.label)")
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
         await thoughtShots(suffix: "")
@@ -782,8 +784,9 @@ enum UITest {
         write(show: "done")
     }
 
-    /// The Native look (Settings › General › Look) on the key screens, light then dark, with `-native` names: Home,
-    /// the Library, a transcript, Settings › General with the look picker, and the welcome tour's Pick a look step.
+    /// The Native look (Settings › Personalization › Look) on the key screens, light then dark, with `-native` names:
+    /// Home, the Library, a transcript, You and Settings (refined, the same in both looks), and the welcome tour's Pick
+    /// a look step.
     /// Ends back in Verbose style.
     private static func nativeTour(app: AppState, window: NSWindow, memo: UUID?) async {
         // The switch as a pick makes it (LookSwitch.swift): the card, the rebuild behind it, and its time.
@@ -829,6 +832,10 @@ enum UITest {
         await show("04c-live-captions-native")
         LiveCaptions.shared.close(force: true)
         await meetingPromptShot("04d-meeting-prompt-native")
+        // The refined You page, the same in Native (DESIGN.md §6.11).
+        app.go(.activity)
+        await show("07c-you-native")
+        check("native look: You draws the same refined page", YouView.onScreen.contains(.native))
         UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         openSettingsWindow()
         await show("09-settings-general-native")
