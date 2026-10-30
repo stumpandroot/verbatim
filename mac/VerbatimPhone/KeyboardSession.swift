@@ -360,12 +360,11 @@ final class KeyboardSession: ObservableObject {
     /// background without an intent that allows it).
     private func startAudio() throws {
         let s = AVAudioSession.sharedInstance()
-        // Mixes with other audio, so a session doesn't stop your music or podcast.
-        // AirPods record over their high-quality link on iOS 26 (RecordingRoute), falling back to HFP.
-        try RecordingRoute.setCategory(s, options: RecordingRoute.options(mixWithOthers: true))
-        // No pinned input from an earlier recording: the system's current microphone (AirPods when they're in,
-        // the iPhone's otherwise), and the capture follows it when that changes.
-        try? s.setPreferredInput(nil)
+        // Mixes with other audio, so a session doesn't stop your music or podcast. AirPods record over their
+        // high-quality link on iOS 26 in the default mode it needs, falling back to HFP (RecordingRoute.prepare). No
+        // pinned input from an earlier recording: the system's current microphone (AirPods when they're in, the
+        // iPhone's otherwise), and the capture follows it when that changes.
+        try RecordingRoute.prepare(s, soundOnly: false, mixWithOthers: true, chosen: nil, pin: false)
         try s.setActive(true)
         capture.onFailure = { [weak self] message in
             MainActor.assumeIsolated { self?.captureFailed(message) }
@@ -1724,11 +1723,8 @@ final class KeyboardSession: ObservableObject {
         timeoutChoices.first(where: { $0.seconds == seconds })?.label ?? "\(seconds / 60) minutes"
     }
 
-    /// "iPhone Microphone", "AirPods Pro", …
-    static func micName() -> String {
-        let name = AVAudioSession.sharedInstance().currentRoute.inputs.first?.portName ?? ""
-        return name.isEmpty ? "iPhone Microphone" : name
-    }
+    /// "iPhone microphone", "AirPods Pro", …
+    static func micName() -> String { RecordingRoute.currentName() }
 
     /// 16-bit, 16 kHz mono WAV, the same format as Verbatim's other recordings.
     nonisolated static func writeWAV(_ samples: [Float], to url: URL) throws {

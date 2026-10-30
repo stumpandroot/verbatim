@@ -39,6 +39,8 @@ struct RecorderSheet: View {
     @State private var startedAt = Date()
     /// The input the recording hears, named again when the route changes (AirPods in, a headset out).
     @State private var mic = HomeScreen.currentMic()
+    /// The inputs the microphone menu lists, read again when the route changes.
+    @State private var inputs: [RecordingInput] = RecordingInputRules.menu(RecordingRoute.knownInputs())
     @State private var arrive: CGFloat = RecorderSheet.slideInNext ? 12 : 0
 
     private var paused: Bool { app.recorder.isPaused }
@@ -76,6 +78,7 @@ struct RecorderSheet: View {
             Self.onScreen.append(look)
             startedAt = Date().addingTimeInterval(-app.recorder.live.elapsed)
             mic = HomeScreen.currentMic()
+            inputs = RecordingInputRules.menu(RecordingRoute.knownInputs())
             guard Self.slideInNext else { return }
             Self.slideInNext = false
             withAnimation(.easeOut(duration: 0.15)) { arrive = 0 }
@@ -86,6 +89,7 @@ struct RecorderSheet: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification).receive(on: RunLoop.main)) { _ in
             mic = HomeScreen.currentMic()
+            inputs = RecordingInputRules.menu(RecordingRoute.knownInputs())
         }
         .accessibilityAction(.escape) { app.minimizeRecorder() }
         .alert("Name this moment", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
@@ -123,16 +127,47 @@ struct RecorderSheet: View {
             .accessibilityLabel("Minimize")
             .accessibilityHint(look.isNative ? "Keeps recording. Record in the tab bar brings it back." : "Keeps recording. Use the bar above the tab bar to come back.")
             Spacer(minLength: 8)
+            micMenu
+        }
+    }
+
+    /// The microphone capsule is a menu of the inputs there are (the iPhone microphone, AirPods, a wired headset, a
+    /// USB microphone): picking one records from it for the rest of this recording (`Recorder.useInput`). With only
+    /// the iPhone microphone there's nothing to pick, and the menu says so.
+    private var micMenu: some View {
+        Menu {
+            Section("Record from") {
+                ForEach(inputs, id: \.uid) { input in
+                    let name = RecordingInputRules.displayName(input)
+                    Button {
+                        app.recorder.useInput(input.uid)
+                        mic = name
+                    } label: {
+                        if name == mic { Label(name, systemImage: "checkmark") } else { Text(name) }
+                    }
+                    .disabled(input.uid == RecordingInputRules.builtInPlaceholder)
+                }
+            }
+            if inputs.count < 2 {
+                Text("Connect AirPods or a headset to record from it.")
+            }
+        } label: {
             HStack(spacing: 6) {
                 IconGlyph(art: .iconMic, size: 15, color: Refined.ink).accessibilityHidden(true)
                 Text(mic).refinedFont(.hint).lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Refined.ink).accessibilityHidden(true)
             }
             .foregroundStyle(Refined.ink)
             .padding(.horizontal, 12).frame(minHeight: 34)
             .background(Refined.neutral, in: Capsule())
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Recording from \(mic)")
+            .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+            .contentShape(Rectangle())
         }
+        .menuStyle(.button).buttonStyle(.plain)
+        .accessibilityLabel("Recording from \(mic)")
+        .accessibilityHint("Opens a menu to record from another microphone.")
+        .accessibilityIdentifier("recorder.microphone")
     }
 
     // MARK: Header
