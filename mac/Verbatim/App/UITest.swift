@@ -976,6 +976,19 @@ enum UITest {
             _ = app.recorder.stop()
         }
         try? await Task.sleep(nanoseconds: 600_000_000)
+        // New project with nothing to add (the sidebar's + and the Library's More) opens it in the Library, as Verbose
+        // style's inline field did; a row's New project keeps you where you are (review fix 7).
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        if let made = app.createProject("Self-test project", adding: []) {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            check("\(tag): New project from the sidebar opens the new project in the Library", app.screen == .library && app.projectFilter == made.id)
+            app.store.projects.removeAll { $0.id == made.id }
+            app.projectFilter = nil
+        } else {
+            check("\(tag): New project from the sidebar opens the new project in the Library", false)
+        }
+        check("\(tag): a blank name makes no project", app.createProject("  ", adding: []) == nil)
         nav.inspector = hadInspector
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)

@@ -25,6 +25,22 @@ extension AppState {
         Sounds.play("Tink")
     }
 
+    /// The New project alert's Create (the sidebar's +, the Library's More, a row's menu). A row's transcripts join
+    /// the new project; a project started with nothing in it opens in the Library, as clicking it in the sidebar does.
+    @discardableResult
+    func createProject(_ name: String, adding ids: [UUID]) -> Project? {
+        let n = name.trimmingCharacters(in: .whitespaces)
+        guard !n.isEmpty else { return nil }
+        let project = store.addProject(n)
+        if ids.isEmpty {
+            projectFilter = project.id
+            go(.library)
+        } else {
+            addToProject(ids, project.id)
+        }
+        return project
+    }
+
     func delete(_ ids: [UUID]) {
         // Moves to Recently Deleted (kept 30 days). Undo puts them straight back.
         for id in ids { coordinator.cancelIfActive(id); store.moveToTrash(id) }

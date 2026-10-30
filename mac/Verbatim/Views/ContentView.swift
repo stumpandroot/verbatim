@@ -53,11 +53,8 @@ struct ContentView: View {
             TextField("Project name", text: $newProjectName)
             Button("Cancel", role: .cancel) { newProjectName = "" }
             Button("Create") {
-                let n = newProjectName.trimmingCharacters(in: .whitespaces)
-                if !n.isEmpty, let ids = app.newProjectFor {
-                    let project = app.store.addProject(n)
-                    if !ids.isEmpty { app.addToProject(ids, project.id) }
-                }
+                // A project started empty opens in the Library; a row's transcript joins it instead.
+                if let ids = app.newProjectFor { app.createProject(newProjectName, adding: ids) }
                 newProjectName = ""
             }
         } message: {
