@@ -1,6 +1,19 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "A TestFlight link for friends",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Friends can join the iPhone beta with a public TestFlight link.",
+          "detail": "Builds from the link send YouTube links to your Mac to transcribe. Everything else works the same."
+        }
+      ]
+    },
+    {
       "build": "250",
       "date": "2026-10-30",
       "version": "1.0 beta",
