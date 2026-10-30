@@ -207,6 +207,7 @@ enum SettingsIndex {
         .init("speakers.mainOnly", .recording, "Main speaker only", "In voice memos, other voices fold into a Background voices section under the transcript. Links, imported files, and meetings always show everyone.", keywords: "background voices"),
         .init("speakers.audioTracks", .recording, "Files with several audio tracks", "Mix every track into one transcript, or transcribe each track on its own as a speaker you can rename. A track's title or language names it, such as Commentary or English.", keywords: "multiple audio tracks mkv video language commentary mix separate speakers import"),
         .init("speakers.mic", .recording, "Record from", "Built-in mic, a USB interface, AirPods, or your iPhone (Continuity). “System default” follows the Mac's Sound settings.", keywords: "microphone input device airpods"),
+        .init("speakers.micBackup", .recording, "Back up a muted mic", "While you record from another mic, the Mac's built-in mic listens too. If your mic is muted, the recording fills in from the built-in mic, so you don't lose what was said.", keywords: "mute muted silent backup microphone shure usb touch fallback built-in"),
 
         // Live captions
         .init("captions.size", .meetings, "Text size", "How big captions read in the captions bar.", keywords: "subtitles captions live font large"),

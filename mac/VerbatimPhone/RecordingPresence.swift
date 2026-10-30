@@ -18,6 +18,8 @@ import Combine
 final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
     static let shared = RecordingPresence()
     nonisolated static let notificationID = "co.stumpandroot.verbatim.recording.paused"
+    /// A wired or USB mic went silent and the recording moved to the iPhone's microphone (DESIGN.md §6.10, A muted microphone).
+    nonisolated static let mutedID = "co.stumpandroot.verbatim.recording.mic-muted"
     static let notificationsAskedKey = "recording.notificationsAsked"
 
     private weak var app: PhoneState?
@@ -268,6 +270,23 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    /// A mute moved the recording to the iPhone's microphone. In the background, a notification says so; in the
+    /// foreground, the recorder's banner and a toast do. Cleared when the mute move ends.
+    func micMuted(_ body: String?) {
+        let center = UNUserNotificationCenter.current()
+        guard let body else { center.removeDeliveredNotifications(withIdentifiers: [Self.mutedID]); return }
+        guard UIApplication.shared.applicationState != .active, !PhoneUITest.enabled else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Your mic seems to be muted"
+        content.body = body
+        content.sound = .default
+        content.interruptionLevel = .active
+        content.userInfo = ["link": "record"]
+        center.add(UNNotificationRequest(identifier: Self.mutedID, content: content, trigger: nil)) { error in
+            Log.note(error.map { "recording presence: mute notification not posted (\($0.localizedDescription))" } ?? "recording presence: mute notification posted")
+        }
+    }
+
     /// Back in Verbatim with a recording that paused itself: the recorder opens on its paused banner with Resume.
     private func cameBack() {
         guard let app, app.recorder.isRecording else { return }
@@ -289,7 +308,7 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
-        let isOurs = response.notification.request.identifier == Self.notificationID
+        let isOurs = [Self.notificationID, Self.mutedID].contains(response.notification.request.identifier)
         Task { @MainActor in
             if isOurs {
                 Log.note("recording presence: notification opened")

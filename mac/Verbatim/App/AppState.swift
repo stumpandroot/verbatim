@@ -156,6 +156,8 @@ final class AppState: ObservableObject {
         coordinator.host = self
         recorder.onAutoPaused = { [weak self] reason in self?.toast = Toast(reason) }
         recorder.onInputSwitched = { [weak self] note in self?.toast = Toast(note) }
+        // A muted mic while Verbose isn't in front: a notification (DESIGN.md §6.10, A muted microphone).
+        recorder.onMicWarning = { MicWarningNotice.changed($0) }
         AudioDucker.shared.follow(.voiceNote, recorder.$isRecording.combineLatest(recorder.$isPaused, recorder.$isStarting).map { $0.0 && !$0.1 && !$0.2 })
         HangWatch.start()
         // The consolidation (October 28, 2026) moves settings for features that merged or retired, once per Mac.

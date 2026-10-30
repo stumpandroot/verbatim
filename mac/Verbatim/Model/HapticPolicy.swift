@@ -30,7 +30,8 @@ enum HapticEvent: String, CaseIterable {
     case transcriptReady
     /// Microphone not allowed, couldn't start, couldn't save, transcription failed.
     case failed
-    /// A call or a route change paused the recording, or its audio can't be saved.
+    /// A call or a route change paused the recording, its audio can't be saved, or a muted mic moved it to the
+    /// iPhone's microphone (DESIGN.md §6.10, A muted microphone).
     case autoPaused
     /// Little space left when a recording starts.
     case lowStorage

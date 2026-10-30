@@ -143,6 +143,13 @@ final class PhoneState: ObservableObject {
             if self?.recorder.isPaused == false { self?.autoPauseReason = nil }
             self?.say(note)
         }
+        // A wired or USB mic went silent: the recording moved to the iPhone's microphone (DESIGN.md §6.10, A muted microphone). The
+        // recorder shows a banner with Switch back; here, a warning haptic, a toast, and in the background a notification.
+        recorder.onMicWarning = { [weak self] w in
+            let note = w.flatMap(PhoneState.mutedNote)
+            if let note { self?.say(note); Haptics.play(.autoPaused) }
+            RecordingPresence.shared.micMuted(note)
+        }
         // Recordings recovered once launch recovery finishes in the background: transcribe them too.
         store.onRecovered = { [weak self] ids, announce in self?.queueRecovered(ids, announce: announce) }
         // Files and links shared to Verbatim, and sound from Transcribe what's playing (PhoneInbox.swift). PhoneRoot
@@ -227,6 +234,12 @@ final class PhoneState: ObservableObject {
 
     var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .defaultPreset }
     var colorScheme: ColorScheme? { appearance == "light" ? .light : appearance == "dark" ? .dark : nil }
+
+    /// "Shure MV7 seems to be muted. Recording continues on the iPhone microphone."
+    nonisolated static func mutedNote(_ w: MicWarning) -> String? {
+        guard case .usingBuiltIn(_, let chosen, _) = w else { return nil }
+        return "\(chosen) seems to be muted. Recording continues on the iPhone microphone."
+    }
 
     func say(_ s: String) {
         toast = s

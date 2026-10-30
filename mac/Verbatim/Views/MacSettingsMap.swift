@@ -57,6 +57,7 @@ enum MacSettingsMap {
                 Setting("speakers.clearVoices"),
                 Setting("speakers.mainOnly", keys: ["transcript.mainSpeakerOnly"]),
                 Setting("speakers.mic"),
+                Setting("speakers.micBackup", keys: ["recording.micBackup"]),
             ]),
             Section("When a transcript is ready", [
                 Setting("models.nameSort", keys: ["labels.auto"]),

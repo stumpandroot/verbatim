@@ -309,6 +309,16 @@ final class RecordingWriter: @unchecked Sendable {
         return true
     }
 
+    /// A buffer arrived from the microphone that isn't written yet (the Mac's backup holds quiet audio back,
+    /// MuteBackup.swift): counted as delivered, and as signal when `heard`, so the mute and no-audio checks see it now.
+    func notice(heard: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        let now = ProcessInfo.processInfo.systemUptime
+        if firstBufferAt == nil { firstBufferAt = now }
+        lastBufferAt = now
+        if heard { signal = true; lastSignal = now }
+    }
+
     /// Whether anything but digital silence has arrived.
     var heardSignal: Bool { lock.lock(); defer { lock.unlock() }; return signal }
 
@@ -354,9 +364,17 @@ final class TapSink: @unchecked Sendable {
     private var writer: RecordingWriter?
     private var onLevel: (@Sendable (Float, TimeInterval) -> Void)?
     private var lastSignal: TimeInterval?
+    /// Mac: buffers go here instead of to a writer (the backup from the built-in mic, MuteBackup.swift).
+    private var forward: (@Sendable (AVAudioPCMBuffer) -> Void)?
 
+    /// Writes buffers to `writer` (nil drops them). Ends any `forward`.
     func set(_ writer: RecordingWriter?, onLevel: (@Sendable (Float, TimeInterval) -> Void)?) {
-        lock.lock(); self.writer = writer; self.onLevel = onLevel; lock.unlock()
+        lock.lock(); self.writer = writer; self.onLevel = onLevel; forward = nil; lock.unlock()
+    }
+
+    /// Hands every buffer to `f` instead of a writer, until the next `set`.
+    func setForward(_ f: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
+        lock.lock(); writer = nil; onLevel = nil; forward = f; lock.unlock()
     }
 
     func feed(_ buffer: AVAudioPCMBuffer) {
@@ -368,8 +386,9 @@ final class TapSink: @unchecked Sendable {
         }
         lock.lock()
         if heard { lastSignal = ProcessInfo.processInfo.systemUptime }
-        let w = writer, cb = onLevel
+        let w = writer, cb = onLevel, fw = forward
         lock.unlock()
+        if let fw { fw(buffer); return }
         guard let w else { return }
         let v = w.write(buffer)
         cb?(v, w.seconds)
@@ -801,8 +820,9 @@ final class Recorder: ObservableObject {
     /// Whether the last stopped or discarded recording received anything but digital silence.
     private(set) var lastHeardSignal = true
 
-    /// Mac: the mic is muted, or nothing but digital silence is arriving, right now. Set within moments of the
-    /// start (or of the change) and cleared as soon as it's fixed; the recording keeps going either way.
+    /// The mic is muted, or nothing but digital silence is arriving, right now. Set within moments of the start (or
+    /// of the change) and cleared as soon as it's fixed; the recording keeps going either way. On the iPhone, only
+    /// `.usingBuiltIn`: a wired or USB mic went silent and the recording moved to the iPhone's microphone.
     @Published private(set) var micWarning: MicWarning?
     /// Called on every change of `micWarning`, including back to nil.
     var onMicWarning: ((MicWarning?) -> Void)?
@@ -887,6 +907,16 @@ final class Recorder: ObservableObject {
     /// No built-in mic (or it delivered nothing): don't try again during this recording.
     private var fallbackUnavailable = false
     private var lastSwitchBack: TimeInterval = -100
+    /// Normal recordings on another mic: the built-in mic running beside it, and what decides which one reaches the
+    /// file (DESIGN.md §6.10, A muted microphone, MuteBackup.swift). While muted, `fallback` is this same input.
+    private var backupInput: OpenInput?
+    private var muteBackup: MuteBackup?
+    private var backupToken = 0
+    /// The built-in mic is opening for the backup: a mute noticed meanwhile waits for it instead of opening its own.
+    private var backupOpening = false
+    /// The recording moved to the built-in mic because it heard speech the chosen mic didn't (not exact silence),
+    /// so it moves back when the chosen mic hears speech again, not at its first faint noise.
+    private var fallbackByCompare = false
     #endif
 
     static var targetFormat: AVAudioFormat { recordingFormat }
@@ -966,6 +996,7 @@ final class Recorder: ObservableObject {
         startedAt = ProcessInfo.processInfo.systemUptime
         isRecording = true
         isPaused = false
+        startPhoneMuteWatch()
         #endif
     }
 
@@ -1008,9 +1039,79 @@ final class Recorder: ObservableObject {
             Log.note("recorder: the input you chose isn't there any more"); return nil
         }
         chosenInputUID = picked.uid
+        // A pick ends a mute's move (Switch back is this pick), and the watch starts over on the new input.
+        if mutedInput != nil { clearPhoneMute("you chose \(picked.name)") }
+        muteSince = ProcessInfo.processInfo.systemUptime
         Log.note("recorder: you chose \(picked.name) (\(picked.kind.rawValue))")
         return picked
     }
+
+    // MARK: Muted mic (iPhone)
+
+    /// The wired or USB mic a mute moved the recording off (DESIGN.md §6.10, A muted microphone), until you switch back, pick another
+    /// input, or it's unplugged. The iPhone records from one input at a time, so there's no backup to fill the gap:
+    /// the move comes 0.6 s into a recording, or after 3 s of silence partway through (`MuteRules.silent`).
+    @Published private(set) var mutedInput: RecordingInput?
+    private var phoneMuteTimer: Timer?
+    /// When the mute watch started on the current input.
+    private var muteSince: TimeInterval = 0
+
+    private func startPhoneMuteWatch() {
+        phoneMuteTimer?.invalidate()
+        muteSince = ProcessInfo.processInfo.systemUptime
+        phoneMuteTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.phoneMuteTick() }
+        }
+        phoneMuteTimer?.tolerance = 0.05
+    }
+
+    private func stopPhoneMuteWatch() {
+        phoneMuteTimer?.invalidate(); phoneMuteTimer = nil
+        if mutedInput != nil || micWarning != nil {
+            mutedInput = nil
+            setMicWarning(nil)
+        }
+    }
+
+    /// Every 0.25 s while recording: a wired or USB mic sending exact digital silence counts as muted, and the
+    /// recording moves to the iPhone's microphone. Not while paused, or while waiting for AirPods to be listed.
+    private func phoneMuteTick() {
+        guard isRecording, !isPaused, let w = writer, awaitingInput == nil else { return }
+        let s = AVAudioSession.sharedInstance()
+        if let muted = mutedInput {
+            // Unplugged while muted: there's nothing to switch back to.
+            if !(s.availableInputs ?? []).contains(where: { $0.uid == muted.uid }) { clearPhoneMute("\(muted.name) was unplugged") }
+            return
+        }
+        guard let port = s.currentRoute.inputs.first else { return }
+        let current = RecordingRoute.input(port)
+        guard MuteRules.watchesForMute(current.kind) else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard MuteRules.silent(lastSignal: w.lastSignalAt, since: muteSince, now: now) else { return }
+        guard let builtIn = (s.availableInputs ?? []).first(where: { $0.portType == .builtInMic }),
+              moveRecording(to: builtIn.uid) != nil else {
+            Log.note("recorder: \(current.name) sends only silence, and the iPhone microphone isn't available"); return
+        }
+        mutedInput = current
+        muteSince = now
+        Log.note("recorder: \(current.name) (\(current.kind.rawValue)) sends only silence; moved to the iPhone microphone")
+        setMicWarning(.usingBuiltIn(builtIn: Self.phoneMicName, chosen: RecordingInputRules.displayName(current), certain: false))
+    }
+
+    /// Switch back in the recorder's mute banner: records from the muted mic again. Nil when it isn't there.
+    @discardableResult
+    func switchBackFromMute() -> RecordingInput? {
+        guard let m = mutedInput else { return nil }
+        return useInput(m.uid)
+    }
+
+    private func clearPhoneMute(_ reason: String) {
+        mutedInput = nil
+        Log.note("recorder: mute move ended (\(reason))")
+        setMicWarning(nil)
+    }
+
+    static let phoneMicName = "the iPhone microphone"
 
     /// Moves a running recording to `uid` (the microphone menu, or AirPods coming up after a wait): the session's
     /// mode and input, then capture, when the engine keeps running on the old input. Paused, capture restarts on it
@@ -1216,6 +1317,10 @@ final class Recorder: ObservableObject {
             }
         }
         isPaused.toggle()
+        #if os(macOS)
+        // Quiet audio the backup held back belongs before the pause.
+        if isPaused { muteBackup?.flush() }
+        #endif
         writer?.paused = isPaused
         if isPaused { live.reset(); live.setElapsed(writer?.seconds ?? 0) }
         #if os(iOS)
@@ -1228,6 +1333,9 @@ final class Recorder: ObservableObject {
         guard isRecording, !keepWarm else { return }
         if !isPaused {
             isPaused = true
+            #if os(macOS)
+            muteBackup?.flush()
+            #endif
             writer?.paused = true
             live.reset(); live.setElapsed(writer?.seconds ?? 0)
         }
@@ -1400,6 +1508,7 @@ final class Recorder: ObservableObject {
         chosenInputUID = nil
         chosenInput = nil
         stopWaiting()
+        stopPhoneMuteWatch()
         try? AVAudioSession.sharedInstance().setPreferredInput(nil)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         #endif
@@ -1835,7 +1944,8 @@ final class Recorder: ObservableObject {
 
     /// Starts watching the recording device: its mute switch and input volume (Core Audio, on the watch's own
     /// queue), and the audio itself for exact digital silence. Either sets `micWarning` while it lasts, and
-    /// moves the recording to the Mac's built-in mic until the chosen one is back (see `startFallback`).
+    /// moves the recording to the Mac's built-in mic until the chosen one is back. A normal recording on another
+    /// mic also opens the built-in mic beside it as a backup (`startBackup`), so the move loses nothing.
     private func startMicWatch(device: AudioDeviceID, name: String) {
         stopMicWatch()
         micName = name
@@ -1850,6 +1960,7 @@ final class Recorder: ObservableObject {
             MainActor.assumeIsolated { self?.micTick() }
         }
         silenceTimer?.tolerance = 0.05
+        if !keepWarm { startBackup(beside: device) }
     }
 
     private func stopMicWatch() {
@@ -1859,12 +1970,72 @@ final class Recorder: ObservableObject {
         hearingSilence = false
         fallbackToken += 1
         switchingToFallback = false
-        if let fb = fallback {
+        fallbackByCompare = false
+        if let fb = fallback, fb !== backupInput {
             fb.sink.set(nil, onLevel: nil)
             audioQueue.async { fb.release() }
-            fallback = nil
             Log.note("recorder: released the built-in mic fallback")
         }
+        fallback = nil
+        stopBackup()
+        updateMicWarning()
+    }
+
+    // MARK: Backup from the built-in mic
+
+    /// Normal recordings on a mic other than the built-in one: opens the built-in mic on the audio queue and, once it
+    /// runs, routes both mics through a `MuteBackup` (DESIGN.md §6.10, A muted microphone). Never Bluetooth or any other mic. Not with
+    /// Settings › Back up a muted mic off, and not after the recording moved to the built-in mic for good.
+    private func startBackup(beside chosen: AudioDeviceID) {
+        guard MuteRules.backupEnabled(.standard), !stayOnBuiltIn, let open = input, open.device.id == chosen, writer != nil else { return }
+        backupToken += 1
+        let mine = backupToken
+        backupOpening = true
+        audioQueue.async { [weak self] in
+            let builtIn = Self.openBuiltIn(excluding: chosen)
+            Task { @MainActor in
+                if self?.backupToken == mine { self?.backupOpening = false }
+                guard let self, self.backupToken == mine, self.isRecording, let w = self.writer, let primary = self.input,
+                      primary === open, self.fallback == nil, !self.switchingToFallback, let builtIn else {
+                    if let builtIn { builtIn.sink.set(nil, onLevel: nil); DispatchQueue.global(qos: .userInitiated).async { builtIn.release() } }
+                    return
+                }
+                let b = MuteBackup(writer: w, onLevel: self.levelHandler())
+                self.muteBackup = b
+                self.backupInput = builtIn
+                builtIn.sink.setForward { buffer in b.backup(buffer) }
+                primary.sink.setForward { buffer in b.primary(buffer) }
+                Log.note("recorder: backing up \(self.micName) with \(builtIn.device.name)")
+            }
+        }
+    }
+
+    /// Writes what the backup held, points the chosen mic straight at the writer again, and releases the built-in mic.
+    private func stopBackup() {
+        backupToken += 1
+        backupOpening = false
+        guard let b = muteBackup else { return }
+        b.detach()
+        if let w = writer, let primary = input { primary.sink.set(w, onLevel: levelHandler()) }
+        muteBackup = nil
+        if let open = backupInput {
+            open.sink.set(nil, onLevel: nil)
+            audioQueue.async { open.release() }
+        }
+        backupInput = nil
+        Log.note("recorder: stopped the backup from the built-in mic")
+    }
+
+    /// The chosen mic is muted (`certain`), silent, or quiet while the built-in mic hears speech (`byCompare`): the
+    /// backup's audio replaces what was held, and the recording carries on from the built-in mic.
+    private func useBackup(certain: Bool, byCompare: Bool) {
+        guard let b = muteBackup, let open = backupInput, fallback == nil else { return }
+        b.useBackup()
+        fallback = open
+        fallbackCertain = certain
+        fallbackByCompare = byCompare
+        fallbackStartedAt = ProcessInfo.processInfo.systemUptime
+        Log.note("recorder: switched to \(open.device.name) because \(micName) is \(certain ? "muted" : byCompare ? "quiet while the built-in mic hears speech" : "sending only silence")")
         updateMicWarning()
     }
 
@@ -1881,13 +2052,17 @@ final class Recorder: ObservableObject {
 
     /// Every 0.15 s while recording. Exact digital silence for 0.6 s from the start, or for 3 s after sound was
     /// heard (a mic's noise gate can send zeros between words, so mid-recording waits longer), counts as
-    /// muted; a quiet room still sends some noise. Muted moves the recording to the built-in mic; unmuted
-    /// moves it back, at most once per 5 s.
+    /// muted; a quiet room still sends some noise (`MuteRules.silent`). With the backup running, so does the chosen
+    /// mic staying quiet while the built-in mic hears speech (`MuteRules.mutedByComparison`). Muted moves the
+    /// recording to the built-in mic; unmuted moves it back, at most once per 5 s.
     private func micTick() {
         guard isRecording, let w = writer else { return }
         let now = ProcessInfo.processInfo.systemUptime
         if let fb = fallback {
-            let primaryHeard = (primarySink?.lastSignalAt).map { now - $0 < 0.5 } ?? false
+            // After a comparison the chosen mic still sends faint noise, so it's back when it hears speech again.
+            let primaryHeard = fallbackByCompare
+                ? (muteBackup?.status.primaryLoudAt).map { now - $0 < 0.5 } ?? false
+                : (primarySink?.lastSignalAt).map { now - $0 < 0.5 } ?? false
             if !reportedMuted, primaryHeard, now - lastSwitchBack >= 5 {
                 switchBack("\(micName) is back")
             } else if now - max(fb.sink.lastSignalAt ?? 0, fallbackStartedAt) >= 1.5 {
@@ -1901,17 +2076,19 @@ final class Recorder: ObservableObject {
         let silent: Bool
         if skip {
             silent = hearingSilence && switchingToFallback
-        } else if let last = w.lastSignalAt {
-            silent = now - max(last, startedAt) >= 3
         } else {
-            silent = now - startedAt >= 0.6
+            silent = MuteRules.silent(lastSignal: w.lastSignalAt, since: startedAt, now: now)
         }
         if silent != hearingSilence {
             hearingSilence = silent
             updateMicWarning()
         }
-        if (reportedMuted || hearingSilence), !isPaused, !switchingToFallback, !fallbackUnavailable, !skip {
-            startFallback(writer: w)
+        guard !isPaused, !switchingToFallback, !fallbackUnavailable, !skip, !backupOpening else { return }
+        if reportedMuted || hearingSilence {
+            if muteBackup != nil { useBackup(certain: reportedMuted, byCompare: false) } else { startFallback(writer: w) }
+        } else if let st = muteBackup?.status,
+                  MuteRules.mutedByComparison(heldSeconds: st.heldSeconds, backupSpeechSeconds: st.backupSpeechSeconds) {
+            useBackup(certain: false, byCompare: true)
         }
     }
 
@@ -1983,6 +2160,17 @@ final class Recorder: ObservableObject {
     /// Points the recording back at the chosen mic and releases the built-in one.
     private func switchBack(_ reason: String) {
         guard let fb = fallback, let w = writer else { return }
+        if fb === backupInput, let b = muteBackup {
+            // The backup keeps running for the next mute; only what reaches the file changes.
+            b.usePrimary()
+            fallback = nil
+            fallbackByCompare = false
+            lastSwitchBack = ProcessInfo.processInfo.systemUptime
+            hearingSilence = false
+            Log.note("recorder: switched back to \(micName) (\(reason))")
+            updateMicWarning()
+            return
+        }
         fb.sink.set(nil, onLevel: nil)
         if let pf = primaryFormat, w.replaceInput(pf) {
             primarySink?.set(w, onLevel: levelHandler())
@@ -2001,12 +2189,17 @@ final class Recorder: ObservableObject {
         let next: MicWarning?
         if let fb = fallback { next = .usingBuiltIn(builtIn: fb.device.name, chosen: micName, certain: fallbackCertain) }
         else { next = reportedMuted ? .muted(micName) : hearingSilence ? .silent(micName) : nil }
+        setMicWarning(next)
+    }
+    #endif
+
+    /// Sets `micWarning` and tells `onMicWarning`, when it changed.
+    private func setMicWarning(_ next: MicWarning?) {
         guard next != micWarning else { return }
         micWarning = next
         Log.note("recorder: mic warning: \(next.map { "\($0.title). \($0.detail)" } ?? "cleared")")
         onMicWarning?(next)
     }
-    #endif
 
     private func levelHandler() -> @Sendable (Float, TimeInterval) -> Void {
         { [weak self] v, secs in

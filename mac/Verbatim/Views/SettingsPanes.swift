@@ -247,6 +247,7 @@ struct RecordingSettingsPane: View {
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
     @AppStorage(AudioTracksPreference.key) private var audioTracks = AudioTracksPreference.mix.rawValue
     @AppStorage(SpeakerVoices.enabledKey) private var recognizeVoices = true
+    @AppStorage(MuteRules.backupKey) private var micBackup = true
     @State private var savedVoices = SpeakerVoices.namedCount
 
     var body: some View {
@@ -285,6 +286,7 @@ struct RecordingSettingsPane: View {
                 }
                 SettingsToggleRow("speakers.mainOnly", isOn: $mainSpeakerOnly)
                 SettingsRow("speakers.mic") { MicSourceMenu(status: "No microphone found").fixedSize() }
+                SettingsToggleRow("speakers.micBackup", isOn: $micBackup)
             }
             SettingsGroup(title: "When a transcript is ready") {
                 SettingsToggleRow("models.nameSort", isOn: $autoLabels)

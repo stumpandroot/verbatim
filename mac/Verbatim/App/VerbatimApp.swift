@@ -111,11 +111,23 @@ struct VerbatimApp: App {
             .frame(width: 320).background(Refined.paper)
             .environmentObject(app).limitMotionRoot()
         } label: {
-            // The bars mark as a template image, so the menu bar tints it (DESIGN.md §3, §4).
-            Image(nsImage: BrandArt.markBars.templateImage(size: 16, key: "menubar"))
-                .accessibilityLabel("Verbose")
+            MenuBarMark(recorder: holder.app.recorder)
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// The menu bar item's image: the bars mark as a template image, so the menu bar tints it (DESIGN.md §3, §4). While
+/// a recording's mic is muted or silent, the attention mark instead, so it shows from any app (DESIGN.md §6.10, A muted microphone). Only
+/// this view watches the recorder, so the scenes aren't rebuilt.
+struct MenuBarMark: View {
+    @ObservedObject var recorder: Recorder
+
+    var body: some View {
+        let warn = recorder.isRecording && recorder.micWarning != nil
+        Image(nsImage: warn ? BrandArt.iconAttention.templateImage(size: 16, key: "menubar-mic-warning")
+                            : BrandArt.markBars.templateImage(size: 16, key: "menubar"))
+            .accessibilityLabel(warn ? "Verbose, your mic seems to be muted" : "Verbose")
     }
 }
 

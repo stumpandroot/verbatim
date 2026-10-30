@@ -61,6 +61,7 @@ struct RecorderSheet: View {
                     RecorderLivePanel(live: app.recorder.live, status: status, moments: app.recordingMoments)
                         .padding(.top, 16)
                     if paused, let reason = app.autoPauseReason { autoPause(reason).padding(.top, 12) }
+                    if !paused, let w = app.recorder.micWarning, let note = PhoneState.mutedNote(w) { mutedMic(note).padding(.top, 12) }
                     if !audioOnly { RecorderLiveWords(text: app.recordingWords).padding(.top, 14) }
                     momentsLine.padding(.top, 6)
                 }
@@ -220,6 +221,26 @@ struct RecorderSheet: View {
             Text(reason).refinedFont(.body).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             Button("Resume") { app.togglePause() }.buttonStyle(RefinedActionStyle(kind: .strong))
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// A wired or USB mic went silent and the recording moved to the iPhone's microphone (DESIGN.md §6.10, A muted microphone): what
+    /// happened, and Switch back once you've unmuted it. The iPhone can't hear the muted mic while recording from its
+    /// own, so it can't tell when you unmute; switching back is yours.
+    private func mutedMic(_ note: String) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            IconGlyph(art: .iconAttention, size: 20, color: Refined.ink).accessibilityHidden(true)
+            Text(note + " Unmute it, then switch back.").refinedFont(.body).foregroundStyle(Refined.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button("Switch back") {
+                if app.recorder.switchBackFromMute() != nil { mic = HomeScreen.currentMic() }
+            }
+            .buttonStyle(RefinedActionStyle(kind: .strong))
+            .accessibilityIdentifier("recorder.switchBack")
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))

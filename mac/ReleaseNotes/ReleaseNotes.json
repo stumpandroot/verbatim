@@ -1,6 +1,33 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "A muted mic doesn't cost you the recording",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "If your mic is muted while you record, the Mac's built-in mic fills in what it missed.",
+          "detail": "The built-in mic listens beside a USB or other mic and keeps its last 15 seconds. Turn it off in Settings › Recording and transcription › Speakers."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "A muted mic shows a notification and a menu bar alert when Verbose isn't in front.",
+          "detail": "Verbose also notices mics that send faint noise instead of silence when muted, by comparing them with the built-in mic."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "A muted USB or wired mic moves the recording to the iPhone microphone and tells you.",
+          "detail": "A banner in the recorder says so, with Switch back for when you've unmuted it. You also feel a vibration, and see a notification when Verbose is in the background."
+        }
+      ]
+    },
+    {
       "build": "249",
       "date": "2026-10-30",
       "version": "1.0 beta",
