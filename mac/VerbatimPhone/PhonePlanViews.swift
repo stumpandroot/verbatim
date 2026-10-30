@@ -422,7 +422,7 @@ struct ThoughtsPlanScreen: View {
     /// "7:12 AM · iPhone": the thought's time and where it came from.
     private func link(_ item: DayPlan.Item, _ r: DayPlanRecord) -> String? {
         guard let i = DayPlan.index(of: item, count: r.thoughtIDs.count), let t = app.store.transcript(r.thoughtIDs[i]) else { return nil }
-        return "\(ThoughtText.time(t.createdAt, native: true)) \u{00B7} \(ThoughtText.origin(t))"
+        return "\(ThoughtText.time(t.createdAt, systemFormat: true)) \u{00B7} \(ThoughtText.origin(t))"
     }
 
     private func openSheet(_ plan: DayPlan, _ r: DayPlanRecord, only: DayPlan.Item?) {

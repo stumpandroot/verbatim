@@ -125,7 +125,7 @@ struct HomeThoughtsMac: View {
                     ForEach(Array(shown.enumerated()), id: \.element.id) { i, t in
                         if i > 0 { PaperDivider(leading: 16, trailing: 16) }
                         HStack(alignment: .firstTextBaseline, spacing: 14) {
-                            Text(Thoughts.time(t.createdAt, native: true)).refinedFont(.meta).monospacedDigit()
+                            Text(Thoughts.time(t.createdAt, systemFormat: true)).refinedFont(.meta).monospacedDigit()
                                 .foregroundStyle(Refined.mute).frame(width: 64, alignment: .leading)
                             Text(words(t)).refinedFont(.body).foregroundStyle(t.status == .ready ? Refined.ink : Refined.dim).lineLimit(2)
                             Spacer(minLength: 0)

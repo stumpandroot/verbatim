@@ -38,9 +38,9 @@ enum ThoughtText {
     /// The thought a day list shows for its day: the first with words, else the first.
     static func firstWithWords(_ page: [Transcript]) -> Transcript? { page.first { !words($0).isEmpty } ?? page.first }
 
-    /// "9:40" (`native: false`, like a transcript's timecode) or "9:40 AM" (`native: true`, the system's short time).
-    static func time(_ date: Date, native: Bool) -> String {
-        if native { return Formats.style(date: .none, time: .short).string(from: date) }
+    /// "9:40" (`systemFormat: false`, like a transcript's timecode) or "9:40 AM" (`systemFormat: true`, the system's short time).
+    static func time(_ date: Date, systemFormat: Bool) -> String {
+        if systemFormat { return Formats.style(date: .none, time: .short).string(from: date) }
         let f = Formats.pattern(DateFormatter.dateFormat(fromTemplate: "jmm", options: 0, locale: .current)?
             .replacingOccurrences(of: "a", with: "").trimmingCharacters(in: .whitespaces) ?? "h:mm")
         return f.string(from: date)

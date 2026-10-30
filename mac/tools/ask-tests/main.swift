@@ -148,10 +148,10 @@ check("citations: the first sentence for a notification", sample?.firstSentence.
 
 var res = AskResult(question: q, scope: .all, state: .answered, device: "Mac", askedAt: now)
 res.passageCount = 9; res.recordingCount = 2
-check("result: the footer", res.footer(native: false) == "On this Mac with Apple Intelligence. Nothing leaves it. Verbose found 9 passages in 2 recordings first, then answered from them."
-      && res.footer(native: true) == "From 9 passages in 2 recordings, answered on this Mac.")
+check("result: the footer", res.footer(short: false) == "On this Mac with Apple Intelligence. Nothing leaves it. Verbose found 9 passages in 2 recordings first, then answered from them."
+      && res.footer(short: true) == "From 9 passages in 2 recordings, answered on this Mac.")
 res.passageCount = 1; res.recordingCount = 1; res.device = "iPhone"
-check("result: the footer in the singular", res.footer(native: true) == "From 1 passage in 1 recording, answered on this iPhone.")
+check("result: the footer in the singular", res.footer(short: true) == "From 1 passage in 1 recording, answered on this iPhone.")
 var nf = AskResult(question: q, scope: AskScope(source: .thoughts), state: .nothingFound, device: "Mac")
 check("result: nothing found says so", nf.message(scopeLabel: "Thoughts · All time") == "Nothing in Thoughts · All time matches this question, so Verbose didn't answer. Try All, or other words.")
 nf.scope = .all
@@ -271,6 +271,15 @@ check("draft: a scheduled recipe brings its weekday and time", scheduledDraft.sc
 scheduledDraft.timeOfDay = Calendar.current.date(bySettingHour: 17, minute: 45, second: 0, of: Date())!
 check("draft: the time picker sets the hour and minute", scheduledDraft.hour == 17 && scheduledDraft.minute == 45
       && Calendar.current.component(.hour, from: scheduledDraft.timeOfDay) == 17)
+
+// The iPhone's answer card says what the answer read under its privacy line (review fix 8; it ran only in tests after
+// step 6 of the refined look). Reads the sources from the mac/ folder given as the first argument.
+if CommandLine.arguments.count > 1, let phoneAsk = try? String(contentsOfFile: CommandLine.arguments[1] + "/VerbatimPhone/AskScreens.swift", encoding: .utf8) {
+    check("sources: the iPhone's answer card shows the footer line when it answered",
+          phoneAsk.contains("if result.state == .answered {\n                    Text(result.footer(short: true))"))
+} else {
+    check("sources: can read VerbatimPhone/AskScreens.swift", false)
+}
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

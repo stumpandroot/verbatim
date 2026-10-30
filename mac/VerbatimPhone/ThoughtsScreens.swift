@@ -302,7 +302,7 @@ private struct ThoughtEditSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 10) {
-                Text("\(DayPages.title("Thoughts", day: DayPages.pageDay(for: transcript.createdAt, hour: app.newPageHour))) · \(ThoughtText.time(transcript.createdAt, native: true))")
+                Text("\(DayPages.title("Thoughts", day: DayPages.pageDay(for: transcript.createdAt, hour: app.newPageHour))) · \(ThoughtText.time(transcript.createdAt, systemFormat: true))")
                     .refinedFont(.meta).foregroundStyle(Refined.mute)
                 TextEditor(text: $text)
                     .refinedFont(.reading)

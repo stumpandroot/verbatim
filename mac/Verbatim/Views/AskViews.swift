@@ -376,7 +376,7 @@ struct AskResultView: View {
     private var footer: some View {
         HStack(alignment: .center, spacing: 8) {
             if result.state == .answered {
-                Text(result.footer(native: false)).refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+                Text(result.footer(short: false)).refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
             } else if result.state == .searchOnly {
                 Text("Found on this \(result.device). Nothing leaves it.").refinedFont(.meta).foregroundStyle(Refined.dim)
             }

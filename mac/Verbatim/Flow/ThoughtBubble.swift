@@ -277,7 +277,7 @@ struct ThoughtBubbleView: View {
                 BubbleCard {
                     HStack(spacing: 8) {
                         BrandGlyph(art: .webCheck, color: Refined.ink, minLineWidth: 1.6).frame(width: 13, height: 13)
-                        Text("Added to Thoughts · \(Thoughts.time(at, native: false))").refinedFont(.body, weight: .semibold).foregroundStyle(Refined.ink)
+                        Text("Added to Thoughts · \(Thoughts.time(at, systemFormat: false))").refinedFont(.body, weight: .semibold).foregroundStyle(Refined.ink)
                     }
                 }
                 .surfaceFrame(in: Self.space)

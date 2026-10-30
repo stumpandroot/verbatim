@@ -157,6 +157,13 @@
           ],
           "text": "A project you start from the sidebar opens in the Library, ready for transcripts.",
           "detail": "The same goes for New Project in the Library's More menu. A project started from a transcript's menu still keeps you where you are."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "An answer from Ask says again how many passages and recordings it read.",
+          "detail": "It sits at the foot of the answer card, under the line that says it ran on this iPhone."
         }
       ]
     },

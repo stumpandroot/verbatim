@@ -229,7 +229,7 @@ struct MacPlanPanel: View {
             return DayPlan.index(of: item, count: r.paragraphs.count).map { "\u{00B6}\($0 + 1)" }
         case .thoughts:
             guard let i = DayPlan.index(of: item, count: r.thoughtIDs.count), let t = app.store.transcript(r.thoughtIDs[i]) else { return nil }
-            return "\(ThoughtText.time(t.createdAt, native: true)) \u{00B7} \(ThoughtText.origin(t))"
+            return "\(ThoughtText.time(t.createdAt, systemFormat: true)) \u{00B7} \(ThoughtText.origin(t))"
         }
     }
 

@@ -14,4 +14,4 @@ swiftc -O -o "$out/ask-tests" \
   "$m/Formats.swift" "$m/CorrectionEdits.swift" "$m/SyncMerge.swift" "$m/Ask.swift" "$m/AskRecipes.swift" "$m/AskChecks.swift" \
   "$here/../Verbatim/Transcription/MultitrackMath.swift" \
   "$here/transcript-tests/Stubs.swift" "$here/ask-tests/main.swift"
-"$out/ask-tests"
+"$out/ask-tests" "$here/.."

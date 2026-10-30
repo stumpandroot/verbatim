@@ -929,6 +929,7 @@ enum PhoneUITest {
             var path = NavigationPath()
             path.append(AskRoute(query: "What did Alex want changed on the homepage?"))
             app.libraryPath = NavigationPath()
+            PhoneAskResult.footerShown = nil
             try? await Task.sleep(nanoseconds: 400_000_000)
             app.libraryPath = path
             for _ in 0..<24 where !(center.phase == .done && AskScreen.shown != nil) { try? await Task.sleep(nanoseconds: 250_000_000) }
@@ -936,7 +937,10 @@ enum PhoneUITest {
             check("Ask about … asks at once and keeps only valid citations", asked?.state == .answered && asked?.answer?.citations.count == 1
                   && asked?.answer?.plainText.contains("Invented") == false)
             if let a = asked { Log.note("UITEST ask: Ask about … gave \(a.state) from \(a.passageCount) passages, \(a.answer?.citations.count ?? 0) citation(s)") }
-            check("the footer says it answered on this iPhone", center.result?.footer(native: true).hasSuffix("answered on this iPhone.") == true)
+            check("the footer says it answered on this iPhone", center.result?.footer(short: true).hasSuffix("answered on this iPhone.") == true)
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            check("the answer card shows the footer line (\(PhoneAskResult.footerShown ?? "none"))",
+                  PhoneAskResult.footerShown?.hasPrefix("From ") == true && PhoneAskResult.footerShown?.hasSuffix("answered on this iPhone.") == true)
             center.ask("What is the wifi password at the cabin?", scope: .all)
             for _ in 0..<24 where center.phase != .done { try? await Task.sleep(nanoseconds: 250_000_000) }
             check("nothing relevant says so instead of answering", center.result?.state == .nothingFound)

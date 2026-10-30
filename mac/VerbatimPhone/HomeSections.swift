@@ -167,7 +167,7 @@ struct HomeThoughtsSection: View {
                     ForEach(Array(shown.enumerated()), id: \.element.id) { i, t in
                         if i > 0 { PaperDivider(leading: 14) }
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(ThoughtText.time(t.createdAt, native: true)).refinedFont(.meta).monospacedDigit()
+                            Text(ThoughtText.time(t.createdAt, systemFormat: true)).refinedFont(.meta).monospacedDigit()
                                 .foregroundStyle(Refined.mute).lineLimit(1).fixedSize()
                                 .frame(minWidth: 64, alignment: .leading)
                             Text(words(t)).refinedFont(.body).foregroundStyle(t.status == .ready ? Refined.ink : Refined.dim)

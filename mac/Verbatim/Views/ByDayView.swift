@@ -359,7 +359,7 @@ private struct ThoughtLine: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             PaperRowButton(action: { app.go(.transcript(t.id)) }) {
                 HStack(alignment: .firstTextBaseline, spacing: 16) {
-                    Text(Thoughts.time(t.createdAt, native: true)).refinedFont(.meta).monospacedDigit()
+                    Text(Thoughts.time(t.createdAt, systemFormat: true)).refinedFont(.meta).monospacedDigit()
                         .foregroundStyle(Refined.mute).frame(width: 64, alignment: .leading)
                     VStack(alignment: .leading, spacing: 4) {
                         words(t)
@@ -411,7 +411,7 @@ private struct JournalLine: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             PaperRowButton(action: { app.go(.transcript(t.id)) }) {
                 HStack(alignment: .firstTextBaseline, spacing: 16) {
-                    Text(Thoughts.time(t.createdAt, native: true)).refinedFont(.meta).monospacedDigit()
+                    Text(Thoughts.time(t.createdAt, systemFormat: true)).refinedFont(.meta).monospacedDigit()
                         .foregroundStyle(Refined.mute).frame(width: 64, alignment: .leading)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
@@ -460,7 +460,7 @@ enum DayExport {
     static func markdown(_ items: [Transcript], kind: RecordingKind, day: Date) -> String {
         var out = "# \(DayPages.title(Thoughts.pageName(kind), day: day))\n"
         for t in items {
-            let time = Thoughts.time(t.createdAt, native: true)
+            let time = Thoughts.time(t.createdAt, systemFormat: true)
             if kind == .journal {
                 out += "\n## \(time) · \(t.title)\n\n\(Thoughts.words(t))\n"
             } else {

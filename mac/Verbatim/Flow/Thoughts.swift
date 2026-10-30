@@ -43,8 +43,8 @@ enum Thoughts {
     /// "Mac", "iPhone", or "Apple Watch": where it was recorded, in the sans meta line under a thought.
     static func origin(_ t: Transcript) -> String { ThoughtText.origin(t) }
 
-    /// "9:40" (`native: false`, like a transcript's timecode) or "9:40 AM" (`native: true`, the system's short time).
-    static func time(_ date: Date, native: Bool) -> String { ThoughtText.time(date, native: native) }
+    /// "9:40" (`systemFormat: false`, like a transcript's timecode) or "9:40 AM" (`systemFormat: true`, the system's short time).
+    static func time(_ date: Date, systemFormat: Bool) -> String { ThoughtText.time(date, systemFormat: systemFormat) }
 
     /// The page's words for Copy and Send, a blank line between thoughts.
     static func joined(_ page: [Transcript]) -> String { ThoughtText.joined(page) }

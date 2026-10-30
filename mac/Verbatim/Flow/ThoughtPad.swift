@@ -471,7 +471,7 @@ struct ThoughtCard: View {
         let t = transcript
         let editing = state.editing == t.id
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(Thoughts.time(t.createdAt, native: true)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
+            Text(Thoughts.time(t.createdAt, systemFormat: true)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
                 .frame(width: 42, alignment: .leading)
             ThoughtWords(transcript: t, editing: editing, state: state, controller: controller)
         }

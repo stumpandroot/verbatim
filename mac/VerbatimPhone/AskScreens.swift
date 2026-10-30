@@ -200,6 +200,8 @@ struct PhoneAskResult: View {
     var result: AskResult
     var showsFooter = true
     @EnvironmentObject var app: PhoneState
+    /// The last footer line an answer card drew, for the self-test.
+    static var footerShown: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -218,6 +220,13 @@ struct PhoneAskResult: View {
                     IconGlyph(art: .iconPrivacy, size: 13, color: Refined.mute)
                     Text(result.state == .answered ? "Runs on this iPhone with Apple Intelligence." : "Found on this iPhone. Nothing left your device.")
                         .refinedFont(.meta).foregroundStyle(Refined.mute)
+                }
+                // What the answer read: "From 9 passages in 2 recordings, answered on this iPhone." (DESIGN.md §19).
+                if result.state == .answered {
+                    Text(result.footer(short: true)).refinedFont(.meta).foregroundStyle(Refined.mute)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("ask.footer")
+                        .onAppear { Self.footerShown = result.footer(short: true) }
                 }
             }
         }
