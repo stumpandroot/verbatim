@@ -195,6 +195,12 @@ final class FlowSettings: ObservableObject {
     @Published var actions: [FlowAction] { didSet { save(actions, "flow.actions") } }
     /// Your typing speed, for Activity's time-saved estimate.
     @Published var typingWPM: Int { didSet { d.set(typingWPM, forKey: "flow.typingWPM") } }
+    /// The speeds the You page's typing menu offers on both apps, with yours included if it's something else.
+    nonisolated static func typingSpeeds(_ current: Int) -> [Int] {
+        var speeds = [20, 30, 40, 50, 60, 70, 80, 100, 120]
+        if !speeds.contains(current) { speeds.append(current); speeds.sort() }
+        return speeds
+    }
     /// The project dictations go into: its Dictionary words apply, and each dictation is filed there. nil = none.
     @Published var activeProject: UUID? { didSet { d.set(activeProject?.uuidString, forKey: "flow.activeProject") } }
     /// Word fixes you said "Not now" to ("heard→fixed"), so Verbatim doesn't ask about them again.

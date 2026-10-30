@@ -264,7 +264,7 @@ enum PhoneUITest {
                     let keep = ExportOptions.saved
                     var o = keep; o.header = true; o.timecodeMode = .everyParagraph; o.moments = .end; o.speakerMode = .onChange; o.save()
                     ExportOptions.savedFormat = .txt
-                    app.exportRequest = PhoneExportRequest(ids: [rich.id])
+                    app.exportRequest = ExportRequest(ids: [rich.id])
                     await show("\(prefix)05c-export")
                     app.exportRequest = nil
                     keep.save()

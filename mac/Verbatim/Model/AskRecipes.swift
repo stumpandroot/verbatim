@@ -29,6 +29,34 @@ struct AskRecipe: Codable, Equatable, Identifiable, Hashable, SyncEntry {
     func hash(into h: inout Hasher) { h.combine(id) }
 }
 
+/// A recipe in the editor on both apps: its question, scope, and weekly time (the time runs on the Mac only).
+struct RecipeDraft: Identifiable {
+    let id = UUID()
+    var recipeId: UUID? = nil
+    var question: String
+    var scope: AskScope
+    var scheduled = false
+    var weekday = 6
+    var hour = 16
+    var minute = 0
+
+    init(recipeId: UUID? = nil, question: String, scope: AskScope) {
+        self.recipeId = recipeId; self.question = question; self.scope = scope
+    }
+
+    /// The weekly time as today's date at that hour and minute, for a time picker.
+    var timeOfDay: Date {
+        get { Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date() }
+        set { hour = Calendar.current.component(.hour, from: newValue); minute = Calendar.current.component(.minute, from: newValue) }
+    }
+
+    /// An existing recipe, with its schedule on this device when it has one.
+    init(_ recipe: AskRecipe, schedule: RecipeSchedule?) {
+        self.init(recipeId: recipe.id, question: recipe.question, scope: recipe.scope)
+        if let s = schedule { scheduled = true; weekday = s.weekday; hour = s.hour; minute = s.minute }
+    }
+}
+
 /// A weekly time: a weekday (Calendar's numbering, 1 is Sunday), an hour, and a minute. `since` is when it was set, so a
 /// time already past that day doesn't run at once.
 struct RecipeSchedule: Codable, Equatable {

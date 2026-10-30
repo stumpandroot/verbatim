@@ -32,7 +32,7 @@ struct SelectableLines: View {
     }
 
     @MainActor private func sync(_ now: Double) {
-        let ids = TranscriptLines.playing(segments, at: now, isPlaying: isPlaying)
+        let ids = PlayingLines.ids(segments, at: now, isPlaying: isPlaying)
         if ids != playingIDs { playingIDs = ids }
     }
 

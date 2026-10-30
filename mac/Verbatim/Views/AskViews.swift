@@ -53,17 +53,6 @@ final class AskNav: ObservableObject {
     }
 }
 
-/// A recipe in the editor: its question, scope, and (on this Mac) weekly time.
-struct RecipeDraft: Identifiable {
-    let id = UUID()
-    var recipeId: UUID? = nil
-    var question: String
-    var scope: AskScope
-    var scheduled = false
-    var weekday = 6
-    var hour = 16
-    var minute = 0
-}
 
 /// Plays a citation from its time in place, without leaving the panel or the screen (the transcript's own player is
 /// left alone). Opens the audio off the main thread.
@@ -737,11 +726,7 @@ struct AskRecipesPane: View {
         .uiTarget("ask-recipe-\(r.id.uuidString.prefix(8))")
     }
 
-    private func draft(_ r: AskRecipe) -> RecipeDraft {
-        var d = RecipeDraft(recipeId: r.id, question: r.question, scope: r.scope)
-        if let s = center.schedule(r.id) { d.scheduled = true; d.weekday = s.weekday; d.hour = s.hour; d.minute = s.minute }
-        return d
-    }
+    private func draft(_ r: AskRecipe) -> RecipeDraft { RecipeDraft(r, schedule: center.schedule(r.id)) }
 
     @ViewBuilder private func digest(_ r: AskRecipe) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -776,11 +761,6 @@ struct RecipeEditorSheet: View {
     @State var draft: RecipeDraft
     @State private var confirmDelete = false
 
-    private var time: Binding<Date> {
-        Binding(get: { Calendar.current.date(bySettingHour: draft.hour, minute: draft.minute, second: 0, of: Date()) ?? Date() },
-                set: { d in draft.hour = Calendar.current.component(.hour, from: d); draft.minute = Calendar.current.component(.minute, from: d) })
-    }
-
     var body: some View {
         RefinedSheet(title: draft.recipeId == nil ? "New recipe" : "Edit recipe") {
             VStack(alignment: .leading, spacing: 6) {
@@ -803,7 +783,7 @@ struct RecipeEditorSheet: View {
                             ForEach(1...7, id: \.self) { d in Text(RecipeSchedule.dayName(d)).tag(d) }
                         }
                         .labelsHidden().frame(width: 140)
-                        DatePicker("Time", selection: time, displayedComponents: .hourAndMinute).labelsHidden()
+                        DatePicker("Time", selection: $draft.timeOfDay, displayedComponents: .hourAndMinute).labelsHidden()
                     }
                     Text("Verbose runs it when this Mac is awake and Verbose is open, or the next time it opens. Schedules stay on this Mac; the recipe syncs with your iPhone.")
                         .refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)

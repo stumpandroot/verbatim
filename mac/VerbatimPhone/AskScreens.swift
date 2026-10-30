@@ -36,7 +36,7 @@ struct AskScreen: View {
     @State private var scope = AskScope.all
     /// Recipes are hidden until you show them, or while you have one (consolidation, `RecipesSetting`).
     @AppStorage(RecipesSetting.key) private var showRecipes = false
-    @State private var editing: PhoneRecipeDraft? = nil
+    @State private var editing: RecipeDraft? = nil
     @State private var applied = false
     @FocusState private var focused: Bool
     /// What the screen showed last, for the self-test.
@@ -94,7 +94,7 @@ struct AskScreen: View {
                     if let r = center.result, center.phase == .done {
                         Button { UIPasteboard.general.string = r.copyText; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", systemImage: "doc.on.doc") }   // brand: system surface (menu)
                         if recipesShown {
-                            Button { editing = PhoneRecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as Recipe", systemImage: "bookmark") }   // brand: system surface (menu)
+                            Button { editing = RecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as Recipe", systemImage: "bookmark") }   // brand: system surface (menu)
                         }
                     }
                     if recipesShown {
@@ -347,7 +347,7 @@ struct PhoneAskPassage: View {
 struct RecipesScreen: View {
     @EnvironmentObject var app: PhoneState
     @ObservedObject private var center = AskRecipeCenter.shared
-    @State private var editing: PhoneRecipeDraft? = nil
+    @State private var editing: RecipeDraft? = nil
     static var shown: Int? = nil
 
     var body: some View {
@@ -401,7 +401,7 @@ struct RecipesScreen: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { editing = PhoneRecipeDraft(question: "", scope: .all) } label: { Image(systemName: "plus") }
+                Button { editing = RecipeDraft(question: "", scope: .all) } label: { Image(systemName: "plus") }
                     .accessibilityLabel("New recipe")
             }
         }
@@ -442,7 +442,7 @@ struct RecipeScreen: View {
     @Environment(\.dismiss) private var dismiss
     var id: UUID
     @ObservedObject private var center = AskRecipeCenter.shared
-    @State private var editing: PhoneRecipeDraft? = nil
+    @State private var editing: RecipeDraft? = nil
 
     var body: some View {
         if let r = app.store.recipes.first(where: { $0.id == id }) {
@@ -500,35 +500,15 @@ struct RecipeScreen: View {
         .sheet(item: $editing) { d in PhoneRecipeEditor(draft: d).environmentObject(app) }
     }
 
-    private func draft(_ r: AskRecipe) -> PhoneRecipeDraft {
-        var d = PhoneRecipeDraft(recipeId: r.id, question: r.question, scope: r.scope)
-        if let s = center.schedule(r.id) { d.scheduled = true; d.weekday = s.weekday; d.hour = s.hour; d.minute = s.minute }
-        return d
-    }
-}
-
-struct PhoneRecipeDraft: Identifiable {
-    let id = UUID()
-    var recipeId: UUID? = nil
-    var question: String
-    var scope: AskScope
-    var scheduled = false
-    var weekday = 6
-    var hour = 16
-    var minute = 0
+    private func draft(_ r: AskRecipe) -> RecipeDraft { RecipeDraft(r, schedule: center.schedule(r.id)) }
 }
 
 /// New recipe, Save as recipe, and Edit: the question, where it looks, and a weekly time on this iPhone.
 struct PhoneRecipeEditor: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss
-    @State var draft: PhoneRecipeDraft
+    @State var draft: RecipeDraft
     @State private var confirmDelete = false
-
-    private var time: Binding<Date> {
-        Binding(get: { Calendar.current.date(bySettingHour: draft.hour, minute: draft.minute, second: 0, of: Date()) ?? Date() },
-                set: { d in draft.hour = Calendar.current.component(.hour, from: d); draft.minute = Calendar.current.component(.minute, from: d) })
-    }
 
     var body: some View {
         NavigationStack {
@@ -555,7 +535,7 @@ struct PhoneRecipeEditor: View {
                         Picker("Day", selection: $draft.weekday) {
                             ForEach(1...7, id: \.self) { d in Text(RecipeSchedule.dayName(d)).tag(d) }
                         }
-                        DatePicker("Time", selection: time, displayedComponents: .hourAndMinute)
+                        DatePicker("Time", selection: $draft.timeOfDay, displayedComponents: .hourAndMinute)
                     }
                 } footer: {
                     Text("iOS runs it when it gives Verbose time near then, so it can come later than you set. It also runs the next time you open Verbose. Schedules stay on this iPhone; the recipe syncs with your Mac.")

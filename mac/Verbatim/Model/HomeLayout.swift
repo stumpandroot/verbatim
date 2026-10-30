@@ -177,6 +177,15 @@ struct HomeLayout: Equatable, Sendable {
         var section: HomeSection
         var visible: Bool
         var size: HomeCardSize
+
+        /// Sections with a title of their own get more room above them on both apps.
+        var headed: Bool {
+            switch section {
+            case .recent: return true
+            case .thoughts, .journal: return size == .large
+            default: return false
+            }
+        }
     }
 
     /// Every section the app offers, shown ones in Home's order; hidden ones keep a place too.

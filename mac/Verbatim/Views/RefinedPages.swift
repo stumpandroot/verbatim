@@ -309,6 +309,20 @@ extension View {
     func refinedListPage(_ title: String) -> some View { modifier(RefinedListPage(title: title)) }
 }
 
+/// A group's label over its card in a reorderable List (Edit Home, Tab bar): the meta style in `mute`, on the paper,
+/// with no separator, and it never moves.
+struct RefinedListHeading: View {
+    var text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text).refinedFont(.meta).foregroundStyle(Refined.mute)
+            .accessibilityAddTraits(.isHeader)
+            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 14, leading: 34, bottom: 6, trailing: 34))
+            .moveDisabled(true)
+    }
+}
+
 /// The large serif title (and an optional line under it) as a List's first section, on the paper with no card.
 struct RefinedListTitle: View {
     var title: String

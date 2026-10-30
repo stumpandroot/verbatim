@@ -7,19 +7,10 @@ import SwiftUI
 // MARK: - Spacing
 
 enum HomeSpacing {
-    /// Sections with a title of their own get more room above them.
-    static func headed(_ item: HomeLayout.Item) -> Bool {
-        switch item.section {
-        case .recent: return true
-        case .thoughts, .journal: return item.size == .large
-        default: return false
-        }
-    }
-
     /// The gap above a section (the mockup's 14 between cards; 22 above a titled section; 18 under the greeting).
     static func top(_ item: HomeLayout.Item, after previous: HomeLayout.Item?) -> CGFloat {
         guard previous != nil else { return 18 }
-        return headed(item) ? 22 : 14
+        return item.headed ? 22 : 14
     }
 
     /// The sections Home draws: the layout's shown ones. Record's accessory steps aside on Home

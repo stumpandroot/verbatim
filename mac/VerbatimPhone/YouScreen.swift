@@ -144,7 +144,7 @@ struct YouScreen: View {
             PaperCard {
                 Menu {
                     Picker("Your typing speed", selection: $flow.typingWPM) {
-                        ForEach(Self.typingSpeeds(flow.typingWPM), id: \.self) { w in Text("\(w) wpm").tag(w) }
+                        ForEach(FlowSettings.typingSpeeds(flow.typingWPM), id: \.self) { w in Text("\(w) wpm").tag(w) }
                     }
                 } label: {
                     SettingsRow(hue: RefinedRules.settingsHue(0), art: .iconFeedback, title: "Typing speed",
@@ -173,13 +173,6 @@ struct YouScreen: View {
     /// Words per minute while talking, once there's 20 seconds of dictation to judge by (the Mac's rule).
     static func pace(words: Int, seconds: Double) -> Int? {
         seconds >= 20 ? Int((Double(words) / (seconds / 60)).rounded()) : nil
-    }
-
-    /// The speeds the typing menu offers, with yours included if it's something else.
-    static func typingSpeeds(_ current: Int) -> [Int] {
-        var speeds = [20, 30, 40, 50, 60, 70, 80, 100, 120]
-        if !speeds.contains(current) { speeds.append(current); speeds.sort() }
-        return speeds
     }
 
     /// "Oct 19 – 25" or "Sep 28 – Oct 4".

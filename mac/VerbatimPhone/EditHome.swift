@@ -35,7 +35,7 @@ struct EditHomeView: View {
             .listSectionSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
             Section {
-                heading("On Home")
+                RefinedListHeading("On Home")
                 ForEach(Array(layout.shown.enumerated()), id: \.element.section) { i, item in
                     row(item, layout: layout, first: i == 0, last: i == layout.shown.count - 1)
                 }
@@ -44,7 +44,7 @@ struct EditHomeView: View {
             .listSectionSeparator(.hidden)
             if !hidden.isEmpty {
                 Section {
-                    heading("Hidden")
+                    RefinedListHeading("Hidden")
                     ForEach(Array(hidden.enumerated()), id: \.element.section) { i, item in
                         row(item, layout: layout, first: i == 0, last: i == hidden.count - 1)
                     }
@@ -125,15 +125,6 @@ struct EditHomeView: View {
             .accessibilityIdentifier("editHome.tabBar")
         }
         .padding(.top, 8).padding(.bottom, 4)
-    }
-
-    /// A group's label over its card, in the meta style.
-    private func heading(_ text: String) -> some View {
-        Text(text).refinedFont(.meta).foregroundStyle(Refined.mute)
-            .accessibilityAddTraits(.isHeader)
-            .listRowBackground(Color.clear).listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 14, leading: 34, bottom: 6, trailing: 34))
-            .moveDisabled(true)
     }
 
     private func row(_ item: HomeLayout.Item, layout: HomeLayout, first: Bool, last: Bool) -> some View {

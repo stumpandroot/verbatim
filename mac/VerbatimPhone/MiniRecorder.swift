@@ -51,11 +51,7 @@ enum RecorderPresentation {
     }
 
     /// "4:12" in the bar: minutes and seconds, with hours once there are any.
-    static func clock(_ t: TimeInterval) -> String {
-        let s = max(0, Int(t.rounded(.down)))
-        let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
-        return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
-    }
+    static func clock(_ t: TimeInterval) -> String { RefinedRules.time(t) }
 
     /// "4 minutes 12 seconds", for VoiceOver.
     static func spoken(_ t: TimeInterval) -> String {

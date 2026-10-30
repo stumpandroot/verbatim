@@ -260,5 +260,17 @@ check("delete: digests that cite a deleted recording drop those citations", dige
 check("recipes: hidden by default, shown by the switch or while you have one", !RecipesSetting.shows(stored: false, hasRecipes: false)
       && RecipesSetting.shows(stored: true, hasRecipes: false) && RecipesSetting.shows(stored: false, hasRecipes: true) && RecipesSetting.key == "ask.showRecipes")
 
+// The recipe editor's draft, shared by both apps (RecipeDraft).
+let draftRecipe = AskRecipe(question: "What did we decide?", scope: .all)
+let unscheduled = RecipeDraft(draftRecipe, schedule: nil)
+check("draft: a recipe with no schedule starts unscheduled at Friday 4 PM", unscheduled.recipeId == draftRecipe.id
+      && unscheduled.question == "What did we decide?" && !unscheduled.scheduled && unscheduled.weekday == 6 && unscheduled.hour == 16 && unscheduled.minute == 0)
+var scheduledDraft = RecipeDraft(draftRecipe, schedule: RecipeSchedule(weekday: 2, hour: 8, minute: 30))
+check("draft: a scheduled recipe brings its weekday and time", scheduledDraft.scheduled && scheduledDraft.weekday == 2
+      && scheduledDraft.hour == 8 && scheduledDraft.minute == 30)
+scheduledDraft.timeOfDay = Calendar.current.date(bySettingHour: 17, minute: 45, second: 0, of: Date())!
+check("draft: the time picker sets the hour and minute", scheduledDraft.hour == 17 && scheduledDraft.minute == 45
+      && Calendar.current.component(.hour, from: scheduledDraft.timeOfDay) == 17)
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

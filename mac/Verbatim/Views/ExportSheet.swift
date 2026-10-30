@@ -1,12 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// Which transcripts the export sheet covers: one from its transcript screen, or a Library selection.
-struct ExportRequest: Identifiable, Equatable {
-    let id = UUID()
-    var ids: [UUID]
-}
-
 /// The export sheet (approved mockup, October 2026), on the refined kit (DESIGN.md §13): options on the left with the
 /// format at the top, a live preview of the actual output on the right, then Cancel, Copy, and Export…. SRT and VTT
 /// swap the options for subtitle settings. Every change is saved, so Copy elsewhere (⌘⇧C, the Copy button) uses the

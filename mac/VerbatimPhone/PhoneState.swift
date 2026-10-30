@@ -53,7 +53,7 @@ final class PhoneState: ObservableObject {
     static let consentNoticeKey = "consent.noticeShown"
     @Published var showLinkSheet = false
     /// The export sheet (PhoneExportSheet), for one transcript or several.
-    @Published var exportRequest: PhoneExportRequest? = nil
+    @Published var exportRequest: ExportRequest? = nil
     @Published var showImporter = false
     /// Import › Choose from Photos (videos saved from TikTok and other apps live in Photos, not Files).
     @Published var showPhotoPicker = false

@@ -366,5 +366,13 @@ check("look migration: doesn't run again, so later edits stay", !HomeLookMigrati
       && lookStore.data(forKey: HomeLayout.key).flatMap { HomeLayout.decode($0, .phone) } == editedLater)
 lookStore.removePersistentDomain(forName: lookSuite)
 
+// MARK: Room above a section (HomeLayout.Item.headed, the spacing both apps' Homes use)
+
+check("headed: Recent always has its own title", HomeLayout.Item(section: .recent, visible: true, size: .compact).headed)
+check("headed: Today's thoughts and Journal only when Large",
+      HomeLayout.Item(section: .thoughts, visible: true, size: .large).headed && !HomeLayout.Item(section: .thoughts, visible: true, size: .compact).headed
+      && HomeLayout.Item(section: .journal, visible: true, size: .large).headed && !HomeLayout.Item(section: .journal, visible: true, size: .compact).headed)
+check("headed: the Record card, tiles, and This week never", [HomeSection.record, .tiles, .week].allSatisfy { !HomeLayout.Item(section: $0, visible: true, size: .large).headed })
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

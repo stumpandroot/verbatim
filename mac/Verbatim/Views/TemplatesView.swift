@@ -39,12 +39,6 @@ final class TemplatesNav: ObservableObject {
     func edit(_ t: TranscriptTemplate) { editingIsNew = false; editing = t }
 }
 
-struct TemplateTryOn: Identifiable {
-    let id = UUID()
-    var template: TranscriptTemplate
-    var transcript: UUID
-}
-
 /// Ready recordings to try a template on, newest first.
 @MainActor
 enum TemplateTryOnList {

@@ -30,7 +30,7 @@ struct TabBarSettingsScreen: View {
             .listSectionSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
             Section {
-                heading(inBar(bar))
+                RefinedListHeading(inBar(bar))
                 fixedRow(.home)
                 ForEach(bar.middle, id: \.self) { t in row(t, picked: true, room: true) }
                     .onMove { from, to in animate { app.setTabBar(PhoneTabBar.move(bar.middle, fromOffsets: from, toOffset: to)) } }
@@ -39,7 +39,7 @@ struct TabBarSettingsScreen: View {
             .listSectionSeparator(.hidden)
             if !more.isEmpty {
                 Section {
-                    heading("More tabs")
+                    RefinedListHeading("More tabs")
                     ForEach(Array(more.enumerated()), id: \.element) { i, t in
                         row(t, picked: false, room: bar.middle.count < PhoneTabBar.maxMiddle, first: i == 0, last: i == more.count - 1)
                     }
@@ -89,15 +89,6 @@ struct TabBarSettingsScreen: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 4).padding(.bottom, 6)
-    }
-
-    /// A group's label over its card, in the meta style.
-    private func heading(_ text: String) -> some View {
-        Text(text).refinedFont(.meta).foregroundStyle(Refined.mute)
-            .accessibilityAddTraits(.isHeader)
-            .listRowBackground(Color.clear).listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 14, leading: 34, bottom: 6, trailing: 34))
-            .moveDisabled(true)
     }
 
     private func inBar(_ bar: PhoneTabBar) -> String { "In the bar · \(bar.middle.count) of \(PhoneTabBar.maxMiddle)" }

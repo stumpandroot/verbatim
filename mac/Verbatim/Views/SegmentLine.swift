@@ -231,17 +231,9 @@ struct TranscriptLines: View {
     /// Sponsor reads opened from their folded row.
     @State private var openSponsors: Set<UUID> = []
 
-    /// The playing rule: under the playhead, and either playing or moved off the start.
-    static func playing(_ segments: [Segment], at now: Double, isPlaying: Bool) -> Set<UUID> {
-        guard isPlaying || now > 0 else { return [] }
-        var out = Set<UUID>()
-        for s in segments where now >= s.start && now < s.end { out.insert(s.id) }
-        return out
-    }
-
     var body: some View {
         let _ = playingIDs
-        let current = Self.playing(segments, at: clock.time, isPlaying: isPlaying)
+        let current = PlayingLines.ids(segments, at: clock.time, isPlaying: isPlaying)
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
         let order = transcript.speakerOrder
         // Moments marked while recording, by line, for their chips (the first on a line).
@@ -289,7 +281,7 @@ struct TranscriptLines: View {
     }
 
     @MainActor private func syncPlaying(at now: Double) {
-        let ids = Self.playing(segments, at: now, isPlaying: isPlaying)
+        let ids = PlayingLines.ids(segments, at: now, isPlaying: isPlaying)
         if ids != playingIDs { playingIDs = ids }
     }
 }

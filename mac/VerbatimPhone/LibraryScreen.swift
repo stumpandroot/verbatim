@@ -457,7 +457,7 @@ struct LibraryScreen: View {
                 }
             } label: { Label("Add to project", systemImage: "folder.badge.plus") }   // brand: system surface (menu)
             .disabled(app.store.projects.isEmpty)
-            Button { app.exportRequest = PhoneExportRequest(ids: Array(selection)) } label: { Label("Export", systemImage: "square.and.arrow.up") }
+            Button { app.exportRequest = ExportRequest(ids: Array(selection)) } label: { Label("Export", systemImage: "square.and.arrow.up") }
             Divider()
             Button(role: .destructive) {
                 app.delete(Array(selection)); selecting = false; selection = []

@@ -149,13 +149,13 @@ struct FlowBarView: View {
                 }
             }
             // Where the content really is, in panel coordinates: the clickable area follows it.
-            .background(GeometryReader { g in Color.clear.preference(key: RibbonFrameKey.self, value: g.frame(in: .named(Self.space))) })
+            .surfaceFrame(in: Self.space)
             // Slides in from the edge when it first appears (and after sleep or a display change).
             .offset(x: model.shown ? 0 : (model.edge == .left ? -12 : model.edge == .right ? 12 : 0), y: model.shown || model.edge != .bottom ? 0 : 12)
             .opacity(model.shown ? 1 : 0)
         }
         .coordinateSpace(name: Self.space)
-        .onPreferenceChange(RibbonFrameKey.self) { f in if model.contentFrame != f { model.contentFrame = f } }
+        .onPreferenceChange(SurfaceFrameKey.self) { f in if model.contentFrame != f { model.contentFrame = f } }
         .animation(morph, value: stateKey)
     }
 
@@ -382,16 +382,6 @@ private struct LiveFit: Layout {
         for fade in subviews.dropFirst() {
             fade.place(at: CGPoint(x: bounds.minX, y: bounds.minY), anchor: .topLeading, proposal: ProposedViewSize(width: overflow ? 28 : 0, height: bounds.height))
         }
-    }
-}
-
-private struct RibbonFrameKey: PreferenceKey {
-    static let defaultValue: CGRect = .zero
-    /// Mid-transition both states are drawn for a moment; the clickable area covers both.
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        let next = nextValue()
-        if next.isEmpty { return }
-        value = value.isEmpty ? next : value.union(next)
     }
 }
 

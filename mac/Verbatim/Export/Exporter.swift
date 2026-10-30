@@ -7,6 +7,12 @@ import UniformTypeIdentifiers
 // Turns a Transcript into exports. The options, timecodes, text layout, and subtitle segmentation live in
 // ExportCore.swift (Foundation only, tested by mac/tools/test-export.sh); this file maps transcripts onto them.
 
+/// Which transcripts the export sheet covers, on both apps: one from its transcript screen, or a Library selection.
+struct ExportRequest: Identifiable, Equatable {
+    let id = UUID()
+    var ids: [UUID]
+}
+
 extension Transcript {
     /// Lines the reading view hides: filler-only lines (Settings › Hide filler lines) and background voices
     /// (Settings › Main speaker only). Exports leave them out unless "Include hidden lines" is on.

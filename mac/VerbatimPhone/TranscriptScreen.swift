@@ -178,7 +178,7 @@ struct TranscriptScreen: View {
                 .toolbar {
                     // Two glass controls beside Back: Share and More (Books' reading menu).
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button { app.exportRequest = PhoneExportRequest(ids: [t.id]) } label: { Image(systemName: "square.and.arrow.up") }
+                        Button { app.exportRequest = ExportRequest(ids: [t.id]) } label: { Image(systemName: "square.and.arrow.up") }
                             .accessibilityLabel("Share")
                             .accessibilityIdentifier("transcript.share")
                             .disabled(t.status != .ready)
@@ -579,7 +579,7 @@ struct TranscriptScreen: View {
             }
             Section {
                 Menu {
-                    Button { app.exportRequest = PhoneExportRequest(ids: [t.id]) } label: { Label("Export…", systemImage: "square.and.arrow.up") }
+                    Button { app.exportRequest = ExportRequest(ids: [t.id]) } label: { Label("Export…", systemImage: "square.and.arrow.up") }
                     if let u = app.store.audioURL(for: t) {
                         Button { shareAudio(u) } label: { Label("Share original audio", systemImage: "waveform") }   // brand: system surface (menu)
                     }
@@ -710,14 +710,6 @@ struct PhoneLines: View {
     /// Sponsor reads opened from their folded row.
     @State private var openSponsors: Set<UUID> = []
 
-    /// The playing rule: under the playhead, and either playing or moved off the start.
-    static func playing(_ segments: [Segment], at now: Double, isPlaying: Bool) -> Set<UUID> {
-        guard isPlaying || now > 0 else { return [] }
-        var out = Set<UUID>()
-        for s in segments where now >= s.start && now < s.end { out.insert(s.id) }
-        return out
-    }
-
     var body: some View {
         let _ = playingIDs
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
@@ -725,7 +717,7 @@ struct PhoneLines: View {
         let marked = Dictionary(transcript.notes.filter(\.isMark).compactMap { n in n.segmentId.map { ($0, n) } }, uniquingKeysWith: { a, _ in a })
         let segs = segments
         let order = transcript.speakerOrder
-        let current = Self.playing(segs, at: clock.time, isPlaying: app.player.isPlaying)
+        let current = PlayingLines.ids(segs, at: clock.time, isPlaying: app.player.isPlaying)
         // Sponsor reads fold into one row at their first line; their lines show once the row is opened.
         let folds = self.folds.count == segs.count ? self.folds : SponsorFold.places(segs, in: transcript)
         // "unclear 2:10" chips where speech was heard but no words came through (UnclearRules), between the lines.
@@ -869,7 +861,7 @@ struct PhoneLines: View {
     }
 
     @MainActor private func syncPlaying(at now: Double) {
-        let ids = Self.playing(transcript.segments, at: now, isPlaying: app.player.isPlaying)
+        let ids = PlayingLines.ids(transcript.segments, at: now, isPlaying: app.player.isPlaying)
         if ids != playingIDs { playingIDs = ids }
     }
 

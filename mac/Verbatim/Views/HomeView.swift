@@ -112,19 +112,10 @@ struct HomeView: View {
 
     // MARK: Layout
 
-    /// Sections with a title of their own get more room above them.
-    static func headed(_ item: HomeLayout.Item) -> Bool {
-        switch item.section {
-        case .recent: return true
-        case .thoughts, .journal: return item.size == .large
-        default: return false
-        }
-    }
-
     /// The gap above a band: 20 under the greeting, the mockup's 16 between cards, 22 above a titled section.
     static func rowGap(_ row: HomeRow, after previous: HomeRow?) -> CGFloat {
         guard previous != nil else { return 20 }
-        return row.items.contains(where: headed) ? 22 : 16
+        return row.items.contains(where: \.headed) ? 22 : 16
     }
 
     /// A band: one section across the column, or two side by side at the same height.

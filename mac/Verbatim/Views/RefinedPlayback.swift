@@ -37,6 +37,16 @@ extension View {
 
 // MARK: - Turns
 
+/// The lines being played on both apps: under the playhead, and either playing or moved off the start.
+enum PlayingLines {
+    static func ids(_ segments: [Segment], at now: Double, isPlaying: Bool) -> Set<UUID> {
+        guard isPlaying || now > 0 else { return [] }
+        var out = Set<UUID>()
+        for s in segments where now >= s.start && now < s.end { out.insert(s.id) }
+        return out
+    }
+}
+
 /// The line above a turn's text: the time in the meta style with tabular digits (sage text while the turn plays), and
 /// a small accent bookmark when the line is marked or bookmarked (never a butter wash). The caller puts the speaker's
 /// chip before it when the speaker changes, and makes the time a button that plays from there.

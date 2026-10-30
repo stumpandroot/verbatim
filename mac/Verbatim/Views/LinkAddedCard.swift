@@ -312,7 +312,7 @@ struct LinkAddedCard: View {
         }
         .overlay(alignment: .bottomTrailing) {
             if let d = imp.duration, d > 0 {
-                Text(Self.clock(d))
+                Text(HomeRecentStyle.length(d))
                     .font(.system(size: 11, weight: .semibold)).monospacedDigit().foregroundStyle(Refined.lift)
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Refined.onFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -321,12 +321,6 @@ struct LinkAddedCard: View {
             }
         }
         .accessibilityHidden(true)
-    }
-
-    static func clock(_ s: TimeInterval) -> String {
-        let t = Int(s.rounded())
-        let h = t / 3600, m = (t % 3600) / 60, sec = t % 60
-        return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
     }
 
     // MARK: Title

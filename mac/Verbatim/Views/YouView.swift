@@ -307,7 +307,7 @@ struct YouView: View {
                     HStack(spacing: 3) {
                         Text("saved vs. typing at").refinedFont(.meta).foregroundStyle(Refined.dim)
                         Picker("Your typing speed", selection: $settings.typingWPM) {
-                            ForEach(Self.typingSpeeds(settings.typingWPM), id: \.self) { w in Text("\(w) wpm").tag(w) }
+                            ForEach(FlowSettings.typingSpeeds(settings.typingWPM), id: \.self) { w in Text("\(w) wpm").tag(w) }
                         }
                         .labelsHidden().pickerStyle(.menu).fixedSize()
                         .help("Your typing speed")
@@ -324,13 +324,6 @@ struct YouView: View {
             }
         }
         .modifier(YouCardFace())
-    }
-
-    /// The speeds the typing menu offers, with yours included if it's something else.
-    static func typingSpeeds(_ current: Int) -> [Int] {
-        var speeds = [20, 30, 40, 50, 60, 70, 80, 100, 120]
-        if !speeds.contains(current) { speeds.append(current); speeds.sort() }
-        return speeds
     }
 
     private func step(_ n: Int) {

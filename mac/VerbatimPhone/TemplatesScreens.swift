@@ -93,7 +93,7 @@ struct TemplateDetailScreen: View {
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @State private var editing: TranscriptTemplate? = nil
     @State private var editingIsNew = false
-    @State private var tryOn: PhoneTryOn? = nil
+    @State private var tryOn: TemplateTryOn? = nil
     @State private var confirmDelete = false
 
     var body: some View {
@@ -139,7 +139,7 @@ struct TemplateDetailScreen: View {
             SettingsPageGroup(footer: TemplateCopy.onDevice("iPhone")) {
                 Menu {
                     if recent.isEmpty { Text("No recordings yet") }
-                    ForEach(Array(recent)) { r in Button(r.title) { tryOn = PhoneTryOn(template: t, transcript: r.id) } }
+                    ForEach(Array(recent)) { r in Button(r.title) { tryOn = TemplateTryOn(template: t, transcript: r.id) } }
                 } label: {
                     SettingsRow(hue: .sage, art: .iconPlay, title: "Try on a recording", subtitle: "See the result; nothing is saved") {
                         SettingsMenuMark()
@@ -185,12 +185,6 @@ struct TemplateDetailScreen: View {
         guard let id = auto.settings.template(for: k), id != t.id else { return nil }
         return TemplateLibrary.template(id, yours: app.store.templates)?.name
     }
-}
-
-struct PhoneTryOn: Identifiable {
-    let id = UUID()
-    var template: TranscriptTemplate
-    var transcript: UUID
 }
 
 // MARK: - Run automatically
@@ -283,7 +277,7 @@ struct PhoneTemplateEditor: View {
     @State private var draft: TranscriptTemplate
     var isNew: Bool
     @State private var problem: String? = nil
-    @State private var tryOn: PhoneTryOn? = nil
+    @State private var tryOn: TemplateTryOn? = nil
     @FocusState private var focused: Bool
 
     init(draft: TranscriptTemplate, isNew: Bool) {
@@ -348,7 +342,7 @@ struct PhoneTemplateEditor: View {
                     Menu("Try on a recording") {
                         let recent = app.store.live.filter { $0.status == .ready && !$0.isDictation && !$0.segments.isEmpty }
                             .sorted { $0.createdAt > $1.createdAt }.prefix(12)
-                        ForEach(Array(recent)) { r in Button(r.title) { tryOn = PhoneTryOn(template: draft, transcript: r.id) } }
+                        ForEach(Array(recent)) { r in Button(r.title) { tryOn = TemplateTryOn(template: draft, transcript: r.id) } }
                     }
                 }
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focused = false } }

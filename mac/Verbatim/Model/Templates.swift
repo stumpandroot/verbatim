@@ -160,6 +160,13 @@ struct TranscriptTemplate: Codable, Equatable, Identifiable, Hashable, SyncEntry
     var extracts: Bool { TranscriptActions.spec(id)?.extracts ?? true }
 }
 
+/// Try on: a template run once on a recording, on both apps, without saving the template.
+struct TemplateTryOn: Identifiable {
+    let id = UUID()
+    var template: TranscriptTemplate
+    var transcript: UUID
+}
+
 /// Icon names for templates. The views draw each as a BrandArt glyph.
 enum TemplateGlyph {
     static let plan = "plan", journal = "journal", draft = "draft", study = "study", keyPoints = "keyPoints"
