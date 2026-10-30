@@ -1,15 +1,7 @@
 import SwiftUI
 import UIKit
 
-// Motion for the iPhone screens, matched to the approved web prototype (timings in `Motion`, Tokens.swift).
-// Rules from the design system: never animate keyboard-initiated or high-frequency actions; screens, tabs, and
-// rows arrive at once, with no rise-in, stagger, or tab entrance (DESIGN.md §7); delight stays small
-// and rare. Everything here reads `\.limitMotion` (Reduce Motion or Settings › Limit animation): movement becomes
-// a short fade and nothing loops.
-
-// MARK: - Controls
-
-// MARK: - Haptics
+// The iPhone's haptics (DESIGN.md §7): the one switch every haptic goes through, and the keyboard's typing haptics row.
 
 /// Every haptic in the app goes through here, so one switch turns them all off: Settings › Personalization and
 /// preferences › Haptics (on by default, kept per device in the App Group, so the keyboard follows it, and sent to the

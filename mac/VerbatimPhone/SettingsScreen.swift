@@ -35,7 +35,7 @@ struct SettingsScreen: View {
     @State private var showAcknowledgements = false
     /// Show words while you record (RecorderSheet.swift). On by default.
     @AppStorage(RecordingLiveText.enabledKey) private var recordLiveWords = true
-    /// Haptics (PhoneMotion.swift's `Haptics`). On by default, per device, in the App Group so the keyboard follows it.
+    /// Haptics (Haptics.swift's `Haptics`). On by default, per device, in the App Group so the keyboard follows it.
     @AppStorage(Haptics.enabledKey, store: Haptics.store) private var hapticsOn = true
     /// Understand spoken corrections, in the App Group so the keyboard's live words follow it.
     @AppStorage(SpokenCorrections.enabledKey, store: SpokenCorrections.store) private var spokenCorrections = true

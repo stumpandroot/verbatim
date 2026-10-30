@@ -7,7 +7,7 @@ import WatchKit
 
 // Which haptic each event plays (DESIGN.md §7, Haptics), for the iPhone app, the keyboard, and the Apple Watch. The
 // policy is pure, so the Linux tests (mac/tools/test-haptics.sh) and the iPhone's self-test check it (HapticChecks.swift).
-// The iPhone app plays through `Haptics` (PhoneMotion.swift), the keyboard through `KeyboardModel`, and the watch
+// The iPhone app plays through `Haptics` (Haptics.swift), the keyboard through `KeyboardModel`, and the watch
 // through `WatchRecorder`; all three ask this policy first. The Mac plays none.
 //
 // One cause, one haptic. Start and stop are clear system taps, frequent actions a selection tick or a light tap, and

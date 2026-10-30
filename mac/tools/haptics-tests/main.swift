@@ -78,7 +78,7 @@ check("sessions: the watch allows haptics before its session activates",
 
 // One wrapper: no feedback generator or watch haptic outside the policy, except the prepared generators that play
 // through it (the Record as tray through Haptics, the typing keys through HapticPolicy's typing tap).
-let allowedGenerators: Set<String> = ["Verbatim/Model/HapticPolicy.swift", "VerbatimPhone/PhoneMotion.swift", "VerbatimPhone/RecordTray.swift", "VerbatimKeyboard/TypingKeys.swift"]
+let allowedGenerators: Set<String> = ["Verbatim/Model/HapticPolicy.swift", "VerbatimPhone/Haptics.swift", "VerbatimPhone/RecordTray.swift", "VerbatimKeyboard/TypingKeys.swift"]
 let strayGenerators = code.filter { $0.1.contains("FeedbackGenerator(") && !allowedGenerators.contains($0.0) }.map(\.0)
 check("wrapper: no feedback generator outside Haptics and the policy", strayGenerators.isEmpty, "\(strayGenerators)")
 let sensory = code.flatMap { file in
