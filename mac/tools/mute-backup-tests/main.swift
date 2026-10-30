@@ -20,7 +20,13 @@ check("silence: sound from before the input changed still waits the mid window, 
 
 // MARK: Levels and comparing
 
-check("levels: a muted mic's faint noise is quiet; speech isn't", MuteRules.quiet(0.0004) && !MuteRules.quiet(0.03))
+check("levels: a muted mic's faint noise is quiet; speech isn't", MuteRules.quiet(0.0001) && !MuteRules.quiet(0.03))
+check("levels: a working mic's own noise in a quiet room (about -60 dBFS) isn't held", !MuteRules.quiet(0.001))
+check("levels: speech into a low-gain mic counts as the mic being back", 0.003 >= MuteRules.backLevel)
+check("iPhone: partway through, 5 s of zeros isn't muted, 6 s is (its move doesn't undo itself)",
+      !MuteRules.silent(lastSignal: 20, since: 10, now: 25, midWindow: MuteRules.phoneMidWindow)
+      && MuteRules.silent(lastSignal: 20, since: 10, now: 26, midWindow: MuteRules.phoneMidWindow))
+check("iPhone: the start window is the same 0.6 s", MuteRules.silent(lastSignal: nil, since: 0, now: 0.6, midWindow: MuteRules.phoneMidWindow))
 check("levels: the meter is empty for silence and full for loud speech", MuteRules.meterLevel(0) == 0 && MuteRules.meterLevel(0.5) == 1)
 check("compare: 4 s quiet with 2 s of speech on the built-in mic is muted", MuteRules.mutedByComparison(heldSeconds: 4, backupSpeechSeconds: 2))
 check("compare: a quiet room (no speech on the built-in mic) isn't", !MuteRules.mutedByComparison(heldSeconds: 12, backupSpeechSeconds: 0.5))
@@ -47,7 +53,19 @@ struct Run {
         written += s.primary(p, at: t, seconds: 0.1, rms: prms)
     }
 }
-let loud: Float = 0.05, faint: Float = 0.0003, zero: Float = 0
+let loud: Float = 0.05, faint: Float = 0.0001, zero: Float = 0
+
+var room = Run()
+room.tick("p1", loud, "b1"); room.tick("p2", 0.001, "b2"); room.tick("p3", 0.0008, "b3")
+check("splice: a working mic's quiet passage is written at once (live words don't wait)", room.written == ["p1", "p2", "p3"], "\(room.written)")
+
+// The backup's buffers don't line up with the chosen mic's: one straddling the start of the held audio isn't written twice.
+var offset = MuteSplice<String>()
+_ = offset.primary("p0", at: 1.0, seconds: 0.1, rms: 0.05)
+_ = offset.backup("b-before", at: 1.02, seconds: 0.1, rms: 0.01)   // mostly before the hold (0.92 to 1.02)
+_ = offset.primary("p1", at: 1.1, seconds: 0.1, rms: 0)           // the hold starts at 1.0
+_ = offset.backup("b-after", at: 1.12, seconds: 0.1, rms: 0.01)
+check("splice: a backup buffer mostly before the held audio isn't written in its place", offset.useBackup() == ["b-after"])
 
 var first = Run()
 first.tick("p1", zero, "b1"); first.tick("p2", zero, "b2")
@@ -180,6 +198,14 @@ check("iPhone sources: a mute move plays the warning haptic and posts in the bac
 check("Mac sources: normal and meeting recordings post a notification for a mic warning",
       read("Verbatim/App/AppState.swift").contains("recorder.onMicWarning = { MicWarningNotice.changed($0) }")
       && read("Verbatim/App/MeetingSession.swift").contains("mic.onMicWarning = { MicWarningNotice.changed($0) }"))
+check("Mac sources: the comparison is off for a meeting's mic track and Audio only",
+      tick.contains("comparesMics, !soundOnly") && read("Verbatim/App/MeetingSession.swift").contains("mic.comparesMics = false"))
+check("Mac sources: a built-in mic that sends nothing is released, and one that doesn't open stops being waited for",
+      tick.contains("if muteBackup != nil { stopBackup() }") && startBackup.contains("self.backupOpening = false") && startBackup.contains("Self.startLimit"))
+check("iPhone sources: a restart or a resume starts the mute watch over (a call isn't counted as silence)",
+      body(recorder, "private func restartCapture(").contains("muteSince = ProcessInfo.processInfo.systemUptime")
+      && body(recorder, "func togglePause(").contains("if !isPaused { muteSince = ProcessInfo.processInfo.systemUptime }"))
+check("iPhone sources: partway through, the iPhone waits its longer window", phoneTick.contains("midWindow: MuteRules.phoneMidWindow"))
 check("Mac sources: the notification only posts while Verbose isn't in front", read("Verbatim/App/MicWarningNotice.swift").contains("!NSApp.isActive"))
 check("Mac sources: the menu bar mark shows the attention mark while the mic is muted", read("Verbatim/App/VerbatimApp.swift").contains("MenuBarMark(recorder:"))
 check("Mac sources: Settings has Back up a muted mic, stored at the rules' key",

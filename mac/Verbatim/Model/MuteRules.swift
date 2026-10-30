@@ -21,23 +21,30 @@ enum MuteRules {
     static let startWindow: Double = 0.6
     /// Partway through, a mic's noise gate can send zeros between words, so silence counts as muted only after this long.
     static let midWindow: Double = 3
+    /// The iPhone's mid window. A move there doesn't undo itself (the iPhone can't hear the muted mic while recording
+    /// from its own), and a wireless mic's receiver can send zeros through a pause, so it waits longer than the Mac,
+    /// whose move undoes itself when the mic is heard again.
+    static let phoneMidWindow: Double = 6
 
     /// Whether exact digital silence has lasted long enough to count as muted. `lastSignal`: uptime of the last audio
-    /// that wasn't exact silence, nil when none has arrived. `since`: uptime when the recording (or this input) started.
-    static func silent(lastSignal: Double?, since: Double, now: Double) -> Bool {
+    /// that wasn't exact silence, nil when none has arrived. `since`: uptime when the recording (or this input, or the
+    /// capture after a restart) started.
+    static func silent(lastSignal: Double?, since: Double, now: Double, midWindow: Double = midWindow) -> Bool {
         if let last = lastSignal { return now - max(last, since) >= midWindow }
         return now - since >= startWindow
     }
 
     // MARK: Levels (RMS of a buffer, 0…1)
 
-    /// Below this the chosen mic is quiet, and the backup holds its audio back. Speech into a mic is far louder; a
-    /// muted mic that sends faint noise is below it.
-    static let quietLevel: Float = 0.0015
+    /// Below this (about -74 dBFS) the chosen mic sends what a muted mic sends, and the backup holds its audio back. A
+    /// working mic's own noise in a quiet room is above it, so its quiet passages (the end of a phrase) are written at
+    /// once and live words never wait for them; only near-silence waits.
+    static let quietLevel: Float = 0.0002
     /// The built-in mic hearing speech: someone talking near the Mac.
     static let speechLevel: Float = 0.02
-    /// The chosen mic is back after a comparison moved the recording: it hears speech again.
-    static let backLevel: Float = 0.006
+    /// The chosen mic is back after a comparison moved the recording: clearly above a muted mic's floor (about -54 dBFS),
+    /// which speech into any working mic is, at any gain.
+    static let backLevel: Float = 0.002
 
     static func quiet(_ rms: Float) -> Bool { rms < quietLevel }
 
@@ -46,8 +53,9 @@ enum MuteRules {
 
     // MARK: Comparing the two mics (Mac)
 
-    /// How long the chosen mic must have stayed quiet, and for how much of that the built-in mic heard speech, before
-    /// the chosen mic counts as muted even though it isn't sending exact silence.
+    /// How long the chosen mic must have stayed near silent, and for how much of that the built-in mic heard speech,
+    /// before the chosen mic counts as muted even though it isn't sending exact silence. Not for a meeting's mic track
+    /// or Audio only (`Recorder.comparesMics`).
     static let compareHold: Double = 4
     static let compareSpeech: Double = 2
 
@@ -151,7 +159,8 @@ struct MuteSplice<Payload> {
         guard let start = holdStart else { return [] }
         let backupStart = ring.first?.start ?? .infinity
         let before = held.filter { $0.at <= backupStart }.map(\.payload)
-        let covered = ring.filter { $0.at > start }.map(\.payload)
+        // A backup buffer counts when most of it falls after the held audio began, so none is written twice.
+        let covered = ring.filter { $0.at - $0.seconds / 2 > start }.map(\.payload)
         clearHold()
         return before + covered
     }

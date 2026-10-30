@@ -166,6 +166,8 @@ final class MeetingSession: ObservableObject {
         Log.noteNow("meeting: starting the mic track")
         // Your mic muted during the call: a notification, since you're looking at the call (DESIGN.md §6.10, A muted microphone).
         mic.onMicWarning = { MicWarningNotice.changed($0) }
+        // The other side's voices come through the speakers, so the built-in mic hearing speech says nothing about yours.
+        mic.comparesMics = false
         let recorder = mic
         let micError: Error? = await withCheckedContinuation { c in
             Task { @MainActor in recorder.begin(to: micURL) { c.resume(returning: $0) } }
