@@ -1,7 +1,8 @@
 import SwiftUI
 import UIKit
 
-// The iPhone Dictionary screen's Suggestions (About me names, repeated fixes, Contacts) and Built-in vocabulary.
+// The iPhone Dictionary screen's Suggestions (About me names, repeated fixes, Contacts) and Built-in vocabulary, on the
+// refined kit (DESIGN.md §13) in both look settings: sections on cards, the kit's actions, and the accent's checks.
 
 /// Names from About me and fixes you keep making, each with Add and Dismiss, plus the Contacts button.
 struct PhoneDictionarySuggestions: View {
@@ -18,20 +19,20 @@ struct PhoneDictionarySuggestions: View {
         Section {
             ForEach(list) { s in
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(s.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
-                    Text(s.detail).font(.system(size: 13)).foregroundStyle(.lookMute)
+                    Text(s.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                    Text(s.detail).refinedFont(.meta).foregroundStyle(Refined.mute)
                     HStack(spacing: 10) {
                         Button("Add") {
                             app.store.addSuggestion(s)
                             app.toast = "Added \(s.preferred) to your Dictionary"
                         }
-                        .buttonStyle(.borderedProminent).tint(Ink.interactive)
+                        .buttonStyle(RefinedActionStyle(kind: .strong))
                         .accessibilityLabel("Add \(s.preferred)")
                         Button("Dismiss") {
                             dismissedRaw = VocabularySuggestions.dismissing(s.id, in: dismissedRaw)
                             if s.source == .edits, let h = s.heard.first { EditLearner.forget(heard: h, fixed: s.preferred) }
                         }
-                        .buttonStyle(.bordered).tint(Ink.ink)
+                        .buttonStyle(RefinedActionStyle(kind: .quiet))
                         .accessibilityLabel("Dismiss \(s.preferred)")
                     }
                 }
@@ -40,7 +41,7 @@ struct PhoneDictionarySuggestions: View {
             Button { showContacts = true } label: {
                 Label("Suggest names from Contacts", art: .iconAboutMe)
             }
-            .tint(Ink.ink)
+            .foregroundStyle(Refined.accentText)
             .task(id: aboutMe) { modelNames = await NameExtractor.modelNames(in: aboutMe) }
             .sheet(isPresented: $showContacts) { PhoneContactNamesSheet().environmentObject(app) }
         } header: {
@@ -48,7 +49,9 @@ struct PhoneDictionarySuggestions: View {
         } footer: {
             Text(list.isEmpty ? "Names from About me, and fixes you make more than once, show up here. Names from Contacts stay on this iPhone."
                               : "Names from Contacts stay on this iPhone.")
+                .foregroundStyle(Refined.mute)
         }
+        .listRowBackground(Refined.card)
     }
 }
 
@@ -72,17 +75,21 @@ struct PhoneContactNamesSheet: View {
             List {
                 switch phase {
                 case .loading:
-                    HStack(spacing: 10) { ProgressView(); Text("Reading names…").foregroundStyle(.lookMute) }
+                    HStack(spacing: 10) { ProgressView(); Text("Reading names…").foregroundStyle(Refined.mute) }
+                        .listRowBackground(Refined.card)
                 case .denied:
                     Section {
                         Text("Verbose doesn't have access to Contacts. Turn it on in Settings › Apps › Verbose › Contacts, then try again.")
                         Button("Open Settings") {
                             if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                         }
+                        .foregroundStyle(Refined.accentText)
                     }
+                    .listRowBackground(Refined.card)
                 case .ready:
                     if candidates.isEmpty {
-                        Text("Every name in your contacts is already in your Dictionary or spelled well without it.").foregroundStyle(.lookMute)
+                        Text("Every name in your contacts is already in your Dictionary or spelled well without it.").foregroundStyle(Refined.mute)
+                            .listRowBackground(Refined.card)
                     } else {
                         Section {
                             ForEach(visible) { c in
@@ -90,10 +97,8 @@ struct PhoneContactNamesSheet: View {
                                     if picked.contains(c.id) { picked.remove(c.id) } else { picked.insert(c.id) }
                                 } label: {
                                     HStack(spacing: 12) {
-                                        Image(systemName: picked.contains(c.id) ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(picked.contains(c.id) ? AnyShapeStyle(.lookMark) : AnyShapeStyle(.lookFaint))
-                                            .font(.system(size: 20))
-                                        Text(c.name).foregroundStyle(.lookInk)
+                                        RefinedCheckbox(on: picked.contains(c.id))
+                                        Text(c.name).refinedFont(.body).foregroundStyle(Refined.ink)
                                     }
                                 }
                                 .accessibilityAddTraits(picked.contains(c.id) ? .isSelected : [])
@@ -107,15 +112,17 @@ struct PhoneContactNamesSheet: View {
                                     else { picked.formUnion(visible.map(\.id)) }
                                 }
                                 .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Refined.accentText)
                             }
                         } footer: {
-                            Text("Unusual names start selected. Names stay on this iPhone.")
+                            Text("Unusual names start selected. Names stay on this iPhone.").foregroundStyle(Refined.mute)
                         }
+                        .listRowBackground(Refined.card)
                     }
                 }
             }
             .scrollContentBackground(.hidden)
-            .phonePage()
+            .background(Refined.paper.ignoresSafeArea())
             .searchable(text: $filter, prompt: "Search names")
             .navigationTitle("Names from Contacts")
             .navigationBarTitleDisplayMode(.inline)
@@ -156,11 +163,11 @@ struct PhoneBuiltInVocabularySection: View {
         Section {
             Toggle(isOn: $on) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Spell modern words right").font(.system(size: 16, weight: .semibold))
-                    Text(on ? "\(active) of \(all.count) terms on" : "Off").font(.system(size: 13)).foregroundStyle(.lookMute)
+                    Text("Spell modern words right").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                    Text(on ? "\(active) of \(all.count) terms on" : "Off").refinedFont(.meta).foregroundStyle(Refined.mute)
                 }
             }
-            .tint(PhoneInk.switchOn)
+            .refinedSwitchTint()
             if on {
                 NavigationLink { PhoneBuiltInTermsScreen() } label: { Text("Terms") }
             }
@@ -168,7 +175,9 @@ struct PhoneBuiltInVocabularySection: View {
             Text("Built-in vocabulary")
         } footer: {
             Text("Verbose spells words like ChatGPT, GitHub, and macOS right. Your Dictionary always wins, and words like \u{201C}zoom in\u{201D} stay as you said them. Dictation also fixes mix-ups like \u{201C}could of been.\u{201D}")
+                .foregroundStyle(Refined.mute)
         }
+        .listRowBackground(Refined.card)
     }
 }
 
@@ -191,18 +200,17 @@ struct PhoneBuiltInTermsScreen: View {
             ForEach(shown) { t in
                 Toggle(isOn: Binding(get: { !off.contains(t.id) }, set: { v in disabledRaw = BuiltInVocabulary.setting(t.id, on: v, in: disabledRaw) })) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(t.term).font(.system(size: 16, weight: .semibold))
+                        Text(t.term).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
                         Text(t.isContextual ? "Only next to words like \u{201C}call\u{201D} or \u{201C}app\u{201D}: \(t.forms.joined(separator: ", "))" : t.forms.joined(separator: ", "))
-                            .font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(2)
+                            .refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(2)
                     }
                 }
-                .tint(PhoneInk.switchOn)
+                .refinedSwitchTint()
             }
+            .listRowBackground(Refined.card)
         }
-        .overlay { if shown.isEmpty { Text("Nothing matches \u{201C}\(query)\u{201D}").foregroundStyle(.lookMute) } }
-        .scrollContentBackground(.hidden)
-        .phonePage()
+        .overlay { if shown.isEmpty { Text("Nothing matches \u{201C}\(query)\u{201D}").refinedFont(.body).foregroundStyle(Refined.mute) } }
+        .refinedListPage("Built-in vocabulary")
         .searchable(text: $query, prompt: "Search \(BuiltInVocabulary.terms.count) terms")
-        .navigationTitle("Built-in vocabulary")
     }
 }

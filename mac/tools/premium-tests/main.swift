@@ -15,7 +15,9 @@ func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "")
 // SF Pro Rounded out of the Mac's Native look. The Views folder is the first argument.
 let args = CommandLine.arguments
 let views = args.count > 1 ? args[1] : ""
-let nativeFiles = ["NativeChrome", "NativeSidebar", "PremiumLook", "PremiumItems"]
+// The window's chrome (MacChrome.swift, MacSidebar.swift) moved to the refined look, which keeps its persimmon.
+// Settings (NativeSettings.swift) moved to the refined look too.
+let nativeFiles = ["PremiumLook"]
 let banned = ["nativeAccent", "persimmon", "Persimmon", "PremiumInk.accentSoft", "PremiumInk.onAccent", "PremiumInk.shadow",
               "gradientCard", "RadialGradient", "LinearGradient", ".shadow(", "design: .rounded", "glow"]
 var read = 0

@@ -11,7 +11,7 @@ import SwiftUI
 /// animation or Reduce Motion it holds one shape while recording.
 struct ThoughtGlyph: View {
     var level: Double? = nil
-    var color: Color = Ink.ink
+    var color: Color = Refined.ink
     var lineWidth: CGFloat = 1.3
     @Environment(\.limitMotion) private var limitMotion
 
@@ -95,22 +95,22 @@ struct EmptyDayArt: View {
             let w = max(1.2, 2 * s)
             let stroke = StrokeStyle(lineWidth: w, lineCap: .round, lineJoin: .round)
             ZStack {
-                ArtPath(d: Self.corner, t: t).fill(Ink.butter)
-                ArtPath(d: Self.page, t: t).stroke(Ink.ink, style: stroke)
-                ArtPath(d: Self.fold, t: t).stroke(Ink.ink, style: stroke)
+                ArtPath(d: Self.corner, t: t).fill(Refined.butter)
+                ArtPath(d: Self.page, t: t).stroke(Refined.ink, style: stroke)
+                ArtPath(d: Self.fold, t: t).stroke(Refined.ink, style: stroke)
                 ForEach(Self.rules.indices, id: \.self) { i in
-                    ArtPath(d: Self.rules[i], t: t).stroke(Ink.ink.opacity(0.45), lineWidth: max(0.8, s))
+                    ArtPath(d: Self.rules[i], t: t).stroke(Refined.ink.opacity(0.45), lineWidth: max(0.8, s))
                 }
                 ForEach(0..<3, id: \.self) { i in
                     let r = Self.ringSpecs[i]
-                    Circle().stroke(Ink.ink, lineWidth: w)
+                    Circle().stroke(Refined.ink, lineWidth: w)
                         .frame(width: 2 * r.2 * s, height: 2 * r.2 * s)
                         .position(x: ox + r.0 * s, y: oy + r.1 * s)
                         .scaleEffect(rings[i] ? 1 : 0.4, anchor: UnitPoint(x: (ox + r.0 * s) / max(1, g.size.width), y: (oy + r.1 * s) / max(1, g.size.height)))
                         .opacity(rings[i] ? 1 : 0)
                 }
-                ArtPath(d: Self.wire, t: t).trim(from: 1 - line, to: 1).stroke(Ink.ink, style: stroke)
-                Circle().fill(Ink.persimmon)
+                ArtPath(d: Self.wire, t: t).trim(from: 1 - line, to: 1).stroke(Refined.ink, style: stroke)
+                Circle().fill(Refined.persimmon)
                     .frame(width: 12 * s, height: 12 * s)
                     .scaleEffect(dot)
                     .position(x: ox + 574 * s, y: oy + 331 * s)
@@ -184,27 +184,27 @@ struct WaysInArt: View {
             let t = CGAffineTransform(translationX: ox, y: oy).scaledBy(x: s, y: s)
             let round = { (w: CGFloat) in Self.line(w, scale: s) }
             ZStack {
-                ForEach(Self.butterFills.indices, id: \.self) { i in ArtPath(d: Self.butterFills[i], t: t).fill(Ink.butter) }
+                ForEach(Self.butterFills.indices, id: \.self) { i in ArtPath(d: Self.butterFills[i], t: t).fill(Refined.butter) }
                 ForEach(Self.butterDots.indices, id: \.self) { i in
                     let c = Self.butterDots[i]
-                    ArtShape(path: Path(ellipseIn: CGRect(x: c.0 - c.2, y: c.1 - c.2, width: 2 * c.2, height: 2 * c.2)), t: t).fill(Ink.butter)
+                    ArtShape(path: Path(ellipseIn: CGRect(x: c.0 - c.2, y: c.1 - c.2, width: 2 * c.2, height: 2 * c.2)), t: t).fill(Refined.butter)
                 }
                 ForEach(Self.strokes.indices, id: \.self) { i in
-                    ArtPath(d: Self.strokes[i].0, t: t).stroke(Ink.ink, style: round(Self.strokes[i].1))
+                    ArtPath(d: Self.strokes[i].0, t: t).stroke(Refined.ink, style: round(Self.strokes[i].1))
                 }
                 ForEach(Self.tiles.indices, id: \.self) { i in
-                    ArtShape(path: Path(roundedRect: Self.tiles[i], cornerRadius: 12), t: t).stroke(Ink.ink, style: round(2))
+                    ArtShape(path: Path(roundedRect: Self.tiles[i], cornerRadius: 12), t: t).stroke(Refined.ink, style: round(2))
                 }
                 ForEach(Self.rings.indices, id: \.self) { i in
                     let c = Self.rings[i]
                     ArtShape(path: Path(ellipseIn: CGRect(x: c.0 - c.2, y: c.1 - c.2, width: 2 * c.2, height: 2 * c.2)), t: t)
-                        .stroke(Ink.ink, style: Self.line(c.3, scale: s, dash: c.4 ? [3, 4] : []))
+                        .stroke(Refined.ink, style: Self.line(c.3, scale: s, dash: c.4 ? [3, 4] : []))
                 }
                 ForEach(Self.dashes.indices, id: \.self) { i in
-                    ArtPath(d: Self.dashes[i], t: t).trim(from: 0, to: lines[i] ? 1 : 0).stroke(Ink.ink, style: Self.line(1.6, scale: s, dash: [5, 6]))
+                    ArtPath(d: Self.dashes[i], t: t).trim(from: 0, to: lines[i] ? 1 : 0).stroke(Refined.ink, style: Self.line(1.6, scale: s, dash: [5, 6]))
                         .opacity(lines[i] ? 1 : 0)
                 }
-                Circle().fill(Ink.persimmon)
+                Circle().fill(Refined.persimmon)
                     .frame(width: 20 * s, height: 20 * s)
                     .scaleEffect(dot)
                     .position(x: ox + 324 * s, y: oy + 191 * s)

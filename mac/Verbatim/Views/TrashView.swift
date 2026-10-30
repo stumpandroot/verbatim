@@ -1,10 +1,8 @@
 import SwiftUI
 
-// brand: web style
-//
-// Recently deleted in the website style (mac/DESIGN.md §11; review M-17): the compact title with a mono count, a line
-// pill to restore everything and a danger-outlined Empty, flat rows with the kind dot, a line mini pill to restore one,
-// and "Delete now" in the danger color. The empty screen is the one horizontal card.
+// Recently Deleted on the refined kit (DESIGN.md §13) in both look settings: the large serif title with the count,
+// Restore all and Empty, then each transcript in a card with its kind's dot, when it was deleted and the days left,
+// Restore, and Delete now. The empty screen is the kit's empty state.
 
 /// Recently deleted: kept for 30 days, then removed with their audio.
 struct TrashView: View {
@@ -12,34 +10,37 @@ struct TrashView: View {
     var body: some View {
         let items = app.store.trash
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                PageTitle(title: "Recently", italic: "deleted", count: items.isEmpty ? nil : HomeCounts.countLabel(items.count, "transcript", "transcripts"),
-                          lede: "Transcripts stay here for 30 days, then they and their audio are deleted for good.") {
+            VStack(alignment: .leading, spacing: 18) {
+                RefinedPageHeader(title: "Recently Deleted", count: items.isEmpty ? nil : HomeCounts.countLabel(items.count, "transcript", "transcripts"),
+                                  lede: "Transcripts stay here for 30 days, then they and their audio are deleted for good.") {
                     if !items.isEmpty {
-                        HStack(spacing: 8) {
-                            PillButton(title: "Restore all", kind: .line, size: .mini, hint: "Puts every transcript back in your library.") {
-                                app.restore(items.map(\.id))
-                            }
-                            DangerPill(title: "Empty", hint: "Deletes every transcript here and its audio for good.") { confirmEmpty(items) }
-                        }
+                        Button("Restore all") { app.restore(items.map(\.id)) }
+                            .buttonStyle(RefinedActionStyle())
+                            .help("Puts every transcript back in your library.")
+                        Button("Empty", role: .destructive) { confirmEmpty(items) }
+                            .buttonStyle(RefinedActionStyle(kind: .strong))
+                            .help("Deletes every transcript here and its audio for good.")
                     }
                 }
-                .padding(.bottom, 22)
                 if items.isEmpty {
-                    EmptyStateCard(art: .iconDeleted, title: "Nothing here",
-                                   message: "Transcripts you delete wait here for 30 days, so you can restore them.")
+                    RefinedEmptyState(art: .iconDeleted, title: "Nothing here",
+                                      message: "Transcripts you delete wait here for 30 days, so you can restore them.")
                 } else {
                     LazyVStack(spacing: 0) {
-                        ForEach(items) { t in
+                        ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
+                            if i > 0 { PaperDivider(leading: 16, trailing: 16) }
                             TrashRow(transcript: t, detail: daysLeft(t), restore: { app.restore([t.id]) }, purge: { app.purge([t.id]) })
                         }
                     }
+                    .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
                 }
             }
             .frame(maxWidth: 860, alignment: .leading)
-            .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, 40)
+            .padding(.horizontal, 40).padding(.top, 18).padding(.bottom, 40)
             .frame(maxWidth: .infinity)
         }
+        .softScrollEdges(.top)
+        .background(Refined.paper)
     }
 
     /// One formatter for every row (creating one per row is slow). Follows the current locale as it changes.
@@ -63,74 +64,31 @@ struct TrashView: View {
     }
 }
 
-/// A deleted transcript as a flat row: the kind dot, the title in the serif, when it was deleted and the days left,
-/// then Restore (a line mini pill) and Delete now (danger text). No click on the row itself; the controls take clicks
-/// through direct gestures (macOS 26 click safety).
+/// A deleted transcript as a row in the card: the kind's dot, the title, when it was deleted and the days left, then
+/// Restore and Delete now. No click on the row itself.
 private struct TrashRow: View {
     var transcript: Transcript
     var detail: String
     var restore: () -> Void
     var purge: () -> Void
-    @State private var hover = false
 
     var body: some View {
-        HStack(spacing: 14) {
-            KindDot(transcript: transcript, size: 34)
-            VStack(alignment: .leading, spacing: 3) {
-                WebText.serif(transcript.title, italic: nil, size: 19).foregroundStyle(Ink.ink).lineLimit(1)
-                Text(detail).font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
+        HStack(spacing: 12) {
+            KindBadge(kind: transcript.kind, size: 8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(transcript.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                Text(detail).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
             }
             .layoutPriority(1)
             Spacer(minLength: 10)
-            PillButton(title: "Restore", kind: .line, size: .mini, hint: "Puts it back in your library.", action: restore)
-            Text("Delete now").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.danger)
-                .padding(.horizontal, 6).frame(height: 28)
-                .contentShape(Rectangle())
-                .tapArea(purge)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Delete now")
-                .accessibilityHint("Deletes it and its audio for good.")
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction { purge() }
+            Button("Restore", action: restore)
+                .buttonStyle(RefinedActionStyle())
+                .help("Puts it back in your library.")
+            Button("Delete now", role: .destructive, action: purge)
+                .buttonStyle(.plain).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText)
+                .padding(.horizontal, 6)
+                .help("Deletes it and its audio for good.")
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .flatRow(highlighted: hover)
-        .onHover { hover = $0 }
-    }
-}
-
-/// A line pill in the danger color, for an action that deletes for good (never persimmon). Native: a bordered button
-/// tinted with the system red.
-private struct DangerPill: View {
-    var title: String
-    var hint: String
-    var action: () -> Void
-    @State private var hover = false
-    @Environment(\.look) private var look
-
-    var body: some View {
-        if look == .native {
-            Button(title, role: .destructive, action: action)
-                .buttonStyle(.bordered).controlSize(.small).tint(NativeInk.danger)
-                .help(hint)
-        } else {
-            Text(title).font(.system(size: PillSize.mini.font, weight: .semibold)).foregroundStyle(Ink.danger)
-                .padding(.horizontal, PillSize.mini.padding).frame(height: PillSize.mini.height)
-                .background {
-                    ZStack {
-                        Capsule().fill(Ink.danger.opacity(hover ? 0.08 : 0))
-                        Capsule().strokeBorder(Ink.danger, lineWidth: 1.5)
-                    }
-                }
-                .fixedSize()
-                .contentShape(Capsule())
-                .onHover { hover = $0 }
-                .tapArea(action)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(title)
-                .accessibilityHint(hint)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction { action() }
-        }
+        .padding(.horizontal, 16).padding(.vertical, 10)
     }
 }

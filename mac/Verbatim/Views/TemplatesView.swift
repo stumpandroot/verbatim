@@ -1,14 +1,13 @@
 import SwiftUI
 import AppKit
 
-// brand: web style
-//
-// Make › Templates in the main window (mockup "Library features", sections 1a to 1c): the template library with
-// filters, a template's sections and Run automatically chips beside it, the editor for your own, and Run automatically
-// (one template or Off per kind, and three options). Since the consolidation (October 28, 2026) it's the one list of
-// what turns words into something else: the transcript templates and the text actions the Ribbon's menu runs on
-// selected text (Settings › Actions moved here), each marked with where it works (`TemplateScope`). Built from the website-style kit (WebStyle.swift), which draws
-// Premium Native too; the Native library is a grid of white cards (§13.2).
+// Make › Templates in the main window (mockup "Library features", sections 1a to 1c), on the refined kit (DESIGN.md
+// §13) in both look settings: the template library with filter chips, a template's sections and Run automatically
+// chips beside it, the editor for your own, and Run automatically (one template or Off per kind, and three options).
+// Since the consolidation (October 28, 2026) it's the one list of what turns words into something else: the transcript
+// templates and the text actions the Ribbon's menu runs on selected text (Settings › Actions moved here), each marked
+// with where it works (`TemplateScope`). Templates are neutral (DESIGN.md §17.2): neutral icon squares and ink, with
+// the persimmon tint only on what's selected.
 
 enum TemplatesPane: String { case library, auto }
 
@@ -68,25 +67,33 @@ struct TemplatesView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Refined.paper)
         .sheet(item: $nav.editing) { t in TemplateEditorSheet(draft: t, isNew: nav.editingIsNew).environmentObject(app) }
         .sheet(item: $nav.tryOn) { x in TemplateTryOnSheet(template: x.template, transcriptID: x.transcript).environmentObject(app) }
     }
 }
 
-/// A template card's surface: the reader card with an ink outline and a small hard shadow, or Premium's white card.
+/// A card on a Make page (a template's detail, Run automatically's table, Ask's answer and recipes): the refined
+/// card, or the persimmon tint when it's the selected one. No outline or shadow; a hairline under Increase Contrast.
 struct TemplateCardSurface: ViewModifier {
     var selected = false
-    @Environment(\.look) private var look
     func body(content: Content) -> some View {
-        if look == .native {
-            // The selected card takes a neutral outline: the accent stays on the selected filter (review M-34).
-            content.nativeGroup()
-                .overlay { if selected { RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.32), lineWidth: 1.5) } }
-        } else {
-            content
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-                .inkEdge(outline: true, shadow: InkEdge.row, radius: Radius.record)
+        content.refinedSurface(selected ? Refined.persimmonTint : Refined.card, radius: RefinedPlatform.radius(.card))
+    }
+}
+
+/// A Make page's column: the content's widest, its margins, and the paper under it.
+private struct MakePage<Content: View>: View {
+    var maxWidth: CGFloat = 1180
+    @ViewBuilder var content: Content
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) { content }
+                .padding(.horizontal, 40).padding(.top, 18).padding(.bottom, 40)
+                .frame(maxWidth: maxWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .softScrollEdges(.top)
     }
 }
 
@@ -98,7 +105,6 @@ struct TemplateLibraryPane: View {
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @ObservedObject private var flow = FlowSettings.shared
     @State private var confirmRestore = false
-    @Environment(\.look) private var look
 
     var body: some View {
         let all = app.store.allTemplates
@@ -112,38 +118,31 @@ struct TemplateLibraryPane: View {
         let pickedText = shownTexts.first { $0.id == nav.selected }
         let pickedTemplate = shown.first { $0.id == nav.selected } ?? (pickedText == nil ? shown.first : nil)
         let fallbackText = pickedTemplate == nil ? (pickedText ?? shownTexts.first) : nil
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                PageTitle(title: "Templates", count: "\(all.count + texts.count) templates",
-                          lede: "Turn a recording into notes, a plan, or a draft, or rework text you select in any app. Each says where it works. Pick one per kind to run when a recording finishes.") {
-                    HStack(spacing: 8) {
-                        TemplatesPaneSwitch()
-                        PillButton(title: "New text action", kind: .line, size: .mini, icon: .webPlus) { nav.newTextAction() }
-                            .uiTarget("templates-new-text")
-                        PillButton(title: "New template", kind: .dark, size: .mini, icon: .webPlus) { nav.newTemplate() }
-                            .uiTarget("templates-new")
-                    }
-                }
-                chips(all, settings, textIDs: textIDs, texts: texts.count)
-                HStack(alignment: .top, spacing: 22) {
-                    Group {
-                        if look == .native { grid(shown, settings, textIDs: textIDs, texts: shownTexts, selected: pickedTemplate?.id ?? fallbackText?.id) }
-                        else { list(shown, settings, textIDs: textIDs, texts: shownTexts, selected: pickedTemplate?.id ?? fallbackText?.id) }
-                    }
+        return MakePage {
+            RefinedPageHeader(title: "Templates", count: HomeCounts.countLabel(all.count + texts.count, "template", "templates"),
+                              lede: "Turn a recording into notes, a plan, or a draft, or rework text you select in any app. Each says where it works. Pick one per kind to run when a recording finishes.") {
+                TemplatesPaneSwitch()
+                Button { nav.newTextAction() } label: { Label("New text action", systemImage: "plus") }
+                    .buttonStyle(RefinedActionStyle())
+                    .uiTarget("templates-new-text")
+                Button { nav.newTemplate() } label: { Label("New template", systemImage: "plus") }
+                    .buttonStyle(RefinedActionStyle(kind: .strong))
+                    .uiTarget("templates-new")
+            }
+            chips(all, settings, textIDs: textIDs, texts: texts.count)
+            HStack(alignment: .top, spacing: 22) {
+                list(shown, settings, textIDs: textIDs, texts: shownTexts, selected: pickedTemplate?.id ?? fallbackText?.id)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
-                    if let t = pickedTemplate {
-                        TemplateDetailCard(template: t, scope: TemplateScope.of(template: t.id, textActions: textIDs))
-                            .frame(width: 340)
-                            .id(t.id)
-                    } else if let a = fallbackText {
-                        TextActionDetailCard(actionID: a.id)
-                            .frame(width: 340)
-                            .id(a.id)
-                    }
+                if let t = pickedTemplate {
+                    TemplateDetailCard(template: t, scope: TemplateScope.of(template: t.id, textActions: textIDs))
+                        .frame(width: 340)
+                        .id(t.id)
+                } else if let a = fallbackText {
+                    TextActionDetailCard(actionID: a.id)
+                        .frame(width: 340)
+                        .id(a.id)
                 }
             }
-            .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, 40)
-            .frame(maxWidth: 1180, alignment: .leading)
         }
         .confirmationDialog("Restore the text actions that come with Verbose?", isPresented: $confirmRestore) {
             Button("Restore", role: .destructive) { flow.actions = FlowAction.builtIn; nav.selected = nil }
@@ -161,156 +160,88 @@ struct TemplateLibraryPane: View {
 
     private func chips(_ all: [TranscriptTemplate], _ s: AutoRunSettings, textIDs: Set<UUID>, texts: Int) -> some View {
         let autoCount = all.filter { !s.kinds(for: $0.id).isEmpty }.count
-        return HStack(spacing: 6) {
-            FilterChip(title: "All", count: all.count + texts, selected: nav.filter == .all) { nav.filter = .all }
+        return RefinedChipRow(label: "Filter") {
+            RefinedChip(title: "All", selected: nav.filter == .all) { nav.filter = .all }
+                .accessibilityValue("\(all.count + texts)")
             ForEach([TemplateOrigin.builtIn, .scenario, .yours]) { o in
-                FilterChip(title: o.title, count: all.filter { $0.origin == o }.count, selected: nav.filter == .origin(o)) { nav.filter = .origin(o) }
+                RefinedChip(title: o.title, selected: nav.filter == .origin(o)) { nav.filter = nav.filter == .origin(o) ? .all : .origin(o) }
+                    .accessibilityValue("\(all.filter { $0.origin == o }.count)")
                     .uiTarget("templates-filter-\(o.rawValue)")
             }
-            FilterChip(title: "Runs automatically", count: autoCount, selected: nav.filter == .auto) { nav.filter = .auto }
-            FilterChip(title: "On selected text", count: texts + all.filter { textIDs.contains($0.id) }.count, selected: nav.filter == .text) { nav.filter = .text }
+            RefinedChip(title: "Runs automatically", selected: nav.filter == .auto) { nav.filter = nav.filter == .auto ? .all : .auto }
+                .accessibilityValue("\(autoCount)")
+            RefinedChip(title: "On selected text", selected: nav.filter == .text) { nav.filter = nav.filter == .text ? .all : .text }
+                .accessibilityValue("\(texts + all.filter { textIDs.contains($0.id) }.count)")
                 .uiTarget("templates-filter-text")
         }
     }
 
-    /// Verbose: flat rows under "Scenarios · 8" headers, then the text actions.
+    /// Each origin's templates in a card under its label ("Scenarios · 8"), then the text actions.
     private func list(_ shown: [TranscriptTemplate], _ s: AutoRunSettings, textIDs: Set<UUID>, texts: [FlowAction], selected: UUID?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 16) {
             ForEach(TemplateOrigin.allCases) { o in
                 let items = shown.filter { $0.origin == o }
                 if !items.isEmpty {
-                    DayHeader(text: "\(o.title) · \(items.count)").padding(.top, o == TemplateOrigin.allCases.first ? 0 : 14).padding(.bottom, 2)
-                    ForEach(items) { t in row(t, s, scope: TemplateScope.of(template: t.id, textActions: textIDs), selected: t.id == selected) }
+                    PaperGroup("\(o.title) · \(items.count)") {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
+                            if i > 0 { PaperDivider(leading: 48, trailing: 14) }
+                            row(t, s, scope: TemplateScope.of(template: t.id, textActions: textIDs), selected: t.id == selected)
+                        }
+                    }
                 }
             }
             if !texts.isEmpty {
-                DayHeader(text: "Text actions · \(texts.count)").padding(.top, shown.isEmpty ? 0 : 14).padding(.bottom, 2)
-                ForEach(texts) { a in textRow(a, selected: a.id == selected) }
-                TextLink(title: "Restore the text actions that come with Verbose", glyph: .none) { confirmRestore = true }
-                    .padding(.top, 8).padding(.leading, 12)
+                PaperGroup("Text actions · \(texts.count)") {
+                    ForEach(Array(texts.enumerated()), id: \.element.id) { i, a in
+                        if i > 0 { PaperDivider(leading: 48, trailing: 14) }
+                        textRow(a, selected: a.id == selected)
+                    }
+                }
+                RefinedLink(title: "Restore the text actions that come with Verbose") { confirmRestore = true }
+                    .padding(.leading, 4)
             }
             if shown.isEmpty && texts.isEmpty {
-                Text("No templates here yet. Choose New template to make your own.").font(.system(size: 13.5)).foregroundStyle(Ink.dim).padding(.vertical, 12)
+                Text("No templates here yet. Choose New template to make your own.").refinedFont(.body).foregroundStyle(Refined.dim)
+                    .padding(.vertical, 12)
             }
         }
     }
 
     /// A text action of yours or one that comes with Verbose: it works on selected text and on recordings.
     private func textRow(_ a: FlowAction, selected: Bool) -> some View {
-        FlatRowButton(selected: selected, action: { nav.selected = a.id }) { _ in
-            HStack(spacing: 14) {
-                IconGlyph(art: a.art, size: 17, color: Ink.ink)
-                    .frame(width: 34, height: 34)
-                    .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    let parts = TemplateTitle.split(a.name.isEmpty ? "Untitled action" : a.name)
-                    WebText.serif(parts.0, italic: parts.1, size: 19).foregroundStyle(Ink.ink).lineLimit(1)
-                    Text(TemplateScope.metaLine(TemplateScope.textAction, a.kind.title)).font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(1)
-                }
-                Spacer(minLength: 8)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 9)
+        PaperRowButton(selected: selected, action: { nav.selected = a.id }) {
+            rowFace(art: a.art, title: a.name.isEmpty ? "Untitled action" : a.name,
+                    meta: TemplateScope.metaLine(TemplateScope.textAction, a.kind.title))
         }
         .accessibilityLabel((a.name.isEmpty ? "Untitled action" : a.name) + ", works on " + TemplateScope.textAction.title.lowercased())
         .uiTarget("text-action-row-\(a.id.uuidString.prefix(8))")
     }
 
     private func row(_ t: TranscriptTemplate, _ s: AutoRunSettings, scope: TemplateScope, selected: Bool) -> some View {
-        let parts = TemplateTitle.split(t.name)
         let kinds = s.kinds(for: t.id)
-        return FlatRowButton(selected: selected, action: { nav.selected = t.id }) { _ in
-            HStack(spacing: 14) {
-                IconGlyph(art: t.art, size: 17, color: Ink.ink)
-                    .frame(width: 34, height: 34)
-                    .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                // The auto state goes in the meta line, so the name has the whole row (review M-31).
-                VStack(alignment: .leading, spacing: 2) {
-                    WebText.serif(parts.0, italic: parts.1, size: 19).foregroundStyle(Ink.ink).lineLimit(1)
-                    Text(TemplateScope.metaLine(scope, TemplateAutoBadge.metaLine(summary: TemplateLibrary.summaryLine(t), kinds: kinds)))
-                        .font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(1)
-                }
-                Spacer(minLength: 8)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 9)
+        return PaperRowButton(selected: selected, action: { nav.selected = t.id }) {
+            // The auto state goes in the meta line, so the name has the whole row (review M-31).
+            rowFace(art: t.art, title: t.name,
+                    meta: TemplateScope.metaLine(scope, TemplateAutoBadge.metaLine(summary: TemplateLibrary.summaryLine(t), kinds: kinds)))
         }
         .accessibilityLabel(t.name + ", works on " + scope.title.lowercased() + (kinds.isEmpty ? "" : ", runs automatically for " + kinds.map(\.label).joined(separator: ", ")))
         .uiTarget("template-row-\(t.id.uuidString.prefix(8))")
     }
 
-    // brand: native begin
-    /// Premium Native: white cards with the symbol in the accent, three to a row, under plain headers.
-    private func grid(_ shown: [TranscriptTemplate], _ s: AutoRunSettings, textIDs: Set<UUID>, texts: [FlowAction], selected: UUID?) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(TemplateOrigin.allCases) { o in
-                let items = shown.filter { $0.origin == o }
-                if !items.isEmpty {
-                    Text(o.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
-                        .padding(.top, o == TemplateOrigin.allCases.first ? 0 : 10)
-                        .accessibilityAddTraits(.isHeader)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 12)], alignment: .leading, spacing: 12) {
-                        ForEach(items) { t in card(t, s, scope: TemplateScope.of(template: t.id, textActions: textIDs), selected: t.id == selected) }
-                    }
-                }
+    private func rowFace(art: BrandArt, title: String, meta: String) -> some View {
+        HStack(spacing: 12) {
+            IconSquare(art: art, hue: .neutral)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                Text(meta).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
             }
-            if !texts.isEmpty {
-                Text("Text Actions").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
-                    .padding(.top, shown.isEmpty ? 0 : 10)
-                    .accessibilityAddTraits(.isHeader)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 12)], alignment: .leading, spacing: 12) {
-                    ForEach(texts) { a in textCard(a, selected: a.id == selected) }
-                }
-                Button("Restore Text Actions…") { confirmRestore = true }.buttonStyle(.link).font(.system(size: 12.5))
-            }
+            Spacer(minLength: 8)
         }
+        .padding(.horizontal, 14).padding(.vertical, 8)
     }
-
-    private func textCard(_ a: FlowAction, selected: Bool) -> some View {
-        Button { nav.selected = a.id } label: {
-            VStack(alignment: .leading, spacing: 5) {
-                Image(systemName: a.symbol).font(.system(size: 17)).foregroundStyle(NativeInk.accent)
-                    .frame(width: 24, height: 24, alignment: .leading)
-                    .padding(.bottom, 4)
-                Text(a.name.isEmpty ? "Untitled action" : a.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
-                Text(TemplateScope.metaLine(TemplateScope.textAction, a.kind.title)).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
-            .contentShape(Rectangle())
-            .modifier(TemplateCardSurface(selected: selected))
-        }
-        .buttonStyle(.plain)
-        .uiTarget("text-action-row-\(a.id.uuidString.prefix(8))")
-    }
-
-    private func card(_ t: TranscriptTemplate, _ s: AutoRunSettings, scope: TemplateScope, selected: Bool) -> some View {
-        let kinds = s.kinds(for: t.id)
-        return Button { nav.selected = t.id } label: {
-            VStack(alignment: .leading, spacing: 5) {
-                // The accent symbol sits bare (no tinted circle, DESIGN.md §13.2).
-                Image(systemName: t.nativeSymbol).font(.system(size: 17)).foregroundStyle(NativeInk.accent)
-                    .frame(width: 24, height: 24, alignment: .leading)
-                    .padding(.bottom, 4)
-                Text(t.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
-                Text(TemplateScope.metaLine(scope, TemplateLibrary.summaryLine(t))).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !kinds.isEmpty {
-                    Label("Runs for " + kinds.map(\.label).joined(separator: ", "), systemImage: "arrow.counterclockwise")
-                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
-            .contentShape(Rectangle())
-            .modifier(TemplateCardSurface(selected: selected))
-        }
-        .buttonStyle(.plain)
-        .uiTarget("template-row-\(t.id.uuidString.prefix(8))")
-    }
-    // brand: native end
 }
 
-/// "↻ Auto · Meeting": a template that runs automatically for some kinds.
+/// "Runs for Meeting": a template that runs automatically for some kinds.
 struct TemplateAutoBadge: View {
     /// A list row's meta line: "Runs for Meeting · Decisions, next steps" (the kinds first), or the summary alone.
     static func metaLine(summary: String, kinds: [RecordingKind]) -> String {
@@ -322,17 +253,17 @@ struct TemplateAutoBadge: View {
     var kinds: [RecordingKind]
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: "arrow.counterclockwise").font(.system(size: 10, weight: .semibold)).accessibilityHidden(true)
-            Text("Auto · " + kinds.map(\.label).joined(separator: ", ")).lineLimit(1)
+            IconGlyph(art: .iconRecent, size: 12, color: Refined.mute)
+            Text("Runs for " + kinds.map(\.label).joined(separator: ", ")).lineLimit(1)
         }
-        .font(.system(size: 12)).foregroundStyle(Ink.mute)
+        .refinedFont(.meta).foregroundStyle(Refined.mute)
     }
 }
 
 // MARK: - Detail
 
-/// A template beside the library: its eyebrow, name, description, sections, the kinds it runs for automatically, Try on
-/// a recording, and Duplicate and edit (or Edit, Duplicate, and Delete for yours).
+/// A template beside the library: what it is, its name, description, sections, the kinds it runs for automatically,
+/// Try on a recording, and Duplicate and edit (or Edit, Duplicate, and Delete for yours).
 struct TemplateDetailCard: View {
     @EnvironmentObject var app: AppState
     var template: TranscriptTemplate
@@ -341,67 +272,61 @@ struct TemplateDetailCard: View {
     @ObservedObject private var nav = TemplatesNav.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @State private var confirmDelete = false
-    @Environment(\.look) private var look
 
     var body: some View {
-        let parts = TemplateTitle.split(template.name)
         let kinds = template.kinds.isEmpty ? AutoRunSettings.kinds : template.kinds
-        return VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
-                Eyebrow(text: template.origin.eyebrow)
-                WebText.serif(parts.0, italic: parts.1, size: 28).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
+        return VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(template.origin.eyebrow).refinedFont(.meta).foregroundStyle(Refined.mute)
+                Text(template.name).refinedFont(.sectionTitle).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
-                Text(TemplateLibrary.summaryLine(template)).font(.system(size: 13)).foregroundStyle(Ink.dim)
+                Text(TemplateLibrary.summaryLine(template)).refinedFont(.body).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Works on " + scope.title.lowercased()).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
+                Text("Works on " + scope.title.lowercased()).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
                     .uiTarget("template-scope")
             }
             VStack(alignment: .leading, spacing: 0) {
-                Text("Sections").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).padding(.bottom, 4)
+                Text("Sections").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute).padding(.bottom, 4)
                 ForEach(Array(template.sections.enumerated()), id: \.element.id) { i, s in
+                    if i > 0 { PaperDivider(leading: 0) }
                     HStack(spacing: 10) {
-                        Text(String(format: "%02d", i + 1)).font(Ink.mono(12)).foregroundStyle(Ink.mute)
-                        Text(s.name).font(.system(size: 13)).foregroundStyle(Ink.ink).lineLimit(1)
+                        Text("\(i + 1)").refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).frame(width: 16, alignment: .leading)
+                        Text(s.name).refinedFont(.rowTitle).foregroundStyle(Refined.ink).lineLimit(1)
                         Spacer(minLength: 6)
-                        Text(s.format.title).font(.system(size: 12)).foregroundStyle(Ink.dim)
+                        Text(s.format.title).refinedFont(.meta).foregroundStyle(Refined.dim)
                     }
                     .padding(.vertical, 6)
-                    .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
                 }
             }
             VStack(alignment: .leading, spacing: 8) {
-                Text("Runs automatically for").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
-                // Kinds are neutral: in Native a chosen kind is a neutral capsule with a check, so the accent stays on the
-                // selected filter (review M-34).
+                Text("Runs automatically for").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
                 FlowRow(spacing: 6, lineSpacing: 6) {
                     ForEach(kinds) { k in
-                        FilterChip(title: k.label, selected: auto.settings.template(for: k) == template.id, small: true, neutral: true) {
+                        RefinedChip(title: k.label, selected: auto.settings.template(for: k) == template.id) {
                             auto.toggle(template.id, for: k)
                         }
                         .uiTarget("template-kind-\(k.rawValue)")
                     }
                 }
-                Text("A kind runs one template. Choosing it here replaces the one it had.").font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                Text("A kind runs one template. Choosing it here replaces the one it had.").refinedFont(.meta).foregroundStyle(Refined.mute)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: 8) {
+            FlowRow(spacing: 8, lineSpacing: 8) {
                 TemplateTryOnMenu(template: template)
-                // Native keeps one prominent button on the screen (New Template); these are bordered there.
-                let main: PillKind = look == .native ? .line : .dark
                 if template.isEditable {
-                    PillButton(title: "Edit", kind: main, size: .mini) { nav.edit(template) }.uiTarget("template-edit")
-                    PillButton(title: "Duplicate", kind: .line, size: .mini) { nav.duplicate(template) }
+                    Button("Edit") { nav.edit(template) }.buttonStyle(RefinedActionStyle(kind: .strong)).uiTarget("template-edit")
+                    Button("Duplicate") { nav.duplicate(template) }.buttonStyle(RefinedActionStyle())
                 } else {
-                    PillButton(title: "Duplicate and edit", kind: main, size: .mini) { nav.duplicate(template) }.uiTarget("template-duplicate")
+                    Button("Duplicate and edit") { nav.duplicate(template) }.buttonStyle(RefinedActionStyle(kind: .strong)).uiTarget("template-duplicate")
                 }
             }
             if template.isEditable {
                 Button("Delete template…", role: .destructive) { confirmDelete = true }
-                    .buttonStyle(.plain).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.danger)
+                    .buttonStyle(RefinedActionStyle())
             }
             HStack(alignment: .top, spacing: 7) {
-                IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
-                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
+                IconGlyph(art: .iconPrivacy, size: 14, color: Refined.mute)
+                Text(TemplateCopy.onDevice("Mac")).refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(20)
@@ -437,20 +362,28 @@ struct TemplateTryOnMenu: View {
                 }
             }
         } label: {
-            PillLabel(title: title, kind: .line, size: .mini, trailing: .chevron)
+            RefinedMenuLabel(title: title)
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
         .accessibilityLabel(title)
     }
 }
 
-/// Library | Run automatically: the shared view switch (DESIGN.md §11.15), the same on both panes.
+/// Library | Run automatically: the kit's segmented control, the same on both panes.
 private struct TemplatesPaneSwitch: View {
     @ObservedObject private var nav = TemplatesNav.shared
     var body: some View {
-        SegmentedCapsule(label: "Templates view", options: [TemplatesPane.library, .auto], selection: $nav.pane,
-                         title: { $0 == .library ? "Library" : "Run automatically" }, small: true,
-                         target: { $0 == .library ? "templates-library" : "templates-auto" })
+        RefinedSegmented(label: "Templates view", options: [(TemplatesPane.library, "Library"), (TemplatesPane.auto, "Run automatically")],
+                         selection: $nav.pane)
+            .fixedSize()
+            .background {
+                // The self-test's handles on each half.
+                HStack(spacing: 0) {
+                    Color.clear.uiTarget("templates-library")
+                    Color.clear.uiTarget("templates-auto")
+                }
+                .allowsHitTesting(false)
+            }
     }
 }
 
@@ -460,57 +393,57 @@ struct RunAutomaticallyPane: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var nav = TemplatesNav.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
-    @Environment(\.look) private var look
 
     var body: some View {
         let all = app.store.allTemplates
         let settings = auto.settings.pruned(existing: Set(all.map(\.id)))
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                PageTitle(title: "Run", italic: "automatically", count: "\(settings.assignedCount) of \(AutoRunSettings.kinds.count) kinds",
-                          lede: "When a recording of a kind finishes, its template runs after the transcript and summary.") {
-                    TemplatesPaneSwitch()
-                }
-                VStack(spacing: 0) {
-                    HStack(spacing: 0) {
-                        Text("Kind").frame(width: 190, alignment: .leading)
-                        Text("Template").frame(width: 230, alignment: .leading)
-                        Text("This month")
-                        Spacer(minLength: 0)
-                    }
-                    .font(Ink.mono(12)).foregroundStyle(Ink.mute)
-                    .padding(.vertical, 8)
-                    .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
-                    .accessibilityHidden(true)
-                    ForEach(AutoRunSettings.kinds) { k in kindRow(k, all, settings) }
-                    // Audio only has no transcript, so no template can run on it: listed with no picker.
-                    HStack(spacing: 0) {
-                        HStack(spacing: 10) {
-                            kindIcon(.audio)
-                            Text(RecordingKind.audio.label).font(.system(size: 13.5)).foregroundStyle(Ink.ink)
-                        }
-                        .frame(width: 190, alignment: .leading)
-                        Text(AudioOnlyCopy.noTemplate).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 8)
-                    .uiTarget("auto-kind-audio")
-                }
-                .padding(.horizontal, 16).padding(.vertical, 4)
-                .modifier(TemplateCardSurface())
-                HStack(spacing: 12) {
-                    option("Skip short recordings", "Under 2 minutes", $auto.settings.skipShort, target: "auto-skip")
-                    option("Show the result first", "Open transcripts on it", $auto.settings.showFirst, target: "auto-first")
-                    option("Notify me when it's done", "For recordings over 20 minutes", $auto.settings.notify, target: "auto-notify")
-                }
-                HStack(spacing: 7) {
-                    IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
-                    Text(TemplateCopy.onDevice("Mac") + " Your iPhone keeps its own choices; the results sync with the library.")
-                        .font(.system(size: 12.5)).foregroundStyle(Ink.dim)
-                }
+        return MakePage(maxWidth: 1000) {
+            RefinedPageHeader(title: "Run automatically", count: "\(settings.assignedCount) of \(AutoRunSettings.kinds.count) kinds",
+                              lede: "When a recording of a kind finishes, its template runs after the transcript and summary.") {
+                TemplatesPaneSwitch()
             }
-            .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, 40)
-            .frame(maxWidth: 1000, alignment: .leading)
+            PaperCard {
+                HStack(spacing: 0) {
+                    Text("Kind").frame(width: 200, alignment: .leading)
+                    Text("Template").frame(width: 230, alignment: .leading)
+                    Text("This month")
+                    Spacer(minLength: 0)
+                }
+                .refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+                .padding(.horizontal, 16).padding(.vertical, 9)
+                .accessibilityHidden(true)
+                PaperDivider(leading: 0)
+                ForEach(Array(AutoRunSettings.kinds.enumerated()), id: \.element) { i, k in
+                    if i > 0 { PaperDivider(leading: 16, trailing: 16) }
+                    kindRow(k, all, settings)
+                }
+                PaperDivider(leading: 16, trailing: 16)
+                // Audio only has no transcript, so no template can run on it: listed with no picker.
+                HStack(spacing: 0) {
+                    kindName(.audio).frame(width: 200, alignment: .leading)
+                    Text(AudioOnlyCopy.noTemplate).refinedFont(.meta).foregroundStyle(Refined.mute)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .uiTarget("auto-kind-audio")
+            }
+            HStack(spacing: 12) {
+                option("Skip short recordings", "Under 2 minutes", $auto.settings.skipShort, target: "auto-skip")
+                option("Show the result first", "Open transcripts on it", $auto.settings.showFirst, target: "auto-first")
+                option("Notify me when it's done", "For recordings over 20 minutes", $auto.settings.notify, target: "auto-notify")
+            }
+            HStack(spacing: 7) {
+                IconGlyph(art: .iconPrivacy, size: 14, color: Refined.mute)
+                Text(TemplateCopy.onDevice("Mac") + " Your iPhone keeps its own choices; the results sync with the library.")
+                    .refinedFont(.meta).foregroundStyle(Refined.dim)
+            }
+        }
+    }
+
+    private func kindName(_ k: RecordingKind) -> some View {
+        HStack(spacing: 10) {
+            IconSquare(art: k.refinedArt, hue: k.refinedHue)
+            Text(k.label).refinedFont(.rowTitle).foregroundStyle(Refined.ink)
         }
     }
 
@@ -520,11 +453,7 @@ struct RunAutomaticallyPane: View {
         let suggested = all.filter { $0.kinds.contains(k) }
         let others = all.filter { !$0.kinds.contains(k) }
         return HStack(spacing: 0) {
-            HStack(spacing: 10) {
-                kindIcon(k)
-                Text(k.label).font(.system(size: 13.5)).foregroundStyle(Ink.ink)
-            }
-            .frame(width: 190, alignment: .leading)
+            kindName(k).frame(width: 200, alignment: .leading)
             Picker("Template for \(k.label)", selection: Binding<UUID?>(get: { assigned }, set: { auto.set($0, for: k) })) {
                 Text("Off").tag(UUID?.none)
                 Divider()
@@ -535,31 +464,21 @@ struct RunAutomaticallyPane: View {
             .labelsHidden().pickerStyle(.menu).fixedSize()
             .frame(width: 230, alignment: .leading)
             .uiTarget("auto-kind-\(k.rawValue)")
-            Text(note).font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(1)
+            Text(note).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 8)
-        .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
-    }
-
-    @ViewBuilder private func kindIcon(_ k: RecordingKind) -> some View {
-        if look == .native {
-            Image(systemName: k.nativeSymbol).font(.system(size: 13)).foregroundStyle(NativeInk.accent).frame(width: 24, height: 24)   // brand: native
-        } else {
-            IconGlyph(art: k.art, size: 18, color: Ink.ink)
-                .frame(width: 28, height: 28)
-                .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        }
+        .padding(.horizontal, 16).padding(.vertical, 7)
     }
 
     private func option(_ title: String, _ detail: String, _ on: Binding<Bool>, target: String) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
-                Text(detail).font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                Text(detail).refinedFont(.meta).foregroundStyle(Refined.mute)
             }
             Spacer(minLength: 6)
             Toggle(title, isOn: on).toggleStyle(.switch).labelsHidden().controlSize(.small)
+                .refinedSwitchTint()
                 .uiTarget(target)
         }
         .padding(14)
@@ -592,34 +511,28 @@ struct TemplateEditorSheet: View {
                 fields
                 ScrollView { fields.padding(.trailing, 10) }
             }
-            Rectangle().fill(Ink.hairline).frame(height: 1)
+            PaperDivider(leading: 0)
             HStack(spacing: 10) {
-                IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
-                // The one on-device promise, in SF Pro 12.5 dim (DESIGN.md §8, M-65).
-                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                IconGlyph(art: .iconPrivacy, size: 14, color: Refined.mute)
+                // The one on-device promise (DESIGN.md §8, M-65).
+                Text(TemplateCopy.onDevice("Mac")).refinedFont(.meta).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }
             // macOS order (review M-32): Try on at the left; Cancel and Save, the default action, at the right.
             HStack(spacing: 8) {
                 TemplateTryOnMenu(template: draft, title: "Try on", onPick: { tryOn = TemplateTryOn(template: draft, transcript: $0) })
                 Spacer(minLength: 8)
-                if let problem { Text(problem).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.danger).lineLimit(2) }
-                PillButton(title: "Cancel", kind: .line, size: .regular) { dismiss() }
-                PillButton(title: "Save", kind: .dark, size: .regular) { save() }.uiTarget("editor-save")
+                if let problem { Text(problem).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.accentText).lineLimit(2) }
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Save") { save() }.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).uiTarget("editor-save")
             }
-            .background {
-                // Return saves and Escape cancels, as a sheet's default and cancel buttons do.
-                ZStack {
-                    Button("") { save() }.keyboardShortcut(.defaultAction)
-                    Button("") { dismiss() }.keyboardShortcut(.cancelAction)
-                }
-                .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
-            }
+            .controlSize(.large)
         }
         .padding(.horizontal, 26).padding(.top, 26).padding(.bottom, 20)
         .frame(width: 660)
         .frame(maxHeight: TemplateEditorSheet.maxHeight(window: app.mainWindow?.contentLayoutRect.height))
-        .background(Ink.paper)
+        .background(Refined.paper)
+        .tint(Refined.accentText)
         .sheet(item: $tryOn) { x in TemplateTryOnSheet(template: x.template, transcriptID: x.transcript).environmentObject(app) }
     }
 
@@ -631,15 +544,15 @@ struct TemplateEditorSheet: View {
 
     private var fields: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Eyebrow(text: "Yours")
-                WebText.serif(isNew ? "New" : "Edit", italic: "template", size: 30).foregroundStyle(Ink.ink)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Yours").refinedFont(.meta).foregroundStyle(Refined.mute)
+                Text(isNew ? "New template" : "Edit template").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
             }
             HStack(alignment: .top, spacing: 18) {
                 VStack(alignment: .leading, spacing: 6) {
                     label("Name")
-                    TextField("Website client call", text: $draft.name).textFieldStyle(.roundedBorder).font(.system(size: 13.5))
+                    TextField("Website client call", text: $draft.name).textFieldStyle(.roundedBorder).refinedFont(.body)
                         .uiTarget("editor-name")
                 }
                 .frame(width: 260)
@@ -647,7 +560,7 @@ struct TemplateEditorSheet: View {
                     label("Use it for")
                     FlowRow(spacing: 6, lineSpacing: 6) {
                         ForEach(AutoRunSettings.kinds) { k in
-                            FilterChip(title: k.label, selected: draft.kinds.contains(k), small: true) {
+                            RefinedChip(title: k.label, selected: draft.kinds.contains(k)) {
                                 if let i = draft.kinds.firstIndex(of: k) { draft.kinds.remove(at: i) } else { draft.kinds.append(k) }
                             }
                         }
@@ -657,38 +570,38 @@ struct TemplateEditorSheet: View {
             VStack(alignment: .leading, spacing: 6) {
                 label("What should it write?")
                 TextEditor(text: $draft.instructions)
-                    .font(.system(size: 13.5)).scrollContentBackground(.hidden)
+                    .refinedFont(.body).foregroundStyle(Refined.ink).scrollContentBackground(.hidden)
                     .padding(8).frame(height: 88)
-                    .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.outlineStrong, lineWidth: 1))
+                    .refinedFieldBox()
                     .accessibilityLabel("What should it write")
-                Text(TemplateCopy.ruleNote).font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                Text(TemplateCopy.ruleNote).refinedFont(.meta).foregroundStyle(Refined.mute)
             }
             VStack(alignment: .leading, spacing: 6) {
                 label("Sections")
-                VStack(spacing: 0) {
-                    ForEach(Array(draft.sections.enumerated()), id: \.element.id) { i, s in sectionRow(i, s) }
+                PaperCard {
+                    ForEach(Array(draft.sections.enumerated()), id: \.element.id) { i, s in
+                        if i > 0 { PaperDivider(leading: 12, trailing: 12) }
+                        sectionRow(i, s)
+                    }
                 }
-                .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
-                // An ink text link (TextLink, M-61): adding a section has nothing to do with recording, so it's never persimmon.
-                TextLink(title: "Add a section", glyph: .plus) { draft.sections.append(TemplateSection("", .bullets)) }
+                Button { draft.sections.append(TemplateSection("", .bullets)) } label: { Label("Add a section", systemImage: "plus") }
+                    .buttonStyle(.plain).refinedFont(.hint).foregroundStyle(Refined.accentText)
                     .uiTarget("editor-add-section")
             }
         }
     }
 
     private func label(_ s: String) -> some View {
-        Text(s).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
+        Text(s).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
     }
 
     private func sectionRow(_ i: Int, _ s: TemplateSection) -> some View {
         let id = s.id
         return HStack(spacing: 10) {
-            Image(systemName: "line.3.horizontal").font(.system(size: 11, weight: .medium)).foregroundStyle(Ink.mute).accessibilityHidden(true)
+            Image(systemName: "line.3.horizontal").font(.system(size: 11, weight: .medium)).foregroundStyle(Refined.faint).accessibilityHidden(true)
             TextField("Section name", text: Binding(get: { draft.sections.first { $0.id == id }?.name ?? "" },
                                                     set: { v in if let j = draft.sections.firstIndex(where: { $0.id == id }) { draft.sections[j].name = v } }))
-                .textFieldStyle(.plain).font(.system(size: 13.5))
+                .textFieldStyle(.plain).refinedFont(.body).foregroundStyle(Refined.ink)
             Picker("Format", selection: Binding(get: { draft.sections.first { $0.id == id }?.format ?? .bullets },
                                                 set: { v in if let j = draft.sections.firstIndex(where: { $0.id == id }) { draft.sections[j].format = v } })) {
                 ForEach(TemplateSectionFormat.allCases) { f in Text(f.title).tag(f) }
@@ -705,7 +618,6 @@ struct TemplateEditorSheet: View {
                 .buttonStyle(.borderless).help("Remove this section").accessibilityLabel("Remove \(s.name)")
         }
         .padding(.horizontal, 12).frame(height: 40)
-        .overlay(alignment: .bottom) { if i < draft.sections.count - 1 { Rectangle().fill(Ink.hairline).frame(height: 1) } }
     }
 
     private func move(_ id: UUID, by d: Int) {
@@ -743,51 +655,54 @@ struct TemplateTryOnSheet: View {
         let t = app.store.transcript(transcriptID)
         return VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Eyebrow(text: "Try on")
-                WebText.serif(template.name.isEmpty ? "Untitled" : template.name, size: 24).foregroundStyle(Ink.ink)
-                Text("On \u{201C}\(t?.title ?? "a recording")\u{201D}. Nothing is saved.").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                Text("Try on").refinedFont(.meta).foregroundStyle(Refined.mute)
+                Text(template.name.isEmpty ? "Untitled" : template.name).refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Text("On \u{201C}\(t?.title ?? "a recording")\u{201D}. Nothing is saved.").refinedFont(.meta).foregroundStyle(Refined.mute)
             }
             Group {
                 switch preview.phase {
                 case .running:
                     VStack(spacing: 10) {
                         ProgressView().controlSize(.small)
-                        Text(preview.part.isEmpty ? "Working on your Mac…" : preview.part).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                        Text(preview.part.isEmpty ? "Working on your Mac…" : preview.part).refinedFont(.meta).foregroundStyle(Refined.mute)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .done:
                     ScrollView {
-                        TemplateResultBody(text: preview.text, heading: Ink.serif(18), textFont: .system(size: 13.5),
-                                           ink: AnyShapeStyle(Ink.ink), dim: AnyShapeStyle(Ink.mute))
+                        TemplateResultBody(text: preview.text, heading: .system(size: 18, design: .serif), textFont: .system(size: 13.5),
+                                           ink: AnyShapeStyle(Refined.ink), dim: AnyShapeStyle(Refined.mute))
                             .padding(14)
                     }
-                    .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+                    .modifier(TemplateCardSurface())
                 case .failed:
                     VStack(spacing: 6) {
-                        Text("Couldn't run this template").font(Ink.serif(18)).foregroundStyle(Ink.ink)
+                        Text("Couldn't run this template").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
                         Text(preview.failure ?? "Apple's on-device model didn't answer. Try again.")
-                            .font(.system(size: 13)).foregroundStyle(Ink.mute).multilineTextAlignment(.center)
+                            .refinedFont(.body).foregroundStyle(Refined.mute).multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .frame(maxHeight: .infinity)
             if preview.phase == .done {
-                Text(TemplateCopy.footer(madeOn: "Mac", here: "Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                Text(TemplateCopy.footer(madeOn: "Mac", here: "Mac")).refinedFont(.meta).foregroundStyle(Refined.dim)
             }
             HStack(spacing: 8) {
                 Spacer()
-                PillButton(title: "Close", kind: .line, size: .mini) { preview.stop(); dismiss() }
-                if preview.phase != .running, let t { PillButton(title: "Try again", kind: .line, size: .mini) { preview.start(template, on: t) } }
+                Button("Close") { preview.stop(); dismiss() }.keyboardShortcut(.cancelAction)
+                if preview.phase != .running, let t { Button("Try again") { preview.start(template, on: t) } }
                 if preview.phase == .done {
-                    PillButton(title: "Copy", kind: .dark, size: .mini) { Paster.copy(preview.text); app.toast = Toast("Copied") }
+                    Button("Copy") { Paster.copy(preview.text); app.toast = Toast("Copied") }
+                        .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
                 }
             }
+            .controlSize(.large)
         }
         .padding(22)
         .frame(width: 600, height: 520)
-        .background(Ink.paper)
+        .background(Refined.paper)
+        .tint(Refined.accentText)
         .onAppear { if let t { preview.start(template, on: t) } }
         .onDisappear { preview.stop() }
     }

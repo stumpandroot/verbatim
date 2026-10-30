@@ -273,8 +273,8 @@ struct DictionaryCSVMenu: View {
             Button("Import CSV…") { importCSV() }
             Button("Export CSV…") { exportCSV() }.disabled(app.store.dictionary.isEmpty)
         } label: {
-            // The Dictionary's line pill (mac/DESIGN.md §11).
-            PillLabel(title: "CSV", kind: .line, size: .regular)
+            // The Dictionary's quiet menu (the refined kit).
+            RefinedMenuLabel(title: "CSV")
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
         .accessibilityLabel("CSV")

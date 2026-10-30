@@ -6,14 +6,13 @@ import AppKit
 // you type over the kind's chip and when, the player as the main content (AudioPlayerCard: its waveform with the
 // moments as ticks, back 5 seconds, play, and the speed), the moments with the names you give them, notes, Transcribe,
 // and Share. Click Transcribe for a plain transcribe (a voice note when it's done), or open its menu to Transcribe As
-// each kind. While it transcribes, the progress sits where Transcribe was. Native's inspector keeps the moments and
-// Details (`MacAudioInspector`); the page shows the moments while the inspector is closed, and always in Verbose style.
+// each kind. While it transcribes, the progress sits where Transcribe was. The window's inspector keeps the moments and
+// Details (`MacAudioInspector`); the page shows the moments while the inspector is closed. Back is the toolbar's.
 
 struct MacAudioDetail: View {
     @EnvironmentObject var app: AppState
     var id: UUID
-    @Environment(\.look) private var look
-    @EnvironmentObject private var nav: NativeNav
+    @EnvironmentObject private var nav: WindowNav
     @ObservedObject private var stages = StageClock.shared
     @State private var note = ""
 
@@ -24,28 +23,19 @@ struct MacAudioDetail: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if look != .native {
-                HStack {
-                    RefinedCircleButton(symbol: "chevron.left", label: "Back to \(NavTrail.shared.backName(app))") { NavTrail.shared.back(app) }
-                        .help("Back to \(NavTrail.shared.backName(app)) (⌘[)")
-                        .uiTarget("audio-back")
-                    Spacer()
-                }
-                .padding(.horizontal, 16).frame(height: 52)
-            }
             ScrollView {
                 if let t {
                     VStack(alignment: .leading, spacing: 22) {
                         header(t)
                         MacAudioPlayer(transcript: t, player: app.player, clock: app.player.clock)
-                        if look != .native || !nav.inspector { MacAudioMoments(transcript: t) }
+                        if !nav.inspector { MacAudioMoments(transcript: t) }
                         notes(t)
                         actions(t)
                         Text(AudioOnlyCopy.transcribeFooter).refinedFont(.meta).foregroundStyle(Refined.mute)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: TranscriptView.column, alignment: .leading)
-                    .padding(.horizontal, 32).padding(.top, look == .native ? 14 : 18).padding(.bottom, 40)
+                    .padding(.horizontal, 32).padding(.top, 14).padding(.bottom, 40)
                     .frame(maxWidth: .infinity)
                 } else {
                     Text("This recording was deleted.").refinedFont(.body).foregroundStyle(Refined.mute).padding(40)

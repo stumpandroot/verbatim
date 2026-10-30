@@ -1,10 +1,9 @@
 import AppKit
 import SwiftUI
 
-// brand: web style
-//
-// Today's page (mockup "Thoughts", section 02): the Thought pad, reworked. The same floating, non-activating panel and
-// size (380 × 540), with the dated title "Thoughts · Mon, Oct 26", a mono time on every thought, arrows to earlier
+// Today's page (mockup "Thoughts", section 02): the Thought pad, reworked, on the refined kit (DESIGN.md §13) in both
+// look settings. The same floating, non-activating panel and size (380 × 540), with the dated serif title
+// "Thoughts · Mon, Oct 26", each thought's time in a card of rows, arrows to earlier
 // days (Next is off on today), the mic, and Copy and Send to <app> for the whole day. Click a thought to edit it;
 // right-click to copy or delete it. No Clear: each day keeps its own page. While the panel is open, a dictation lands
 // on today's page as a thought. The panel never makes Verbose the active app and becomes key only while you edit a
@@ -208,7 +207,6 @@ struct ThoughtPageView: View {
     @ObservedObject var state: ThoughtPageState
     @ObservedObject private var capture = ThoughtCapture.shared
     @ObservedObject private var flow = FlowSettings.shared
-    @Environment(\.look) private var look
     @State private var working = false
     @State private var frontApp = ""
     /// The note as you type it, and the day it belongs to; kept with that day a moment after you stop.
@@ -221,14 +219,7 @@ struct ThoughtPageView: View {
 
     var body: some View {
         let items = page
-        Group {
-            if look == .native {
-                NativeThoughtPage(state: state, items: items, note: $note, frontApp: frontApp, working: working, actionID: $state.actionID,
-                                  copy: { copy(items) }, send: { send(items) })
-            } else {
-                verbose(items)
-            }
-        }
+        page(items)
         .onAppear { updateFront(); loadNote() }
         .onChange(of: state.day) { _, _ in loadNote() }
         .onChange(of: state.mode) { _, _ in loadNote() }
@@ -265,36 +256,41 @@ struct ThoughtPageView: View {
 
     /// The mode switch under the title: Thoughts | Write or dictate.
     private var modeSwitch: some View {
-        SegmentedCapsule(label: "Today's page shows", options: [TodayPageMode.thoughts, .note],
-                         selection: Binding(get: { state.mode }, set: { controller.setMode($0) }),
-                         title: { $0 == .thoughts ? "Thoughts" : "Write or dictate" }, small: true,
-                         target: { $0 == .thoughts ? "page-mode-thoughts" : "page-mode-note" })
+        RefinedSegmented(label: "Today's page shows", options: [(TodayPageMode.thoughts, "Thoughts"), (TodayPageMode.note, "Write or dictate")],
+                         selection: Binding(get: { state.mode }, set: { controller.setMode($0) }))
+            .fixedSize()
+            .background {
+                // The self-test's handles on each half.
+                HStack(spacing: 0) {
+                    Color.clear.uiTarget("page-mode-thoughts")
+                    Color.clear.uiTarget("page-mode-note")
+                }
+                .allowsHitTesting(false)
+            }
+            .uiTarget("page-mode")
     }
 
-    // MARK: Verbose
+    // MARK: The page
 
-    private func verbose(_ items: [Transcript]) -> some View {
+    private func page(_ items: [Transcript]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
-                    Text(state.mode == .note ? "Note" : "Thoughts").font(Ink.mono(12)).foregroundStyle(Ink.dim)
-                    DottedRule().frame(height: 1)
-                    Text(state.mode == .note ? DayPages.count(noteWords, "word", "words") : DayPages.count(items.count, "thought", "thoughts"))
-                        .font(Ink.mono(12)).monospacedDigit().foregroundStyle(Ink.mute)
-                }
                 HStack(alignment: .center) {
-                    WebText.serif(state.mode == .note ? "Note ·" : "Thoughts ·", italic: DayPages.dateTitle(state.day), size: 22).foregroundStyle(Ink.ink)
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                        .accessibilityAddTraits(.isHeader)
-                        .uiTarget("page-title")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(subtitle(items)).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+                        Text((state.mode == .note ? "Note · " : "Thoughts · ") + DayPages.dateTitle(state.day))
+                            .refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                            .accessibilityAddTraits(.isHeader)
+                            .uiTarget("page-title")
+                    }
                     Spacer(minLength: 8)
                     DayArrow(back: true, enabled: true) { state.move(-1) }.uiTarget("page-prev")
                     DayArrow(back: false, enabled: !state.isToday) { state.move(1) }.uiTarget("page-next")
                 }
                 modeSwitch
             }
-            .padding(.horizontal, 18).padding(.top, 26).padding(.bottom, 8)
+            .padding(.horizontal, 18).padding(.top, 26).padding(.bottom, 10)
 
             if state.mode == .note {
                 DayNoteView(day: state.day, note: $note).padding(.horizontal, 14).padding(.bottom, 8)
@@ -304,24 +300,33 @@ struct ThoughtPageView: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(items) { t in
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
+                                if i > 0 { PaperDivider(leading: 64, trailing: 12) }
                                 ThoughtCard(transcript: t, outlined: t.id == capture.lastAdded, state: state, controller: controller).id(t.id)
                             }
                         }
+                        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
                         .padding(.horizontal, 12).padding(.vertical, 4)
                     }
                     .onAppear { if let last = items.last { proxy.scrollTo(last.id, anchor: .bottom) } }
                     .onChange(of: items.count) { _, _ in if let last = items.last { proxy.scrollTo(last.id, anchor: .bottom) } }
                 }
-                Text("Click a thought to edit it. Right-click to copy or delete it.").font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                Text("Click a thought to edit it. Right-click to copy or delete it.").refinedFont(.caption).foregroundStyle(Refined.mute)
                     .padding(.horizontal, 18).padding(.vertical, 6)
                 // Organize: Plan my day over the page (PlanMaker.swift), in its own window.
                 ThoughtPadOrganizeRow(day: state.day, items: items).padding(.horizontal, 14).padding(.bottom, 8)
             }
             bottomBar(items)
         }
-        .background(Ink.paper)
+        .background(Refined.paper)
+        .tint(Refined.accentText)
+    }
+
+    /// "Today · 6 thoughts", or the note's words.
+    private func subtitle(_ items: [Transcript]) -> String {
+        let day = state.isToday ? "Today" : DayPages.listDay(state.day)
+        return day + " \u{00B7} " + (state.mode == .note ? DayPages.count(noteWords, "word", "words") : DayPages.count(items.count, "thought", "thoughts"))
     }
 
     private var noteWords: Int { note.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count }
@@ -331,10 +336,11 @@ struct ThoughtPageView: View {
         state.mode == .note ? !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty : !items.isEmpty
     }
 
+    /// The page's foot, on the card with a hairline above it (it carries text, so never glass).
     private func bottomBar(_ items: [Transcript]) -> some View {
         HStack(spacing: 8) {
             // The note fills from ⌃⌥ dictation and typing; the mic records thoughts.
-            if state.mode == .thoughts { ThoughtMicDisc(size: 38).uiTarget("page-mic") }
+            if state.mode == .thoughts { ThoughtMicDisc(size: 36).uiTarget("page-mic") }
             Picker("Action", selection: $state.actionID) {
                 Text("As is").tag(FlowAction.ID?.none)
                 ForEach(flow.actions) { a in Text(a.name).tag(FlowAction.ID?.some(a.id)) }
@@ -343,13 +349,14 @@ struct ThoughtPageView: View {
             .help("Run a saved action on the whole page before sending")
             Spacer(minLength: 4)
             if working { ProgressView().controlSize(.small) }
-            PillButton(title: "Copy", kind: .line, size: .mini, enabled: hasText(items) && !working) { copy(items) }
+            Button("Copy") { copy(items) }.buttonStyle(RefinedActionStyle()).disabled(!hasText(items) || working)
                 .uiTarget("page-copy")
-            PillButton(title: frontApp.isEmpty ? "Send" : "Send to \(frontApp)", kind: .dark, size: .mini, enabled: hasText(items) && !working) { send(items) }
+            Button(frontApp.isEmpty ? "Send" : "Send to \(frontApp)") { send(items) }
+                .buttonStyle(RefinedActionStyle(kind: .strong)).disabled(!hasText(items) || working)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
-        .background(Ink.bar)
-        .overlay(alignment: .top) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+        .background(Refined.card)
+        .overlay(alignment: .top) { PaperDivider(leading: 0) }
     }
 
     // MARK: Copy and Send
@@ -386,16 +393,16 @@ struct ThoughtPageView: View {
     }
 }
 
-/// A round arrow to the day before or after. Next is off on today.
+/// A round arrow to the day before or after, on the quiet wash. Next is off on today.
 private struct DayArrow: View {
     var back: Bool
     var enabled: Bool
     var action: () -> Void
     var body: some View {
         Image(systemName: back ? "chevron.left" : "chevron.right").font(.system(size: 11, weight: .bold))
-            .foregroundStyle(enabled ? Ink.ink : Ink.faint)
+            .foregroundStyle(enabled ? Refined.ink : Refined.faint)
             .frame(width: 28, height: 28)
-            .overlay(Circle().strokeBorder(enabled ? Ink.ink : Ink.faint, lineWidth: 1.5))
+            .background(Refined.neutral, in: Circle())
             .contentShape(Circle())
             .tapArea { if enabled { action() } }
             .accessibilityElement(children: .ignore)
@@ -405,19 +412,18 @@ private struct DayArrow: View {
     }
 }
 
-/// The microphone on today's page and in the Library: persimmon (system red, flat, in Native: red means recording), and
-/// the Thoughts icon with its live wave while a thought records. Click to start a thought; click again to stop.
+/// The microphone on today's page and By day: the persimmon disc (it starts a recording) with the Thoughts icon in the
+/// fill's ink, and its live wave while a thought records. Click to start a thought; click again to stop.
 struct ThoughtMicDisc: View {
     var size: CGFloat
     @ObservedObject private var capture = ThoughtCapture.shared
-    @Environment(\.look) private var look
     var body: some View {
         ZStack {
-            Circle().fill(look == .native ? NativeInk.record : Ink.persimmon)
+            Circle().fill(Refined.persimmon)
             if capture.isRecording {
-                ThoughtMicLevel(live: capture.recorder.live).padding(size * 0.2)
+                ThoughtMicLevel(live: capture.recorder.live, color: Refined.onFill).padding(size * 0.2)
             } else {
-                BrandGlyph(art: .capture, color: Ink.inkFixed, minLineWidth: 1.2).padding(size * 0.24)
+                BrandGlyph(art: .capture, color: Refined.onFill, minLineWidth: 1.2).padding(size * 0.24)
             }
         }
         .frame(width: size, height: size)
@@ -430,10 +436,10 @@ struct ThoughtMicDisc: View {
     }
 }
 
-/// The icon's wave following the mic, in ink on persimmon.
+/// The icon's wave following the mic.
 struct ThoughtMicLevel: View {
     @ObservedObject var live: LiveMeter
-    var color: Color = Ink.inkFixed
+    var color: Color = Refined.onFill
     var body: some View { ThoughtGlyph(level: Double(live.level), color: color, lineWidth: 1.4) }
 }
 
@@ -441,64 +447,39 @@ struct ThoughtMicLevel: View {
 struct ThoughtEmptyPage: View {
     var isToday: Bool
     var play: Bool
-    @Environment(\.look) private var look
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             EmptyDayArt(play: play).frame(maxWidth: 300).padding(.bottom, 8)
                 .frame(maxWidth: .infinity)
-            if look == .native {
-                Text(isToday ? "No Thoughts Yet" : "No Thoughts on This Day").font(.system(size: 15, weight: .semibold))
-            } else {
-                Text(isToday ? "Nothing here yet" : "No thoughts on this day").font(Ink.serif(18)).foregroundStyle(Ink.ink)
-            }
+            Text(isToday ? "Nothing here yet" : "No thoughts on this day").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
             Text(isToday ? "Click the microphone, or press \(Thoughts.hotkey) in any app. Each thought lands here with its time." : "Use the arrows to read another day.")
-                .font(.system(size: 13)).foregroundStyle(look == .native ? Color.secondary : Ink.mute).fixedSize(horizontal: false, vertical: true)
+                .refinedFont(.body).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 18).padding(.top, 8)
         .uiTarget("page-empty")
     }
 }
 
-/// One thought on the page: its time in mono, its words (or "Saved as audio. Transcribing…", or Transcribe again).
-/// Click to edit; right-click to copy or delete.
+/// One thought on the page, a row in the day's card: its time, its words (or "Saved as audio. Transcribing…", or
+/// Transcribe again). The thought added last, and the one being edited, take the persimmon tint. Click to edit;
+/// right-click to copy or delete.
 struct ThoughtCard: View {
     let transcript: Transcript
     var outlined: Bool
     @ObservedObject var state: ThoughtPageState
     let controller: ThoughtPadController
-    @Environment(\.look) private var look
 
     var body: some View {
         let t = transcript
         let editing = state.editing == t.id
-        let shape = RoundedRectangle(cornerRadius: look == .native ? 14 : Radius.row, style: .continuous)
-        Group {
-            if look == .native {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(Thoughts.time(t.createdAt, native: true)).font(.system(size: 12)).monospacedDigit().foregroundStyle(.secondary)   // brand: native
-                    ThoughtWords(transcript: t, editing: editing, state: state, controller: controller)
-                }
-                .padding(.horizontal, 14).padding(.vertical, 11)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(PremiumInk.card, in: shape)
-                .overlay(shape.strokeBorder(outlined || editing ? NativeInk.accent : Color.clear, lineWidth: 1.5))   // brand: native
-            } else {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(Thoughts.time(t.createdAt, native: false)).font(Ink.mono(12.5)).monospacedDigit().foregroundStyle(Ink.mute)
-                        .frame(width: 42, alignment: .leading)
-                    ThoughtWords(transcript: t, editing: editing, state: state, controller: controller)
-                }
-                .padding(.horizontal, 12).padding(.vertical, 11)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // Flat on the paper with a hairline under it (DESIGN.md §14.5); only the thought added last (or the one
-                // being edited) takes the reader fill and the 1.5 pt ink outline.
-                .background(outlined || editing ? Ink.reader : Color.clear, in: shape)
-                .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5).opacity(outlined || editing ? 1 : 0))
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(Ink.hairline).frame(height: 1).opacity(outlined || editing ? 0 : 1).allowsHitTesting(false)
-                }
-            }
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(Thoughts.time(t.createdAt, native: true)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
+                .frame(width: 42, alignment: .leading)
+            ThoughtWords(transcript: t, editing: editing, state: state, controller: controller)
         }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(outlined || editing ? Refined.persimmonTint : Color.clear)
         .contextMenu {
             if t.status == .ready { Button("Edit") { startEditing() } }
             Button("Copy") { Paster.copy(Thoughts.words(t)) }.disabled(Thoughts.words(t).isEmpty)
@@ -526,7 +507,6 @@ struct ThoughtWords: View {
     @ObservedObject var state: ThoughtPageState
     let controller: ThoughtPadController
     var fontSize: CGFloat = 13.5
-    @Environment(\.look) private var look
 
     var body: some View {
         let t = transcript
@@ -535,22 +515,17 @@ struct ThoughtWords: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.mini)
-                    Text("Saved as audio. Transcribing…").font(.system(size: fontSize))
-                        .foregroundStyle(look == .native ? Color.secondary : Ink.dim)
+                    Text("Saved as audio. Transcribing…").font(.system(size: fontSize)).foregroundStyle(Refined.dim)
                 }
-                if look != .native {
-                    Text("You can keep going; the words fill in here.").font(.system(size: 12)).foregroundStyle(Ink.mute)
-                }
+                Text("You can keep going; the words fill in here.").font(.system(size: 12)).foregroundStyle(Refined.mute)
             }
         case .failed:
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    BrandGlyph(art: .iconAttention, color: look == .native ? NativeInk.danger : Ink.danger, minLineWidth: 1.2).frame(width: 13, height: 13)
-                    Text("Couldn't transcribe it. The audio is kept.").font(.system(size: fontSize))
-                        .foregroundStyle(look == .native ? NativeInk.danger : Ink.danger)
+                    BrandGlyph(art: .iconAttention, color: Refined.ink, minLineWidth: 1.2).frame(width: 13, height: 13)
+                    Text("Couldn't transcribe it. The audio is kept.").font(.system(size: fontSize)).foregroundStyle(Refined.ink)
                 }
-                Text("Transcribe again").font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(look == .native ? NativeInk.accent : Ink.ink).underline(look != .native)
+                Text("Transcribe again").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Refined.accentText)
                     .tapArea { if let app = ThoughtCapture.shared.app { app.retry(t) } }
                     .accessibilityAddTraits(.isButton)
             }
@@ -560,7 +535,7 @@ struct ThoughtWords: View {
             } else {
                 let w = Thoughts.words(t)
                 Text(w.isEmpty ? "Nothing heard" : w).font(.system(size: fontSize))
-                    .foregroundStyle(w.isEmpty ? (look == .native ? Color.secondary : Ink.mute) : (look == .native ? Color.primary : Ink.ink))
+                    .foregroundStyle(w.isEmpty ? Refined.mute : Refined.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -591,97 +566,6 @@ private struct ThoughtEditor: View {
     }
 }
 
-// MARK: - Premium Native
-
-// brand: native begin
-/// Today's page in Premium Native (§13.2): the warm window, white cards, SF Pro, and the persimmon accent. The bottom
-/// bar stays opaque because it carries text.
-private struct NativeThoughtPage: View {
-    @ObservedObject var state: ThoughtPageState
-    var items: [Transcript]
-    @Binding var note: String
-    var frontApp: String
-    var working: Bool
-    @Binding var actionID: FlowAction.ID?
-    var copy: () -> Void
-    var send: () -> Void
-    @ObservedObject private var flow = FlowSettings.shared
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(state.mode == .note ? "Note" : "Thoughts") · \(DayPages.dateTitle(state.day))").font(.system(size: 18, weight: .bold)).lineLimit(1).minimumScaleFactor(0.8)
-                        .accessibilityAddTraits(.isHeader)
-                    Text("\(state.isToday ? "Today" : DayPages.listDay(state.day)) · \(state.mode == .note ? DayPages.count(note.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count, "word", "words") : DayPages.count(items.count, "thought", "thoughts"))")
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 8)
-                HStack(spacing: 0) {
-                    Image(systemName: "chevron.left").frame(width: 30, height: 28).contentShape(Rectangle()).tapArea { state.move(-1) }
-                        .accessibilityLabel("Day before").uiTarget("page-prev")
-                    Image(systemName: "chevron.right").frame(width: 30, height: 28).contentShape(Rectangle())
-                        .foregroundStyle(state.isToday ? .tertiary : .primary)
-                        .tapArea { if !state.isToday { state.move(1) } }
-                        .accessibilityLabel("Day after").uiTarget("page-next")
-                }
-                .font(.system(size: 12, weight: .semibold))
-                .background(Capsule().fill(PremiumInk.card))
-            }
-            .padding(.horizontal, 16).padding(.top, 30).padding(.bottom, 6)
-            Picker("Show", selection: Binding(get: { state.mode }, set: { ThoughtPadController.shared.setMode($0) })) {
-                Text("Thoughts").tag(TodayPageMode.thoughts)
-                Text("Write or Dictate").tag(TodayPageMode.note)
-            }
-            .pickerStyle(.segmented).labelsHidden()
-            .padding(.horizontal, 16).padding(.bottom, 8)
-            .uiTarget("page-mode")
-
-            if state.mode == .note {
-                DayNoteView(day: state.day, note: $note).padding(.horizontal, 14).padding(.bottom, 8)
-            } else if items.isEmpty {
-                ThoughtEmptyPage(isToday: state.isToday, play: state.playEmpty && state.isToday)
-                Spacer(minLength: 0)
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(items) { t in
-                                ThoughtCard(transcript: t, outlined: t.id == ThoughtCapture.shared.lastAdded, state: state,
-                                            controller: ThoughtPadController.shared).id(t.id)
-                            }
-                        }
-                        .padding(.horizontal, 12).padding(.vertical, 4)
-                    }
-                    .onAppear { if let last = items.last { proxy.scrollTo(last.id, anchor: .bottom) } }
-                }
-                ThoughtPadOrganizeRow(day: state.day, items: items).padding(.horizontal, 14)
-            }
-            HStack(spacing: 8) {
-                if state.mode == .thoughts { ThoughtMicDisc(size: 36).uiTarget("page-mic") }
-                Picker("Action", selection: $actionID) {
-                    Text("As Is").tag(FlowAction.ID?.none)
-                    ForEach(flow.actions) { a in Text(a.name).tag(FlowAction.ID?.some(a.id)) }
-                }
-                .labelsHidden().pickerStyle(.menu).frame(maxWidth: 110)
-                Spacer(minLength: 4)
-                if working { ProgressView().controlSize(.small) }
-                let empty = state.mode == .note ? note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty : items.isEmpty
-                Button("Copy", action: copy).buttonStyle(.bordered).disabled(empty || working).uiTarget("page-copy")
-                Button(frontApp.isEmpty ? "Send" : "Send to \(frontApp)", action: send).buttonStyle(.borderedProminent)
-                    .disabled(empty || working).lineLimit(1).fixedSize()
-            }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(PremiumInk.card))
-            .padding(10)
-        }
-        .tint(NativeInk.accent)
-        .background(PremiumInk.window)
-    }
-}
-// brand: native end
-
-
 /// Today's page's Organize (both looks): runs Plan my day over the page's thoughts and opens the plan in its own window
 /// (`ThoughtsPlanWindow`), and once a plan is made, "Plan · made 3:20 PM · 2 new thoughts since". It never runs again
 /// on its own.
@@ -690,7 +574,6 @@ struct ThoughtPadOrganizeRow: View {
     var items: [Transcript]
     @ObservedObject private var center = DayPlanCenter.shared
     @ObservedObject private var capture = ThoughtCapture.shared
-    @Environment(\.look) private var look
 
     var body: some View {
         let store = capture.app?.store
@@ -701,18 +584,25 @@ struct ThoughtPadOrganizeRow: View {
                 let fresh = r.newThoughts(in: items.map(\.id))
                 let at = r.madeAt.map { Formats.style(date: .none, time: .short).string(from: $0) } ?? ""
                 Text("Plan \u{00B7} made \(at)" + (fresh > 0 ? " \u{00B7} \(fresh == 1 ? "1 new thought" : "\(fresh) new thoughts") since" : ""))
-                    .font(.system(size: 12)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.mute)).lineLimit(1)
+                    .refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
                 Spacer(minLength: 4)
-                PillButton(title: "Open Plan", kind: .line, size: .mini) { open() }
+                Button("Open plan") { open() }.buttonStyle(RefinedActionStyle())
                     .uiTarget("page-open-plan")
             } else {
                 if let why = center.failure(day, .thoughts) {
-                    Text(why).font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(2)
+                    Text(why).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(2)
                 }
                 Spacer(minLength: 4)
                 if running { ProgressView().controlSize(.small) }
-                PillButton(title: "Organize", kind: .line, size: .mini, icon: .iconPlanDay, enabled: !running && !DayPlanCenter.lines(items).isEmpty) { organize() }
-                    .uiTarget("page-organize")
+                Button { organize() } label: {
+                    HStack(spacing: 6) {
+                        IconGlyph(art: .iconPlanDay, size: 14, color: Refined.ink)
+                        Text("Organize")
+                    }
+                }
+                .buttonStyle(RefinedActionStyle())
+                .disabled(running || DayPlanCenter.lines(items).isEmpty)
+                .uiTarget("page-organize")
             }
         }
     }

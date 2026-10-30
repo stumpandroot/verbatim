@@ -2,13 +2,12 @@ import SwiftUI
 import AppKit
 import AVFoundation
 
-// brand: web style
-//
-// Ask your library on the Mac (mockup "Library features", section 2a and 2c): the ⌘K panel, "Search or ask", with a
-// Search and Ask switch, scope chips, the answer with numbered citation chips, Copy, and Save as recipe; the sidebar's
-// Search or ask field that opens it; and Make › Ask, with Questions (ask here, and recent questions) and Recipes
-// (saved questions, run now or weekly, and their digests). Search keeps the Library's search: it filters the Library
-// and lists matching passages. Built from the website-style kit, which draws Premium Native too.
+// Ask your library on the Mac (mockup "Library features", section 2a and 2c), on the refined kit (DESIGN.md §13) in
+// both look settings: the ⌘K panel, "Search or ask", with a Search and Ask switch, scope chips, the answer with
+// numbered citation chips, Copy, and Save as recipe; and Make › Ask, with Questions (ask here, and recent questions)
+// and Recipes (saved questions, run now or weekly, and their digests). The toolbar's search field is the window's one
+// search field; Return there asks. Search keeps the Library's search: it filters the Library and lists matching
+// passages. A citation's play disc is sage, the playback color.
 
 enum AskMode: String { case search, ask }
 enum AskPane: String { case questions, recipes }
@@ -26,7 +25,7 @@ final class AskNav: ObservableObject {
     /// The recipe being made or edited (New recipe, Save as recipe, Schedule).
     @Published var editing: RecipeDraft? = nil
 
-    /// Opens the panel (⌘K, the sidebar's field, Return in the toolbar's search field), optionally on a question that
+    /// Opens the panel (⌘K, Edit › Find in Transcripts, Return in the toolbar's search field), optionally on a question that
     /// it asks at once.
     func open(mode: AskMode? = nil, query: String? = nil, askNow: Bool = false) {
         if let mode { self.mode = mode }
@@ -112,34 +111,7 @@ enum AskOpen {
         AskPlayer.shared.stop()
         AskNav.shared.close()
         app.focusSegment = s.segmentId
-        if let t = app.store.transcript(s.transcriptId) { NativeNav.shared.play(t, app: app) } else { app.go(.transcript(s.transcriptId)) }
-    }
-}
-
-// MARK: - The sidebar's field
-
-/// Verbose style's sidebar field, "Search or ask" with its ⌘K keycap: a click opens the panel.
-struct AskSidebarField: View {
-    @State private var hover = false
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.mute)
-            Text("Search or ask").font(.system(size: 13)).foregroundStyle(Ink.mute)
-            Spacer(minLength: 4)
-            Keycap(keys: "⌘K", size: 12).foregroundStyle(Ink.mute)
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 32)
-        .background(hover ? Ink.cardHover : Ink.card, in: Capsule())
-        .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5))
-        .contentShape(Capsule())
-        .onHover { hover = $0 }
-        .tapArea { AskNav.shared.open() }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Search or ask")
-        .accessibilityHint("Opens the search and ask panel. Keyboard shortcut Command K.")
-        .accessibilityAddTraits(.isButton)
-        .uiTarget("side-ask-field")
+        if let t = app.store.transcript(s.transcriptId) { WindowNav.shared.play(t, app: app) } else { app.go(.transcript(s.transcriptId)) }
     }
 }
 
@@ -149,21 +121,20 @@ struct AskSidebarField: View {
 struct AskPanelLayer: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var nav = AskNav.shared
-    @Environment(\.look) private var look
     @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
         ZStack(alignment: .top) {
             if nav.panelOpen {
-                (look == .native ? Color.black.opacity(0.18) : Ink.ink.opacity(0.28))
+                Refined.onFill.opacity(0.24)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture { nav.close() }
                     .accessibilityHidden(true)
                     .transition(.opacity)
                 AskPanel()
-                    .frame(width: look == .native ? 760 : 780)
-                    .padding(.top, look == .native ? 70 : 54)
+                    .frame(width: 760)
+                    .padding(.top, 64)
                     .transition(limitMotion ? .opacity : .opacity.combined(with: .offset(y: -8)))
             }
         }
@@ -175,22 +146,21 @@ struct AskPanel: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var nav = AskNav.shared
     @ObservedObject private var center = AskCenter.shared
-    @Environment(\.look) private var look
     @FocusState private var focused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             inputRow
-            Rectangle().fill(look == .native ? Color.primary.opacity(0.08) : Ink.hairline).frame(height: 1)   // brand: native
+            PaperDivider(leading: 0)
             // As tall as the result, up to 460 pt; past that it scrolls.
             ViewThatFits(in: .vertical) {
                 panelContent
                 ScrollView { panelContent }
             }
             .frame(maxHeight: 460)
-            if nav.mode == .ask, look != .native { recipesStrip }
+            if nav.mode == .ask { recipesStrip }
         }
-        .background(panelSurface)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.record))
         .onAppear { focused = true }
         .onExitCommand { nav.close() }
         .onChange(of: nav.query) { _, q in if nav.mode == .search { app.search = q } }
@@ -214,36 +184,17 @@ struct AskPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder private var panelSurface: some View {
-        if look == .native {
-            // Spotlight's surface: the system glass on macOS 26 (it carries its own depth), the content color before.
-            if #available(macOS 26, *) {
-                Color.clear.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))   // brand: native
-            } else {
-                RoundedRectangle(cornerRadius: 22, style: .continuous).fill(PremiumInk.card)
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(NativeInk.separator, lineWidth: 0.5))
-            }
-        } else {
-            RoundedRectangle(cornerRadius: Radius.record, style: .continuous).fill(Ink.reader)
-                .inkEdge(outline: true, shadow: CGSize(width: 7, height: 9), radius: Radius.record)
-        }
-    }
-
     private var inputRow: some View {
         HStack(spacing: 12) {
-            if look == .native {
-                Image(systemName: nav.mode == .ask ? "questionmark.bubble" : "magnifyingglass").font(.system(size: 18)).foregroundStyle(NativeInk.accent)   // brand: native
-            } else {
-                IconGlyph(art: nav.mode == .ask ? .iconAsk : .iconNotes, size: 22, color: Ink.ink)
-            }
+            IconGlyph(art: nav.mode == .ask ? .iconAsk : .iconNotes, size: 22, color: Refined.accentText)
             TextField(nav.mode == .ask ? "Ask a question about your recordings" : "Find the line you need", text: $nav.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 19))
-                .foregroundStyle(Ink.ink)
+                .foregroundStyle(Refined.ink)
                 .focused($focused)
                 .onSubmit { submit() }
                 .uiTarget("ask-field")
-            if look == .native { nativeModeMenu } else { modeSwitch }
+            modeSwitch
         }
         .padding(.horizontal, 20)
         .frame(height: 62)
@@ -261,58 +212,37 @@ struct AskPanel: View {
         }
     }
 
-    /// Verbose style: Search and Ask in an ink segmented capsule.
+    /// Search and Ask, the kit's segmented control.
     private var modeSwitch: some View {
-        HStack(spacing: 2) {
-            ForEach([AskMode.search, .ask], id: \.self) { m in
-                Text(m == .search ? "Search" : "Ask")
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(nav.mode == m ? Ink.paper : Ink.ink)
-                    .padding(.horizontal, 12).frame(height: 26)
-                    .background(Capsule().fill(nav.mode == m ? Ink.ink : Color.clear))
-                    .contentShape(Capsule())
-                    .tapArea { nav.mode = m }
-                    .accessibilityAddTraits(nav.mode == m ? [.isButton, .isSelected] : .isButton)
-                    .uiTarget("ask-mode-\(m.rawValue)")
+        RefinedSegmented(label: "Search or ask", options: [(AskMode.search, "Search"), (AskMode.ask, "Ask")], selection: $nav.mode)
+            .fixedSize()
+            .background {
+                // The self-test's handles on each half.
+                HStack(spacing: 0) {
+                    Color.clear.uiTarget("ask-mode-search")
+                    Color.clear.uiTarget("ask-mode-ask")
+                }
+                .allowsHitTesting(false)
             }
-        }
-        .padding(3)
-        .background(Capsule().fill(Ink.chip))
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Search or ask")
     }
-
-    // brand: native begin
-    /// Premium Native: a pop-up button, "Ask" or "Search".
-    private var nativeModeMenu: some View {
-        Picker("", selection: $nav.mode) {
-            Text("Ask").tag(AskMode.ask)
-            Text("Search").tag(AskMode.search)
-        }
-        .pickerStyle(.menu)
-        .labelsHidden()
-        .fixedSize()
-        .uiTarget("ask-mode-menu")
-    }
-    // brand: native end
 
     /// Search: the matching passages (the Library behind the panel is filtered the same way). Return shows the Library.
     @ViewBuilder private var searchBody: some View {
         let q = nav.query.trimmingCharacters(in: .whitespaces)
         if q.count < 2 {
             Text("Type at least two letters to find matching lines. Press Return to see them in the Library.")
-                .font(.system(size: 13.5)).foregroundStyle(Ink.dim)
+                .refinedFont(.body).foregroundStyle(Refined.dim)
         } else {
             let list = nav.scope.isAll ? app.store.live : app.store.live.filter { nav.scope.includes($0) }
             let hits = LibrarySearch.passages(list.sorted { $0.createdAt > $1.createdAt }, query: q, perTranscript: 3, cap: 60)
             if hits.isEmpty {
                 Text("No passages match \u{201C}\(q)\u{201D}. Switch to Ask to ask about it in your own words.")
-                    .font(.system(size: 13.5)).foregroundStyle(Ink.dim)
+                    .refinedFont(.body).foregroundStyle(Refined.dim)
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(hits.prefix(8)) { hit in
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(hit.transcript.title).font(look == .native ? .system(size: 14, weight: .semibold) : Ink.serif(16)).foregroundStyle(Ink.ink).lineLimit(1)
+                            Text(hit.transcript.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
                             ForEach(hit.lines) { s in
                                 AskSearchLine(transcript: hit.transcript, segment: s, query: q)
                             }
@@ -323,29 +253,27 @@ struct AskPanel: View {
         }
     }
 
-    /// Verbose style: your recipes, one tap to run (the answer opens in Ask › Recipes).
+    /// Your recipes, one click to run (the answer opens in Ask › Recipes).
     @ViewBuilder private var recipesStrip: some View {
         let recipes = app.store.recipes
         if !recipes.isEmpty {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text("Recipes").font(Ink.mono(12.5)).foregroundStyle(Ink.mute)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(recipes) { r in
-                            FilterChip(title: r.question, selected: false) {
-                                AskRecipeCenter.shared.run(r)
-                                AskNav.shared.pane = .recipes
-                                AskNav.shared.selectedRecipe = r.id
-                                nav.close()
-                                app.go(.ask)
-                            }
+            HStack(alignment: .center, spacing: 10) {
+                Text("Recipes").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+                RefinedChipRow(label: "Recipes") {
+                    ForEach(recipes) { r in
+                        RefinedChip(title: r.question, selected: false) {
+                            AskRecipeCenter.shared.run(r)
+                            AskNav.shared.pane = .recipes
+                            AskNav.shared.selectedRecipe = r.id
+                            nav.close()
+                            app.go(.ask)
                         }
                     }
                 }
             }
-            .padding(.horizontal, 20).padding(.vertical, 12)
-            .background(Ink.paper.opacity(0.6))
-            .overlay(alignment: .top) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+            .padding(.horizontal, 20).padding(.vertical, 10)
+            .background(Refined.paper)
+            .overlay(alignment: .top) { PaperDivider(leading: 0) }
         }
     }
 }
@@ -359,12 +287,12 @@ private struct AskSearchLine: View {
     @State private var hover = false
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(AskFormat.time(segment.start)).font(Ink.mono(12)).foregroundStyle(Ink.mute).frame(width: 48, alignment: .leading)
-            Text(segment.text).font(.system(size: 13.5)).foregroundStyle(Ink.ink).lineLimit(2)
+            Text(AskFormat.time(segment.start)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).frame(width: 48, alignment: .leading)
+            Text(segment.text).refinedFont(.rowTitle).foregroundStyle(Refined.ink).lineLimit(2)
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4).padding(.horizontal, 6)
-        .background(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(hover ? Ink.wash : Color.clear))
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(hover ? Refined.neutral : Color.clear))
         .contentShape(Rectangle())
         .onHover { hover = $0 }
         .tapArea {
@@ -383,29 +311,21 @@ private struct AskSearchLine: View {
 struct AskScopeChips: View {
     @Binding var scope: AskScope
     @EnvironmentObject var app: AppState
-    @Environment(\.look) private var look
 
     var body: some View {
-        HStack(alignment: .center, spacing: 6) {
-            if look != .native { Text("In").font(Ink.mono(12.5)).foregroundStyle(Ink.mute).padding(.trailing, 4) }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    chip("All", scope.isAll, id: "all") { scope.tapAll() }
-                    chip("This week", scope.range == .thisWeek, id: "week") { scope.tapWeek() }
-                    chip("Thoughts", scope.source == .thoughts, id: "thoughts") { scope.tap(.thoughts) }
-                    chip("Meetings", scope.source == .meetings, id: "meetings") { scope.tap(.meetings) }
-                    ForEach(app.store.projects) { p in
-                        chip(p.name, scope.source == .project(p.id), id: "project") { scope.tap(.project(p.id)) }
-                    }
-                }
+        RefinedChipRow(label: "Where to look") {
+            chip("All", scope.isAll, id: "all") { scope.tapAll() }
+            chip("This week", scope.range == .thisWeek, id: "week") { scope.tapWeek() }
+            chip("Thoughts", scope.source == .thoughts, id: "thoughts") { scope.tap(.thoughts) }
+            chip("Meetings", scope.source == .meetings, id: "meetings") { scope.tap(.meetings) }
+            ForEach(app.store.projects) { p in
+                chip(p.name, scope.source == .project(p.id), id: "project") { scope.tap(.project(p.id)) }
             }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Where to look")
     }
 
     private func chip(_ title: String, _ on: Bool, id: String, _ action: @escaping () -> Void) -> some View {
-        FilterChip(title: look == .native ? NativeText.titleCase(title) : title, selected: on, small: true, action: action)
+        RefinedChip(title: title, selected: on, action: action)
             .uiTarget("ask-scope-\(id)")
     }
 }
@@ -420,18 +340,17 @@ struct AskResultBody: View {
     var context: AskContext
     @ObservedObject private var center = AskCenter.shared
     @ObservedObject private var nav = AskNav.shared
-    @Environment(\.look) private var look
 
     var body: some View {
         switch center.phase {
         case .idle:
             Text(nav.query.isEmpty ? "Ask in plain words, like \u{201C}What did Alex want changed on the homepage?\u{201D} Verbose finds the passages first, then answers on this Mac with Apple Intelligence."
                  : "Press Return to ask.")
-                .font(.system(size: 13.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
+                .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
         case .finding, .answering:
             HStack(spacing: 10) {
                 ProgressView().controlSize(.small)
-                Text(center.phase == .finding ? "Finding passages…" : "Answering from the passages…").font(.system(size: 13.5)).foregroundStyle(Ink.dim)
+                Text(center.phase == .finding ? "Finding passages…" : "Answering from the passages…").refinedFont(.body).foregroundStyle(Refined.dim)
             }
         case .done:
             if let r = center.result { AskResultView(result: r, context: context) }
@@ -444,7 +363,6 @@ struct AskResultView: View {
     var result: AskResult
     var context: AskContext
     @EnvironmentObject var app: AppState
-    @Environment(\.look) private var look
     @AppStorage(RecipesSetting.key) private var showRecipes = false
     private var hasRecipes: Bool { !app.store.recipes.isEmpty }
     @State private var copied = false
@@ -453,14 +371,12 @@ struct AskResultView: View {
         VStack(alignment: .leading, spacing: 14) {
             if let a = result.answer, result.state == .answered {
                 AskAnswerText(answer: a)
-                if look == .native { AskCitationRows(sources: a.citations) } else { AskCitationChips(sources: a.citations) }
+                AskCitationChips(sources: a.citations)
             } else {
                 Text(result.message(scopeLabel: result.scope.label(projects: projectNames)))
-                    .font(.system(size: 14)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
+                    .refinedFont(.body).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
                     .uiTarget("ask-message")
-                if !result.found.isEmpty {
-                    if look == .native { AskCitationRows(sources: result.found) } else { AskCitationChips(sources: result.found) }
-                }
+                if !result.found.isEmpty { AskCitationChips(sources: result.found) }
             }
             footer
         }
@@ -471,25 +387,32 @@ struct AskResultView: View {
     private var footer: some View {
         HStack(alignment: .center, spacing: 8) {
             if result.state == .answered {
-                Text(result.footer(native: look == .native)).font(.system(size: 12.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
-            } else if look != .native, result.state == .searchOnly {
-                Text("Found on this \(result.device). Nothing leaves it.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                Text(result.footer(native: false)).refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+            } else if result.state == .searchOnly {
+                Text("Found on this \(result.device). Nothing leaves it.").refinedFont(.meta).foregroundStyle(Refined.dim)
             }
             Spacer(minLength: 8)
-            PillButton(title: copied ? "✓ Copied" : "Copy", kind: .line, size: .mini, icon: copied ? nil : .iconCopy) {
+            Button {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(result.copyText, forType: .string)
                 copied = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { copied = false }
+            } label: {
+                HStack(spacing: 6) {
+                    if !copied { IconGlyph(art: .iconCopy, size: 13, color: Refined.ink) }
+                    Text(copied ? "\u{2713} Copied" : "Copy")
+                }
             }
+            .buttonStyle(RefinedActionStyle())
             .uiTarget("ask-copy")
             if context != .digest, RecipesSetting.shows(stored: showRecipes, hasRecipes: hasRecipes) {
-                PillButton(title: "Save as recipe", kind: .line, size: .mini) { AskNav.shared.saveAsRecipe(result) }
+                Button("Save as recipe") { AskNav.shared.saveAsRecipe(result) }
+                    .buttonStyle(RefinedActionStyle())
                     .uiTarget("ask-save-recipe")
             }
         }
         .padding(.top, 10)
-        .overlay(alignment: .top) { Rectangle().fill(look == .native ? Color.primary.opacity(0.07) : Ink.hairline).frame(height: 1) }   // brand: native
+        .overlay(alignment: .top) { PaperDivider(leading: 0) }
     }
 }
 
@@ -497,22 +420,21 @@ struct AskResultView: View {
 struct AskAnswerText: View {
     var answer: AskAnswer
     var size: CGFloat = 15
-    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(answer.blocks.enumerated()), id: \.offset) { _, b in
                 switch b {
                 case .heading(let h):
-                    Text(h).font(look == .native ? .system(size: size, weight: .semibold) : Ink.serif(size + 3)).foregroundStyle(Ink.ink)
+                    Text(h).font(.system(size: size + 3, design: .serif)).foregroundStyle(Refined.ink)
                         .padding(.top, 4).accessibilityAddTraits(.isHeader)
                 case .paragraph(let s):
-                    Text(attributed(s)).font(.system(size: size)).foregroundStyle(Ink.ink).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
+                    Text(attributed(s)).font(.system(size: size)).foregroundStyle(Refined.ink).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 case .bullet(let s):
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•").font(.system(size: size)).foregroundStyle(Ink.dim)
-                        Text(attributed(s)).font(.system(size: size)).foregroundStyle(Ink.ink).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
+                        Text("•").font(.system(size: size)).foregroundStyle(Refined.dim)
+                        Text(attributed(s)).font(.system(size: size)).foregroundStyle(Refined.ink).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
                             .textSelection(.enabled)
                     }
                 }
@@ -529,15 +451,9 @@ struct AskAnswerText: View {
             for n in s.cites {
                 out += AttributedString("\u{2009}")
                 var m = AttributedString("\u{2009}\(n)\u{2009}")
-                if look == .native {
-                    m.font = .system(size: size - 3, weight: .semibold)
-                    m.foregroundColor = NativeInk.accent   // brand: native
-                    m.backgroundColor = NativeInk.accent.opacity(0.12)   // brand: native
-                } else {
-                    m.font = Ink.mono(12)
-                    m.foregroundColor = Ink.dim
-                    m.backgroundColor = Ink.chip
-                }
+                m.font = .system(size: max(12, size - 3), weight: .semibold).monospacedDigit()
+                m.foregroundColor = Refined.dim
+                m.backgroundColor = Refined.neutral
                 out += m
             }
         }
@@ -545,8 +461,8 @@ struct AskAnswerText: View {
     }
 }
 
-/// Verbose style: neutral chips, number, play, title, and time. A click plays from that time here (the one playing
-/// takes the sage playing wash); right-click opens the transcript at the line.
+/// Citations as chips: the number, the sage play disc, the title, and the time. A click plays from that time here
+/// (the one playing takes the sage playing wash); right-click opens the transcript at the line.
 struct AskCitationChips: View {
     var sources: [AskSource]
     @EnvironmentObject var app: AppState
@@ -567,21 +483,19 @@ struct AskCitationChip: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text("\(source.number)").font(Ink.mono(12)).foregroundStyle(Ink.dim)
-                .frame(minWidth: 18, minHeight: 18)
-                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1))
+            Text("\(source.number)").refinedFont(.meta, weight: .semibold).monospacedDigit().foregroundStyle(Refined.dim)
+                .frame(minWidth: 16)
             ZStack {
-                Circle().fill(Ink.ink)
-                ArtIcon(art: playing ? .iconPause : .iconPlay, size: 9, lineWidth: 1.3).foregroundStyle(Ink.paper)
+                Circle().fill(Refined.sage)
+                IconGlyph(art: playing ? .iconPause : .iconPlay, size: 9, color: Refined.onFill)
             }
             .frame(width: 18, height: 18)
-            Text(source.title).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
-            Text(AskFormat.time(source.start)).font(Ink.mono(12)).foregroundStyle(Ink.dim)
+            Text(source.title).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+            Text(AskFormat.time(source.start)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.dim)
         }
-        .padding(.leading, 6).padding(.trailing, 12)
-        .frame(height: 32)
-        .background(Capsule().fill(playing ? Ink.playing : (hover ? Ink.cardHover : Ink.card)))
-        .overlay(Capsule().strokeBorder(playing ? Ink.ink : Ink.hairline, lineWidth: playing ? 1.5 : 1))
+        .padding(.leading, 8).padding(.trailing, 12)
+        .frame(height: 30)
+        .background(Capsule().fill(playing ? Refined.playing : (hover ? Refined.neutral : Refined.stripe)))
         .contentShape(Capsule())
         .onHover { hover = $0 }
         .tapArea { if !AskPlayer.shared.toggle(source, store: app.store) { AskOpen.transcript(source, app: app) } }
@@ -598,57 +512,6 @@ struct AskCitationChip: View {
         .uiTarget("ask-cite-\(source.number)")
     }
 }
-
-// brand: native begin
-/// Premium Native: citations as rows in one white box, number, title, date, and a play pill with the time.
-struct AskCitationRows: View {
-    var sources: [AskSource]
-    @EnvironmentObject var app: AppState
-    @ObservedObject private var player = AskPlayer.shared
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(sources.enumerated()), id: \.element.id) { i, s in
-                if i > 0 { Divider().padding(.leading, 44) }
-                row(s)
-            }
-        }
-        .padding(.vertical, 2)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(PremiumInk.card))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(NativeInk.separator, lineWidth: 0.5))
-    }
-
-    private func row(_ s: AskSource) -> some View {
-        let on = player.playing == s.id
-        return HStack(spacing: 12) {
-            Text("\(s.number)").font(.system(size: 12, weight: .semibold)).monospacedDigit().foregroundStyle(.secondary)
-                .frame(width: 22, height: 22)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(s.title).font(.system(size: 13)).foregroundStyle(.primary).lineLimit(1)
-                Text(s.createdAt.formatted(.dateTime.weekday(.wide).month(.wide).day())).font(.system(size: 11.5)).foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 8)
-            HStack(spacing: 4) {
-                Image(systemName: on ? "pause.fill" : "play.fill").font(.system(size: 9))
-                Text(AskFormat.time(s.start)).font(.system(size: 12, weight: .semibold)).monospacedDigit()
-            }
-            .padding(.horizontal, 9).frame(height: 24)
-            .background(Capsule().fill(on ? NativeInk.accent.opacity(0.18) : NativeInk.bordered))
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .contentShape(Rectangle())
-        .tapArea { if !AskPlayer.shared.toggle(s, store: app.store) { AskOpen.transcript(s, app: app) } }
-        .contextMenu {
-            Button("Open Transcript at \(AskFormat.time(s.start))") { AskOpen.transcript(s, app: app) }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Source \(s.number), \(s.title), at \(AskFormat.time(s.start))")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: "Open transcript") { AskOpen.transcript(s, app: app) }
-        .uiTarget("ask-cite-\(s.number)")
-    }
-}
-// brand: native end
 
 /// Lays chips in rows that wrap.
 struct AskFlow: Layout {
@@ -688,39 +551,48 @@ struct AskView: View {
         let pane: AskPane = recipes ? nav.pane : .questions
         return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                PageTitle(title: "Ask", count: recipes ? AskResult.plural(app.store.recipes.count, "recipe", "recipes") : nil,
-                          lede: pane == .questions ? "Ask about your recordings. Verbose finds the passages first, then answers on this Mac."
-                                                   : "Questions you ask again. Run one now, or schedule it weekly.") {
-                    HStack(spacing: 6) {
-                        if recipes {
-                            FilterChip(title: "Questions", selected: pane == .questions) { nav.pane = .questions }.uiTarget("ask-pane-questions")
-                            FilterChip(title: "Recipes", selected: pane == .recipes) { nav.pane = .recipes }.uiTarget("ask-pane-recipes")
-                            PillButton(title: "New recipe", kind: .dark, size: .mini, icon: .webPlus) { nav.editing = RecipeDraft(question: "", scope: nav.scope) }
-                                .uiTarget("ask-new-recipe")
-                        }
-                        Menu {
-                            Toggle("Show Recipes", isOn: $showRecipes)
-                                .disabled(!app.store.recipes.isEmpty)
-                        } label: {
-                            Image(systemName: "ellipsis").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.ink)
-                                .frame(width: 28, height: 28)
-                                .overlay(Circle().strokeBorder(Ink.ink, lineWidth: 1.5))
-                                .contentShape(Circle())
-                        }
-                        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-                        .help("Recipes: questions you save and run again, now or every week")
-                        .accessibilityLabel("More")
-                        .uiTarget("ask-more")
+                RefinedPageHeader(title: "Ask", count: recipes ? AskResult.plural(app.store.recipes.count, "recipe", "recipes") : nil,
+                                  lede: pane == .questions ? "Ask about your recordings. Verbose finds the passages first, then answers on this Mac."
+                                                           : "Questions you ask again. Run one now, or schedule it weekly.") {
+                    if recipes {
+                        RefinedSegmented(label: "Ask view", options: [(AskPane.questions, "Questions"), (AskPane.recipes, "Recipes")], selection: $nav.pane)
+                            .fixedSize()
+                            .background {
+                                HStack(spacing: 0) {
+                                    Color.clear.uiTarget("ask-pane-questions")
+                                    Color.clear.uiTarget("ask-pane-recipes")
+                                }
+                                .allowsHitTesting(false)
+                            }
+                        Button { nav.editing = RecipeDraft(question: "", scope: nav.scope) } label: { Label("New recipe", systemImage: "plus") }
+                            .buttonStyle(RefinedActionStyle(kind: .strong))
+                            .uiTarget("ask-new-recipe")
                     }
+                    Menu {
+                        Toggle("Show Recipes", isOn: $showRecipes)
+                            .disabled(!app.store.recipes.isEmpty)
+                    } label: {
+                        Image(systemName: "ellipsis").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.ink)
+                            .frame(width: 30, height: 30)
+                            .background(Refined.neutral, in: Circle())
+                            .contentShape(Circle())
+                    }
+                    .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+                    .help("Recipes: questions you save and run again, now or every week")
+                    .accessibilityLabel("More")
+                    .uiTarget("ask-more")
                 }
                 switch pane {
                 case .questions: AskQuestionsPane()
                 case .recipes: AskRecipesPane()
                 }
             }
-            .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, 40)
+            .padding(.horizontal, 40).padding(.top, 18).padding(.bottom, 40)
             .frame(maxWidth: 1180, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .softScrollEdges(.top)
+        .background(Refined.paper)
         .sheet(item: $nav.editing) { d in RecipeEditorSheet(draft: d).environmentObject(app) }
     }
 }
@@ -730,44 +602,43 @@ struct AskQuestionsPane: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var nav = AskNav.shared
     @ObservedObject private var center = AskCenter.shared
-    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 12) {
-                    if look == .native {
-                        Image(systemName: "questionmark.bubble").font(.system(size: 17)).foregroundStyle(NativeInk.accent)   // brand: native
-                    } else {
-                        IconGlyph(art: .iconAsk, size: 20, color: Ink.ink)
-                    }
+                    IconGlyph(art: .iconAsk, size: 20, color: Refined.accentText)
                     TextField("Ask a question about your recordings", text: $nav.query)
-                        .textFieldStyle(.plain).font(.system(size: 17)).foregroundStyle(Ink.ink)
+                        .textFieldStyle(.plain).font(.system(size: 17)).foregroundStyle(Refined.ink)
                         .onSubmit { nav.mode = .ask; nav.ask() }
                         .uiTarget("ask-screen-field")
-                    PillButton(title: "Ask", kind: .dark, size: .mini, enabled: !nav.query.trimmingCharacters(in: .whitespaces).isEmpty) { nav.ask() }
+                    Button("Ask") { nav.ask() }
+                        .buttonStyle(RefinedActionStyle(kind: .strong))
+                        .disabled(nav.query.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .refinedFieldBox()
                 AskScopeChips(scope: $nav.scope)
                 AskResultBody(context: .screen)
             }
             .padding(20)
             .modifier(TemplateCardSurface())
             if !center.history.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    DayHeader(text: "Recent questions · \(center.history.count)").padding(.bottom, 2)
-                    ForEach(center.history) { r in
-                        FlatRowButton(selected: center.result?.id == r.id, action: { nav.query = r.question; nav.scope = r.scope; center.show(r) }) { _ in
+                PaperGroup("Recent questions · \(center.history.count)") {
+                    ForEach(Array(center.history.enumerated()), id: \.element.id) { i, r in
+                        if i > 0 { PaperDivider(leading: 48, trailing: 14) }
+                        PaperRowButton(selected: center.result?.id == r.id, action: { nav.query = r.question; nav.scope = r.scope; center.show(r) }) {
                             HStack(spacing: 12) {
-                                IconGlyph(art: .iconAsk, size: 16, color: Ink.ink)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(r.question).font(.system(size: 14.5, weight: .medium)).foregroundStyle(Ink.ink).lineLimit(1)
+                                IconSquare(art: .iconAsk, hue: .neutral)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(r.question).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
                                     Text(r.scope.label(projects: names) + " · " + r.askedAt.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(1)
+                                        .refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
                                 }
                                 Spacer(minLength: 8)
-                                StatusText(text: r.state == .answered ? "Answered" : "No answer")
+                                RefinedStatus(text: r.state == .answered ? "Answered" : "No answer", accent: r.state == .answered)
                             }
-                            .padding(.horizontal, 12).padding(.vertical, 9)
+                            .padding(.horizontal, 14).padding(.vertical, 8)
                         }
                     }
                 }
@@ -784,7 +655,6 @@ struct AskRecipesPane: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var nav = AskNav.shared
     @ObservedObject private var center = AskRecipeCenter.shared
-    @Environment(\.look) private var look
 
     var body: some View {
         let recipes = app.store.recipes
@@ -796,8 +666,8 @@ struct AskRecipesPane: View {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(recipes) { r in card(r, selected: r.id == selected.id) }
                     HStack(spacing: 8) {
-                        IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
-                        Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                        IconGlyph(art: .iconPrivacy, size: 14, color: Refined.mute)
+                        Text(TemplateCopy.onDevice("Mac")).refinedFont(.meta).foregroundStyle(Refined.dim)
                     }
                     .padding(.top, 4)
                 }
@@ -812,13 +682,13 @@ struct AskRecipesPane: View {
 
     private var empty: some View {
         VStack(alignment: .leading, spacing: 16) {
-            EmptyStateCard(art: .iconAsk, title: "No recipes yet",
-                           message: "A recipe is a question you ask again, with where to look. Run it any time, or every week. Start with one of these, or make your own.",
-                           button: "New recipe") { nav.editing = RecipeDraft(question: "", scope: nav.scope) }
-            DayHeader(text: "Try one")
+            RefinedEmptyState(art: .iconAsk, title: "No recipes yet",
+                              message: "A recipe is a question you ask again, with where to look. Run it any time, or every week. Start with one of these, or make your own.",
+                              action: "New recipe") { nav.editing = RecipeDraft(question: "", scope: nav.scope) }
+            Text("Try one").refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
             AskFlow(spacing: 8) {
                 ForEach(Array(RecipeSuggestions.all(projects: app.store.projects.map { ($0.id, $0.name) }).enumerated()), id: \.offset) { i, s in
-                    FilterChip(title: s.question, selected: false) {
+                    RefinedChip(title: s.question, selected: false) {
                         let sched = s.schedule.map { RecipeSchedule(weekday: $0.weekday, hour: $0.hour, minute: $0.minute) }
                         if let r = AskRecipeCenter.shared.add(s.question, scope: s.scope, schedule: sched) { nav.selectedRecipe = r.id }
                     }
@@ -834,26 +704,23 @@ struct AskRecipesPane: View {
     }
 
     private func card(_ r: AskRecipe, selected: Bool) -> some View {
-        let parts = WebText.splitLastWord(r.question)
         let scheduled = center.schedule(r.id) != nil
         return VStack(alignment: .leading, spacing: 8) {
-            if look == .native {
-                Text(r.question).font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(2)
-            } else {
-                WebText.serif(parts.0, italic: parts.1, size: 19).foregroundStyle(Ink.ink).lineLimit(2)
+            Text(r.question).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(2)
+            HStack(spacing: 6) {
+                IconGlyph(art: scheduled ? .iconCalendar : .iconAsk, size: 13, color: Refined.mute)
+                Text(scheduleLine(r)).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
             }
             HStack(spacing: 6) {
-                IconGlyph(art: scheduled ? .iconCalendar : .iconAsk, size: 13, color: Ink.dim)
-                Text(scheduleLine(r)).font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(1)
-            }
-            HStack(spacing: 6) {
-                PillButton(title: center.running.contains(r.id) ? "Running…" : "Run now", kind: selected ? .dark : .line, size: .mini,
-                           enabled: !center.running.contains(r.id)) {
+                Button(center.running.contains(r.id) ? "Running…" : "Run now") {
                     nav.selectedRecipe = r.id
                     AskRecipeCenter.shared.run(r)
                 }
+                .buttonStyle(RefinedActionStyle(kind: selected ? .strong : .quiet))
+                .disabled(center.running.contains(r.id))
                 .uiTarget("ask-run-\(r.id.uuidString.prefix(8))")
-                PillButton(title: scheduled ? "Edit schedule" : "Schedule", kind: .line, size: .mini) { nav.editing = draft(r) }
+                Button(scheduled ? "Edit schedule" : "Schedule") { nav.editing = draft(r) }
+                    .buttonStyle(RefinedActionStyle())
                 Spacer(minLength: 0)
             }
         }
@@ -866,6 +733,7 @@ struct AskRecipesPane: View {
             Button("Edit Recipe…") { nav.editing = draft(r) }
             Button("Delete Recipe", role: .destructive) { AskRecipeCenter.shared.delete(r.id) }
         }
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .uiTarget("ask-recipe-\(r.id.uuidString.prefix(8))")
     }
 
@@ -878,19 +746,14 @@ struct AskRecipesPane: View {
     @ViewBuilder private func digest(_ r: AskRecipe) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if let d = center.latest(r.id) {
-                let parts = WebText.splitLastWord(r.question)
-                Text(dayLine(d)).font(Ink.mono(12)).foregroundStyle(Ink.mute)
-                if look == .native {
-                    Text(r.question).font(.system(size: 20, weight: .bold)).foregroundStyle(Ink.ink)
-                } else {
-                    WebText.serif(parts.0, italic: parts.1, size: 26).foregroundStyle(Ink.ink)
-                }
-                Text(r.scope.label(projects: names)).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                Text(dayLine(d)).refinedFont(.meta).foregroundStyle(Refined.mute)
+                Text(r.question).refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
+                Text(r.scope.label(projects: names)).refinedFont(.meta).foregroundStyle(Refined.dim)
                 AskResultView(result: d.result, context: .digest)
             } else if center.running.contains(r.id) {
-                HStack(spacing: 10) { ProgressView().controlSize(.small); Text("Finding passages and answering…").font(.system(size: 13.5)).foregroundStyle(Ink.dim) }
+                HStack(spacing: 10) { ProgressView().controlSize(.small); Text("Finding passages and answering…").refinedFont(.body).foregroundStyle(Refined.dim) }
             } else {
-                Text("No answer yet. Choose Run now, or Schedule to run it every week.").font(.system(size: 13.5)).foregroundStyle(Ink.dim)
+                Text("No answer yet. Choose Run now, or Schedule to run it every week.").refinedFont(.body).foregroundStyle(Refined.dim)
             }
         }
         .padding(20)
@@ -898,9 +761,9 @@ struct AskRecipesPane: View {
         .modifier(TemplateCardSurface())
     }
 
-    /// "Fri Oct 23 · 4:00 PM · Ran on schedule".
+    /// "Fri, Oct 23 · 4:00 PM · Ran on schedule".
     private func dayLine(_ d: AskDigest) -> String {
-        let f = DateFormatter(); f.dateFormat = "EEE MMM d · h:mm a"
+        let f = DateFormatter(); f.dateFormat = "EEE, MMM d · h:mm a"
         return f.string(from: d.ranAt) + (d.scheduled ? " · Ran on schedule" : " · Ran now")
     }
 }
@@ -919,20 +782,20 @@ struct RecipeEditorSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(draft.recipeId == nil ? "New recipe" : "Edit recipe").font(Ink.serif(26)).foregroundStyle(Ink.ink)
+        RefinedSheet(title: draft.recipeId == nil ? "New recipe" : "Edit recipe") {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Question").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.dim)
+                Text("Question").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
                 TextField("What did I say about Website refresh", text: $draft.question)
-                    .textFieldStyle(.roundedBorder).font(.system(size: 14))
+                    .textFieldStyle(.roundedBorder).refinedFont(.body)
                     .uiTarget("recipe-question")
             }
             VStack(alignment: .leading, spacing: 6) {
-                Text("Where to look").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.dim)
+                Text("Where to look").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
                 AskScopeChips(scope: $draft.scope)
             }
             VStack(alignment: .leading, spacing: 8) {
                 Toggle("Run every week on this Mac", isOn: $draft.scheduled).toggleStyle(.switch)
+                    .refinedSwitchTint()
                     .uiTarget("recipe-schedule")
                 if draft.scheduled {
                     HStack(spacing: 10) {
@@ -943,23 +806,19 @@ struct RecipeEditorSheet: View {
                         DatePicker("Time", selection: time, displayedComponents: .hourAndMinute).labelsHidden()
                     }
                     Text("Verbose runs it when this Mac is awake and Verbose is open, or the next time it opens. Schedules stay on this Mac; the recipe syncs with your iPhone.")
-                        .font(.system(size: 12)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
+                        .refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
                 }
             }
-            HStack(spacing: 8) {
-                if draft.recipeId != nil {
-                    Button("Delete Recipe", role: .destructive) { confirmDelete = true }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
-                }
-                Spacer()
-                Button("Cancel") { dismiss() }.buttonStyle(PillButtonStyle(kind: .line, size: .mini)).keyboardShortcut(.cancelAction)
-                Button("Save") { save() }.buttonStyle(PillButtonStyle(kind: .dark, size: .mini)).keyboardShortcut(.defaultAction)
-                    .disabled(draft.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .uiTarget("recipe-save")
+        } footer: {
+            if draft.recipeId != nil {
+                Button("Delete Recipe", role: .destructive) { confirmDelete = true }
             }
+            Spacer()
+            Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+            Button("Save") { save() }.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
+                .disabled(draft.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .uiTarget("recipe-save")
         }
-        .padding(24)
-        .frame(width: 520)
-        .background(Ink.paper)
         .confirmationDialog("Delete this recipe?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete Recipe", role: .destructive) { if let id = draft.recipeId { AskRecipeCenter.shared.delete(id) }; dismiss() }
         } message: { Text("Its answers on this Mac go too.") }

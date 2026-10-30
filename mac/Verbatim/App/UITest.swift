@@ -528,6 +528,7 @@ enum UITest {
         YouTourSeed.run()
         try? await Task.sleep(nanoseconds: 800_000_000)
         let memo = app.store.transcripts.first { $0.title == "Lapp Wagons catalog call" }
+        await chromeClicks(app: app, window: window, native: false)
         app.go(.home); app.captureMode = "voice"
         await show("01-home")
         app.captureMode = "dictate"
@@ -656,7 +657,7 @@ enum UITest {
         if let seg = app.store.transcript(long)?.segments[120].id { app.focusSegment = seg }
         app.go(.transcript(long))
         await show("06d-transcript-at-passage")
-        check("a transcript opened at a passage selects it", app.store.transcript(long)?.segments[120].id == NativeNav.shared.selectedSegment)
+        check("a transcript opened at a passage selects it", app.store.transcript(long)?.segments[120].id == WindowNav.shared.selectedSegment)
         app.go(.home)
         try? await Task.sleep(nanoseconds: 800_000_000)
         app.go(.transcript(long))
@@ -793,7 +794,7 @@ enum UITest {
         await lookSwitch(to: .native, on: "home")
         try? await Task.sleep(nanoseconds: 400_000_000)
         nativeChecks()
-        await nativeClicks(app: app, window: window)
+        await chromeClicks(app: app, window: window, native: true)
         await libraryClicks(app: app, window: window, native: true)
         await backSteps(app: app, window: window, native: true)
         app.go(.home); app.captureMode = "voice"
@@ -809,11 +810,11 @@ enum UITest {
         app.go(.library)
         // The refined Library in Native (DESIGN.md §6.8): with the inspector's preview, then closed as the mockup draws
         // it. The List view retired with the Table and List choice.
-        let inspectorWas = NativeNav.shared.inspector
+        let inspectorWas = WindowNav.shared.inspector
         await show("05-library-native")
-        NativeNav.shared.inspector = false
+        WindowNav.shared.inspector = false
         await show("05b-library-table-native")
-        NativeNav.shared.inspector = inspectorWas
+        WindowNav.shared.inspector = inspectorWas
         if let m = memo { app.go(.transcript(m)) }
         await show("06-transcript-native")
         if let m = memo { transcriptLayoutCheck(app, m, look: .native) }
@@ -827,6 +828,7 @@ enum UITest {
         await templateShots(app: app, suffix: "-native")
         await askShots(app: app, suffix: "-native")
         await thoughtShots(suffix: "-native")
+        await sharedScreenShots(app: app, memo: memo)
         // The recording surfaces drawn the same in Native (DESIGN.md §6.10): Live captions and the meeting banner.
         app.toggleLiveCaptions()
         await show("04c-live-captions-native")
@@ -881,6 +883,63 @@ enum UITest {
         }
         app.go(.home)
         try? await Task.sleep(nanoseconds: 400_000_000)
+    }
+
+    /// The screens step 6 moved onto the refined kit, in Native with `-native` names, to compare with their Verbose
+    /// shots: one design in both looks (DESIGN.md §13). Dictionary, Dictations, Queue, Recently Deleted, the Cleaned
+    /// tab, the export sheet, Add from Library, the link card, the mic, app, and multitrack sheets, and onboarding.
+    private static func sharedScreenShots(app: AppState, memo: UUID?) async {
+        app.go(.dictionary)
+        await show("07-dictionary-native")
+        app.go(.dictations)
+        await show("07b-dictations-native")
+        app.go(.queue)
+        await show("05b-queue-native")
+        app.go(.trash)
+        await show("05e-recently-deleted-native")
+        if let m = memo {
+            app.go(.transcript(m))
+            NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
+            try? await Task.sleep(nanoseconds: 1_500_000_000)   // Harper lints off the main thread
+            await show("06b-document-native")
+            NotificationCenter.default.post(name: .verbatimShowMode, object: "Transcript")
+            app.exportRequest = ExportRequest(ids: [m])
+            await show("06f-export-sheet-native")
+            app.exportRequest = nil
+            try? await Task.sleep(nanoseconds: 700_000_000)
+        }
+        if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
+            app.projectFilter = project.id; app.go(.library)
+            app.addFromLibrary = project.id
+            await show("05m-add-from-library-native")
+            app.addFromLibrary = nil
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            app.projectFilter = nil
+        }
+        app.go(.home)
+        let card = LinkImport(id: UUID(), url: "https://www.youtube.com/watch?v=Q7r2mDn4x1k", site: "YouTube")
+        card.title = "How we light interviews in small rooms"; card.duration = 3852
+        card.phase = .downloading; card.progress = 0.42
+        app.linkImports[card.id] = card; app.linkBadgeHeld.insert(card.id); app.linkCardID = card.id
+        await show("05j-link-card-native")
+        app.linkCardID = nil; app.linkBadgeHeld.remove(card.id); app.linkImports[card.id] = nil
+        app.showMicSheet = true
+        await show("03-mic-sheet-native")
+        app.showMicSheet = false
+        app.showAppPicker = true
+        await show("04-app-picker-native")
+        app.showAppPicker = false
+        app.multitrackDraft = MultitrackDraft.sample()
+        await show("04b-multitrack-native")
+        app.multitrackDraft = nil
+        for (i, name) in ["10a-onboarding-welcome-native", "10b-onboarding-permissions-native", "10e-onboarding-quality-native"].enumerated() {
+            onboardingStep = [0, 2, 5][i]
+            app.showOnboarding = true
+            await show(name)
+            app.showOnboarding = false
+            try? await Task.sleep(nanoseconds: 700_000_000)
+        }
+        onboardingStep = 0
     }
 
     /// Edit Home (EditHome.swift, HomeLayout.swift), clicked: Edit Home at the end of Home opens the inspector; then
@@ -1031,29 +1090,46 @@ enum UITest {
 
     /// The Native window's own controls, clicked: the sidebar (a List selection), a Library item (click selects,
     /// double-click opens), and the toolbar's Back.
-    private static func nativeClicks(app: AppState, window: NSWindow) async {
-        let nav = NativeNav.shared
+    /// The window's chrome in one look, clicked (DESIGN.md §13): the sidebar, the toolbar's Back and Record with its
+    /// menu, and the Library's table under them. One design in both looks, so the Verbose pass records the sidebar's
+    /// and toolbar's frames and the Native pass checks it draws them the same.
+    private static func chromeClicks(app: AppState, window: NSWindow, native: Bool) async {
+        let nav = WindowNav.shared
+        let tag = native ? "native" : "chrome"
         app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
         app.go(.queue)
         try? await Task.sleep(nanoseconds: 700_000_000)
-        await step("native: sidebar Home goes home", window, target: "side-home", check: { app.screen == .home })
-        await step("native: sidebar Library opens the Library", window, target: "side-library", check: { app.screen == .library })
+        await step("\(tag): sidebar Home goes home", window, target: "side-home", check: { app.screen == .home })
+        await step("\(tag): sidebar Library opens the Library", window, target: "side-library", check: { app.screen == .library })
         try? await Task.sleep(nanoseconds: 400_000_000)
         // The one table in both looks (DESIGN.md §6.8): a click selects a row for the inspector, a double-click opens it.
         let first = LibraryView.shownOrder.first
         if windowFrames["lib-item-1"]?() != nil {
-            await step("native: clicking a Library row selects it", window, target: "lib-item-1",
+            await step("\(tag): clicking a Library row selects it", window, target: "lib-item-1",
                        check: { app.screen == .library && nav.librarySelection != nil && nav.librarySelection != first })
         }
-        await step("native: double-clicking a Library row opens its transcript", window, target: "lib-item-0", clicks: 2,
+        await step("\(tag): double-clicking a Library row opens its transcript", window, target: "lib-item-0", clicks: 2,
                    check: { app.screen.transcriptID != nil && app.screen.transcriptID == first })
-        await step("native: the toolbar's Back returns to the Library", window, target: "tb-back", check: { app.screen == .library })
-        await step("native: Open Transcript in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
+        await step("\(tag): the toolbar's Back returns to the Library", window, target: "tb-back", check: { app.screen == .library })
+        await step("\(tag): Open Transcript in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
+        // The sidebar and toolbar are one design: the same frames in both looks.
+        let chrome = ["side-home", "side-library", "side-settings", "tb-back", "tb-record"].map { id in windowFrames[id]?() ?? frames[id] }
+        if native {
+            let same = zip(chrome, chromeFrames).allSatisfy { a, b in
+                guard let a, let b else { return a == nil && b == nil }
+                return abs(a.minX - b.minX) < 1.5 && abs(a.width - b.width) < 1.5 && abs(a.height - b.height) < 1.5
+            }
+            check("native: the sidebar and toolbar draw as in Verbose style (\(chrome.map { $0.map { "\(Int($0.minX)),\(Int($0.width))" } ?? "-" }.joined(separator: " ")))",
+                  !chromeFrames.isEmpty && same)
+        } else {
+            chromeFrames = chrome
+            check("chrome: the sidebar and toolbar draw Home, Library, Settings, Back, and Record", chrome.allSatisfy { $0 != nil })
+        }
         let fresh = UserDefaults(suiteName: "co.stumpandroot.verbatim.uitest.native") ?? .standard
-        fresh.set(false, forKey: NativeNav.retiredTableKey)
-        NativeNav.retireTableChoice(fresh)
-        check("native: the Library's old Table and List choice is removed, so every Library is the table",
-              fresh.object(forKey: NativeNav.retiredTableKey) == nil)
+        fresh.set(false, forKey: WindowNav.retiredTableKey)
+        WindowNav.retireTableChoice(fresh)
+        check("\(tag): the Library's old Table and List choice is removed, so every Library is the table",
+              fresh.object(forKey: WindowNav.retiredTableKey) == nil)
 
         // Record in the toolbar (decision 8): a click records a voice note (or asks for the mic); its menu has Dictate,
         // Live captions, and Import, then Record as's six choices. Record is in the leading item beside Back and
@@ -1065,23 +1141,23 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 900_000_000)
         let content = window.contentView?.bounds ?? .zero
         let recordFrame = windowFrames["tb-record"]?()
-        check("native: Record stays in the toolbar, not its overflow, with the inspector open in a \(Int(window.frame.width)) pt window"
+        check("\(tag): Record stays in the toolbar, not its overflow, with the inspector open in a \(Int(window.frame.width)) pt window"
               + " (\(recordFrame.map { "at x \(Int($0.minX)) to \(Int($0.maxX))" } ?? "not drawn"))",
               recordFrame.map { $0.width > 0 && $0.minX >= 0 && $0.maxX <= content.width && $0.minY >= -60 } ?? false)
         nav.inspector = false
         try? await Task.sleep(nanoseconds: 700_000_000)
-        if windowFrames["tb-record"]?() == nil { Log.note("UITEST note: native: Record isn't in the toolbar with the inspector closed either") }
-        check("native: Record's menu lists Dictate, Live captions, and Import, then the six ways to record",
-              NativeRecordMenu.extras == ["Dictate", "Live Captions", "Import…"] && RecordChoice.all.count == 8
+        if windowFrames["tb-record"]?() == nil { Log.note("UITEST note: \(tag): Record isn't in the toolbar with the inspector closed either") }
+        check("\(tag): Record's menu lists Dictate, Live captions, and Import, then the six ways to record",
+              ToolbarRecordMenu.extras == ["Dictate", "Live Captions", "Import…"] && RecordChoice.all.count == 8
               && windowFrames["tb-record-menu"]?() != nil)
-        await step("native: the toolbar's Record asks for the mic or records", window, target: "tb-record",
+        await step("\(tag): the toolbar's Record asks for the mic or records", window, target: "tb-record",
                    check: { app.showMicSheet || app.recorder.isRecording })
         if app.showMicSheet {
             app.showMicSheet = false
         } else if app.recorder.isRecording {
             // While recording, Record's place is the live timer capsule (the refined look's, DESIGN.md §6.10).
             try? await Task.sleep(nanoseconds: 700_000_000)
-            check("native: while recording, the toolbar shows the live timer capsule", frames["toolbar-recording"] != nil)
+            check("\(tag): while recording, the toolbar shows the live timer capsule", frames["toolbar-recording"] != nil)
             _ = app.recorder.stop()
         }
         try? await Task.sleep(nanoseconds: 600_000_000)
@@ -1089,6 +1165,9 @@ enum UITest {
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
+
+    /// The chrome's frames from the Verbose pass (`chromeClicks`), for the Native pass to compare.
+    private static var chromeFrames: [CGRect?] = []
 
     /// The refined Library (DESIGN.md §6.8) in one look, clicked: it's the one Library on screen, built in this look;
     /// a chip filters and clears the rest, All clears it; a column title sorts and a second click turns the order
@@ -1133,18 +1212,18 @@ enum UITest {
 
         if !native, LibraryView.shownOrder.count >= 2 {
             let order = LibraryView.shownOrder
-            NativeNav.shared.librarySelection = nil
+            WindowNav.shared.librarySelection = nil
             await step("\(tag): a click selects a row", window, target: "lib-item-1",
-                       check: { app.screen == .library && NativeNav.shared.librarySelection == order[1] })
+                       check: { app.screen == .library && WindowNav.shared.librarySelection == order[1] })
             await step("\(tag): a double-click opens it", window, target: "lib-item-0", clicks: 2,
                        check: { app.screen == .transcript(order[0]) })
             app.go(.library)
             try? await Task.sleep(nanoseconds: 800_000_000)
-            check("\(tag): the row you opened is selected when the Library comes back", NativeNav.shared.librarySelection == order[0])
+            check("\(tag): the row you opened is selected when the Library comes back", WindowNav.shared.librarySelection == order[0])
         }
         if let sortWas { UserDefaults.standard.set(sortWas, forKey: LibrarySort.key) }
         ScreenPlaces.shared.reset()
-        NativeNav.shared.librarySelection = nil
+        WindowNav.shared.librarySelection = nil
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
@@ -1164,7 +1243,7 @@ enum UITest {
         let meta = TranscriptView.meta(t)
         check("\(tag): the meta line says when and how long, and not the kind (\(meta))",
               meta.contains(RefinedRules.time(t.duration)) && !meta.contains(RecordingKind.refinedName(t.kind)))
-        check("\(tag): the reading text starts at the serif's 18 pt", NativeNav.shared.textSize >= NativeNav.textSizes.min && NativeNav.textSizes.normal == 18)
+        check("\(tag): the reading text starts at the serif's 18 pt", WindowNav.shared.textSize >= WindowNav.textSizes.min && WindowNav.textSizes.normal == 18)
     }
 
     /// Switches the look as the picker does, checks the card shows in the new look and goes, and logs the time from the
@@ -3028,9 +3107,9 @@ extension UITest {
             await reveal(target, in: window)
             click(target, in: window)
             try? await Task.sleep(nanoseconds: 600_000_000)
-            if NativeNav.shared.librarySelection != row {
+            if WindowNav.shared.librarySelection != row {
                 Log.note("UITEST note: \(tag): the click on a scrolled Native row didn't land; selecting it directly")
-                NativeNav.shared.librarySelection = row
+                WindowNav.shared.librarySelection = row
                 try? await Task.sleep(nanoseconds: 300_000_000)
             }
             click(target, in: window); click(target, in: window)
@@ -3042,7 +3121,7 @@ extension UITest {
                     Log.note("UITEST note: \(tag): the double-click opened \(String(describing: app.screen)); going back to the Library first")
                     app.go(.library)
                     try? await Task.sleep(nanoseconds: 900_000_000)
-                    NativeNav.shared.librarySelection = row
+                    WindowNav.shared.librarySelection = row
                     try? await Task.sleep(nanoseconds: 300_000_000)
                 }
                 app.go(.transcript(row))
@@ -3058,15 +3137,15 @@ extension UITest {
 
         // 2. Back: the same row, offset, search, and filter. Frames come from the Library built by Back, not this one.
         frames = frames.filter { !$0.key.hasPrefix("lib-row-") }
-        await step("\(tag): \(native ? "the toolbar's Back" : "the transcript's back pill") returns to the Library", window,
-                   target: native ? "tb-back" : "transcript-back", check: { app.screen == .library })
+        await step("\(tag): the toolbar's Back returns to the Library", window,
+                   target: "tb-back", check: { app.screen == .library })
         oneScreen("Back to the Library\(native ? " (native)" : "")", app: app)
         let after = ScreenPlaces.shared.liveOffset(key)
         // Native's grouped List (build 232 on) restores within a section header's height: 615 for 600 in build 233.
         let slack: CGFloat = native ? 24 : 4
         check("\(tag): the Library comes back at the same scroll offset (\(Int(before)), now \(after.map { "\(Int($0))" } ?? "none"))",
               after.map { abs($0 - before) <= slack } ?? false)
-        let selected = ScreenPlaces.shared.selectedRow(nil) == row && (!native || NativeNav.shared.librarySelection == row)
+        let selected = ScreenPlaces.shared.selectedRow(nil) == row && (!native || WindowNav.shared.librarySelection == row)
         // "In view" from SwiftUI's frame for both looks: Native's window handle can point at an off-screen copy.
         let back = frames["lib-row-\(row.uuidString)"] ?? rowFrame(row)
         // Native's List doesn't always report a reused row's frame again; then the restored offset stands in for it.
@@ -3074,7 +3153,7 @@ extension UITest {
             ?? (native && after.map { abs($0 - before) <= slack } == true)
         if back == nil && native { Log.note("UITEST note: \(tag): no frame for the row after Back; judged in view by the restored offset") }
         if !(selected && inView) {
-            Log.note("UITEST detail: \(tag): remembered row \(ScreenPlaces.shared.selectedRow(nil) == row), Native selection \(NativeNav.shared.librarySelection == row), frame \(back.map { "\(Int($0.minY))-\(Int($0.maxY))" } ?? "none") of \(Int(h))")
+            Log.note("UITEST detail: \(tag): remembered row \(ScreenPlaces.shared.selectedRow(nil) == row), Native selection \(WindowNav.shared.librarySelection == row), frame \(back.map { "\(Int($0.minY))-\(Int($0.maxY))" } ?? "none") of \(Int(h))")
         }
         check("\(tag): the same row is selected and in view", selected && inView)
         check("\(tag): the same search and filter", app.search == "Backtrail" && app.libraryKind == .meeting && app.libraryFilter == .all && app.projectFilter == nil)
@@ -3110,7 +3189,7 @@ extension UITest {
             await step("\(tag): a row on Home opens its transcript", window, target: "row-0", check: { app.screen.transcriptID != nil })
         }
         await step("\(tag): Back from a transcript opened from Home returns to Home", window,
-                   target: native ? "tb-back" : "transcript-back", check: { app.screen == .home })
+                   target: "tb-back", check: { app.screen == .home })
         oneScreen("Back to Home\(native ? " (native)" : "")", app: app)
         let homeAfter = ScreenPlaces.shared.liveOffset(homeKey)
         check("\(tag): Home comes back at the same scroll offset (\(homeBefore.map { "\(Int($0))" } ?? "none"), now \(homeAfter.map { "\(Int($0))" } ?? "none"))",
@@ -3165,7 +3244,8 @@ extension UITest {
         check("\(name): speaker colors follow who talks first (M-30)",
               SpeakerRotation.firstAppearance("S2", in: segs) == 0 && SpeakerRotation.firstAppearance("S1", in: segs) == 1
               && SpeakerRotation.firstAppearance("S3", in: segs) == nil)
-        check("\(name): the multitrack sheet uses the transcript's rotation (M-30)", MultitrackSheet.marks == SpeakerRotation.fills)
+        check("\(name): the multitrack sheet uses the transcript's speaker rotation (M-30)",
+              (0..<4).map { RefinedRules.speakerHue($0) } == [RefinedHue.persimmon, .petal, .sage, .butter])
         check("\(name): the Export sheet fits the window and names a batch (M-28)",
               ExportSheet.height(window: 620) == 540 && ExportSheet.height(window: nil) == 660 && ExportSheet.height(window: 300) == 420
               && ExportSheet.exportTitle(count: 3, batch: true) == "Export 3 files…" && ExportSheet.exportTitle(count: 1, batch: false) == "Export…")

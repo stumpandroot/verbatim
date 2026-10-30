@@ -213,7 +213,7 @@ struct HomeJournalMac: View {
                         if let t = latest {
                             Text(PremiumDateLine.line(t.createdAt)).refinedFont(.meta).foregroundStyle(Refined.mute)
                             Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
-                            Text(PremiumPreview.text(t)).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)
+                            Text(TranscriptPreview.text(t)).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)
                         } else {
                             Text("Record with the Journal kind, and your newest entry shows here.")
                                 .refinedFont(.body).foregroundStyle(Refined.dim)
@@ -227,7 +227,7 @@ struct HomeJournalMac: View {
                 // Play sits beside the entry's button, not inside it (macOS 26 click safety).
                 HStack(spacing: 12) {
                     if let t = latest, t.audioFileName != nil, t.status == .ready {
-                        Button { NativeNav.shared.play(t, app: app) } label: {
+                        Button { WindowNav.shared.play(t, app: app) } label: {
                             HStack(spacing: 6) {
                                 IconGlyph(art: .iconPlay, size: 11, color: Refined.ink)
                                 Text(HomeRecentStyle.length(t.duration)).monospacedDigit()

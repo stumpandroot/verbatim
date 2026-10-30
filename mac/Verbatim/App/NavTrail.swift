@@ -4,10 +4,9 @@ import AppKit
 // Back and Forward for the main window, in both looks, and the places screens come back to.
 //
 // One history (`NavTrail`) records every navigation in `AppState.go`: going somewhere new (a sidebar click, opening a
-// transcript) starts a new trail from where you are, as a browser or Finder does, and Back and Forward walk it. Verbose
-// style shows Back on the transcript's page bar (TranscriptView), Native its toolbar's Back and Forward
-// (NativeChrome.swift); both looks have View › Back and Forward (⌘[ and ⌘]), the mouse's back and forward buttons, and
-// the trackpad's swipe between pages.
+// transcript) starts a new trail from where you are, as a browser or Finder does, and Back and Forward walk it: the
+// toolbar's Back and Forward (MacChrome.swift), View › Back and Forward (⌘[ and ⌘]), the mouse's back and forward
+// buttons, and the trackpad's swipe between pages, in both looks.
 //
 // A screen leaves the window the moment you navigate away (ContentView), so what it should come back to lives here
 // (`ScreenPlaces`): each scroll view's offset, the Library's selected row, and By day's day. None of it is published:
@@ -241,7 +240,7 @@ final class ScreenPlaces {
     /// AppState.go, before the screen changes: the Library remembers the row you opened (or the row selected as you
     /// left), and its selection comes back with the Library, in both looks (one Library, DESIGN.md §6.8).
     func navigating(from: Screen, to next: Screen, app: AppState) {
-        let nav = NativeNav.shared
+        let nav = WindowNav.shared
         if from == .library {
             let key = Self.libraryKey(app.projectFilter)
             if case .transcript(let id) = next {

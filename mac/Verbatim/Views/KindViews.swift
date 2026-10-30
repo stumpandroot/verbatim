@@ -155,14 +155,12 @@ struct FillerToggle: View {
 }
 
 /// The Cleaned tab's persistent label: "Cleaned by Apple Intelligence" or "Cleaned with rules". Plain text on the
-/// page, never on a blur.
+/// page, never on a blur, in the refined kit's meta style on both platforms.
 struct CleanedLabel: View {
     var source: CleanupSource
-    /// Mono, as the Mac's Cleaned tab shows it (DESIGN.md §11); the iPhone keeps the sans.
-    var mono = false
     var body: some View {
         Label { Text(source.label) } icon: { ArtIcon(art: source == .model ? .iconAI : .iconApplyDictionary, size: 14) }
-            .font(mono ? Ink.mono(12) : .system(size: 12.5, weight: .medium)).foregroundStyle(Ink.dim)
+            .refinedFont(.meta, weight: .medium).foregroundStyle(Refined.dim)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("cleaned-label")
     }

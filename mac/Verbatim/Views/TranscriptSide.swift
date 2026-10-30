@@ -13,7 +13,7 @@ import AppKit
 struct TranscriptSide: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
-    @ObservedObject var nav: NativeNav
+    @ObservedObject var nav: WindowNav
     @State private var note = ""
     @State private var detailsOpen = false
     @State private var renaming: Note? = nil
@@ -260,7 +260,7 @@ private struct TranscriptLanguageMenuMac: View {
 struct TranscriptShareItems: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
-    @ObservedObject var nav: NativeNav
+    @ObservedObject var nav: WindowNav
 
     var body: some View {
         let t = transcript
@@ -281,7 +281,7 @@ struct TranscriptShareItems: View {
 struct TranscriptMoreItems: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
-    @ObservedObject var nav: NativeNav
+    @ObservedObject var nav: WindowNav
 
     var body: some View {
         let t = transcript
@@ -322,9 +322,9 @@ struct TranscriptMoreItems: View {
         if let other = TurboRerun.switchTitle(t) { Button(other) { app.switchTranscriptVersion(t.id) } }
         Divider()
         Menu("Text Size") {
-            Button("Larger Text (⌘+)") { nav.textSize = NativeNav.textSizes.clamp(nav.textSize + 1) }
-            Button("Smaller Text (⌘−)") { nav.textSize = NativeNav.textSizes.clamp(nav.textSize - 1) }
-            Button("Default Size") { nav.textSize = NativeNav.textSizes.normal }
+            Button("Larger Text (⌘+)") { nav.textSize = WindowNav.textSizes.clamp(nav.textSize + 1) }
+            Button("Smaller Text (⌘−)") { nav.textSize = WindowNav.textSizes.clamp(nav.textSize - 1) }
+            Button("Default Size") { nav.textSize = WindowNav.textSizes.normal }
         }
     }
 }
@@ -339,7 +339,7 @@ struct MacPlayerBar: View {
     var transcript: Transcript
     @ObservedObject var player: Player
     @ObservedObject var clock: PlayerClock
-    @ObservedObject var nav: NativeNav
+    @ObservedObject var nav: WindowNav
 
     var body: some View {
         let total = max(clock.duration, transcript.duration, 1)

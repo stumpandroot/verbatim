@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Edit Home (mockup "premium", section 03): Home's sections in a list you drag to reorder, each with Compact or Large
 /// and a control to show or hide it, and the four shortcut tiles (HomeTilePicker). Changes reach Home at once and are
-/// kept per look, on this iPhone (HomeLayout.swift). Both looks use this screen, each in its own clothes.
+/// kept on this iPhone (HomeLayout.swift). One refined design in both look settings (DESIGN.md §13): the large serif
+/// title, the sections in cards, and the accent's checks.
 ///
 /// Two ways in: the Edit Home button at the end of Home presents it in a sheet with Reset and Done (`onDone`), and
 /// Settings › Personalization › Customize Home pushes it (no `onDone`: Back closes it, Reset sits on the right).
@@ -17,12 +18,12 @@ struct EditHomeView: View {
     /// Tab bar…: the tab bar picker (TabBarSettings.swift), as a sheet over Edit Home.
     @State private var editingTabBar = false
     @State private var confirmReset = false
-    @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 34
     /// Whether Edit Home is on screen, for the self-test.
     static var visible = false
 
     init(onDone: (() -> Void)? = nil) { self.onDone = onDone }
 
+    /// Layouts are still kept per look setting (HomeLayout.swift); the editor itself is one design.
     private var hl: HomeLook { look.homeLook }
 
     var body: some View {
@@ -36,41 +37,38 @@ struct EditHomeView: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
+            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
             Section {
-                if !look.isNative { PhoneListHeading(text: "On Home") }
+                heading("On Home")
                 ForEach(Array(layout.shown.enumerated()), id: \.element.section) { i, item in
                     row(item, layout: layout, first: i == 0, last: i == layout.shown.count - 1)
                 }
                 .onMove { from, to in store.update(hl) { $0.moveShown(fromOffsets: from, toOffset: to) } }
-            } header: {
-                if look.isNative { Text("On Home") }
             }
             .listSectionSeparator(.hidden)
             if !hidden.isEmpty {
                 Section {
-                    if !look.isNative { PhoneListHeading(text: "Hidden") }
+                    heading("Hidden")
                     ForEach(Array(hidden.enumerated()), id: \.element.section) { i, item in
                         row(item, layout: layout, first: i == 0, last: i == hidden.count - 1)
                     }
-                } header: {
-                    if look.isNative { Text("Hidden") }
                 }
                 .listSectionSeparator(.hidden)
             }
         }
+        .listStyle(.plain)
         .environment(\.editMode, .constant(.active))
-        .phoneGroupedList()
+        .environment(\.defaultMinListRowHeight, 1)
         .scrollContentBackground(.hidden)
-        .phonePage()
-        .navigationTitle(look.isNative ? "Edit Home" : "")
-        .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
+        .background(Refined.paper.ignoresSafeArea())
+        .navigationTitle("Edit Home")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
         .confirmationDialog("Put Home back the way it started?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Reset Home", role: .destructive) { animate { store.reset(hl) } }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Every section and tile goes back to how this look began. The other look keeps its layout.")
+            Text("Every section and tile goes back to how Home began.")
         }
         .sheet(isPresented: $pickingTiles) {
             NavigationStack { HomeTilePicker(look: hl) }
@@ -91,6 +89,8 @@ struct EditHomeView: View {
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        // The serif title sits on the page; the bar keeps only Apple's buttons.
+        ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
         if let onDone {
             ToolbarItem(placement: .cancellationAction) { Button("Reset") { confirmReset = true } }
             ToolbarItem(placement: .confirmationAction) { Button("Done", action: onDone).fontWeight(.semibold) }
@@ -105,16 +105,13 @@ struct EditHomeView: View {
 
     // MARK: Pieces
 
-    /// Verbose style: the eyebrow and the serif title over the lede. Native: the lede under the large title.
-    @ViewBuilder private var intro: some View {
+    /// The large serif title over the lede, and Tab bar as an accent link.
+    private var intro: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if !look.isNative {
-                PhoneEyebrow(text: "Home")
-                (Text("Edit ") + Text("Home").italic()).lookSerif(titleSize).foregroundStyle(.lookInk)
-                    .accessibilityAddTraits(.isHeader)
-            }
+            LargeSerifTitle(title: "Edit Home")
+                .accessibilityAddTraits(.isHeader)
             Text("Drag to reorder. Choose Compact or Large for each section, and hide what you don't use.")
-                .font(.system(size: 15)).foregroundStyle(.lookDim)
+                .refinedFont(.body).foregroundStyle(Refined.dim)
                 .fixedSize(horizontal: false, vertical: true)
             // A link to another screen: its name and a chevron (an ellipsis read as cut-off text; review P-20).
             Button { editingTabBar = true } label: {
@@ -122,36 +119,45 @@ struct EditHomeView: View {
                     Text("Tab bar")
                     Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
                 }
+                .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
             }
             .buttonStyle(.borderless)
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(.lookAccentText)
+            .refinedFont(.hint, weight: .semibold)
+            .foregroundStyle(Refined.accentText)
             .accessibilityLabel("Tab bar")
             .accessibilityHint("Choose up to three tabs between Home and Settings.")
             .accessibilityIdentifier("editHome.tabBar")
         }
-        .padding(.vertical, 4)
+        .padding(.top, 8).padding(.bottom, 4)
+    }
+
+    /// A group's label over its card, in the meta style.
+    private func heading(_ text: String) -> some View {
+        Text(text).refinedFont(.meta).foregroundStyle(Refined.mute)
+            .accessibilityAddTraits(.isHeader)
+            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 14, leading: 34, bottom: 6, trailing: 34))
+            .moveDisabled(true)
     }
 
     private func row(_ item: HomeLayout.Item, layout: HomeLayout, first: Bool, last: Bool) -> some View {
         HStack(spacing: 12) {
-            if look.isNative { visibility(item) }
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.section.title)
-                    .font(look.isNative ? .body : .system(size: 16))
-                    .foregroundStyle(.lookInk)
-                    .opacity(item.visible ? 1 : 0.65)
+                    .refinedFont(.rowTitle)
+                    .foregroundStyle(item.visible ? Refined.ink : Refined.dim)
                     .lineLimit(1)
                 detail(item, layout: layout)
             }
             Spacer(minLength: 6)
             sizeMenu(item)
-            if !look.isNative { visibility(item) }
+            visibility(item)
         }
-        .padding(.vertical, 3)
-        .listRowBackground(PhoneListRowCard(first: first, last: last))
+        .padding(.vertical, 4)
+        .listRowInsets(EdgeInsets(top: 0, leading: 34, bottom: 0, trailing: 30))
+        .listRowBackground(PaperRowBackground(first: first, last: last))
         .listRowSeparator(last ? .hidden : .automatic, edges: .bottom)
-        .listRowSeparatorTint(look.isNative ? nil : Ink.hairline)
+        .listRowSeparatorTint(Refined.separator)
         .accessibilityElement(children: .contain)
     }
 
@@ -160,16 +166,17 @@ struct EditHomeView: View {
     @ViewBuilder private func detail(_ item: HomeLayout.Item, layout: HomeLayout) -> some View {
         if item.section == .tiles {
             VStack(alignment: .leading, spacing: 2) {
-                Text(Self.tileSummary(layout.tiles)).font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(1)
+                Text(Self.tileSummary(layout.tiles)).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
                 Button("Choose tiles") { pickingTiles = true }
                     .buttonStyle(.borderless)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.lookAccentText)
+                    .refinedFont(.meta, weight: .semibold)
+                    .foregroundStyle(Refined.accentText)
                     .lineLimit(1).fixedSize()
+                    .frame(minHeight: 32)
                     .accessibilityHint("Pick the four tiles and their order.")
             }
         } else {
-            Text(item.section.detail(on: .phone, look: hl)).font(.system(size: 13)).foregroundStyle(.lookMute)
+            Text(item.section.detail(on: .phone, look: hl)).refinedFont(.meta).foregroundStyle(Refined.mute)
                 .lineLimit(2).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -187,7 +194,7 @@ struct EditHomeView: View {
                 Button {
                     store.update(hl) { $0.setSize(item.section, size) }
                 } label: {
-                    if size == item.size { Label(size.title, systemImage: "checkmark") } else { Text(size.title) }
+                    if size == item.size { Label(size.title, systemImage: "checkmark") } else { Text(size.title) }   // brand: system surface (menu)
                 }
             }
         } label: {
@@ -195,10 +202,11 @@ struct EditHomeView: View {
                 Text(item.size.title)
                 Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold))
             }
-            .font(look.isNative ? .system(size: 14, weight: .medium) : .system(size: 13, weight: .semibold))
-            .foregroundStyle(.lookInk)
-            .padding(.horizontal, 10).frame(minHeight: 30)
-            .background(look.isNative ? NativeInk.fill : PhoneInk.wash, in: RoundedRectangle(cornerRadius: look.isNative ? 15 : Radius.button, style: .continuous))
+            .refinedFont(.meta, weight: .semibold)
+            .foregroundStyle(Refined.ink)
+            .padding(.horizontal, 10).frame(minHeight: 32)
+            .background(Refined.neutral, in: Capsule())
+            .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
             .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
@@ -207,23 +215,13 @@ struct EditHomeView: View {
         .accessibilityHint("Compact is one slim row; Large is the full card.")
     }
 
-    @ViewBuilder private func visibility(_ item: HomeLayout.Item) -> some View {
+    private func visibility(_ item: HomeLayout.Item) -> some View {
         Button {
             animate { store.update(hl) { $0.setVisible(item.section, !item.visible) } }
         } label: {
-            Group {
-                if look.isNative {
-                    Image(systemName: item.visible ? "minus.circle.fill" : "plus.circle.fill")   // brand: native
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(Color.white, item.visible ? NativeInk.danger : NativeInk.toggle)   // brand: native
-                } else {
-                    Image(systemName: item.visible ? "checkmark.circle.fill" : "plus.circle")
-                        .foregroundStyle(Ink.ink)
-                }
-            }
-            .font(.system(size: 22))
-            .frame(width: 32, height: 32)
-            .contentShape(Rectangle())
+            RefinedCheckbox(on: item.visible, size: 22)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
         .accessibilityLabel(item.visible ? "Hide \(item.section.title)" : "Show \(item.section.title)")
@@ -233,13 +231,12 @@ struct EditHomeView: View {
 // MARK: - Tile picker
 
 /// Choose the four tiles: the numbered slots at the top (drag one onto another to reorder), then every tile this
-/// iPhone offers. Tap a tile to pick it into the next slot, or a picked one to take it off. Done saves four.
+/// iPhone offers. Tap a tile to pick it into the next slot, or a picked one to take it off. Done saves four. Picked
+/// tiles take the colors Home gives them (`HomeTile.refinedHues`).
 struct HomeTilePicker: View {
     let homeLook: HomeLook
-    @Environment(\.look) private var look
     @Environment(\.dismiss) private var dismiss
     @State private var picks: [HomeTile]
-    @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 30
     /// Whether the picker is on screen, for the self-test.
     static var visible = false
 
@@ -251,16 +248,14 @@ struct HomeTilePicker: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                if !look.isNative {
-                    PhoneEyebrow(text: "Home")
-                    (Text("Shortcut ") + Text("tiles").italic()).lookSerif(titleSize).foregroundStyle(.lookInk)
-                        .accessibilityAddTraits(.isHeader)
-                }
-                Text("Choose four. Drag them to reorder.").font(.system(size: 15)).foregroundStyle(.lookDim)
+                LargeSerifTitle(title: "Shortcut tiles", eyebrow: "Home")
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isHeader)
+                Text("Choose four. Drag them to reorder.").refinedFont(.body).foregroundStyle(Refined.dim)
                 HStack(spacing: 8) {
                     ForEach(0..<HomeLayout.tileCount, id: \.self) { slot($0) }
                 }
-                Text("All tiles").font(look.isNative ? .headline : Ink.mono(12)).foregroundStyle(look.isNative ? NativeInk.label : Ink.mute)
+                Text("All tiles").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
                     .padding(.top, 8)
                     .accessibilityAddTraits(.isHeader)
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
@@ -269,10 +264,11 @@ struct HomeTilePicker: View {
             }
             .padding(.horizontal, 20).padding(.vertical, 12)
         }
-        .phonePage()
-        .navigationTitle(look.isNative ? "Shortcut tiles" : "")
+        .background(Refined.paper.ignoresSafeArea())
+        .navigationTitle("Shortcut tiles")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {
@@ -289,9 +285,9 @@ struct HomeTilePicker: View {
 
     /// A numbered slot: the picked tile (drag it onto another slot to reorder), or an empty dashed box.
     @ViewBuilder private func slot(_ i: Int) -> some View {
-        let shape = RoundedRectangle(cornerRadius: look.isNative ? 18 : Radius.tile, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: RefinedPlatform.radius(.tile), style: .continuous)
         VStack(spacing: 6) {
-            Text("\(i + 1)").font(.system(size: 11, weight: .semibold)).foregroundStyle(.lookMute)
+            Text("\(i + 1)").font(.system(size: 11, weight: .semibold)).foregroundStyle(Refined.mute)
             if i < picks.count {
                 let t = picks[i]
                 tileFace(t, slot: i, compact: true)
@@ -300,7 +296,7 @@ struct HomeTilePicker: View {
                     .accessibilityHint("Drag onto another slot to reorder.")
             } else {
                 shape.strokeBorder(style: StrokeStyle(lineWidth: 1.2, dash: [4, 3]))
-                    .foregroundStyle(.lookMute)
+                    .foregroundStyle(Refined.faint)
                     .frame(maxWidth: .infinity, minHeight: 64)
                     .accessibilityLabel("Slot \(i + 1), empty")
             }
@@ -320,60 +316,43 @@ struct HomeTilePicker: View {
             tileFace(t, slot: n, compact: false)
                 .overlay(alignment: .topTrailing) { badge(n).padding(6) }
         }
-        .buttonStyle(PhoneCardPress())
+        .buttonStyle(RefinedPress())
         .accessibilityLabel(t.title)
         .accessibilityValue(n.map { "Tile \($0 + 1)" } ?? "Not picked")
         .accessibilityHint(n == nil ? (picks.count < HomeLayout.tileCount ? "Picks it into the next slot." : "Take a tile off first.") : "Takes it off.")
     }
 
-    /// The tile's face. Verbose style: picked tiles take their capture mode's color (Home's `tileFill`) with an ink
-    /// outline. Native: a soft card, outlined in the accent when picked.
+    /// The tile's face: picked tiles take Home's color for them, with the accent's edge; the rest sit on the neutral
+    /// wash.
     private func tileFace(_ t: HomeTile, slot: Int?, compact: Bool) -> some View {
-        let shape = RoundedRectangle(cornerRadius: look.isNative ? 18 : Radius.tile, style: .continuous)
-        let fill = slot == nil ? nil : HomeScreen.tileFill(t, in: picks)
-        return VStack(alignment: look.isNative ? .center : .leading, spacing: 6) {
-            if look.isNative {
-                Image(systemName: t.symbol).font(.system(size: compact ? 15 : 17, weight: .medium)).foregroundStyle(NativeInk.accent)
-                    .frame(width: compact ? 30 : 36, height: compact ? 30 : 36)
-            } else {
-                IconGlyph(art: t.art, size: compact ? 16 : 20, color: fill == nil ? Ink.ink : Ink.inkFixed)
-            }
-            if !look.isNative { Spacer(minLength: 0) }
+        let shape = RoundedRectangle(cornerRadius: RefinedPlatform.radius(.tile), style: .continuous)
+        let hue: RefinedHue? = slot.flatMap { s in s < picks.count ? HomeTile.refinedHues(picks)[s] : nil }
+        let fill = hue.map { Refined.badge($0) } ?? Refined.neutral
+        let on = hue.map { Refined.onBadge($0) } ?? Refined.ink
+        return VStack(alignment: .leading, spacing: 6) {
+            IconGlyph(art: t.art, size: compact ? 16 : 20, color: on)
+            Spacer(minLength: 0)
             Text(t.title)
-                .font(look.isNative ? .system(size: compact ? 11 : 13, weight: .semibold) : Ink.serif(compact ? 13 : 16))
-                .foregroundStyle(look.isNative ? NativeInk.label : (fill == nil ? Ink.ink : Ink.inkFixed))
-                .multilineTextAlignment(look.isNative ? .center : .leading)
+                .refinedFont(compact ? .caption : .meta, weight: .semibold)
+                .foregroundStyle(on)
+                .multilineTextAlignment(.leading)
                 .lineLimit(2).minimumScaleFactor(0.8)
         }
         .padding(compact ? 8 : 10)
-        .frame(maxWidth: .infinity, minHeight: compact ? 64 : 82, alignment: look.isNative ? .center : .topLeading)
-        .background {
-            if look.isNative {
-                shape.fill(NativeInk.card)
-            } else if let fill {
-                PhonePanelFill(color: fill, shape: shape)
-            } else {
-                shape.fill(Ink.card)
-            }
-        }
-        .overlay {
-            if look.isNative {
-                if slot != nil { shape.strokeBorder(NativeInk.accent, lineWidth: 1.5) }
-            } else {
-                shape.strokeBorder(slot == nil ? Ink.hairline : Ink.ink, lineWidth: slot == nil ? 1 : 1.5)
-            }
-        }
+        .frame(maxWidth: .infinity, minHeight: compact ? 64 : 82, alignment: .topLeading)
+        .background(shape.fill(fill))
+        .overlay { if slot != nil { shape.strokeBorder(Refined.accentText, lineWidth: 1.5) } }
         .contentShape(shape)
     }
 
     @ViewBuilder private func badge(_ n: Int?) -> some View {
         if let n {
             Text("\(n + 1)").font(.system(size: 12, weight: .bold))
-                .foregroundStyle(look.isNative ? Color.white : Ink.paper)
+                .foregroundStyle(Refined.paper)
                 .frame(width: 22, height: 22)
-                .background(Circle().fill(look.isNative ? NativeInk.accent : Ink.ink))
+                .background(Circle().fill(Refined.accentText))
         } else {
-            Circle().strokeBorder(look.isNative ? AnyShapeStyle(NativeInk.tertiary) : AnyShapeStyle(Ink.mute), lineWidth: 1.2)
+            Circle().strokeBorder(Refined.faint, lineWidth: 1.2)
                 .frame(width: 22, height: 22)
         }
     }

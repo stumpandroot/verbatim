@@ -274,14 +274,13 @@ struct RunTemplateMenu: View {
     }
 }
 
-/// A Plan my day result in a transcript: Send to Reminders (a popover in Verbose style, a sheet in Native) or how many
-/// are there, then the plan. Each task's time plays the line it came from.
+/// A Plan my day result in a transcript: Send to Reminders (a sheet) or how many are there, then the plan. Each task's
+/// time plays the line it came from.
 struct MacPlanResult: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
     var result: TemplateResult
     var inline = false
-    @Environment(\.look) private var look
     @State private var model: SendToReminders? = nil
 
     var body: some View {
@@ -296,20 +295,17 @@ struct MacPlanResult: View {
                         Button("Send to Reminders") { open(plan, sent, only: nil) }
                             .buttonStyle(RefinedActionStyle(kind: .strong))
                             .uiTarget("result-send-reminders")
-                            .popover(isPresented: Binding(get: { model != nil && look != .native }, set: { if !$0 { model = nil } }), arrowEdge: .bottom) {
-                                if let m = model { MacRemindersSend(model: m, onSent: done, onCancel: { model = nil }).environmentObject(app) }
-                            }
                         if let s = DayPlan.sentStatus(plan, sent: sent) { Text(s).refinedFont(.meta).foregroundStyle(Refined.mute) }
                     }
                 }
             }
-            PlanSections(plan: plan, recordedAt: transcript.createdAt, sent: sent, native: look == .native,
+            PlanSections(plan: plan, recordedAt: transcript.createdAt, sent: sent,
                          headingSize: inline ? 19 : 17, textSize: 13,
                          link: { $0.anchor.map(DayPlan.clock) },
                          onJump: { item in if let a = item.anchor { app.player.play(from: a) } },
                          onSend: { open(plan, sent, only: $0) })
         }
-        .sheet(isPresented: Binding(get: { model != nil && look == .native }, set: { if !$0 { model = nil } })) {
+        .sheet(isPresented: Binding(get: { model != nil }, set: { if !$0 { model = nil } })) {
             if let m = model { MacRemindersSend(model: m, onSent: done, onCancel: { model = nil }).environmentObject(app) }
         }
     }

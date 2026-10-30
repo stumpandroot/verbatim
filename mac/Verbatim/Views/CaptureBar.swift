@@ -81,32 +81,36 @@ enum EditRecordAsWindow {
     static var isOpen: Bool { window?.isVisible == true }
 }
 
-/// The rows of Record As with a switch each, in its order, and what each one does.
+/// The rows of Record As with a switch each, in its order, and what each one does, on the refined kit (DESIGN.md §13):
+/// the rows in a card on paper, each with its kind's colored square.
 struct RecordAsEditor: View {
     @ObservedObject private var rows = RecordAsStore.shared
-    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Choose the ways to record that Record As shows. The others stay kinds you can pick with Change kind.")
-                .font(.system(size: 12.5)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.dim))
+                .refinedFont(.meta).foregroundStyle(Refined.dim)
                 .fixedSize(horizontal: false, vertical: true)
-            VStack(spacing: 0) {
+            PaperCard {
                 ForEach(RecordChoice.all) { c in
-                    Toggle(isOn: Binding(get: { rows.rows.isShown(c) }, set: { rows.set(c, shown: $0) })) {
-                        Label(c.name, image: c.symbolName).font(.system(size: 13))
+                    HStack(spacing: 10) {
+                        IconSquare(art: c.art, hue: c.refinedHue)
+                        Text(c.name).refinedFont(.rowTitle).foregroundStyle(Refined.ink)
+                        Spacer(minLength: 8)
+                        Toggle(c.name, isOn: Binding(get: { rows.rows.isShown(c) }, set: { rows.set(c, shown: $0) }))
+                            .toggleStyle(.switch).controlSize(.small).labelsHidden()
+                            .refinedSwitchTint()
+                            .disabled(!RecordAsRows.canHide(c))
+                            .uiTarget("record-as-edit-\(c.id)")
                     }
-                    .toggleStyle(.switch).controlSize(.small)
-                    .disabled(!RecordAsRows.canHide(c))
-                    .padding(.vertical, 7)
-                    .uiTarget("record-as-edit-\(c.id)")
-                    if c != RecordChoice.all.last { Rectangle().fill(look == .native ? Color.primary.opacity(0.1) : Ink.hairline).frame(height: 1) }   // brand: native
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    if c != RecordChoice.all.last { PaperDivider(leading: 44, trailing: 12) }
                 }
             }
         }
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(look == .native ? Color.clear : Ink.paper)
+        .background(Refined.paper)
     }
 }
 

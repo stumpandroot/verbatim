@@ -18,20 +18,20 @@ struct ToastView: View {
             HStack(spacing: 14) {
                 Text(t.message).font(.system(size: 13)).lineLimit(2)
                 if let a = t.action {
-                    // A mini line pill in paper on the toast's ink (DESIGN.md §11.5).
+                    // A small outlined action in paper on the toast's ink (the refined kit, DESIGN.md §13).
                     Button { t.onAction?(); app.toast = nil } label: {
-                        Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.readerFixed)
+                        Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.paper)
                             .lineLimit(1).fixedSize()
                             .padding(.horizontal, 12).frame(height: 28)
-                            .overlay(Capsule().strokeBorder(Ink.readerFixed, lineWidth: 1.5))
+                            .overlay(Capsule().strokeBorder(Refined.paper, lineWidth: 1.5))
                             .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(Ink.inkFixed, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-            .foregroundStyle(Ink.readerFixed)
+            .background(Refined.ink, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
+            .foregroundStyle(Refined.paper)
             .frame(maxWidth: 520)
             .padding(.bottom, 24)
             .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity))

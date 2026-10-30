@@ -181,12 +181,10 @@ struct LiveCaptionsScreen: View {
 
             if captions.paused {
                 HStack(spacing: 10) {
-                    Text(captions.pauseReason ?? "Paused.").font(.system(size: 13.5)).foregroundStyle(.lookDim).lineLimit(2)
+                    Text(captions.pauseReason ?? "Paused.").refinedFont(.hint).foregroundStyle(Refined.dim).lineLimit(2)
                     Spacer(minLength: 8)
                     Button("Resume") { captions.togglePause() }
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(.lookInk)
-                        .padding(.horizontal, 14).frame(height: 34)
-                        .background(Ink.ink.opacity(0.08), in: Capsule())
+                        .buttonStyle(RefinedActionStyle(kind: .quiet))
                 }
                 .padding(.bottom, 12)
                 .transition(.opacity)
@@ -194,27 +192,18 @@ struct LiveCaptionsScreen: View {
             chips.padding(.bottom, 12)
             HStack(spacing: 10) {
                 Button { stopTapped() } label: {
-                    Text("Stop").font(.system(size: 16, weight: .medium)).foregroundStyle(.lookInk)
-                        .frame(maxWidth: .infinity).frame(height: 52)
-                        .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5))
-                        .contentShape(Capsule())
+                    Text("Stop").frame(maxWidth: .infinity).frame(minHeight: 50)
                 }
-                .buttonStyle(SoftPress())
+                .buttonStyle(RefinedActionStyle(kind: .quiet))
                 Button { app.stopCaptions(save: true) } label: {
-                    HStack(spacing: 8) {
-                        Circle().fill(Ink.persimmon).frame(width: 9, height: 9)
-                        Text("Save transcript").font(.system(size: 16, weight: .semibold))
-                    }
-                    .foregroundStyle(Ink.onInteractive)
-                    .frame(maxWidth: .infinity).frame(height: 52)
-                    .background(Ink.interactive, in: Capsule())
+                    Text("Save transcript").frame(maxWidth: .infinity).frame(minHeight: 50)
                 }
-                .buttonStyle(SoftPress())
+                .buttonStyle(RefinedActionStyle(kind: .strong))
                 .disabled(!captions.running)
             }
         }
         .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 14)
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
         .animation(Motion.fade, value: captions.paused)
         .confirmationDialog("Stop live captions?", isPresented: $confirmStop, titleVisibility: .visible) {
             Button("Save transcript") { app.stopCaptions(save: true) }
@@ -227,11 +216,11 @@ struct LiveCaptionsScreen: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            IconGlyph(art: .iconCaptions, size: 16, color: Ink.mute)
-            Text("Live captions · in the room").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute).lineLimit(1)
+            IconGlyph(art: .iconCaptions, size: 16, color: Refined.mute)
+            Text("Live captions · in the room").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute).lineLimit(1)
             Spacer(minLength: 8)
             TimelineView(.periodic(from: .now, by: 1)) { _ in
-                Text(captionClock(captions.elapsed)).font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(.lookMute)
+                Text(captionClock(captions.elapsed)).refinedFont(.caption, weight: .medium).monospacedDigit().foregroundStyle(Refined.mute)
             }
             .accessibilityLabel("Elapsed time")
         }
@@ -240,12 +229,12 @@ struct LiveCaptionsScreen: View {
     private var lines: some View {
         ZStack(alignment: .bottomLeading) {
             if feed.history.isEmpty && feed.current.isEmpty {
-                Text(captions.status ?? "Listening…").lookSerif(24).foregroundStyle(.lookMute)
+                Text(captions.status ?? "Listening…").font(.system(size: 24, design: .serif)).foregroundStyle(Refined.mute)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 CaptionLinesView(feed: feed, size: size.phone,
-                                 older: [(size.phone * 0.71, Ink.mute), (size.phone * 0.65, Ink.mute.opacity(0.75)),
-                                         (size.phone * 0.62, Ink.mute.opacity(0.6)), (size.phone * 0.6, Ink.mute.opacity(0.5))],
+                                 older: [(size.phone * 0.71, Refined.mute), (size.phone * 0.65, Refined.mute.opacity(0.75)),
+                                         (size.phone * 0.62, Refined.mute.opacity(0.6)), (size.phone * 0.6, Refined.mute.opacity(0.5))],
                                  showSpeakers: false, spacing: 14, currentLimit: 150)
             }
         }
@@ -256,7 +245,7 @@ struct LiveCaptionsScreen: View {
         .clipped()
         .overlay(alignment: .top) {
             if let s = captions.status, !(feed.history.isEmpty && feed.current.isEmpty) {
-                Text(s).font(.system(size: 12.5)).foregroundStyle(.lookMute).padding(.top, 24)
+                Text(s).refinedFont(.meta).foregroundStyle(Refined.mute).padding(.top, 24)
             }
         }
     }
@@ -282,10 +271,12 @@ struct LiveCaptionsScreen: View {
     }
 
     private func chip(_ title: String, on: Bool = false) -> some View {
-        Text(title).font(.system(size: 13, weight: .medium)).lineLimit(1)
-            .foregroundStyle(on ? Ink.onInteractive : Ink.ink)
+        Text(title).refinedFont(.hint, weight: on ? .semibold : .medium).lineLimit(1)
+            .foregroundStyle(on ? Refined.accentText : Refined.ink)
             .padding(.horizontal, 14).frame(height: 36)
-            .background(on ? Ink.interactive : Ink.ink.opacity(0.08), in: Capsule())
+            .background(on ? Refined.persimmonTint : Refined.neutral, in: Capsule())
+            .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+            .contentShape(Rectangle())
     }
 
     private func stopTapped() {

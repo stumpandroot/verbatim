@@ -3,7 +3,8 @@ import AVFoundation
 
 /// The welcome tour on iPhone: what Verbatim does, Pick a look (Verbose style or Native; tapping one switches the tour
 /// itself live), the microphone, and transcription quality with iCloud status. New installs start in Verbose style;
-/// skipping the tour keeps it.
+/// skipping the tour keeps it. Every step but Pick a look is drawn on the refined kit (DESIGN.md §13) in both look
+/// settings: the step count, the large serif title, cards, and the kit's strong action.
 struct PhoneOnboarding: View {
     @EnvironmentObject var app: PhoneState
     @State private var step: Int
@@ -11,7 +12,6 @@ struct PhoneOnboarding: View {
     /// The last step's iCloud sync switch (off on a new install; `Cloud.settleSyncDefault`).
     @State private var syncWanted = Cloud.wantsSync
     @Environment(\.limitMotion) private var reduceMotion
-    @Environment(\.look) private var look
     /// The look, chosen on step 2 (`AppLook`, per device in the App Group).
     @AppStorage(AppLook.key, store: AppLook.store) private var lookRaw = AppLook.verbose.rawValue
     private let total = 4
@@ -22,18 +22,8 @@ struct PhoneOnboarding: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if look.isNative {
-                Text("Step \(step + 1) of \(total)").font(.footnote.weight(.semibold)).foregroundStyle(.lookMute)
-                    .frame(maxWidth: .infinity).padding(.top, 16)
-            } else {
-                HStack(spacing: 10) {
-                    Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
-                    Overline(text: ["Verbose", "Look", "Microphone", "Last step"][step], color: Ink.dim)
-                    DottedRule().frame(height: 1)
-                    Text(String(format: "%02d / %02d", step + 1, total)).lookMono(11).foregroundStyle(.lookMute)
-                }
-                .padding(.top, 16)
-            }
+            Text("Step \(step + 1) of \(total)").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+                .frame(maxWidth: .infinity).padding(.top, 16)
             Group {
                 switch step {
                 case 0: welcome
@@ -47,7 +37,7 @@ struct PhoneOnboarding: View {
             Spacer(minLength: 16)
             HStack(spacing: 6) {
                 ForEach(0..<total, id: \.self) { i in
-                    Capsule().fill(i <= step ? (look.isNative ? NativeInk.accent : Ink.ink) : (look.isNative ? NativeInk.fillStrong : Ink.track)).frame(width: 22, height: 4)
+                    Capsule().fill(i <= step ? Refined.accentText : Refined.track).frame(width: 22, height: 4)
                 }
             }
             .frame(maxWidth: .infinity).padding(.bottom, 18)
@@ -56,7 +46,7 @@ struct PhoneOnboarding: View {
             secondary.frame(maxWidth: .infinity).padding(.top, 14).padding(.bottom, 12)
         }
         .padding(.horizontal, 24)
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
         .animation(Motion.settle, value: step)
         .interactiveDismissDisabled()
     }
@@ -65,14 +55,15 @@ struct PhoneOnboarding: View {
         VStack(alignment: .leading, spacing: 0) {
             // The lockup (DESIGN.md §4) and the tagline in the serif.
             HStack(spacing: 10) {
-                BarsMark(color: Ink.persimmon).frame(width: 19, height: 20)
-                Ink.wordmark(22)
+                BarsMark(color: Refined.persimmon).frame(width: 19, height: 20)
+                Text("\(Text("verbose").foregroundStyle(Refined.ink))\(Text(".").foregroundStyle(Refined.accentText))")
+                    .font(.system(size: 22, design: .serif))
             }
             .padding(.top, 22)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
             title(Ink.tagline)
             para("Record a thought, an interview, or a call, or paste a link to a video or podcast. Verbose writes it down on this iPhone. Everything stays on this iPhone unless you turn on iCloud sync.")
-            BrandGlyph(art: .diagramCapture, color: Ink.ink, minLineWidth: 1.2)
+            BrandGlyph(art: .diagramCapture, color: Refined.ink, minLineWidth: 1.2)
                 .frame(width: 170, height: 220).frame(maxWidth: .infinity).padding(.top, 50)
                 .accessibilityHidden(true)
         }
@@ -81,7 +72,7 @@ struct PhoneOnboarding: View {
     /// Both looks side by side; tapping one switches the look at once, so this step itself shows it.
     private var lookPicker: some View {
         VStack(alignment: .leading, spacing: 0) {
-            title(look.isNative ? "Pick a look" : "Pick a look.")
+            title("Pick a look.")
             para("Both work the same. Choose the one you'd rather look at.")
             LookPicker(selection: Binding(get: { AppLook(rawValue: lookRaw) ?? .verbose }, set: { LookSwitch.shared.pick($0) }), thumbWidth: 112)
                 .padding(.top, 28)
@@ -93,18 +84,16 @@ struct PhoneOnboarding: View {
             title("Let Verbose hear you.")
             para("Only while you record. Audio is transcribed on this iPhone and isn't uploaded anywhere except your own iCloud, when sync is on.")
             HStack(spacing: 14) {
-                IconGlyph(art: .capture, size: 22, color: Ink.ink)
-                    .frame(width: 44, height: 44).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                IconSquare(art: .capture, hue: .persimmon)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Microphone").font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
-                    Text("Keeps recording with the screen locked").font(.system(size: 13)).foregroundStyle(.lookMute)
+                    Text("Microphone").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                    Text("Keeps recording with the screen locked").refinedFont(.meta).foregroundStyle(Refined.mute)
                 }
                 Spacer()
-                if micAllowed { Image(systemName: "checkmark.circle.fill").font(.system(size: 20)).foregroundStyle(Ink.sageText) }
+                if micAllowed { RefinedCheckbox(on: true, size: 22).accessibilityLabel("Allowed") }
             }
             .padding(16)
-            .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(.lookHairline))
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
             .padding(.top, 28)
         }
     }
@@ -118,25 +107,24 @@ struct PhoneOnboarding: View {
                     Button { app.presetRaw = p.rawValue } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(p.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
+                                Text(p.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(app.preset == p ? Refined.accentText : Refined.ink)
                                 Text(p == .defaultPreset ? "Default · " + p.pitch : p.pitch)
-                                    .font(.system(size: 13)).foregroundStyle(.lookMute)
+                                    .refinedFont(.meta).foregroundStyle(Refined.mute)
                             }
                             Spacer()
-                            if app.preset == p { Image(systemName: "checkmark").font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.sageText) }
+                            if app.preset == p { Image(systemName: "checkmark").font(.system(size: 15, weight: .bold)).foregroundStyle(Refined.accentText) }
                         }
                         .padding(16)
-                        .background(app.preset == p ? Ink.sageTint : .clear)
+                        .background(app.preset == p ? Refined.persimmonTint : .clear)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(RefinedRowPress())
                     .accessibilityAddTraits(app.preset == p ? .isSelected : [])
-                    if p != .accurate { Divider().overlay(Ink.hairline) }
+                    if p != .accurate { PaperDivider(leading: 16) }
                 }
             }
-            .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-            .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(.lookHairline))
+            .background(Refined.card)
+            .clipShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
             .padding(.top, 22)
             sync.padding(.top, 16)
         }
@@ -147,67 +135,71 @@ struct PhoneOnboarding: View {
     @ViewBuilder private var sync: some View {
         if Cloud.enabled {
             Label { Text("Syncing with iCloud. Turn it off in Settings › Sync and storage.") } icon: { ArtIcon(art: .iconSync, size: 14) }
-                .font(.system(size: 14)).foregroundStyle(.lookDim)
+                .refinedFont(.hint).foregroundStyle(Refined.dim)
         } else if Cloud.available {
             Toggle(isOn: Binding(get: { syncWanted }, set: { on in syncWanted = on; Cloud.setWantsSync(on) })) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("iCloud sync").font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
+                    Text("iCloud sync").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
                     Text(syncWanted
                          ? "Your recordings, transcripts, Dictionary, and snippets go to your own iCloud Drive, so they show on your Mac too. Starts the next time you open Verbose."
                          : "Off: everything stays on this iPhone. Turn it on to see your transcripts on your Mac too. Audio and transcripts go to your own iCloud Drive.")
-                        .font(.system(size: 13)).foregroundStyle(.lookMute).fixedSize(horizontal: false, vertical: true)
+                        .refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .toggleStyle(.switch).tint(PhoneInk.switchOn)
+            .toggleStyle(.switch).refinedSwitchTint()
         } else {
             Label { Text("iCloud is off, so everything stays on this iPhone") } icon: { ArtIcon(art: .iconSyncOff, size: 14) }
-                .font(.system(size: 14)).foregroundStyle(.lookDim)
+                .refinedFont(.hint).foregroundStyle(Refined.dim)
         }
     }
 
     @ViewBuilder private var primary: some View {
         switch step {
-        case 0: bigButton("Get started", fill: Ink.interactive, text: Ink.onInteractive) { step = 1 }
-        case Self.lookStep: bigButton("Continue", fill: Ink.interactive, text: Ink.onInteractive) { step = 2 }
+        case 0: bigButton("Get started") { step = 1 }
+        case Self.lookStep: bigButton("Continue") { step = 2 }
         case 2:
-            if micAllowed { bigButton("Continue", fill: Ink.interactive, text: Ink.onInteractive) { step = 3 } }
+            if micAllowed { bigButton("Continue") { step = 3 } }
             else {
-                bigButton("Allow microphone", fill: Ink.persimmon, text: Ink.inkFixed) {
+                bigButton("Allow microphone") {
                     AVAudioApplication.requestRecordPermission { ok in
                         DispatchQueue.main.async { micAllowed = ok; step = 3 }
                     }
                 }
             }
-        default: bigButton("Start using Verbose", fill: Ink.interactive, text: Ink.onInteractive) { done() }
+        default: bigButton("Start using Verbose") { done() }
         }
     }
 
     @ViewBuilder private var secondary: some View {
         switch step {
-        case 0: Button("Skip the tour") { done() }.font(.system(size: 15, weight: .medium)).foregroundStyle(.lookDim)
+        case 0: quiet("Skip the tour") { done() }
         case Self.lookStep:
-            Text("You can change this anytime in Settings › Appearance.").font(.system(size: 13.5)).foregroundStyle(.lookMute)
+            Text("You can change this anytime in Settings › Appearance.").refinedFont(.meta).foregroundStyle(Refined.mute)
                 .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-        case 2: Button(micAllowed ? "Back" : "Not now") { if micAllowed { step = 1 } else { step = 3 } }.font(.system(size: 15, weight: .medium)).foregroundStyle(.lookDim)
-        default: Button("Back") { step = 2 }.font(.system(size: 15, weight: .medium)).foregroundStyle(.lookDim)
+        case 2: quiet(micAllowed ? "Back" : "Not now") { if micAllowed { step = 1 } else { step = 3 } }
+        default: quiet("Back") { step = 2 }
         }
     }
 
-    /// Native: a full-width button in the accent (system blue) with a white label, whatever the Verbose style fill.
-    private func bigButton(_ title: String, fill: Color, text: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title).font(.system(size: 17, weight: .semibold)).foregroundStyle(look.isNative ? NativeInk.onAccent : text)
-                .frame(maxWidth: .infinity).padding(.vertical, 16)
-                .background(look.isNative ? NativeInk.accent : fill, in: RoundedRectangle(cornerRadius: look.isNative ? 26 : Radius.tile, style: .continuous))
-        }
-        .buttonStyle(PressScale())
+    /// The step's action: the kit's strong action, full width.
+    private func bigButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { Text(title).frame(maxWidth: .infinity).frame(minHeight: 50) }
+            .buttonStyle(RefinedActionStyle(kind: .strong))
+    }
+
+    /// Skip, Back, or Not now: plain text in `dim`, 44 pt to tap.
+    private func quiet(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .refinedFont(.hint, weight: .medium).foregroundStyle(Refined.dim)
+            .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
     }
 
     private func title(_ s: String) -> some View {
-        Text(s).font(look.isNative ? .largeTitle.bold() : Ink.serif(36)).foregroundStyle(.lookInk).padding(.top, 18).padding(.bottom, 8).fixedSize(horizontal: false, vertical: true)
+        Text(s).refinedFont(.largeTitle).foregroundStyle(Refined.ink).padding(.top, 18).padding(.bottom, 8).fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
     }
     private func para(_ s: String) -> some View {
-        Text(s).font(.system(size: 16)).foregroundStyle(.lookDim).fixedSize(horizontal: false, vertical: true)
+        Text(s).refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
     }
 
     private func done() {

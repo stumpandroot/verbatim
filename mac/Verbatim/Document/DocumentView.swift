@@ -30,7 +30,7 @@ struct DocumentView: View {
             toolbar(current)
             if let by = transcript.cleanedBy {
                 VStack(alignment: .leading, spacing: 4) {
-                    CleanedLabel(source: by, mono: true)
+                    CleanedLabel(source: by)
                     if by == .model { AIGeneratedNote() }
                 }
                 .frame(maxWidth: 720, alignment: .leading)
@@ -52,9 +52,9 @@ struct DocumentView: View {
 
     // MARK: Toolbar
 
-    /// Proofread as a soft chip, Clean up and Tone as line mini pills with a chevron, and Accept all, Undo, and Reset
-    /// as mini pills at the end (DESIGN.md §11). Sits on the page: no box, no hairline. Every control takes clicks
-    /// through a direct gesture or a menu, never a Button under a parent gesture (macOS 26).
+    /// Proofread as a refined chip, Clean up and Tone as menu faces, and Accept all, Undo, and Reset as refined
+    /// actions at the end (DESIGN.md §13), in both look settings. Sits on the page: no box, no hairline. No control
+    /// sits under a parent gesture (macOS 26).
     private func toolbar(_ currentLints: [Harper.Lint]) -> some View {
         let canUndo = !transcript.documentHistory.isEmpty
         return HStack(spacing: 8) {
@@ -63,10 +63,10 @@ struct DocumentView: View {
 
             Menu {
                 ForEach(Polish.Level.allCases) { l in
-                    Button { run(level: l, tone: tone) } label: { HStack { Text(l.rawValue); Text("· " + l.note).foregroundStyle(.secondary) } }
+                    Button { run(level: l, tone: tone) } label: { HStack { Text(l.rawValue); Text("· " + l.note) } }
                 }
             } label: {
-                PillLabel(title: level == .none ? "Clean up" : "Clean up · \(level.rawValue)", kind: .line, size: .mini, trailing: .chevron)
+                RefinedMenuLabel(title: level == .none ? "Clean up" : "Clean up · \(level.rawValue)")
             }
             .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
             .help("Rewrite the corrected lines with Apple's on-device model. Your Original stays as it is.")
@@ -75,28 +75,34 @@ struct DocumentView: View {
             Menu {
                 ForEach(Polish.Tone.allCases) { t in Button(t.rawValue) { run(level: level == .none ? .light : level, tone: t) } }
             } label: {
-                PillLabel(title: tone == .spoken ? "Tone" : "Tone · \(tone.rawValue)", kind: .line, size: .mini, trailing: .chevron)
+                RefinedMenuLabel(title: tone == .spoken ? "Tone" : "Tone · \(tone.rawValue)")
             }
             .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
             .accessibilityLabel("Tone").accessibilityValue(tone.rawValue)
 
             if let w = working {
-                ProgressView(value: w).progressViewStyle(.linear).frame(width: 90).controlSize(.small).tint(Ink.ink)
+                ProgressView(value: w).progressViewStyle(.linear).frame(width: 90).controlSize(.small).tint(Refined.accentText)
                     .accessibilityLabel("Cleaning up")
             }
             Spacer(minLength: 8)
             if proofread, !currentLints.isEmpty {
-                PillButton(title: "Accept all", kind: .dark, size: .mini, hint: "Applies every spelling and grammar fix") { acceptAll() }
+                Button("Accept all") { acceptAll() }
+                    .buttonStyle(RefinedActionStyle(kind: .strong))
+                    .accessibilityHint("Applies every spelling and grammar fix.")
             }
-            PillButton(title: "Undo", kind: .line, size: .mini, enabled: canUndo, hint: "Brings back the Cleaned text before the last change") { undo() }
+            Button("Undo") { undo() }
+                .buttonStyle(RefinedActionStyle(kind: .quiet))
+                .disabled(!canUndo)
+                .accessibilityHint("Brings back the Cleaned text before the last change.")
                 .help("Undo the last Clean up, Tone, or fix (⇧⌘Z)")
             if transcript.document != nil {
-                PillButton(title: "Reset", kind: .line, size: .mini, hint: "Back to the corrected lines from Original") { reset() }
+                Button("Reset") { reset() }
+                    .buttonStyle(RefinedActionStyle(kind: .quiet))
                     .help("Back to the corrected lines from Original")
             }
         }
         .background {
-            // ⇧⌘Z for Undo, once, out of sight (the pill takes clicks through its own gesture).
+            // ⇧⌘Z for Undo, once, out of sight.
             Button("") { if canUndo { undo() } }.keyboardShortcut("z", modifiers: [.command, .shift])
                 .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
         }
@@ -198,16 +204,13 @@ struct DocumentView: View {
     }
 }
 
-/// Proofread as a soft filter chip: ink when on, with the number of suggestions. Clicks through a direct gesture.
+/// Proofread as a refined chip: the persimmon tint when on, with the number of suggestions.
 private struct ProofreadChip: View {
     var on: Bool
     var count: Int?
     var action: () -> Void
-    @State private var hover = false
     var body: some View {
-        FilterChipLabel(title: "Proofread", count: count, selected: on, small: true, hover: hover)
-            .onHover { hover = $0 }
-            .tapArea(action)
+        RefinedChip(title: count.map { "Proofread · \($0)" } ?? "Proofread", selected: on, action: action)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(count.map { "Proofread, \($0) suggestions" } ?? "Proofread")
             .accessibilityValue(on ? "On" : "Off")
@@ -234,7 +237,7 @@ struct DocumentEditor: NSViewRepresentable {
         tv.isAutomaticQuoteSubstitutionEnabled = false; tv.isAutomaticDashSubstitutionEnabled = false
         tv.isContinuousSpellCheckingEnabled = false   // Harper underlines instead
         tv.font = NSFont.systemFont(ofSize: 16)
-        tv.textColor = NSColor(Ink.ink)
+        tv.textColor = NSColor(Refined.ink)
         tv.backgroundColor = .clear; tv.drawsBackground = false
         tv.textContainerInset = NSSize(width: 0, height: 4)
         tv.textContainer?.lineFragmentPadding = 0
@@ -283,7 +286,7 @@ struct DocumentEditor: NSViewRepresentable {
             lastText = text; lastLintKey = key
             let sel = tv.selectedRanges
             let para = NSMutableParagraphStyle(); para.lineSpacing = 6; para.paragraphSpacing = 0
-            let attr = NSMutableAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 16), .foregroundColor: NSColor(Ink.ink), .paragraphStyle: para])
+            let attr = NSMutableAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 16), .foregroundColor: NSColor(Refined.ink), .paragraphStyle: para])
             let ns = text as NSString
             // Blank lines between paragraphs render as a short gap, not a full line.
             let small = NSFont.systemFont(ofSize: 7)
@@ -300,14 +303,14 @@ struct DocumentEditor: NSViewRepresentable {
             for p in text.components(separatedBy: "\n\n") {
                 if !speakers.isEmpty, let name = DocumentText.split(p, speakers: speakers).speaker {
                     let len = (name as NSString).length + 1
-                    attr.addAttributes([.font: labelFont, .foregroundColor: NSColor(Ink.ink)], range: NSRange(location: loc, length: min((p as NSString).length, len)))
+                    attr.addAttributes([.font: labelFont, .foregroundColor: NSColor(Refined.ink)], range: NSRange(location: loc, length: min((p as NSString).length, len)))
                 }
                 loc += (p as NSString).length + 2
             }
             for l in lints {
                 let r = l.nsRange
                 guard r.location >= 0, NSMaxRange(r) <= ns.length else { continue }
-                let color = l.isSpelling ? NSColor(Ink.danger) : NSColor(Ink.iris)
+                let color = l.isSpelling ? NSColor(Refined.accentText) : NSColor(Refined.sageText)
                 attr.addAttributes([.underlineStyle: NSUnderlineStyle.single.rawValue | NSUnderlineStyle.patternDot.rawValue, .underlineColor: color,
                                     .link: URL(string: "verbatim-lint://\(l.id)")!, .cursor: NSCursor.pointingHand], range: r)
             }
@@ -374,21 +377,21 @@ struct LintPopover: View {
     var ignore: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(lint.kind) · Harper").font(.system(size: 11)).foregroundStyle(.secondary)
-            Text(lint.message).font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+            Text("\(lint.kind) · Harper").refinedFont(.caption).foregroundStyle(Refined.mute)
+            Text(lint.message).refinedFont(.hint).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
             if let fix = lint.fix {
                 HStack(spacing: 6) {
-                    Text(lint.original).strikethrough().foregroundStyle(.secondary)
-                    Image(systemName: "arrow.right").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
-                    Text(fix.isEmpty ? "(remove)" : fix).fontWeight(.semibold)
+                    Text(lint.original).strikethrough().foregroundStyle(Refined.mute)
+                    Image(systemName: "arrow.right").font(.system(size: 10, weight: .bold)).foregroundStyle(Refined.mute)
+                    Text(fix.isEmpty ? "(remove)" : fix).fontWeight(.semibold).foregroundStyle(Refined.ink)
                 }
                 .font(.system(size: 13))
             }
             HStack(spacing: 8) {
-                if lint.fix != nil { Button("Accept", action: accept).buttonStyle(.pillDark()).keyboardShortcut(.defaultAction) }
-                Button("Ignore", action: ignore).buttonStyle(.plain).foregroundStyle(.secondary)
+                if lint.fix != nil { Button("Accept", action: accept).buttonStyle(RefinedActionStyle(kind: .strong)).keyboardShortcut(.defaultAction) }
+                Button("Ignore", action: ignore).buttonStyle(RefinedActionStyle(kind: .quiet))
             }
         }
-        .padding(14).frame(width: 260, alignment: .leading)
+        .padding(14).frame(width: 260, alignment: .leading).background(Refined.paper)
     }
 }

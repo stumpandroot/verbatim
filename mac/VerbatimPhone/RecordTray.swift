@@ -3,9 +3,10 @@ import UIKit
 
 // Record as (approved mockup "Record as", October 26, 2026; DESIGN.md §17.6): touching and holding Record opens
 // Verbose's own tray instead of the system's context menu, after the trays in Family. It rises from the bottom and
-// covers the tab bar; slide your finger to a kind and lift to start it, or lift without sliding and tap one. The same
-// tray opens from Home's Record card (both Verbose sizes and Premium Native's card) and from Premium Native's floating
-// record button, which adds Dictate, Live captions, and Import under the kinds.
+// covers the tab bar; slide your finger to a kind and lift to start it, or lift without sliding and tap one. It opens
+// from Home's Record card (both sizes) in both look settings, drawn with the refined kit (DESIGN.md §13): an opaque
+// paper tray, the serif title, and each kind on its colored icon square. The tray over everything is `RecordTrayLayer`,
+// put once at the root above the tab view.
 //
 // The kinds, their order, their names, and the line under each come from `RecordChoice` (Model/Templates.swift); the
 // gesture's decisions from `RecordTrayRules`, which the Linux tests check (mac/tools/test-templates.sh).
@@ -212,23 +213,6 @@ extension PhoneState {
     }
 }
 
-extension RecordChoice {
-    /// Verbose style's fine-line glyph (the Mac menus' custom symbols are made from the same ones).
-    var art: BrandArt {
-        switch self {
-        case .voiceNote: return .iconMic
-        case .kind(.meeting): return .iconSpeakers
-        case .kind(.interview): return .iconQuote
-        case .kind(.journal): return .iconNotes
-        case .kind(.talk): return .iconVoice
-        case .kind(.brainDump): return .iconBrainDump
-        case .kind(.audio): return .iconAudio
-        case .kind: return .iconMic
-        case .thought: return .iconThought
-        }
-    }
-}
-
 // MARK: - The press on Record
 
 extension View {
@@ -321,8 +305,6 @@ private struct RecordTrayPress: ViewModifier {
 
 // MARK: - The tray
 
-/// The tray over everything, the tab bar included: the scrim, the tray in the look, and (from the floating button)
-/// the button kept lit above the scrim. Put once at the root, above the tab view.
 /// VoiceOver's actions on Record, following the rows Record as shows.
 private struct RecordChoiceActions: ViewModifier {
     let app: PhoneState
@@ -342,7 +324,6 @@ struct RecordTrayLayer: View {
     @ObservedObject private var recordAs = RecordAsStore.shared
     @ObservedObject private var tray = RecordTray.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
-    @Environment(\.look) private var look
     @Environment(\.limitMotion) private var limitMotion
     /// How far a swipe down has pulled the tray.
     @State private var pull: CGFloat = 0
@@ -353,18 +334,14 @@ struct RecordTrayLayer: View {
 
     var body: some View {
         GeometryReader { g in
-            let global = g.frame(in: .global)
             ZStack(alignment: .bottom) {
                 if tray.isOpen {
                     scrim
                         .transition(.opacity)
-                    if tray.source.isFloating && tray.buttonFrame != .zero {
-                        litButton(in: global)
-                    }
                     panel(maxHeight: g.size.height * CGFloat(RecordTrayRules.maxHeightShare))
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { trayHeight = $0 }
                         .offset(y: max(0, pull))
-                        .padding(.bottom, bottomGap(in: global))
+                        .padding(.bottom, 8)
                         .transition(limitMotion ? AnyTransition.opacity : AnyTransition.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -376,61 +353,39 @@ struct RecordTrayLayer: View {
         .onChange(of: tray.isOpen) { _, open in if !open { pull = 0 } }
     }
 
-    /// The gap under the tray: just above the home indicator from the card, so it covers the tab bar; above the
-    /// floating button from it, so your thumb slides up from the button through the rows.
-    private func bottomGap(in global: CGRect) -> CGFloat {
-        guard tray.source.isFloating, tray.buttonFrame != .zero else { return look.isNative ? 6 : 12 }
-        return max(12, global.maxY - tray.buttonFrame.minY + 14)
-    }
-
-    @ViewBuilder private var scrim: some View {
-        Group {
-            if look.isNative {
-                Color.black.opacity(0.38)   // brand: native
-            } else {
-                Ink.inkFixed.opacity(0.32)
-            }
-        }
-        .ignoresSafeArea()
-        .contentShape(Rectangle())
-        .onTapGesture { if !tray.fingerDown { tray.close() } }
-        .accessibilityHidden(true)
-    }
-
-    /// The floating button, lit above the dimmed screen while the tray it opened is up.
-    private func litButton(in global: CGRect) -> some View {
-        let f = tray.buttonFrame
-        return NativeRecordDisc(size: 64)   // brand: native
-            .position(x: f.midX - global.minX, y: f.midY - global.minY)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .allowsHitTesting(false)
+    /// The dimmed screen behind the tray: the fixed ink at 32%, the same in light and dark.
+    private var scrim: some View {
+        Refined.onFill.opacity(0.32)
+            .ignoresSafeArea()
+            .contentShape(Rectangle())
+            .onTapGesture { if !tray.fingerDown { tray.close() } }
             .accessibilityHidden(true)
     }
 
     // MARK: The panel
 
-    @ViewBuilder private func panel(maxHeight: CGFloat) -> some View {
-        let content = VStack(alignment: .leading, spacing: 0) {
-            if look.isNative { grabber }
+    private func panel(maxHeight: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: RefinedPlatform.radius(.record), style: .continuous)
+        return VStack(alignment: .leading, spacing: 0) {
+            grabber
             header
                 .contentShape(Rectangle())
                 .gesture(dismissDrag)
             rows(maxHeight: maxHeight)
             editRow
-            if look.isNative, case .floating(let tab) = tray.source { footer(tab) }
         }
-        if look.isNative {
-            NativeTrayFace(content: content)
-        } else {
-            VerboseTrayFace(content: content)
-        }
+        .padding(.top, 8).padding(.horizontal, 10).padding(.bottom, 8)
+        .refinedSurface(Refined.paper, radius: RefinedPlatform.radius(.record))
+        .contentShape(shape)
+        .padding(.horizontal, 8)
+        .modalTray()
     }
 
     private var grabber: some View {
-        Capsule().fill(NativeInk.tertiary)
+        Capsule().fill(Refined.faint)
             .frame(width: 36, height: 5)
             .frame(maxWidth: .infinity)
-            .padding(.bottom, 6)
+            .padding(.bottom, 8)
             .contentShape(Rectangle())
             .gesture(dismissDrag)
             .accessibilityHidden(true)
@@ -438,27 +393,20 @@ struct RecordTrayLayer: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: look.isNative ? 2 : 4) {
-                Group {
-                    if look.isNative {
-                        Text("Record as").font(.title3.bold()).foregroundStyle(NativeInk.label)
-                    } else {
-                        (Text("Record ") + Text("as").italic()).font(Ink.serif(serifTitle)).foregroundStyle(Ink.ink)
-                    }
-                }
-                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Record as").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
+                    .accessibilityAddTraits(.isHeader)
                 Text("Verbose files it under this kind and runs its template.")
-                    .font(.system(size: look.isNative ? subNative : subVerbose))
-                    .foregroundStyle(look.isNative ? NativeInk.secondary : Ink.dim)
+                    .refinedFont(.meta).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
             Button { tray.close() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: look.isNative ? 12 : 13, weight: .bold))
-                    .foregroundStyle(look.isNative ? NativeInk.secondary : Ink.ink)
-                    .frame(width: look.isNative ? 30 : 34, height: look.isNative ? 30 : 34)
-                    .background { closeBackground }
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Refined.ink)
+                    .frame(width: 30, height: 30)
+                    .background(Refined.neutral, in: Circle())
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
@@ -466,23 +414,11 @@ struct RecordTrayLayer: View {
             .padding(.top, -6).padding(.trailing, -6)
             .accessibilityLabel("Close")
         }
-        .padding(.leading, 8).padding(.trailing, 6)
-        .padding(.top, look.isNative ? 4 : 0).padding(.bottom, 12)
+        .padding(.leading, 8).padding(.trailing, 6).padding(.bottom, 12)
     }
 
-    @ViewBuilder private var closeBackground: some View {
-        if look.isNative {
-            Circle().fill(NativeInk.fill)
-        } else {
-            Circle().strokeBorder(Ink.ink, lineWidth: 1.5)
-        }
-    }
-
-    @ScaledMetric(relativeTo: .title) private var serifTitle: CGFloat = 27
-    @ScaledMetric(relativeTo: .subheadline) private var subVerbose: CGFloat = 13.5
-    @ScaledMetric(relativeTo: .subheadline) private var subNative: CGFloat = 14
-
-    /// The rows; when they're taller than the room (80% of the screen, less the header), they scroll and the header stays.
+    /// The rows in a card; when they're taller than the room (80% of the screen, less the header), they scroll and the
+    /// header stays.
     @ViewBuilder private func rows(maxHeight: CGFloat) -> some View {
         let shown = recordAs.visible
         let list = VStack(spacing: 0) {
@@ -492,10 +428,11 @@ struct RecordTrayLayer: View {
                         hint: c.hint(settings: auto.settings, templates: app.store.allTemplates)) { tray.choose(c) }
             }
         }
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         let room = max(160, maxHeight - 120)
         ViewThatFits(in: .vertical) {
-            listBox(list, scrolls: false)
-            ScrollView { listBox(list, scrolls: true) }.frame(maxHeight: room)
+            list.gesture(dismissDrag, including: .all)
+            ScrollView { list.gesture(dismissDrag, including: .subviews) }.frame(maxHeight: room)
         }
         .frame(maxHeight: room)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { tray.listFrame = $0 }
@@ -507,26 +444,15 @@ struct RecordTrayLayer: View {
             tray.close()
             app.showRecordAsEditor = true
         } label: {
-            Text(look.isNative ? "Edit Record as" : "Edit Record as…")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(look.isNative ? NativeInk.accent : Ink.ink)
+            Text("Edit Record as")
+                .refinedFont(.body, weight: .semibold)
+                .foregroundStyle(Refined.accentText)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityHint("Choose which ways to record show here.")
         .accessibilityIdentifier("tray.editRecordAs")
-    }
-
-    @ViewBuilder private func listBox<L: View>(_ list: L, scrolls: Bool) -> some View {
-        if look.isNative {
-            list
-                .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .gesture(dismissDrag, including: scrolls ? .subviews : .all)
-        } else {
-            list.gesture(dismissDrag, including: scrolls ? .subviews : .all)
-        }
     }
 
     /// Swipe down to close: past a third of the tray's height, or a fast flick. A shorter drag springs back.
@@ -546,81 +472,7 @@ struct RecordTrayLayer: View {
                 }
             }
     }
-
-    // MARK: The floating button's extras
-
-    // brand: native begin
-    /// Dictate, Live captions, and Import, which the floating button's menu held, as a row of three under the kinds.
-    /// They open their own screens; they don't record.
-    private func footer(_ tab: PhoneState.Tab) -> some View {
-        HStack(spacing: 8) {
-            footerButton("Dictate", symbol: "text.bubble") {
-                tray.close()
-                if tab == .library { app.libraryPath.append(DictationsRoute()) } else { app.homePath.append(DictationsRoute()) }
-            }
-            footerButton("Live captions", symbol: "captions.bubble") { tray.close(); app.requestCaptions() }
-            Menu {
-                Button { tray.close(); app.showPhotoPicker = true } label: { Label("Choose from Photos", systemImage: "photo") }
-                Button { tray.close(); app.showImporter = true } label: { Label("Choose files…", systemImage: "folder") }
-                Button { tray.close(); app.showLinkSheet = true } label: { Label("Paste a link", systemImage: "link") }
-            } label: { footerFace("Import", symbol: "square.and.arrow.down") }
-            .accessibilityLabel("Import")
-        }
-        .padding(.top, 8)
-    }
-
-    private func footerButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { footerFace(title, symbol: symbol) }
-            .buttonStyle(PhoneCardPress())
-            .accessibilityLabel(title)
-    }
-
-    private func footerFace(_ title: String, symbol: String) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: symbol).font(.system(size: 19, weight: .medium)).foregroundStyle(NativeInk.label)
-            Text(title).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(NativeInk.label).lineLimit(1).minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, minHeight: 62)
-        .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-    // brand: native end
 }
-
-/// Verbose style: an opaque paper tray with the ink outline, the (6, 7) hard shadow, and the panel radius. No grain:
-/// grain never goes on paper (DESIGN.md §5.5).
-private struct VerboseTrayFace<Content: View>: View {
-    var content: Content
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
-        content
-            .padding(.top, 14).padding(.horizontal, 10).padding(.bottom, 10)
-            .background(Ink.paper, in: shape)
-            .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
-            .background(shape.fill(PhoneInk.hard).offset(x: 6, y: 7))
-            .padding(.leading, 10).padding(.trailing, 16)
-            .modalTray()
-    }
-}
-
-// brand: native begin
-/// Premium Native: a system material sheet with a grabber; the rows sit on an opaque card, so only the title is on
-/// glass (DESIGN.md §13.5). Reduce Transparency makes the sheet opaque.
-private struct NativeTrayFace<Content: View>: View {
-    var content: Content
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 32, style: .continuous)
-        content
-            .padding(.top, 8).padding(.horizontal, 10).padding(.bottom, 10)
-            .background {
-                if reduceTransparency { shape.fill(NativeInk.paper) } else { shape.fill(.regularMaterial) }
-            }
-            .padding(.horizontal, 8)
-            .modalTray()
-    }
-}
-// brand: native end
 
 private extension View {
     /// The tray is a modal for VoiceOver: focus stays in it, and the escape gesture closes it.
@@ -632,9 +484,8 @@ private extension View {
     }
 }
 
-/// One way to record: the kind's icon, its name, and what happens. Verbose style: the serif name with an italic last
-/// word; under the finger, the selected-row card (§11) with the record disc. Native: SF Symbols in the label color
-/// on a gray chip and the system highlight, with Premium's persimmon disc. Persimmon only ever appears as that disc.
+/// One way to record (the refined kit): the kind's glyph on its colored square, its name, and what happens. Under the
+/// finger, the persimmon tint with the record disc; persimmon only ever appears as that tint and the disc's red dot.
 private struct TrayRow: View {
     var choice: RecordChoice
     var first: Bool
@@ -642,16 +493,28 @@ private struct TrayRow: View {
     var neighborHighlighted: Bool
     var hint: String
     var action: () -> Void
-    @Environment(\.look) private var look
-    @ScaledMetric(relativeTo: .title3) private var nameSize: CGFloat = 20
-    @ScaledMetric(relativeTo: .body) private var nativeName: CGFloat = 17
-    @ScaledMetric(relativeTo: .footnote) private var hintSize: CGFloat = 13
-    @ScaledMetric(relativeTo: .body) private var chip: CGFloat = 38
     @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 60
 
     var body: some View {
         Button(action: action) {
-            if look.isNative { native } else { verbose }
+            HStack(spacing: 12) {
+                IconSquare(art: choice.art, hue: choice.refinedHue)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(choice.name).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                    Text(hint).refinedFont(.meta).foregroundStyle(Refined.mute)
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                AccessoryRecordDisc(size: 32)
+                    .opacity(highlighted ? 1 : 0)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .frame(minHeight: rowHeight)
+            .background(highlighted ? Refined.persimmonTint : Color.clear)
+            .overlay(alignment: .top) {
+                if !first && !highlighted && !neighborHighlighted { PaperDivider(leading: 56) }
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { RecordTray.shared.rowFrames[choice] = $0 }
@@ -659,84 +522,14 @@ private struct TrayRow: View {
         .accessibilityHint(hint)
         .accessibilityIdentifier("recordtray.\(choice.id)")
     }
-
-    private var verbose: some View {
-        let shape = RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-        let (lead, italic) = choice.serifParts
-        return HStack(spacing: 12) {
-            IconGlyph(art: choice.art, size: chip * 0.53, color: Ink.ink)
-                .frame(width: chip, height: chip)
-                .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                (Text(lead) + (italic.map { Text($0).italic() } ?? Text("")))
-                    .font(Ink.serif(nameSize)).foregroundStyle(Ink.ink)
-                Text(hint).font(.system(size: hintSize)).foregroundStyle(Ink.mute)
-                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            ZStack {
-                Circle().fill(Ink.inkFixed)
-                Circle().fill(PhoneInk.record).frame(width: 12, height: 12)
-            }
-            .frame(width: 34, height: 34)
-            .opacity(highlighted ? 1 : 0)
-            .accessibilityHidden(true)
-        }
-        .padding(.horizontal, 8).padding(.vertical, 7)
-        .frame(minHeight: rowHeight)
-        .background {
-            if highlighted {
-                shape.fill(Ink.card)
-                    .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
-                    .background(shape.fill(PhoneInk.hard).offset(x: 4, y: 5))
-            }
-        }
-        .overlay(alignment: .top) {
-            if !first && !highlighted && !neighborHighlighted {
-                Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, chip + 20).padding(.trailing, 8)
-            }
-        }
-        .zIndex(highlighted ? 1 : 0)
-        .contentShape(shape)
-    }
-
-    // brand: native begin
-    private var native: some View {
-        HStack(spacing: 12) {
-            Image(systemName: choice.nativeSymbol)
-                .font(.system(size: 17, weight: .regular))
-                .foregroundStyle(NativeInk.label)
-                .frame(width: 32, height: 32)
-                .background(NativeInk.fill, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(choice.name).font(.system(size: nativeName)).foregroundStyle(NativeInk.label)
-                Text(hint).font(.system(size: hintSize)).foregroundStyle(NativeInk.secondary)
-                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.leading, 14).padding(.trailing, 12).padding(.vertical, 8)
-        .frame(minHeight: rowHeight)
-        .background(highlighted ? NativeInk.fillStrong : Color.clear)
-        .overlay(alignment: .top) {
-            if !first && !highlighted && !neighborHighlighted {
-                Rectangle().fill(NativeInk.separator).frame(height: 0.5).padding(.leading, 58)
-            }
-        }
-        .contentShape(Rectangle())
-    }
-    // brand: native end
 }
 
 /// Edit Record as (consolidation, October 28, 2026): every way to record with a switch, in Record as's order, so a row
-/// you hid comes back. Interview, Journal entry, and Talk start hidden; Voice note always shows. A standard sheet in both
-/// looks: a grouped list with system switches, which Verbose style draws on paper.
+/// you hid comes back. Interview, Journal entry, and Talk start hidden; Voice note always shows. A standard sheet with
+/// the system's switches, on paper with the rows in a card (the refined kit).
 struct PhoneRecordAsEditor: View {
     @ObservedObject private var rows = RecordAsStore.shared
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.look) private var look
     /// On screen, for the self-test.
     static var visible = false
 
@@ -746,23 +539,32 @@ struct PhoneRecordAsEditor: View {
                 Section {
                     ForEach(RecordChoice.all) { c in
                         Toggle(isOn: Binding(get: { rows.rows.isShown(c) }, set: { rows.set(c, shown: $0) })) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(c.name).font(.system(size: 17)).foregroundStyle(.lookInk)
-                                Text(c.fallbackHint).font(.system(size: 13)).foregroundStyle(.lookMute)
+                            HStack(spacing: 12) {
+                                IconSquare(art: c.art, hue: c.refinedHue)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(c.name).refinedFont(.body).foregroundStyle(Refined.ink)
+                                    Text(c.fallbackHint).refinedFont(.meta).foregroundStyle(Refined.mute)
+                                }
                             }
                         }
+                        .refinedSwitchTint()
                         .disabled(!RecordAsRows.canHide(c))
+                        .listRowBackground(Refined.card)
+                        .listRowSeparatorTint(Refined.separator)
                         .accessibilityIdentifier("recordAs.\(c.id)")
                     }
                 } footer: {
-                    Text("The ways you turn off stay kinds you can pick with Change kind.")
+                    Text("The ways you turn off stay kinds you can pick with Change kind.").refinedFont(.meta).foregroundStyle(Refined.mute)
                 }
             }
-            .phoneGroupedList()
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Refined.paper.ignoresSafeArea())
             .navigationTitle("Edit Record as")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
+        .tint(Refined.accentText)
         .presentationDragIndicator(.visible)
         .onAppear { Self.visible = true }
         .onDisappear { Self.visible = false }

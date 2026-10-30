@@ -13,7 +13,8 @@ struct PhoneActionItems: View {
 }
 
 /// Runs a transcript action on the Original text with corrections and shows the result, marked as Apple
-/// Intelligence's, before anything is kept. Edit it, copy it, share it, or save it as a note; closing is the undo.
+/// Intelligence's, before anything is kept. Edit it, copy it, share it, or save it as a note; closing is the undo. On
+/// the refined kit (DESIGN.md §13) in both look settings.
 struct PhoneActionSheet: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss
@@ -35,11 +36,10 @@ struct PhoneActionSheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
-                    Image(systemName: action.symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
-                        .frame(width: 34, height: 34).background(PhoneInk.wash, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    IconSquare(art: .iconAI, hue: .neutral)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(action.name).lookSerif(22).foregroundStyle(.lookInk)
-                        Text("From the original transcript · \(words.formatted()) words").font(.system(size: 13)).foregroundStyle(.lookMute)
+                        Text(action.name).refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
+                        Text("From the original transcript · \(words.formatted()) words").refinedFont(.meta).foregroundStyle(Refined.mute)
                     }
                     Spacer(minLength: 0)
                 }
@@ -48,7 +48,7 @@ struct PhoneActionSheet: View {
                     case .running:
                         VStack(spacing: 10) {
                             ProgressView()
-                            Text(part.isEmpty ? "Working on your iPhone…" : part).font(.system(size: 14)).foregroundStyle(.lookMute)
+                            Text(part.isEmpty ? "Working on your iPhone…" : part).refinedFont(.hint).foregroundStyle(Refined.mute)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     case .done:
@@ -56,32 +56,31 @@ struct PhoneActionSheet: View {
                             // A solid marked strip, so the result never reads as the transcript.
                             HStack(spacing: 7) {
                                 ArtIcon(art: .iconAI, size: 14)
-                                Text(TranscriptActions.madeByLabel).font(.system(size: 13, weight: .semibold)).lineLimit(2)
+                                Text(TranscriptActions.madeByLabel).refinedFont(.meta, weight: .semibold).lineLimit(2)
                                 Spacer(minLength: 0)
                             }
-                            .foregroundStyle(.lookAccentText)
+                            .foregroundStyle(Refined.accentText)
                             .padding(.horizontal, 12).padding(.vertical, 8)
-                            .background(Rectangle().fill(.lookWash))
+                            .background(Rectangle().fill(Refined.persimmonTint))
                             .accessibilityElement(children: .combine)
                             if !skipped.isEmpty {
-                                Text(skipped).font(.system(size: 12.5)).foregroundStyle(.lookMute)
+                                Text(skipped).refinedFont(.meta).foregroundStyle(Refined.mute)
                                     .padding(.horizontal, 12).padding(.top, 6)
                             }
                             TextEditor(text: $result)
-                                .font(.system(size: 16)).scrollContentBackground(.hidden)
+                                .refinedFont(.reading).foregroundStyle(Refined.ink).scrollContentBackground(.hidden)
                                 .focused($editing)
                                 .padding(8)
                                 .accessibilityLabel("Result, editable. \(TranscriptActions.madeByLabel)")
                         }
-                        .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(.lookHairline))
+                        .background(Refined.card)
+                        .clipShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
                     case .failed:
                         VStack(spacing: 8) {
-                            Text("Couldn't run this action").lookSerif(19).foregroundStyle(.lookInk)
+                            Text("Couldn't run this action").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
                             Text(failure ?? "Apple's on-device model didn't answer. Try again.")
-                                .font(.system(size: 14)).foregroundStyle(.lookMute).multilineTextAlignment(.center)
-                            Button("Try again") { start() }.buttonStyle(.phoneSecondary).padding(.top, 4)
+                                .refinedFont(.hint).foregroundStyle(Refined.mute).multilineTextAlignment(.center)
+                            Button("Try again") { start() }.buttonStyle(RefinedActionStyle(kind: .quiet)).padding(.top, 4)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
@@ -89,26 +88,24 @@ struct PhoneActionSheet: View {
                 .frame(maxHeight: .infinity)
                 if phase == .done {
                     Text("Apple Intelligence can be wrong. Edit the result before you keep it.")
-                        .font(.system(size: 12.5)).foregroundStyle(.lookMute)
+                        .refinedFont(.meta).foregroundStyle(Refined.mute)
                     HStack(spacing: 10) {
                         Button { UIPasteboard.general.string = result; app.say("Copied"); Haptics.play(.copied); dismiss() } label: {
-                            Label("Copy", art: .iconCopy).frame(maxWidth: .infinity)
+                            Text("Copy").frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.phonePrimary)
-                        ShareLink(item: result) { Label("Share", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }
-                            .buttonStyle(.phoneSecondary)
+                        .buttonStyle(RefinedActionStyle(kind: .strong))
+                        ShareLink(item: result) { Text("Share").frame(maxWidth: .infinity) }
+                            .buttonStyle(RefinedActionStyle(kind: .quiet))
                         Button {
                             app.store.addNote(Note(text: result, aiAction: action.name), to: transcript.id)
                             app.say("Saved as a note"); dismiss()
-                        } label: { Label("Save as note", art: .iconNotes).frame(maxWidth: .infinity) }
-                        .buttonStyle(.phoneSecondary)
+                        } label: { Text("Save as note").frame(maxWidth: .infinity) }
+                        .buttonStyle(RefinedActionStyle(kind: .quiet))
                     }
-                    .labelStyle(.titleAndIcon)
-                    .font(.system(size: 14, weight: .semibold))
                 }
             }
             .padding(20)
-            .phonePage()
+            .background(Refined.paper.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { stop(); dismiss() } }

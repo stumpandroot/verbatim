@@ -1,22 +1,22 @@
-// brand: native file
 import SwiftUI
 import UIKit
 
-// Record in the Native look (DESIGN.md §13.3; mockup "Verbose Native Redesign", sections 1, 4, and 5): the tab bar's
-// bottom accessory, the slot Apple Music uses for its player, on every tab but Home's own screen, where the refined
-// Record card stands in for it while it's shown (HomeSpacing.hidesRecordAccessory). A tap records a voice note; touch and hold
-// opens Record as, a system Menu built like Books' reading menu (an icon row for Dictate, Live captions, and Import,
-// then the six ways to record, each with the line that says what it does). While a recording runs, the accessory is
-// the minimized recorder (`PhoneMiniRecorder`, the refined kit's design in both looks: the persimmon dot, the time,
-// your newest words or the kind, Pause, and Stop), and a tap brings the recorder back. The tab bar shrinks
-// when you scroll down, with Record beside it. Before iOS 26 there's no accessory, so the same content sits in an
-// opaque bar above the tab bar (MiniRecorder.swift).
+// Record in the tab bar (DESIGN.md §13 and §16; mockup "Verbose Refined Look"), one design in both look settings: the
+// tab bar's bottom accessory, the slot Apple Music uses for its player, on every tab but Home's own screen, where the
+// refined Record card stands in for it while it's shown (HomeSpacing.hidesRecordAccessory). A tap records a voice note;
+// touch and hold opens Record as, a system Menu built like Books' reading menu (an icon row for Dictate, Live
+// captions, and Import, then the ways to record, each with the line that says what it does). While a recording runs,
+// the accessory is the minimized recorder (`PhoneMiniRecorder`, the refined kit's design: the persimmon dot, the time,
+// your newest words or the kind, Pause, and Stop), and a tap brings the recorder back. The tab bar shrinks when you
+// scroll down, with Record beside it. Before iOS 26 there's no accessory, so the same content sits in an opaque bar
+// above the tab bar (`RecordBar`, MiniRecorder.swift).
 //
-// Record, its menu, and VoiceOver's actions call the same entry points as Verbose style's Record (RecordTray's `tap`
-// and `PhoneState.startRecordChoice`, which run `requestRecord`), so their haptics and checks are the same.
+// Record, its menu, and VoiceOver's actions call the same entry points as Home's Record card (RecordTray's `tap` and
+// `PhoneState.startRecordChoice`, which run `requestRecord`), so their haptics and checks are the same. The accessory
+// sits on the system's glass, where Apple puts text (§13's layer rule); its text is the refined ink.
 
 /// The accessory's content: Record at rest, the live recording while one runs.
-struct NativeRecordAccessory: View {
+struct RecordAccessory: View {
     @EnvironmentObject var app: PhoneState
     /// How many accessories are on screen (expanded and inline copies count once each), for the self-test.
     static var onScreen = 0
@@ -27,10 +27,10 @@ struct NativeRecordAccessory: View {
         AccessoryPlacement { inline in
             Group {
                 if app.recordingActive {
-                    // The minimized recorder, the same design as Verbose style's bar (the refined kit).
-                    PhoneMiniRecorder(inline: inline).accessibilityIdentifier("native.recording")
+                    // The minimized recorder (the refined kit).
+                    PhoneMiniRecorder(inline: inline).accessibilityIdentifier("accessory.recording")
                 } else {
-                    NativeRecordButton(inline: inline)
+                    AccessoryRecordButton(inline: inline)
                 }
             }
         }
@@ -61,9 +61,9 @@ private struct PlacementReader<Content: View>: View {
 
 // MARK: - Record at rest
 
-/// The red record disc, "Record" over "Voice note", and Dictate at the trailing end. A tap is the plain Record; touch
-/// and hold opens Record as (the system menu, with its own haptic on each row).
-struct NativeRecordButton: View {
+/// The record disc, "Record" over "Voice note", and Dictate at the trailing end. A tap is the plain Record; touch and
+/// hold opens Record as (the system menu, with its own haptic on each row).
+struct AccessoryRecordButton: View {
     @EnvironmentObject var app: PhoneState
     var inline = false
     @ObservedObject private var auto = TemplateSettingsModel.shared
@@ -73,14 +73,14 @@ struct NativeRecordButton: View {
     var body: some View {
         HStack(spacing: 4) {
             Menu {
-                NativeRecordMenu(settings: auto.settings, templates: app.store.allTemplates)
+                RecordAsMenu(settings: auto.settings, templates: app.store.allTemplates)
             } label: {
                 HStack(spacing: 12) {
-                    NativeRecordDisc(size: inline ? 22 : 26)
+                    AccessoryRecordDisc(size: inline ? 22 : 28)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("Record").font(.subheadline.weight(.semibold)).foregroundStyle(NativeInk.label)
+                        Text("Record").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
                         if !inline, !typeSize.isAccessibilitySize {
-                            Text("Voice note").font(.caption).foregroundStyle(NativeInk.secondary)
+                            Text("Voice note").refinedFont(.meta).foregroundStyle(Refined.dim)
                         }
                     }
                     .lineLimit(1)
@@ -98,10 +98,10 @@ struct NativeRecordButton: View {
             .accessibilityLabel("Record")
             .accessibilityHint("Starts a voice note. Touch and hold for more ways to record, and for Dictate, Live captions, and Import.")
             .recordChoiceActions(app)
-            .accessibilityIdentifier("native.record")
+            .accessibilityIdentifier("accessory.record")
             if !inline {
                 Button { app.go(.dictations) } label: {
-                    Image(systemName: "mic").font(.system(size: 17, weight: .regular)).foregroundStyle(NativeInk.label)
+                    IconGlyph(art: .iconDictations, size: 20, color: Refined.ink)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
@@ -115,9 +115,9 @@ struct NativeRecordButton: View {
 }
 
 /// Record as, as a system menu: Dictate, Live captions, and Import as an icon row (a ControlGroup, as Books draws Line
-/// Guide and Share), then the six ways to record with what each one does. Kind symbols are label colored, like every
-/// item in Apple's menus; the system's highlight shows where a lift lands.
-struct NativeRecordMenu: View {
+/// Guide and Share), then the ways to record with what each one does. A menu is system chrome, so its items carry SF
+/// Symbols in the label color, like every item in Apple's menus; the system's highlight shows where a lift lands.
+struct RecordAsMenu: View {
     @EnvironmentObject var app: PhoneState
     var settings: AutoRunSettings
     var templates: [TranscriptTemplate]
@@ -125,21 +125,21 @@ struct NativeRecordMenu: View {
 
     var body: some View {
         ControlGroup {
-            Button { app.go(.dictations) } label: { Label("Dictate", systemImage: "mic") }
-            Button { app.requestCaptions() } label: { Label("Live captions", systemImage: "captions.bubble") }
-            Button { app.showImportChoices = true } label: { Label("Import", systemImage: "square.and.arrow.down") }
+            Button { app.go(.dictations) } label: { Label("Dictate", systemImage: "mic") }   // brand: system surface
+            Button { app.requestCaptions() } label: { Label("Live captions", systemImage: "captions.bubble") }   // brand: system surface
+            Button { app.showImportChoices = true } label: { Label("Import", systemImage: "square.and.arrow.down") }   // brand: system surface
         }
         Section("Record as") {
             ForEach(rows.visible) { c in
                 // A menu item's second Text is its subtitle.
                 Button { app.startRecordChoice(c) } label: {
                     Label(c.name, systemImage: c.nativeSymbol)
-                    Text(NativeRecordMenu.hint(c, settings: settings, templates: templates))
+                    Text(RecordAsMenu.hint(c, settings: settings, templates: templates))
                 }
             }
         }
         // The rows you hid (Interview, Journal entry, and Talk start hidden) come back here.
-        Button { app.showRecordAsEditor = true } label: { Label("Edit Record as", systemImage: "slider.horizontal.3") }
+        Button { app.showRecordAsEditor = true } label: { Label("Edit Record as", systemImage: "slider.horizontal.3") }   // brand: system surface
     }
 
     /// The line under a kind: what runs when it finishes, or what it does (`RecordChoice.hint`). Voice note says that
@@ -150,14 +150,14 @@ struct NativeRecordMenu: View {
     }
 }
 
-/// The record disc: flat system red in a thin gray ring, like Voice Memos'. It carries no text.
-struct NativeRecordDisc: View {
+/// The record disc on the accessory: an ink circle with the system's red dot, the Record card's disc in the refined ink
+/// so it shows on the glass in light and dark. It carries no text.
+struct AccessoryRecordDisc: View {
     var size: CGFloat
     var body: some View {
-        Circle().fill(NativeInk.record)
-            .frame(width: size * 0.78, height: size * 0.78)
+        Circle().fill(Refined.ink)
             .frame(width: size, height: size)
-            .overlay(Circle().strokeBorder(NativeInk.gray, lineWidth: max(1.5, size * 0.08)))
+            .overlay(Circle().fill(Refined.recordRed).frame(width: size * 0.42, height: size * 0.42))
             .accessibilityHidden(true)
     }
 }
@@ -165,52 +165,52 @@ struct NativeRecordDisc: View {
 // MARK: - On the tab view
 
 extension View {
-    /// The Native look's tab bar: Record in the bottom accessory and a tab bar that shrinks on scroll down. Applied in
-    /// both looks so the tab view keeps its identity when the look changes; Verbose style turns the accessory off.
-    /// `hidden` turns it off while you read a transcript (the tab bar hides then, and the player takes the bottom).
-    func nativeTabChrome(native: Bool, hidden: Bool) -> some View {
-        modifier(NativeTabChrome(native: native, hidden: hidden))
+    /// The tab bar's chrome: Record in the bottom accessory and a tab bar that shrinks on scroll down, in both look
+    /// settings. `hidden` turns the accessory off while you read a transcript (the tab bar hides then, and the player
+    /// takes the bottom), and on Home's own screen while its Record card is there.
+    func recordTabChrome(hidden: Bool) -> some View {
+        modifier(RecordTabChrome(hidden: hidden))
     }
 }
 
-private struct NativeTabChrome: ViewModifier {
+private struct RecordTabChrome: ViewModifier {
     @EnvironmentObject var app: PhoneState
-    var native: Bool
     var hidden: Bool
 
     func body(content: Content) -> some View {
         if #available(iOS 26.2, *) {
             content
-                .tabViewBottomAccessory(isEnabled: native && !hidden) { NativeRecordAccessory().environmentObject(app) }
-                .tabBarMinimizeBehavior(native ? .onScrollDown : .automatic)
+                .tabViewBottomAccessory(isEnabled: !hidden) { RecordAccessory().environmentObject(app) }
+                .tabBarMinimizeBehavior(.onScrollDown)
         } else if #available(iOS 26, *) {
             // Before 26.2 the accessory can't be turned off; an empty one hides on 26.0.
             content
-                .tabViewBottomAccessory { if native && !hidden { NativeRecordAccessory().environmentObject(app) } }
-                .tabBarMinimizeBehavior(native ? .onScrollDown : .automatic)
+                .tabViewBottomAccessory { if !hidden { RecordAccessory().environmentObject(app) } }
+                .tabBarMinimizeBehavior(.onScrollDown)
         } else {
             content
         }
     }
 }
 
-enum NativeRecordPlacement {
+enum RecordPlacement {
     /// True when the tab bar's bottom accessory carries Record (iOS 26 and later); before it, an opaque bar above the
-    /// tab bar does (MiniRecorder.swift).
+    /// tab bar does (`RecordBar`).
     static var systemAccessory: Bool {
         if #available(iOS 26, *) { return true }
         return false
     }
 }
 
-/// Before iOS 26: Record (or the live recording) in an opaque bar above the tab bar, on every tab. No glass behind
-/// its text.
-struct NativeRecordBar: View {
+/// Before iOS 26: Record (or the live recording) in an opaque bar above the tab bar, on every tab: the card with a
+/// hairline, so no text sits on a blur.
+struct RecordBar: View {
     var body: some View {
-        NativeRecordAccessory()
-            .frame(height: 52)
-            .background(NativeInk.card, in: Capsule())
-            .overlay(Capsule().strokeBorder(NativeInk.separator, lineWidth: 0.5))
-            .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 8)
+        let shape = RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous)
+        RecordAccessory()
+            .frame(height: 56)
+            .background(Refined.card, in: shape)
+            .overlay(shape.strokeBorder(Refined.separator, lineWidth: 1))
+            .padding(.horizontal, 12).padding(.top, 6).padding(.bottom, 8)
     }
 }

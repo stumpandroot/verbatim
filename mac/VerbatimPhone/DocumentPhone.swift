@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The Cleaned tab on iPhone: editable paragraphs (no timecodes), Harper's spelling and grammar suggestions, and
 /// Clean up and Tone with Apple's on-device model. Same data as the Mac's Cleaned tab, so edits and cleanup sync
-/// both ways. Clean up and Tone always start from the corrected lines, never from the cleaned text.
+/// both ways. Clean up and Tone always start from the corrected lines, never from the cleaned text. On the refined kit
+/// (DESIGN.md §13) in both look settings: menu faces for Clean up and Tone, the text on a card, and the kit's actions.
 struct PhoneDocument: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
@@ -27,17 +28,19 @@ struct PhoneDocument: View {
                     ForEach(Polish.Level.allCases) { l in
                         Button { run(level: l, tone: tone) } label: { Text("\(l.rawValue) · \(l.note)") }
                     }
-                } label: { chip(Self.cleanUpLabel(level), symbol: "sparkles") }
+                } label: { RefinedMenuLabel(title: Self.cleanUpLabel(level)) }
+                .buttonStyle(.plain)
                 Menu {
                     ForEach(Polish.Tone.allCases) { t in Button(t.rawValue) { run(level: level == .none ? .light : level, tone: t) } }
-                } label: { chip("Tone · \(tone.rawValue)", symbol: "text.quote") }
+                } label: { RefinedMenuLabel(title: "Tone · \(tone.rawValue)") }
+                .buttonStyle(.plain)
                 Spacer()
-                Button { undo() } label: { Image(systemName: "arrow.uturn.backward") }
-                    .disabled(transcript.documentHistory.isEmpty).foregroundStyle(transcript.documentHistory.isEmpty ? Ink.faint : Ink.ink)
-                    .accessibilityLabel("Undo")
-                Button { confirmReset = true } label: { Image(systemName: "arrow.counterclockwise") }
-                    .disabled(transcript.document == nil).foregroundStyle(transcript.document == nil ? Ink.faint : Ink.ink)
-                    .accessibilityLabel("Reset to the corrected lines")
+                circle("arrow.uturn.backward", label: "Undo") { undo() }
+                    .disabled(transcript.documentHistory.isEmpty)
+                    .opacity(transcript.documentHistory.isEmpty ? 0.45 : 1)
+                circle("arrow.counterclockwise", label: "Reset to the corrected lines") { confirmReset = true }
+                    .disabled(transcript.document == nil)
+                    .opacity(transcript.document == nil ? 0.45 : 1)
             }
             if let by = transcript.cleanedBy {
                 VStack(alignment: .leading, spacing: 4) {
@@ -46,27 +49,29 @@ struct PhoneDocument: View {
                 }
             }
             if let w = working {
-                HStack(spacing: 10) { ProgressView(value: w).tint(Ink.ink); Text("Cleaning up \(Int(w * 100))%").font(.system(size: 12)).monospacedDigit().foregroundStyle(.lookMute) }
+                HStack(spacing: 10) { ProgressView(value: w).tint(Refined.accentText); Text("Cleaning up \(Int(w * 100))%").refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute) }
             }
             if !visibleLints.isEmpty {
                 Button { showLints = true } label: {
-                    HStack(spacing: 8) {
-                        ArtIcon(art: .iconApplyDictionary, size: 17)
-                        Text("\(visibleLints.count) suggestion\(visibleLints.count == 1 ? "" : "s")").font(.system(size: 14, weight: .semibold))
+                    HStack(spacing: 12) {
+                        IconSquare(art: .iconApplyDictionary, hue: .petal)
+                        Text("\(visibleLints.count) suggestion\(visibleLints.count == 1 ? "" : "s")").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
                         Spacer()
-                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.faint)
                     }
-                    .padding(12)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+                    .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(TactileButtonStyle())
+                .buttonStyle(RefinedPress())
             }
             TextEditor(text: $text)
-                .font(.system(size: 17)).lineSpacing(4)
+                .refinedFont(.reading).foregroundStyle(Refined.ink)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 420)
                 .padding(10)
-                .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(.lookHairline))
+                .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
                 .onChange(of: text) { _, v in
                     // Compared with the stored text (not this view's copy), so a Clean up or Undo landing here isn't
                     // mistaken for typing.
@@ -77,10 +82,10 @@ struct PhoneDocument: View {
                     relint()
                 }
             Text("Clean up and Tone start from the corrected lines in Original, which stay as they are. They run on this iPhone with Apple Intelligence (iOS 26).")
-                .font(.system(size: 12.5)).foregroundStyle(.lookMute)
+                .refinedFont(.meta).foregroundStyle(Refined.mute)
             if let notice = Polish.status.polishNotice {
                 Text(notice)
-                    .font(.system(size: 12.5)).foregroundStyle(.lookAccentText)
+                    .refinedFont(.meta).foregroundStyle(Refined.accentText)
             }
         }
         .onAppear { text = transcript.documentText; loaded = true; relint() }
@@ -106,18 +111,24 @@ struct PhoneDocument: View {
                     ForEach(visibleLints) { l in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 6) {
-                                Text(l.original).strikethrough(l.fix != nil).foregroundStyle(.lookMute)
-                                if let f = l.fix { Image(systemName: "arrow.right").font(.system(size: 10)); Text(f.isEmpty ? "remove" : f).fontWeight(.semibold) }
+                                Text(l.original).strikethrough(l.fix != nil).foregroundStyle(Refined.mute)
+                                if let f = l.fix {
+                                    Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(Refined.mute)
+                                    Text(f.isEmpty ? "remove" : f).fontWeight(.semibold).foregroundStyle(Refined.ink)
+                                }
                             }
-                            Text(l.message).font(.system(size: 13)).foregroundStyle(.lookDim)
+                            Text(l.message).refinedFont(.meta).foregroundStyle(Refined.dim)
                             HStack {
-                                if l.fix != nil { Button("Accept") { accept(l) }.buttonStyle(.phonePrimary) }
-                                Button("Ignore") { ignored.insert(l.original) }.buttonStyle(.phoneSecondary)
+                                if l.fix != nil { Button("Accept") { accept(l) }.buttonStyle(RefinedActionStyle(kind: .strong)) }
+                                Button("Ignore") { ignored.insert(l.original) }.buttonStyle(RefinedActionStyle(kind: .quiet))
                             }
                         }
                         .padding(.vertical, 4)
                     }
+                    .listRowBackground(Refined.card)
                 }
+                .scrollContentBackground(.hidden)
+                .background(Refined.paper.ignoresSafeArea())
                 .navigationTitle("Suggestions")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -133,12 +144,17 @@ struct PhoneDocument: View {
         level == .none ? "Clean up" : "Clean up · \(level.rawValue)"
     }
 
-    /// One line, never wrapped inside its pill, so Clean up and Tone stay the same height.
-    private func chip(_ label: String, symbol: String) -> some View {
-        Label(label, systemImage: symbol).font(.system(size: 13.5, weight: .medium)).foregroundStyle(.lookInk)
-            .lineLimit(1).fixedSize()
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(.lookCard, in: Capsule()).overlay(Capsule().strokeBorder(.lookHairline))
+    /// Undo or Reset: the glyph on the neutral wash in a circle, 44 pt to tap.
+    private func circle(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 14, weight: .semibold)).foregroundStyle(Refined.ink)
+                .frame(width: 36, height: 36)
+                .background(Refined.neutral, in: Circle())
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(RefinedPress())
+        .accessibilityLabel(label)
     }
 
     private func relint() {

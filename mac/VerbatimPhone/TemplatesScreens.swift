@@ -4,7 +4,8 @@ import UIKit
 // Templates on the iPhone (mockup "Library features", section 1): Library › Templates (the library, a template's
 // sections, Try on a recording, Run automatically for a kind, and your own templates), Settings › Templates (Run
 // automatically: one template or Off per kind, and three options, kept on this iPhone), the result as a tab in the
-// transcript. Record a kind from a long press on Record is the Record as tray (RecordTray.swift). Built from the Settings page kit, so both looks follow.
+// transcript. Record a kind from a long press on Record is the Record as tray (RecordTray.swift). Built from the Settings page kit
+// and the refined kit (DESIGN.md §13), one design in both look settings.
 
 struct TemplatesRoute: Hashable {}
 struct TemplateDetailRoute: Hashable { var id: UUID }
@@ -27,9 +28,9 @@ struct TemplatesScreen: View {
         let shown = all.filter { filter == nil || $0.origin == filter }
         SettingsPageScaffold(title: "Templates") {
             Text("Turn a transcript into notes, a plan, or a draft. Each kind of recording can run one on its own.")
-                .font(.system(size: 15)).foregroundStyle(.lookDim).fixedSize(horizontal: false, vertical: true)
+                .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
-            PhoneSegmented(options: [(TemplateOrigin?.none, "All"), (TemplateOrigin?.some(.builtIn), "Built in"),
+            RefinedSegmented(label: "Show", options: [(TemplateOrigin?.none, "All"), (TemplateOrigin?.some(.builtIn), "Built in"),
                                      (TemplateOrigin?.some(.scenario), "Scenarios"), (TemplateOrigin?.some(.yours), "Yours")],
                            selection: $filter)
                 .padding(.top, 14)
@@ -58,7 +59,7 @@ struct TemplatesScreen: View {
             }
             if shown.isEmpty {
                 Text("No templates of yours yet. Tap + to make one, or open a template and choose Duplicate and edit.")
-                    .font(.system(size: 15)).foregroundStyle(.lookMute).padding(.top, 22)
+                    .refinedFont(.body).foregroundStyle(Refined.mute).padding(.top, 22)
             }
         }
         .toolbar {
@@ -99,7 +100,8 @@ struct TemplateDetailScreen: View {
         if let t = TemplateLibrary.template(id, yours: app.store.templates) {
             content(t)
         } else {
-            Text("This template was deleted.").foregroundStyle(.lookMute).frame(maxWidth: .infinity, maxHeight: .infinity).phonePage()
+            Text("This template was deleted.").refinedFont(.body).foregroundStyle(Refined.mute).frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Refined.paper.ignoresSafeArea())
         }
     }
 
@@ -109,7 +111,7 @@ struct TemplateDetailScreen: View {
             .sorted { $0.createdAt > $1.createdAt }.prefix(12)
         return SettingsPageScaffold(title: t.name, eyebrow: t.origin.eyebrow, inline: true) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(TemplateLibrary.summaryLine(t)).font(.system(size: 15)).foregroundStyle(.lookDim)
+                Text(TemplateLibrary.summaryLine(t)).refinedFont(.body).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 6)
@@ -117,10 +119,10 @@ struct TemplateDetailScreen: View {
                 ForEach(Array(t.sections.enumerated()), id: \.element.id) { i, s in
                     if i > 0 { SettingsDivider() }
                     HStack(spacing: 12) {
-                        Text(String(format: "%02d", i + 1)).lookMono(13).foregroundStyle(.lookMute)
-                        Text(s.name).font(.system(size: 16)).foregroundStyle(.lookInk)
+                        Text(String(format: "%02d", i + 1)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
+                        Text(s.name).refinedFont(.body).foregroundStyle(Refined.ink)
                         Spacer(minLength: 8)
-                        Text(s.format.title).font(.system(size: 14)).foregroundStyle(.lookMute)
+                        Text(s.format.title).refinedFont(.meta).foregroundStyle(Refined.mute)
                     }
                     .padding(.horizontal, 14).frame(minHeight: 46)
                 }
@@ -206,7 +208,7 @@ struct TemplatesAutoScreen: View {
         let settings = auto.settings.pruned(existing: Set(all.map(\.id)))
         SettingsPageScaffold(title: "Run automatically") {
             Text("Pick a template for each kind. It runs when a recording of that kind finishes, after the transcript and summary.")
-                .font(.system(size: 15)).foregroundStyle(.lookDim).fixedSize(horizontal: false, vertical: true)
+                .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
             SettingsPageGroup(title: "When a recording finishes", first: true) {
                 ForEach(Array(AutoRunSettings.kinds.enumerated()), id: \.element) { i, k in
@@ -293,19 +295,19 @@ struct PhoneTemplateEditor: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    PhoneEyebrow(text: "Yours").padding(.top, 8)
+                    Text("Yours").refinedFont(.meta).foregroundStyle(Refined.mute).padding(.top, 8)
                     field("Name") {
                         TextField("Website client call", text: $draft.name)
-                            .font(.system(size: 17)).focused($focused)
+                            .refinedFont(.body).foregroundStyle(Refined.ink).focused($focused)
                             .padding(.horizontal, 14).frame(minHeight: 48)
                             .accessibilityIdentifier("editor.name")
                     }
                     field("What should it write?") {
                         TextEditor(text: $draft.instructions)
-                            .font(.system(size: 16)).scrollContentBackground(.hidden).focused($focused)
+                            .refinedFont(.body).foregroundStyle(Refined.ink).scrollContentBackground(.hidden).focused($focused)
                             .frame(minHeight: 110).padding(8)
                     }
-                    Text(TemplateCopy.ruleNote).font(.system(size: 13)).foregroundStyle(.lookMute)
+                    Text(TemplateCopy.ruleNote).refinedFont(.meta).foregroundStyle(Refined.mute)
                         .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4).padding(.top, 6)
                     SettingsPageGroup(title: "Use it for") {
                         ForEach(Array(AutoRunSettings.kinds.enumerated()), id: \.element) { i, k in
@@ -329,14 +331,14 @@ struct PhoneTemplateEditor: View {
                         .buttonStyle(SettingsRowPress())
                     }
                     if let problem {
-                        Text(problem).font(.system(size: 14, weight: .semibold)).foregroundStyle(.lookAccentText).padding(.top, 14)
+                        Text(problem).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText).padding(.top, 14)
                     }
-                    Text(TemplateCopy.onDevice("iPhone")).font(.system(size: 13)).foregroundStyle(.lookMute).padding(.top, 18)
+                    Text(TemplateCopy.onDevice("iPhone")).refinedFont(.meta).foregroundStyle(Refined.mute).padding(.top, 18)
                 }
                 .padding(.horizontal, 20).padding(.bottom, 32)
             }
             .scrollDismissesKeyboard(.interactively)
-            .phonePage()
+            .background(Refined.paper.ignoresSafeArea())
             .navigationTitle(isNew ? "New template" : "Edit template")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -357,8 +359,8 @@ struct PhoneTemplateEditor: View {
 
     private func field<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.lookInk).padding(.horizontal, 4)
-            content().phoneOutlined(radius: Radius.row, line: 1)
+            Text(title).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute).padding(.horizontal, 4)
+            content().refinedFieldBox()
         }
         .padding(.top, 16)
     }
@@ -368,7 +370,7 @@ struct PhoneTemplateEditor: View {
         return HStack(spacing: 10) {
             TextField("Section name", text: Binding(get: { draft.sections.first { $0.id == id }?.name ?? "" },
                                                     set: { v in if let j = draft.sections.firstIndex(where: { $0.id == id }) { draft.sections[j].name = v } }))
-                .font(.system(size: 16)).focused($focused)
+                .refinedFont(.body).foregroundStyle(Refined.ink).focused($focused)
             Menu {
                 Picker("Format", selection: Binding(get: { draft.sections.first { $0.id == id }?.format ?? .bullets },
                                                     set: { v in if let j = draft.sections.firstIndex(where: { $0.id == id }) { draft.sections[j].format = v } })) {
@@ -380,10 +382,11 @@ struct PhoneTemplateEditor: View {
                 Button("Remove", role: .destructive) { DispatchQueue.main.async { draft.sections.removeAll { $0.id == id } } }
             } label: {
                 HStack(spacing: 4) {
-                    Text(s.format.title).font(.system(size: 14))
+                    Text(s.format.title).refinedFont(.meta)
                     Image(systemName: "chevron.up.chevron.down").font(.system(size: 11, weight: .semibold))
                 }
-                .foregroundStyle(.lookMute)
+                .foregroundStyle(Refined.mute)
+                .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
             }
         }
         .padding(.horizontal, 14).frame(minHeight: 48)
@@ -417,33 +420,32 @@ struct PhoneTemplateTryOnSheet: View {
     var template: TranscriptTemplate
     var transcriptID: UUID
     @StateObject private var preview = TemplatePreview()
-    @Environment(\.look) private var look
 
     var body: some View {
         let t = app.store.transcript(transcriptID)
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    PhoneEyebrow(text: "On \u{201C}\(t?.title ?? "a recording")\u{201D} · nothing is saved")
+                    Text("On \u{201C}\(t?.title ?? "a recording")\u{201D} · nothing is saved").refinedFont(.meta).foregroundStyle(Refined.mute)
                     switch preview.phase {
                     case .running:
                         HStack(spacing: 10) {
                             ProgressView()
-                            Text(preview.part.isEmpty ? "Working on your iPhone…" : preview.part).font(.system(size: 15)).foregroundStyle(.lookMute)
+                            Text(preview.part.isEmpty ? "Working on your iPhone…" : preview.part).refinedFont(.body).foregroundStyle(Refined.mute)
                         }
                         .padding(.top, 30).frame(maxWidth: .infinity)
                     case .done:
-                        TemplateResultBody(text: preview.text, heading: look.serif(19), textFont: .system(size: 16),
-                                           ink: AnyShapeStyle(.lookInk), dim: AnyShapeStyle(.lookMute))
-                        Text(TemplateCopy.footer(madeOn: "iPhone", here: "iPhone")).font(.system(size: 13)).foregroundStyle(.lookMute)
+                        TemplateResultBody(text: preview.text, heading: .system(size: 20, design: .serif), textFont: .system(size: 16),
+                                           ink: AnyShapeStyle(Refined.ink), dim: AnyShapeStyle(Refined.mute))
+                        Text(TemplateCopy.footer(madeOn: "iPhone", here: "iPhone")).refinedFont(.meta).foregroundStyle(Refined.mute)
                     case .failed:
-                        Text(preview.failure ?? "Apple's on-device model didn't answer. Try again.").font(.system(size: 15)).foregroundStyle(.lookMute)
+                        Text(preview.failure ?? "Apple's on-device model didn't answer. Try again.").refinedFont(.body).foregroundStyle(Refined.mute)
                             .padding(.top, 20)
                     }
                 }
                 .padding(20)
             }
-            .phonePage()
+            .background(Refined.paper.ignoresSafeArea())
             .navigationTitle(template.name.isEmpty ? "Try on" : template.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -469,7 +471,6 @@ struct PhoneTemplateResults: View {
     var onJump: ((Double) -> Void)? = nil
     @ObservedObject private var center = TemplateCenter.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
-    @Environment(\.look) private var look
     @State private var editing: TemplateResult? = nil
     @State private var draft = ""
     @State private var confirmReplace: TemplateResult? = nil

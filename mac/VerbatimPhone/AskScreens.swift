@@ -4,7 +4,8 @@ import UIKit
 // Ask your library on the iPhone (mockup "Library features", sections 2b and 2c): Library › Ask (from the Library's
 // card, or "Ask about …" under the Library's search field), with the question, the scope chips, and the answer with its
 // citations above the matching passages; and Ask › Recipes, saved questions you run now or weekly, with their digests.
-// A citation opens the transcript at that line and plays it. Built from the iPhone kit, so both looks follow.
+// A citation opens the transcript at that line and plays it. On the refined kit (DESIGN.md §13), one design in both
+// look settings: the large serif title, the question in the kit's field, the kit's chips, and the answer on a card.
 
 struct AskRoute: Hashable { var query: String? = nil }
 struct RecipesRoute: Hashable {}
@@ -25,21 +26,11 @@ struct AskAboutRow: View {
     }
 }
 
-/// A card: an outlined reader card (Verbose) or Premium's soft white card.
-struct AskCardSurface: ViewModifier {
-    var radius: CGFloat = Radius.row
-    @Environment(\.look) private var look
-    func body(content: Content) -> some View {
-        if look.isNative { content.nativeCell(radius: 22) } else { content.phoneOutlined(radius: radius, fill: Ink.reader, line: 1.5) }
-    }
-}
-
 // MARK: - Ask
 
 struct AskScreen: View {
     @EnvironmentObject var app: PhoneState
     @ObservedObject private var center = AskCenter.shared
-    @Environment(\.look) private var look
     var route = AskRoute()
     @State private var query = ""
     @State private var scope = AskScope.all
@@ -54,13 +45,10 @@ struct AskScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                if !look.isNative {
-                    VStack(alignment: .leading, spacing: 4) {
-                        PhoneEyebrow(text: "Library")
-                        Text("Ask").font(Ink.serif(34)).foregroundStyle(.lookInk)
-                    }
-                    .padding(.top, 4)
-                }
+                LargeSerifTitle(title: "Ask", eyebrow: "Library")
+                    .padding(.top, 8)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isHeader)
                 field
                 chips
                 resultArea
@@ -68,38 +56,38 @@ struct AskScreen: View {
                     passages(r)
                 }
                 if RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty) {
-                NavigationLink(value: RecipesRoute()) {
-                    HStack(spacing: 10) {
-                        if look.isNative {
-                            Image(systemName: "calendar").font(.system(size: 16, weight: .medium)).foregroundStyle(NativeInk.accent)   // brand: native
-                        } else {
-                            IconGlyph(art: .iconCalendar, size: 18, color: Ink.ink)
+                    PaperCard {
+                        NavigationLink(value: RecipesRoute()) {
+                            HStack(spacing: 12) {
+                                IconSquare(art: .iconCalendar, hue: .sage)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("Recipes").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                                    Text("Questions you ask again").refinedFont(.meta).foregroundStyle(Refined.mute)
+                                }
+                                Spacer(minLength: 6)
+                                if !app.store.recipes.isEmpty {
+                                    Text("\(app.store.recipes.count)").refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
+                                }
+                                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.faint)
+                            }
+                            .padding(.horizontal, 14).frame(minHeight: 56)
+                            .contentShape(Rectangle())
                         }
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("Recipes").font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookInk)
-                            Text("Questions you ask again").font(.system(size: 13)).foregroundStyle(.lookMute)
-                        }
-                        Spacer(minLength: 6)
-                        if !app.store.recipes.isEmpty { Text("\(app.store.recipes.count)").lookMono(13).foregroundStyle(.lookMute) }
-                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute)
+                        .buttonStyle(RefinedRowPress())
+                        .accessibilityIdentifier("ask.recipes")
                     }
-                    .padding(.horizontal, 14).frame(minHeight: 56)
-                    .modifier(AskCardSurface())
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(PhoneCardPress())
-                .accessibilityIdentifier("ask.recipes")
-                .padding(.top, 8)
+                    .padding(.top, 8)
                 }
             }
             .padding(.horizontal, 20).padding(.bottom, 40)
         }
         .scrollDismissesKeyboard(.interactively)
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
         .navigationTitle("Ask")
-        .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !look.isNative { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
+            // The serif title sits on the page; the bar keeps only Apple's buttons.
+            ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     let recipesShown = RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty)
@@ -141,15 +129,13 @@ struct AskScreen: View {
         center.ask(query, scope: scope)
     }
 
+    /// The question in the kit's field: the field wash (an edge under Increase Contrast), the Ask glyph, and up to four
+    /// lines. Return asks.
     private var field: some View {
         HStack(alignment: .top, spacing: 10) {
-            if look.isNative {
-                Image(systemName: "questionmark.bubble").font(.system(size: 17)).foregroundStyle(NativeInk.secondary).padding(.top, 2)   // brand: native
-            } else {
-                IconGlyph(art: .iconAsk, size: 19, color: Ink.ink).padding(.top, 1)
-            }
+            IconGlyph(art: .iconAsk, size: 19, color: Refined.mute).padding(.top, 1)
             TextField("Ask about your recordings", text: $query, axis: .vertical)
-                .font(.system(size: 17)).foregroundStyle(.lookInk)
+                .refinedFont(.body).foregroundStyle(Refined.ink)
                 .lineLimit(1...4)
                 .focused($focused)
                 .submitLabel(.go)
@@ -160,49 +146,32 @@ struct AskScreen: View {
                 }
                 .accessibilityIdentifier("ask.field")
         }
-        // The pill, as the search field (DESIGN.md §11.9): card white with the 1.5 pt ink outline in Verbose style.
-        // 18 pt in from the ends keeps a wrapped question inside the rounded ends.
-        .padding(.horizontal, 18).padding(.vertical, 12)
-        .background {
-            if look.isNative {
-                Capsule().fill(NativeInk.fillStrong)
-            } else {
-                Capsule().fill(Ink.card)
-                    .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: focused ? 2 : 1.5))
-            }
-        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+        .refinedFieldBox()
     }
 
     private var chips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chip("All", scope.isAll) { scope.tapAll() }
-                chip("This week", scope.range == .thisWeek) { scope.tapWeek() }
-                chip("Thoughts", scope.source == .thoughts) { scope.tap(.thoughts) }
-                chip("Meetings", scope.source == .meetings) { scope.tap(.meetings) }
-                ForEach(app.store.projects) { p in chip(p.name, scope.source == .project(p.id)) { scope.tap(.project(p.id)) } }
-            }
-            .padding(.horizontal, 20)
+        RefinedChipRow(label: "Where to look", margin: 20) {
+            RefinedChip(title: "All", selected: scope.isAll) { scope.tapAll() }
+            RefinedChip(title: "This week", selected: scope.range == .thisWeek) { scope.tapWeek() }
+            RefinedChip(title: "Thoughts", selected: scope.source == .thoughts) { scope.tap(.thoughts) }
+            RefinedChip(title: "Meetings", selected: scope.source == .meetings) { scope.tap(.meetings) }
+            ForEach(app.store.projects) { p in RefinedChip(title: p.name, selected: scope.source == .project(p.id)) { scope.tap(.project(p.id)) } }
         }
         .padding(.horizontal, -20)
         .onChange(of: scope) { _, _ in if center.result != nil, !query.isEmpty { ask() } }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Where to look")
-    }
-
-    private func chip(_ label: String, _ on: Bool, _ action: @escaping () -> Void) -> some View {
-        PhoneChip(label: look.isNative ? NativeTitleCase.apply(label) : label, selected: on, action: action)
     }
 
     @ViewBuilder private var resultArea: some View {
         switch center.phase {
         case .idle:
             Text("Ask in plain words, like \u{201C}What did Alex want changed on the homepage?\u{201D} Verbose finds the passages first, then answers on this iPhone.")
-                .font(.system(size: 15)).foregroundStyle(.lookDim).fixedSize(horizontal: false, vertical: true)
+                .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
         case .finding, .answering:
             HStack(spacing: 10) {
                 ProgressView()
-                Text(center.phase == .finding ? "Finding passages…" : "Answering from the passages…").font(.system(size: 15)).foregroundStyle(.lookDim)
+                Text(center.phase == .finding ? "Finding passages…" : "Answering from the passages…").refinedFont(.body).foregroundStyle(Refined.dim)
             }
             .padding(.vertical, 8)
         case .done:
@@ -210,19 +179,18 @@ struct AskScreen: View {
         }
     }
 
-    /// The passages the answer read, under it (Verbose style's "matching passages").
+    /// The passages the answer read, under it.
     @ViewBuilder private func passages(_ r: AskResult) -> some View {
         let cited = Set((r.answer?.citations ?? []).map(\.segmentId))
         let others = r.found.filter { !cited.contains($0.segmentId) }
         if !others.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                if look.isNative {
-                    Text("Other passages").font(.system(size: 15, weight: .semibold)).foregroundStyle(NativeInk.secondary).padding(.top, 8)
-                } else {
-                    PhoneDayHeader(text: "Other passages")
+            PaperGroup("Other passages") {
+                ForEach(Array(others.prefix(6).enumerated()), id: \.element.id) { i, s in
+                    if i > 0 { PaperDivider(leading: 14) }
+                    PhoneAskPassage(source: s)
                 }
-                ForEach(others.prefix(6)) { s in PhoneAskPassage(source: s) }
             }
+            .padding(.top, 8)
         }
     }
 }
@@ -232,56 +200,50 @@ struct PhoneAskResult: View {
     var result: AskResult
     var showsFooter = true
     @EnvironmentObject var app: PhoneState
-    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 12) {
-                if !look.isNative { PhoneEyebrow(text: result.state == .answered ? "Answer" : "No answer") }
-                if let a = result.answer, result.state == .answered {
-                    PhoneAskAnswerText(answer: a)
-                    PhoneAskCitations(sources: a.citations)
-                } else {
-                    Text(result.message(scopeLabel: result.scope.label(projects: Dictionary(uniqueKeysWithValues: app.store.projects.map { ($0.id, $0.name) }))))
-                        .font(.system(size: 15)).foregroundStyle(.lookInk).fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("ask.message")
-                    if !result.found.isEmpty { PhoneAskCitations(sources: result.found) }
-                }
-                if !look.isNative, showsFooter {
-                    HStack(spacing: 6) {
-                        IconGlyph(art: .iconPrivacy, size: 13, color: Ink.mute)
-                        Text(result.state == .answered ? "Runs on this iPhone with Apple Intelligence." : "Found on this iPhone. Nothing left your device.")
-                            .font(.system(size: 13)).foregroundStyle(.lookMute)
-                    }
-                }
+            Text(result.state == .answered ? "Answer" : "No answer").refinedFont(.meta).foregroundStyle(Refined.mute)
+            if let a = result.answer, result.state == .answered {
+                PhoneAskAnswerText(answer: a)
+                PhoneAskCitations(sources: a.citations)
+            } else {
+                Text(result.message(scopeLabel: result.scope.label(projects: Dictionary(uniqueKeysWithValues: app.store.projects.map { ($0.id, $0.name) }))))
+                    .refinedFont(.body).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("ask.message")
+                if !result.found.isEmpty { PhoneAskCitations(sources: result.found) }
             }
-            .padding(16)
-            .modifier(AskCardSurface())
-            if look.isNative, showsFooter, result.state == .answered {
-                Text(result.footer(native: true)).font(.system(size: 13)).foregroundStyle(NativeInk.secondary).padding(.horizontal, 4)
+            if showsFooter {
+                HStack(spacing: 6) {
+                    IconGlyph(art: .iconPrivacy, size: 13, color: Refined.mute)
+                    Text(result.state == .answered ? "Runs on this iPhone with Apple Intelligence." : "Found on this iPhone. Nothing left your device.")
+                        .refinedFont(.meta).foregroundStyle(Refined.mute)
+                }
             }
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
     }
 }
 
 /// The answer's paragraphs, bullets, and headings, with citation numbers after each sentence.
 struct PhoneAskAnswerText: View {
     var answer: AskAnswer
-    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(answer.blocks.enumerated()), id: \.offset) { _, b in
                 switch b {
                 case .heading(let h):
-                    Text(h).font(look.isNative ? .system(size: 16, weight: .semibold) : Ink.serif(19)).foregroundStyle(.lookInk).accessibilityAddTraits(.isHeader)
+                    Text(h).refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
                 case .paragraph(let s):
-                    Text(attributed(s)).font(.system(size: 16)).foregroundStyle(.lookInk).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
+                    Text(attributed(s)).refinedFont(.reading).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 case .bullet(let s):
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•").foregroundStyle(.lookDim)
-                        Text(attributed(s)).font(.system(size: 16)).foregroundStyle(.lookInk).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
+                        Text("•").foregroundStyle(Refined.dim)
+                        Text(attributed(s)).refinedFont(.reading).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -289,6 +251,7 @@ struct PhoneAskAnswerText: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// Each sentence, then its citation numbers in the accent on the persimmon tint.
     private func attributed(_ sentences: [AskSentence]) -> AttributedString {
         var out = AttributedString()
         for (i, s) in sentences.enumerated() {
@@ -297,15 +260,9 @@ struct PhoneAskAnswerText: View {
             for n in s.cites {
                 out += AttributedString("\u{2009}")
                 var m = AttributedString("\u{2009}\(n)\u{2009}")
-                if look.isNative {
-                    m.font = .system(size: 13, weight: .semibold)
-                    m.foregroundColor = NativeInk.accent
-                    m.backgroundColor = NativeInk.accent.opacity(0.12)
-                } else {
-                    m.font = Ink.mono(12)
-                    m.foregroundColor = Ink.dim
-                    m.backgroundColor = Ink.chip
-                }
+                m.font = .system(size: 13, weight: .semibold).monospacedDigit()
+                m.foregroundColor = Refined.accentText
+                m.backgroundColor = Refined.persimmonTint
                 out += m
             }
         }
@@ -313,19 +270,18 @@ struct PhoneAskAnswerText: View {
     }
 }
 
-/// Citations: Verbose style's neutral chips (number, play, title, time), or Premium's rows with a play pill. A tap opens
-/// the transcript at that line and plays it.
+/// Citations: rows in a card, each with its number, the recording and where in it, and a sage play disc with the time.
+/// A tap opens the transcript at that line and plays it.
 struct PhoneAskCitations: View {
     var sources: [AskSource]
     @EnvironmentObject var app: PhoneState
-    @Environment(\.look) private var look
 
     var body: some View {
-        VStack(alignment: .leading, spacing: look.isNative ? 0 : 8) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(sources.enumerated()), id: \.element.id) { i, s in
-                if look.isNative, i > 0 { Divider().padding(.leading, 34) }
-                Button { open(s) } label: { if look.isNative { nativeRow(s) } else { chip(s) } }
-                    .buttonStyle(SoftPress())
+                if i > 0 { PaperDivider(leading: 34) }
+                Button { open(s) } label: { row(s) }
+                    .buttonStyle(RefinedRowPress())
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Source \(s.number), \(s.title), at \(AskFormat.time(s.start))")
                     .accessibilityHint("Opens the transcript at this line and plays it")
@@ -339,76 +295,50 @@ struct PhoneAskCitations: View {
         app.open(s.transcriptId, segment: s.segmentId)
     }
 
-    private func chip(_ s: AskSource) -> some View {
-        HStack(spacing: 8) {
-            Text("\(s.number)").font(Ink.mono(12)).foregroundStyle(Ink.dim)
-                .frame(minWidth: 20, minHeight: 20)
-                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1))
-            ZStack { Circle().fill(Ink.ink); ArtIcon(art: .iconPlay, size: 9, lineWidth: 1.3).foregroundStyle(Ink.paper) }.frame(width: 20, height: 20)
-            Text(s.title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
-            Text(AskFormat.time(s.start)).font(Ink.mono(12)).foregroundStyle(Ink.dim)
-        }
-        .padding(.leading, 6).padding(.trailing, 12).frame(minHeight: 36)
-        .background(Capsule().fill(Ink.card))
-        .overlay(Capsule().strokeBorder(Ink.hairline, lineWidth: 1))
-        .contentShape(Capsule())
-    }
-
-    // brand: native begin
-    private func nativeRow(_ s: AskSource) -> some View {
+    private func row(_ s: AskSource) -> some View {
         let parts = s.title.components(separatedBy: " · ")
         return HStack(spacing: 12) {
-            Text("\(s.number)").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(NativeInk.accent)
-                .frame(width: 22, height: 22).background(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(NativeInk.accent.opacity(0.12)))
+            Text("\(s.number)").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Refined.accentText)
+                .frame(width: 22, height: 22).background(Refined.persimmonTint, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
-                Text(parts.first ?? s.title).font(.system(size: 16)).foregroundStyle(NativeInk.label).lineLimit(1)
-                if parts.count > 1 { Text(parts.dropFirst().joined(separator: " · ")).font(.system(size: 14)).foregroundStyle(NativeInk.secondary).lineLimit(1) }
+                Text(parts.first ?? s.title).refinedFont(.rowTitle).foregroundStyle(Refined.ink).lineLimit(1)
+                if parts.count > 1 {
+                    Text(parts.dropFirst().joined(separator: " · ")).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+                }
             }
             Spacer(minLength: 8)
-            HStack(spacing: 4) {
-                Image(systemName: "play.fill").font(.system(size: 9))
-                Text(AskFormat.time(s.start)).font(.system(size: 14, weight: .semibold)).monospacedDigit()
+            HStack(spacing: 6) {
+                ZStack {
+                    Circle().fill(Refined.badge(.sage))
+                    ArtIcon(art: .iconPlay, size: 9, lineWidth: 1.3).foregroundStyle(Refined.onBadge(.sage))
+                }
+                .frame(width: 22, height: 22)
+                Text(AskFormat.time(s.start)).refinedFont(.meta, weight: .semibold).monospacedDigit().foregroundStyle(Refined.ink)
             }
-            .foregroundStyle(NativeInk.label)
-            .padding(.horizontal, 10).frame(height: 28)
-            .background(Capsule().fill(NativeInk.fill))
         }
         .padding(.vertical, 8)
+        .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
         .contentShape(Rectangle())
     }
-    // brand: native end
 }
 
-/// A passage the answer didn't cite: its recording, time, and words.
+/// A passage the answer didn't cite, as a row in the passages' card: its recording, time, and words.
 struct PhoneAskPassage: View {
     var source: AskSource
     @EnvironmentObject var app: PhoneState
     var body: some View {
-        Button { app.autoplay = source.transcriptId; app.open(source.transcriptId, segment: source.segmentId) } label: {
+        PaperRowButton(action: { app.autoplay = source.transcriptId; app.open(source.transcriptId, segment: source.segmentId) }) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(source.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
+                    Text(source.title).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
                     Spacer(minLength: 6)
-                    Text(AskFormat.time(source.start)).lookMono(12).foregroundStyle(.lookMute)
+                    Text(AskFormat.time(source.start)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
                 }
-                Text(source.text).font(.system(size: 15)).foregroundStyle(.lookDim).lineLimit(3).multilineTextAlignment(.leading)
+                Text(source.text).refinedFont(.hint).foregroundStyle(Refined.dim).lineLimit(3).multilineTextAlignment(.leading)
             }
             .padding(14)
-            .cardSurface(radius: Radius.row)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(SoftPress())
         .accessibilityHint("Opens the transcript at \(AskFormat.time(source.start))")
-    }
-}
-
-/// Native's chip names are title case ("This Week", "Website Refresh").
-enum NativeTitleCase {
-    static func apply(_ s: String) -> String {
-        s.split(separator: " ").map { w in
-            let lower = ["a", "an", "the", "and", "or", "of", "to", "in", "on", "at", "for", "by"]
-            return lower.contains(w.lowercased()) ? String(w) : w.prefix(1).uppercased() + w.dropFirst()
-        }.joined(separator: " ")
     }
 }
 
@@ -426,7 +356,7 @@ struct RecipesScreen: View {
         let anytime = recipes.filter { center.schedule($0.id) == nil }
         SettingsPageScaffold(title: "Recipes") {
             Text("Questions you ask again. Run one now, or schedule it weekly on this iPhone.")
-                .font(.system(size: 15)).foregroundStyle(.lookDim).fixedSize(horizontal: false, vertical: true).padding(.top, 6)
+                .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true).padding(.top, 6)
             if recipes.isEmpty {
                 SettingsPageGroup(title: "Try one", footer: "Tap one to save it. You can change the question, where it looks, and when it runs.", first: true) {
                     ForEach(Array(RecipeSuggestions.all(projects: app.store.projects.map { ($0.id, $0.name) }).enumerated()), id: \.offset) { i, s in
@@ -437,7 +367,7 @@ struct RecipesScreen: View {
                         } label: {
                             SettingsRow(hue: .neutral, art: s.schedule == nil ? .iconAsk : .iconCalendar,
                                         title: s.question, subtitle: subtitle(s.scope, s.schedule.map { RecipeSchedule(weekday: $0.weekday, hour: $0.hour, minute: $0.minute) })) {
-                                Image(systemName: "plus.circle").foregroundStyle(.lookAccentText)
+                                Image(systemName: "plus.circle").foregroundStyle(Refined.accentText)
                             }
                         }
                         .buttonStyle(SettingsRowPress())
@@ -456,10 +386,10 @@ struct RecipesScreen: View {
                     NavigationLink(value: RecipeRoute(id: r.id)) {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(d.ranAt.formatted(.dateTime.weekday(.wide).month(.wide).day()) + (d.scheduled ? " · On schedule" : ""))
-                                .font(.system(size: 13)).foregroundStyle(.lookMute)
-                            Text(r.question).font(.system(size: 17, weight: .semibold)).foregroundStyle(.lookInk)
+                                .refinedFont(.meta).foregroundStyle(Refined.mute)
+                            Text(r.question).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
                             if let a = d.result.answer {
-                                Text(a.firstSentence).font(.system(size: 15)).foregroundStyle(.lookDim).lineLimit(2).multilineTextAlignment(.leading)
+                                Text(a.firstSentence).refinedFont(.hint).foregroundStyle(Refined.dim).lineLimit(2).multilineTextAlignment(.leading)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -496,11 +426,7 @@ struct RecipesScreen: View {
                         ProgressView()
                     } else {
                         Button("Run") { center.run(r) }
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.lookAccentText)
-                            .padding(.horizontal, 12).frame(height: 32)
-                            .background(Capsule().fill(.lookCard))
-                            .buttonStyle(.plain)
+                            .buttonStyle(RefinedActionStyle(kind: .quiet))
                             .accessibilityIdentifier("recipes.run.\(i)")
                     }
                 }
@@ -517,13 +443,13 @@ struct RecipeScreen: View {
     var id: UUID
     @ObservedObject private var center = AskRecipeCenter.shared
     @State private var editing: PhoneRecipeDraft? = nil
-    @Environment(\.look) private var look
 
     var body: some View {
         if let r = app.store.recipes.first(where: { $0.id == id }) {
             content(r)
         } else {
-            Text("This recipe was deleted.").foregroundStyle(.lookMute).frame(maxWidth: .infinity, maxHeight: .infinity).phonePage()
+            Text("This recipe was deleted.").refinedFont(.body).foregroundStyle(Refined.mute).frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Refined.paper.ignoresSafeArea())
         }
     }
 
@@ -533,40 +459,34 @@ struct RecipeScreen: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
-                    PhoneEyebrow(text: [center.schedule(r.id)?.label, r.scope.label(projects: names)].compactMap { $0 }.joined(separator: " · "))
-                    Text(r.question).lookSerif(28).foregroundStyle(.lookInk).fixedSize(horizontal: false, vertical: true)
+                    Text([center.schedule(r.id)?.label, r.scope.label(projects: names)].compactMap { $0 }.joined(separator: " · "))
+                        .refinedFont(.meta).foregroundStyle(Refined.mute)
+                    Text(r.question).refinedFont(.transcriptTitle).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
                 }
-                .padding(.top, 4)
+                .padding(.top, 8)
                 HStack(spacing: 10) {
-                    Button { center.run(r) } label: {
-                        Text(center.running.contains(r.id) ? "Running…" : "Run now").font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(look.isNative ? NativeInk.onAccent : Ink.paper)
-                            .padding(.horizontal, 18).frame(height: 40)
-                            .background(Capsule().fill(look.isNative ? NativeInk.accent : Ink.ink))
-                    }
-                    .buttonStyle(PhoneCardPress()).disabled(center.running.contains(r.id))
-                    .accessibilityIdentifier("recipe.run")
-                    Button { editing = draft(r) } label: {
-                        Text(center.schedule(r.id) == nil ? "Schedule" : "Edit").font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookInk)
-                            .padding(.horizontal, 18).frame(height: 40)
-                            .background(Capsule().strokeBorder(look.isNative ? NativeInk.separator : Ink.ink, lineWidth: 1.5))
-                    }
-                    .buttonStyle(PhoneCardPress())
+                    Button(center.running.contains(r.id) ? "Running…" : "Run now") { center.run(r) }
+                        .buttonStyle(RefinedActionStyle(kind: .strong))
+                        .disabled(center.running.contains(r.id))
+                        .accessibilityIdentifier("recipe.run")
+                    Button(center.schedule(r.id) == nil ? "Schedule" : "Edit") { editing = draft(r) }
+                        .buttonStyle(RefinedActionStyle(kind: .quiet))
                 }
                 if let d = digests.first {
                     Text(d.ranAt.formatted(date: .abbreviated, time: .shortened) + (d.scheduled ? " · Ran on schedule" : " · Ran now"))
-                        .lookMono(12).foregroundStyle(.lookMute).padding(.top, 6)
+                        .refinedFont(.meta).foregroundStyle(Refined.mute).padding(.top, 6)
                     PhoneAskResult(result: d.result)
                 } else if center.running.contains(r.id) {
-                    HStack(spacing: 10) { ProgressView(); Text("Finding passages and answering…").font(.system(size: 15)).foregroundStyle(.lookDim) }
+                    HStack(spacing: 10) { ProgressView(); Text("Finding passages and answering…").refinedFont(.body).foregroundStyle(Refined.dim) }
                 } else {
-                    Text("No answer yet. Tap Run now, or Schedule to run it every week on this iPhone.").font(.system(size: 15)).foregroundStyle(.lookDim)
+                    Text("No answer yet. Tap Run now, or Schedule to run it every week on this iPhone.").refinedFont(.body).foregroundStyle(Refined.dim)
                 }
                 if digests.count > 1 {
-                    PhoneDayHeader(text: "Earlier").padding(.top, 8)
+                    Text("Earlier").refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader).padding(.top, 8)
                     ForEach(digests.dropFirst()) { d in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(d.ranAt.formatted(date: .abbreviated, time: .shortened)).lookMono(12).foregroundStyle(.lookMute)
+                            Text(d.ranAt.formatted(date: .abbreviated, time: .shortened)).refinedFont(.meta).foregroundStyle(Refined.mute)
                             PhoneAskResult(result: d.result, showsFooter: false)
                         }
                     }
@@ -574,8 +494,8 @@ struct RecipeScreen: View {
             }
             .padding(.horizontal, 20).padding(.bottom, 40)
         }
-        .phonePage()
-        .navigationTitle(look.isNative ? "Recipe" : "")
+        .background(Refined.paper.ignoresSafeArea())
+        .navigationTitle("Recipe")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editing) { d in PhoneRecipeEditor(draft: d).environmentObject(app) }
     }
@@ -618,6 +538,7 @@ struct PhoneRecipeEditor: View {
                         .lineLimit(1...4)
                         .accessibilityIdentifier("recipe.question")
                 }
+                .listRowBackground(Refined.card)
                 Section("Where to look") {
                     Toggle("This week only", isOn: Binding(get: { draft.scope.range == .thisWeek }, set: { draft.scope.range = $0 ? .thisWeek : .allTime }))
                     Picker("Recordings", selection: Binding(get: { draft.scope.source }, set: { draft.scope.source = $0 })) {
@@ -627,6 +548,7 @@ struct PhoneRecipeEditor: View {
                         ForEach(app.store.projects) { p in Text(p.name).tag(AskScope.Source.project(p.id)) }
                     }
                 }
+                .listRowBackground(Refined.card)
                 Section {
                     Toggle("Run every week", isOn: $draft.scheduled)
                     if draft.scheduled {
@@ -638,12 +560,16 @@ struct PhoneRecipeEditor: View {
                 } footer: {
                     Text("iOS runs it when it gives Verbose time near then, so it can come later than you set. It also runs the next time you open Verbose. Schedules stay on this iPhone; the recipe syncs with your Mac.")
                 }
+                .listRowBackground(Refined.card)
                 if draft.recipeId != nil {
                     Section {
                         Button("Delete recipe", role: .destructive) { confirmDelete = true }
                     }
+                    .listRowBackground(Refined.card)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Refined.paper.ignoresSafeArea())
             .navigationTitle(draft.recipeId == nil ? "New recipe" : "Edit recipe")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

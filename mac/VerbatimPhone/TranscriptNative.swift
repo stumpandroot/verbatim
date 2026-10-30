@@ -31,12 +31,12 @@ struct TranscriptFindSheet: View {
                             ForEach(matches) { s in
                                 Button { onPick(s) } label: {
                                     HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                        Text(s.start.timecode).font(.subheadline).monospacedDigit().foregroundStyle(NativeInk.secondary)
+                                        Text(s.start.timecode).font(.subheadline).monospacedDigit().foregroundStyle(Refined.mute)
                                         VStack(alignment: .leading, spacing: 2) {
                                             if transcript.speakers.count >= 2, let sp = transcript.speakerName(s.speaker) {
-                                                Text(sp).font(.footnote.weight(.semibold)).foregroundStyle(NativeInk.secondary)
+                                                Text(sp).font(.footnote.weight(.semibold)).foregroundStyle(Refined.mute)
                                             }
-                                            Text(highlighted(s.text)).foregroundStyle(NativeInk.label).lineLimit(3)
+                                            Text(highlighted(s.text)).foregroundStyle(Refined.ink).lineLimit(3)
                                         }
                                     }
                                 }
@@ -65,7 +65,7 @@ struct TranscriptFindSheet: View {
         var start = a.startIndex
         while start < a.endIndex, let r = a[start...].range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) {
             a[r].font = .body.weight(.semibold)
-            a[r].foregroundColor = NativeInk.accent
+            a[r].foregroundColor = Refined.accentText
             start = r.upperBound
         }
         return a
@@ -97,7 +97,7 @@ struct TranscriptSpeakersSheet: View {
                                     .onSubmit { save(sp.id) }
                                     .accessibilityLabel("Name for \(sp.label)")
                                 Spacer(minLength: 8)
-                                Text((talk[sp.id] ?? 0).timecode).monospacedDigit().foregroundStyle(NativeInk.secondary)
+                                Text((talk[sp.id] ?? 0).timecode).monospacedDigit().foregroundStyle(Refined.mute)
                                     .accessibilityLabel("Talks for \(RecorderPresentation.spoken(talk[sp.id] ?? 0))")
                             }
                         }
@@ -171,7 +171,7 @@ struct TranscriptDetailsSheet: View {
                     if t.status == .ready {
                         Section("Where it was transcribed") {
                             Text(t.dataPathBadge)
-                            Text(t.provenanceLine).font(.footnote).foregroundStyle(NativeInk.secondary)
+                            Text(t.provenanceLine).font(.footnote).foregroundStyle(Refined.mute)
                         }
                     }
                 }
