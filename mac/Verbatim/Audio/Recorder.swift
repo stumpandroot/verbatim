@@ -555,16 +555,39 @@ enum InterruptionPolicy {
 }
 
 #if os(iOS)
-/// The iPhone's recording session options, shared by voice notes, Thoughts, the Live Activity's in-place recording
-/// (Recorder), and the keyboard session (KeyboardSession). On iOS 26, AirPods record over their high-quality link
-/// (`bluetoothHighQualityRecording`) instead of the phone-call link (HFP), which gave the lawnmower test file 16 kHz
-/// mono; iOS falls back to HFP by itself where the AirPods or the route can't. The Mac never sets a session.
+/// The iPhone's recording session, shared by voice notes, meetings, thoughts, brain dumps, Audio only, Live captions,
+/// the Live Activity's in-place recording (Recorder), and the keyboard session (KeyboardSession). The Mac never sets a
+/// session. Which input a recording uses, what the chip calls it, and the mode are pure rules
+/// (`RecordingInputRules`, Model/RecordingInputRules.swift); this turns them into AVAudioSession calls.
+///
+/// AirPods: on iOS 26 a Bluetooth input asks for the high-quality link (`bluetoothHighQualityRecording`, with HFP as
+/// the fallback), which Apple documents as working only in the default mode. Build 223 asked for it with spoken audio
+/// (and Audio only with measurement), then pinned whatever the route said a moment after starting and moved to the
+/// iPhone's microphone on the first engine change while AirPods came up: recordings with AirPods in came from the
+/// iPhone microphone. Now the input is chosen from what iOS lists and set before the session activates, the mode
+/// follows the input, and a route change keeps the recording on its input while it's there.
 enum RecordingRoute {
-    static func options(mixWithOthers: Bool = false) -> AVAudioSession.CategoryOptions {
+    /// The category options: Bluetooth always allowed (HFP), so AirPods are listed and can record; the high-quality
+    /// link only when the plan asks for it, since it needs the default mode.
+    static func options(mixWithOthers: Bool = false, highQuality: Bool = false) -> AVAudioSession.CategoryOptions {
         var o: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth]
         if mixWithOthers { o.insert(.mixWithOthers) }
-        if #available(iOS 26, *) { o.insert(.bluetoothHighQualityRecording) }
+        if highQuality, #available(iOS 26, *) { o.insert(.bluetoothHighQualityRecording) }
         return o
+    }
+
+    /// Whether this iPhone can ask for AirPods' high-quality link (iOS 26 and later).
+    static var highQualityAvailable: Bool {
+        if #available(iOS 26, *) { return true }
+        return false
+    }
+
+    static func mode(_ m: RecordingInputRules.Mode) -> AVAudioSession.Mode {
+        switch m {
+        case .standard: return .default
+        case .spokenAudio: return .spokenAudio
+        case .measurement: return .measurement
+        }
     }
 
     /// Sets the recording category and lets haptics play while the microphone records. iOS turns haptics off when
@@ -585,11 +608,107 @@ enum RecordingRoute {
         }
     }
 
-    /// True when the options ask for AirPods high-quality recording (iOS 26 and later), for the self-test.
-    static var asksForHighQuality: Bool {
-        if #available(iOS 26, *) { return options().contains(.bluetoothHighQualityRecording) }
-        return false
+    /// Sets up the session for a recording before it activates: the category with Bluetooth allowed (and the
+    /// high-quality link where it can be), so iOS lists AirPods; the input the rules pick (`chosen` is the
+    /// microphone menu's pick for this recording); the mode and option that input needs; and, with `pin`, that input
+    /// as the preferred one, so the session comes up on it. The keyboard session passes `pin: false` and follows
+    /// whatever iOS routes to. Returns the input it picked.
+    @discardableResult
+    static func prepare(_ s: AVAudioSession = .sharedInstance(), soundOnly: Bool, mixWithOthers: Bool = false,
+                        chosen: String?, pin: Bool = true) throws -> RecordingInput? {
+        let wide = RecordingInputRules.SessionPlan(mode: highQualityAvailable ? .standard : (soundOnly ? .measurement : .spokenAudio),
+                                                   highQuality: highQualityAvailable)
+        try RecordingRoute.setCategory(s, mode: mode(wide.mode), options: options(mixWithOthers: mixWithOthers, highQuality: wide.highQuality))
+        let available = (s.availableInputs ?? []).map(input)
+        let picked = RecordingInputRules.choose(available: available, current: s.currentRoute.inputs.first?.uid, chosen: chosen)
+        let plan = RecordingInputRules.plan(for: picked, soundOnly: soundOnly, highQualityAvailable: highQualityAvailable)
+        if plan != wide {
+            try RecordingRoute.setCategory(s, mode: mode(plan.mode), options: options(mixWithOthers: mixWithOthers, highQuality: plan.highQuality))
+        }
+        if pin, let picked, let port = s.availableInputs?.first(where: { $0.uid == picked.uid }) {
+            try? s.setPreferredInput(port)
+        } else {
+            try? s.setPreferredInput(nil)
+        }
+        lastPlan = plan
+        Log.note("audio session: \(plan.mode.rawValue) mode, high-quality AirPods \(plan.highQuality ? "asked" : "not asked"), input \(picked.map { "\($0.name) (\($0.kind.rawValue))" } ?? "iOS's choice")\(pin ? "" : ", not pinned")")
+        return picked
     }
+
+    /// After `setActive(true)`: sets the picked input again, now that the session controls the route (iOS can
+    /// ignore a preferred input set while the session is inactive).
+    static func confirm(_ picked: RecordingInput?, _ s: AVAudioSession = .sharedInstance()) {
+        guard let picked, let port = s.availableInputs?.first(where: { $0.uid == picked.uid }) else { return }
+        if s.currentRoute.inputs.first?.uid != port.uid || s.preferredInput?.uid != port.uid { try? s.setPreferredInput(port) }
+    }
+
+    /// Mid-recording (the microphone menu): moves the session to the input `uid`, first changing the mode and option
+    /// when the new input needs them. Changing the high-quality option can relist AirPods under another UID, so the
+    /// port is found again by UID, then by name. Nil when the input isn't there.
+    static func move(to uid: String, soundOnly: Bool, _ s: AVAudioSession = .sharedInstance()) -> RecordingInput? {
+        guard let first = s.availableInputs?.first(where: { $0.uid == uid }) else { return nil }
+        let wanted = input(first)
+        let plan = RecordingInputRules.plan(for: wanted, soundOnly: soundOnly, highQualityAvailable: highQualityAvailable)
+        if plan != lastPlan {
+            let mixing = s.categoryOptions.contains(.mixWithOthers)
+            do {
+                try RecordingRoute.setCategory(s, mode: mode(plan.mode), options: options(mixWithOthers: mixing, highQuality: plan.highQuality))
+                lastPlan = plan
+            } catch {
+                Log.note("audio session: couldn't change the mode for \(wanted.name): \(error.localizedDescription)")
+            }
+        }
+        let ports = s.availableInputs ?? []
+        guard let port = ports.first(where: { $0.uid == uid }) ?? ports.first(where: { $0.portName == wanted.name && kind($0.portType) == wanted.kind })
+        else { return nil }
+        try? s.setPreferredInput(port)
+        return input(port)
+    }
+
+    /// The plan the last recording set up, for the self-test and the log.
+    private(set) static var lastPlan: RecordingInputRules.SessionPlan? = nil
+
+    /// A port as the rules see it.
+    static func input(_ p: AVAudioSessionPortDescription) -> RecordingInput {
+        RecordingInput(uid: p.uid, name: p.portName, kind: kind(p.portType))
+    }
+
+    static func kind(_ t: AVAudioSession.Port) -> RecordingInput.Kind {
+        switch t {
+        case .builtInMic: return .builtIn
+        case .bluetoothHFP, .bluetoothLE, .bluetoothA2DP: return .bluetooth
+        case .headsetMic, .lineIn: return .wired
+        case .usbAudio: return .usb
+        case .carAudio: return .car
+        default: return .other
+        }
+    }
+
+    /// The inputs a recording could use right now, without touching the session: what iOS lists, and before the
+    /// first recording (when the app's session isn't a recording session and lists no microphones) a Bluetooth
+    /// headset on the output and the iPhone's microphone.
+    static func knownInputs(_ s: AVAudioSession = .sharedInstance()) -> [RecordingInput] {
+        let records = s.category == .playAndRecord || s.category == .record
+        let listed = (s.availableInputs ?? []).map(input) + s.currentRoute.inputs.map(input)
+        let outputs = s.currentRoute.outputs.filter { kind($0.portType) == .bluetooth }.map(input)
+        return RecordingInputRules.known(inputs: listed, bluetoothOutputs: outputs, sessionRecords: records)
+    }
+
+    /// The input the next recording will use (`chosen` is a pick waiting for it).
+    static func nextInput(chosen: String? = nil, _ s: AVAudioSession = .sharedInstance()) -> RecordingInput? {
+        RecordingInputRules.choose(available: knownInputs(s), current: s.currentRoute.inputs.first?.uid, chosen: chosen)
+    }
+
+    /// The Record card's chip at rest: "Ready · AirPods Pro", or "Ready · iPhone microphone".
+    static func readyText(chosen: String? = nil) -> String { RecordingInputRules.readyText(nextInput(chosen: chosen)) }
+
+    /// The input a running recording hears, by name ("AirPods Pro", "iPhone microphone").
+    static func currentName(_ s: AVAudioSession = .sharedInstance()) -> String {
+        RecordingInputRules.displayName(s.currentRoute.inputs.first.map(input) ?? nextInput(s))
+    }
+
+    /// True when this iPhone asks for AirPods high-quality recording (iOS 26 and later), for the self-test.
+    static var asksForHighQuality: Bool { highQualityAvailable }
 
     /// The last route a recording started on: "AirPods Pro (BluetoothHFP) 16000 Hz, 1 ch".
     private(set) static var lastRoute: String? = nil
@@ -602,7 +721,10 @@ enum RecordingRoute {
         let rate = format.map { Int($0.sampleRate) } ?? Int(s.sampleRate)
         let route = "\(input?.portName ?? "no input") (\(input?.portType.rawValue ?? "-")) \(rate) Hz, \(format.map { Int($0.channelCount) } ?? s.inputNumberOfChannels) ch"
         lastRoute = route
-        Log.note("\(context): recording on \(route), session \(Int(s.sampleRate)) Hz, high-quality AirPods asked: \(asksForHighQuality)")
+        let available = (s.availableInputs ?? []).map { "\($0.portName) (\($0.portType.rawValue))" }.joined(separator: ", ")
+        var asked = false
+        if #available(iOS 26, *) { asked = s.categoryOptions.contains(.bluetoothHighQualityRecording) }
+        Log.note("\(context): recording on \(route), session \(Int(s.sampleRate)) Hz, mode \(s.mode.rawValue), high-quality AirPods asked: \(asked), available: \(available)")
     }
 }
 #endif
@@ -692,6 +814,11 @@ final class Recorder: ObservableObject {
     private var pausedForInterruption = false
     /// The UID of the input the recording uses. Capture restarts on it while it's available.
     private var pinnedInputUID: String?
+    /// The input the recorder's microphone menu picked: used by this recording (or the next one, picked before it
+    /// starts) while it's there, then forgotten when the recording stops.
+    @Published private(set) var chosenInputUID: String?
+    /// The input `RecordingRoute.prepare` picked when this recording started.
+    private var chosenInput: RecordingInput?
     #endif
     /// The tap's format on a normal recording's engine.
     private var tapFormat: AVAudioFormat?
@@ -771,9 +898,13 @@ final class Recorder: ObservableObject {
     func start(to url: URL) throws {
         #if os(iOS)
         // iPhone: a record session that keeps going with the screen locked (background audio mode).
+        // The input is picked (AirPods over the iPhone's microphone, or the one chosen in the microphone menu) and set
+        // before the session activates, with the mode it needs (RecordingRoute.prepare).
         let session = AVAudioSession.sharedInstance()
-        try RecordingRoute.setCategory(session, mode: soundOnly ? .measurement : .spokenAudio, options: RecordingRoute.options())
+        let picked = try RecordingRoute.prepare(session, soundOnly: soundOnly, chosen: chosenInputUID)
         try session.setActive(true)
+        RecordingRoute.confirm(picked, session)
+        chosenInput = picked
         #endif
         if keepWarm {
             CaptureStep.set("dictation: starting")
@@ -819,36 +950,51 @@ final class Recorder: ObservableObject {
 
     #if os(iOS)
     /// Keeps a recording on the microphone it started with: AirPods connecting mid-recording don't take it over
-    /// (that route switch is what froze the app). When this input goes away, iOS falls back to the iPhone mic.
+    /// (that route switch is what froze the app). That's the input `RecordingRoute.prepare` picked (`chosenInput`),
+    /// not whatever the route says a moment after starting: AirPods can still be coming up on their link then, and
+    /// pinning the route's input locked the recording onto the iPhone microphone. When this input goes away, the
+    /// recording moves to the best input left (`RecordingInputRules.afterRouteChange`).
     private func pinCurrentInput() {
         let s = AVAudioSession.sharedInstance()
-        guard let cur = s.currentRoute.inputs.first,
-              let port = s.availableInputs?.first(where: { $0.uid == cur.uid }) else { return }
+        let available = s.availableInputs ?? []
+        let port = chosenInput.flatMap { c in available.first(where: { $0.uid == c.uid }) }
+            ?? s.currentRoute.inputs.first.flatMap { cur in available.first(where: { $0.uid == cur.uid }) }
+        guard let port else { return }
         try? s.setPreferredInput(port)
         pinnedInputUID = port.uid
         Log.note("recorder: recording on \(port.portName) (\(port.portType.rawValue))")
     }
 
-    /// After the pinned input went away: the iPhone's own microphone, pinned in its place.
-    private func pinBuiltInMic() {
+    /// The recorder's microphone menu: records from `uid` for the rest of this recording, or the next one when
+    /// nothing is recording. The session changes its mode first when the new input needs it (AirPods' high-quality
+    /// link wants the default mode), and capture restarts on the new input (`configurationChanged`, or here when the
+    /// engine keeps running on the old one).
+    func useInput(_ uid: String) {
+        chosenInputUID = uid
+        guard isRecording, !keepWarm else { return }
         let s = AVAudioSession.sharedInstance()
-        if let mic = s.availableInputs?.first(where: { $0.portType == .builtInMic }) {
-            try? s.setPreferredInput(mic)
-            pinnedInputUID = mic.uid
-        } else {
-            try? s.setPreferredInput(nil)
-            pinnedInputUID = nil
+        guard let picked = RecordingRoute.move(to: uid, soundOnly: soundOnly, s) else {
+            Log.note("recorder: the input you chose isn't there any more"); return
         }
-        Log.note("recorder: pinned the built-in mic")
+        chosenInput = picked
+        pinnedInputUID = picked.uid
+        chosenInputUID = picked.uid
+        Log.note("recorder: you chose \(picked.name) (\(picked.kind.rawValue))")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            guard let self, self.isRecording, !self.isPaused, let engine = self.engine, engine.isRunning,
+                  AVAudioSession.sharedInstance().currentRoute.inputs.first?.uid != picked.uid else { return }
+            Log.note("recorder: restarting capture on \(picked.name)")
+            if !self.restartCapture() { self.autoPause("The microphone changed. Tap Resume to keep recording.") }
+        }
     }
 
-    /// Resuming after an interruption: the input the recording was using (AirPods stay AirPods), or the built-in
-    /// mic only when that input is gone.
+    /// Restarting capture (after a call, a route change, or Resume): the input the recording was using (AirPods
+    /// stay AirPods), or the best input left only when that one is gone (`RecordingInputRules.afterRouteChange`:
+    /// another accessory, then the iPhone's microphone).
     private func pinRecordingInput() {
         let s = AVAudioSession.sharedInstance()
         let available = s.availableInputs ?? []
-        let builtIn = available.first(where: { $0.portType == .builtInMic })
-        let choice = InterruptionPolicy.input(pinned: pinnedInputUID, available: available.map(\.uid), builtIn: builtIn?.uid)
+        let choice = RecordingInputRules.afterRouteChange(pinned: pinnedInputUID, available: available.map(RecordingRoute.input))?.uid
         guard let choice, let port = available.first(where: { $0.uid == choice }) else {
             try? s.setPreferredInput(nil)
             Log.note("recorder: no input to pin; iOS chooses")
@@ -861,7 +1007,8 @@ final class Recorder: ObservableObject {
     }
 
     private var currentInputName: String {
-        AVAudioSession.sharedInstance().currentRoute.inputs.first.map { $0.portType == .builtInMic ? "the iPhone microphone" : $0.portName } ?? "the iPhone microphone"
+        let name = RecordingRoute.currentName()
+        return name == RecordingInputRules.builtInName ? "the " + name : name
     }
     #endif
 
@@ -914,7 +1061,7 @@ final class Recorder: ObservableObject {
         // Resuming after the recorder paused itself (a call, a device change): the engine stopped, start it again
         // on the input the recording was using, if it's still there.
         if isPaused, !keepWarm, let engine, !engine.isRunning {
-            guard restartCapture(keepInput: true) else {
+            guard restartCapture() else {
                 Log.note("recorder: couldn't resume; still paused")
                 onAutoPaused?("Couldn't restart the microphone. Stop to keep what was recorded.")
                 return
@@ -942,16 +1089,16 @@ final class Recorder: ObservableObject {
 
     /// Normal recordings: points the tap at the input's current format (a new device, a new sample rate) and
     /// starts the engine again. The writer converts whatever arrives, so the file keeps one format.
-    /// `keepInput`: stay on the input the recording was using while it's available (resuming after a call). False
-    /// after a route change, which moves to the built-in mic.
-    private func restartCapture(keepInput: Bool = false) -> Bool {
+    /// iPhone: it stays on the input the recording was using while it's available (after a call, after AirPods come
+    /// up on their high-quality link), and moves to the best input left only when that one is gone.
+    private func restartCapture() -> Bool {
         guard !keepWarm, var engine, let w = writer else { return false }
         #if os(iOS)
         RecordingRoute.allowHaptics()
         do { try AVAudioSession.sharedInstance().setActive(true) } catch {
             Log.note("recorder: couldn't activate the audio session: \(error.localizedDescription)")
         }
-        if keepInput { pinRecordingInput() } else { pinBuiltInMic() }
+        pinRecordingInput()
         // A fresh engine after a route change: the old one can keep the departed device's format.
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
@@ -1102,6 +1249,8 @@ final class Recorder: ObservableObject {
         pausedForInterruption = false
         awaitingResume = false
         pinnedInputUID = nil
+        chosenInputUID = nil
+        chosenInput = nil
         try? AVAudioSession.sharedInstance().setPreferredInput(nil)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         #endif
@@ -1896,7 +2045,7 @@ final class Recorder: ObservableObject {
             autoPause(Self.cantSaveNotice); return
         }
         let began = ProcessInfo.processInfo.systemUptime
-        guard engine != nil, restartCapture(keepInput: true) else {
+        guard engine != nil, restartCapture() else {
             Log.note("recorder: couldn't restart capture after the interruption; staying paused")
             needsAttention(Self.callPausedNotice)
             return
@@ -1933,8 +2082,10 @@ final class Recorder: ObservableObject {
         guard isRecording, writer != nil else { engine = nil; tapFormat = nil; return }
         let s = AVAudioSession.sharedInstance()
         do {
-            try RecordingRoute.setCategory(s, mode: soundOnly ? .measurement : .spokenAudio, options: RecordingRoute.options())
+            let picked = try RecordingRoute.prepare(s, soundOnly: soundOnly, chosen: pinnedInputUID ?? chosenInputUID)
             try s.setActive(true)
+            RecordingRoute.confirm(picked, s)
+            if let picked { chosenInput = picked; pinnedInputUID = picked.uid }
             Log.note("recorder: audio session set up again")
         } catch {
             Log.note("recorder: couldn't set up the audio session again: \(error.localizedDescription)")
@@ -1995,11 +2146,19 @@ final class Recorder: ObservableObject {
                 #else
                 let delay = 0.0
                 #endif
+                #if os(iOS)
+                let before = pinnedInputUID
+                #endif
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                     guard let self, self.isRecording, !self.isPaused, !(self.engine?.isRunning ?? false) else { return }
+                    // iPhone: stay on the recording's input while it's there (AirPods coming up on their high-quality
+                    // link change the engine's format, which used to move the recording to the iPhone microphone),
+                    // and move only when it's gone.
                     if self.restartCapture() {
                         #if os(iOS)
-                        self.onInputSwitched?("Your microphone disconnected. Recording continues on \(self.currentInputName).")
+                        if let before, self.pinnedInputUID != before {
+                            self.onInputSwitched?("Your microphone disconnected. Recording continues on \(self.currentInputName).")
+                        }
                         #endif
                     } else {
                         self.autoPause("The microphone changed. Tap Resume to keep recording.")

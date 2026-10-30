@@ -98,6 +98,45 @@ for palette in AppPalette.allCases {
 }
 pair("a strong action on paper (paper text on ink)", H.paper, .tone(H.ink))
 
+// MARK: - Tile patterns
+
+check("tile patterns: ink at 13% on a Full fill, 9% on a Soft tint and on the off-white tile",
+      R.tilePatternInk(.butter, palette: .full) == H.patternFull && H.patternFull.light == 0.13 && H.patternFull.base == H.onFill
+      && R.tilePatternInk(.butter, palette: .soft) == H.patternSoft && R.tilePatternInk(.neutral, palette: .full) == H.patternSoft
+      && H.patternSoft.light == 0.09 && H.patternSoft.base == H.ink)
+for palette in AppPalette.allCases {
+    for hue in RefinedHue.allCases where hue != .persimmon {
+        // Where a long name runs under the pattern: the tile's text over the pattern's ink on the fill.
+        pair("\(palette.label): text on a \(hue.rawValue) tile, over its line pattern", R.onFill(hue, palette: palette),
+             .wash(R.tilePatternInk(hue, palette: palette), over: R.fill(hue, palette: palette)))
+    }
+}
+
+// MARK: - The Record card's rings and disc
+
+for (mac, compact) in [(false, false), (true, false), (false, true), (true, true)] {
+    let art = R.recordArt(mac: mac, compact: compact)
+    let label = "\(mac ? "Mac" : "iPhone")\(compact ? " Compact" : "")"
+    // Card sizes from a narrow phone to a wide Mac column, and taller cards for larger text.
+    let sizes: [(Double, Double)] = [(320, 168), (350, 168), (402, 168), (350, 240), (350, 320), (760, 150), (860, 210), (300, 72), (600, 96)]
+    let centered = sizes.allSatisfy { (w, h) in
+        let o = art.ringOrigin(width: w, height: h), c = art.discCenter(width: w, height: h)
+        return abs(o.x + art.side * 0.5 - c.x) < 0.001 && abs(o.y + art.side * 0.7 - c.y) < 0.001
+    }
+    check("\(label): the record disc sits at the center of the innermost ring at every card size", centered)
+    check("\(label): the disc stays on the card and inside the innermost ring",
+          art.disc / 2 < art.side * 60 / 300 && art.trailing > art.disc / 2 && (art.bottom ?? 36) > art.disc / 2 - 0.001)
+    check("\(label): the text keeps clear of the disc", art.textReserve + art.padding >= art.trailing + art.disc / 2)
+}
+let phone = R.recordArt(mac: false, compact: false)
+let phoneDisc = phone.discCenter(width: 350, height: 168), phoneRings = phone.ringOrigin(width: 350, height: 168)
+check("iPhone: on the mockup's 350 by 168 card, the rings sit at right −46, top −14 and the disc at right 31, top 105",
+      phoneRings.x == 350 - 210 + 46 && phoneRings.y == -14 && phoneDisc.x == 350 - 31 - 28 && phoneDisc.y == 105 + 28,
+      "rings \(phoneRings), disc \(phoneDisc)")
+check("iPhone: a taller card (larger text) keeps the disc the same distance from the bottom",
+      phone.discCenter(width: 350, height: 260).y == 260 - 35)
+check("Compact: the disc is in the middle of the slim row", R.recordArt(mac: false, compact: true).discCenter(width: 300, height: 72).y == 36)
+
 // MARK: - Badges, chips, and squares (Full in both palettes)
 
 for hue in RefinedHue.allCases {
@@ -261,6 +300,33 @@ for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "K
     check("the kit has \(c) with a preview", kit.contains("struct \(c)") && kit.contains("\(c)_Previews"))
 }
 check("the kit reads the palette from where Settings stores it", kit.contains("AppPalette.key, store: AppLook.store"))
+check("the Record card draws its rings and disc in one coordinate system",
+      kit.contains("struct RecordArtLayer") && kit.contains("RecordArtLayer(art: art") && kit.contains("RefinedRules.RecordArt.innerCenter")
+      && !kit.contains("RecordDiscMark(size: 56)") && !kit.contains("RecordDiscMark(size: 40)"))
+check("tile patterns are hidden from VoiceOver, off under Increase Contrast, and don't animate",
+      kit.contains("struct TilePatternArt") && kit.contains("if let pattern, contrast != .increased")
+      && kit.components(separatedBy: "struct TilePatternArt")[1].components(separatedBy: "// MARK: - Actions")[0].contains(".accessibilityHidden(true)")
+      && !kit.components(separatedBy: "struct TilePatternArt")[1].components(separatedBy: "// MARK: - Actions")[0].contains("TimelineView")
+      && !kit.components(separatedBy: "struct TilePatternArt")[1].components(separatedBy: "// MARK: - Actions")[0].contains("withAnimation"))
+check("every tile pattern has a drawing", R.TilePattern.allCases.allSatisfy { kit.contains("case .\($0.rawValue):") })
+check("Clean up in a row is a compact accent text action, not a capsule",
+      kit.contains("struct RefinedTextActionStyle") && kit.contains("foregroundStyle(Refined.accentText)")
+      && kit.contains(".font(.subheadline.weight(.semibold))"))
+
+// Every tile in the catalog (Model/HomeLayout.swift) has a pattern.
+let layoutSource = read("\(views)/../Model/HomeLayout.swift")
+let tileBlock = layoutSource.components(separatedBy: "enum HomeTile: String, CaseIterable, Sendable {")[1].components(separatedBy: "var title: String")[0]
+let tileRaws = tileBlock.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { $0.hasPrefix("case ") }
+    .flatMap { $0.dropFirst(5).components(separatedBy: ",") }.map { c -> String in
+        let parts = c.components(separatedBy: "=").map { $0.trimmingCharacters(in: .whitespaces) }
+        return parts.count > 1 ? parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "\"")) : parts[0]
+    }
+check("the tile catalog was read", tileRaws.count >= 12 && tileRaws.contains("import") && tileRaws.contains("brainDump"), "\(tileRaws)")
+let missingPatterns = tileRaws.filter { R.tilePattern(forTile: $0) == nil }
+check("every Home tile has a line pattern", missingPatterns.isEmpty, "\(missingPatterns)")
+check("tiles that do the same thing share a pattern, and Dictate, Import, What's playing, and New thought match the mockup",
+      R.tilePattern(forTile: "whatsPlaying") == R.tilePattern(forTile: "appAudio") && R.tilePattern(forTile: "dictate") == .waves
+      && R.tilePattern(forTile: "import") == .chevrons && R.tilePattern(forTile: "newThought") == .shortLines)
 check("the player bar turns solid under Reduce Transparency", kit.contains("accessibilityReduceTransparency"))
 check("cards take a hairline under Increase Contrast", kit.contains("colorSchemeContrast"))
 check("the player ticks its moments on the iPhone's waveform as on the Mac's rail",

@@ -77,7 +77,7 @@ final class KeyboardModel: ObservableObject {
     /// The last Start a session couldn't open Verbose: Home shows the other ways to start one (`StartCard`).
     @Published private(set) var openFailed = false
     @Published private(set) var sessionEndsAt: Date? = nil
-    @Published private(set) var micName = "iPhone Microphone"
+    @Published private(set) var micName = "iPhone microphone"
     /// Your snippets (synced with the Mac; the app writes them to the App Group), and whether the top strip shows them.
     @Published private(set) var snippets: [KeyboardBridge.Snippet] = []
     @Published private(set) var showingSnippets = false

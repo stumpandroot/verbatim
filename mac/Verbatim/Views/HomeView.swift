@@ -338,7 +338,7 @@ struct HomeView: View {
     @ViewBuilder private func tile(_ t: HomeTile, hue: RefinedHue, compact: Bool, importAnchor: Bool) -> some View {
         let shortcut = tileShortcut(t)
         let base = Button { runTile(t) } label: {
-            ColorTileFace(title: t.title, art: t.art, hue: hue, shortcut: shortcut, compact: compact)
+            ColorTileFace(title: t.title, art: t.art, hue: hue, pattern: RefinedRules.tilePattern(forTile: t.rawValue), shortcut: shortcut, compact: compact)
                 .overlay {
                     // A file held over Import: the tile says so, with the accent's edge.
                     if t == .importMedia && fileOver {
@@ -471,8 +471,9 @@ struct HomeView: View {
             .buttonStyle(RefinedPress())
             .accessibilityHint("Opens the transcript.")
             if fillers > 0 {
+                // A compact accent text action beside the row (RefinedTextActionStyle), never inside its button.
                 Button("Clean up") { openCleaned(t) }
-                    .buttonStyle(RefinedActionStyle())
+                    .buttonStyle(RefinedTextActionStyle())
                     .help("\(HomeCounts.countLabel(fillers, "filler word", "filler words")). Opens the transcript's Cleaned tab.")
                     .accessibilityLabel("Clean up \(t.title)")
                     .padding(.trailing, 12)

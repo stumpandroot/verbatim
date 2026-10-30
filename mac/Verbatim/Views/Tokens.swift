@@ -402,6 +402,10 @@ enum RefinedHex {
     /// The Record card's rings on a Full fill, and on a Soft tint.
     static let ringFull = Wash(onFill, 0.28, 0.28, hc: (0.45, 0.45))
     static let ringSoft = Wash(accentText, 0.35, 0.35, hc: (0.55, 0.55))
+    /// A Home tile's line pattern on a Full fill (fixed ink at 13%), and on a Soft tint or the off-white tile (the
+    /// reading ink at 9%).
+    static let patternFull = Wash(onFill, 0.13, 0.13)
+    static let patternSoft = Wash(ink, 0.09, 0.09)
     /// The ready chip on a Full fill: reader white at 30% (ink on it 6.3:1; the mockup's ink at 10% measures 4.1:1).
     static let chipFull = Wash(lift, 0.30, 0.30, hc: (0.45, 0.45))
     /// The ready chip on a Soft tint.

@@ -66,6 +66,7 @@ extension Refined {
     private static let onBadges = Dictionary(uniqueKeysWithValues: RefinedHue.allCases.map { ($0, Refined.color(RefinedRules.onBadge($0))) })
     private static let ringColors = Dictionary(uniqueKeysWithValues: AppPalette.allCases.map { ($0, Refined.color(RefinedRules.rings($0))) })
     private static let chipColors = Dictionary(uniqueKeysWithValues: AppPalette.allCases.map { ($0, Refined.color(RefinedRules.readyChip($0))) })
+    private static let patternInks = Refined.table { Refined.color(RefinedRules.tilePatternInk($0, palette: $1)) }
 
     /// A palette surface's fill (the Record card, a tile) and what sits on it.
     static func fill(_ hue: RefinedHue, _ palette: AppPalette) -> Color { fills[palette]?[hue] ?? card }
@@ -76,6 +77,8 @@ extension Refined {
     /// The Record card's rings and ready chip.
     static func rings(_ palette: AppPalette) -> Color { ringColors[palette] ?? separator }
     static func readyChip(_ palette: AppPalette) -> Color { chipColors[palette] ?? neutral }
+    /// A tile's line pattern: ink at 13% on a Full fill, 9% on a Soft tint or the off-white tile.
+    static func tilePattern(_ hue: RefinedHue, _ palette: AppPalette) -> Color { patternInks[palette]?[hue] ?? separator }
 }
 
 // MARK: - Type
@@ -209,6 +212,7 @@ struct RecordCardFace: View {
 
     var body: some View {
         let ink = Refined.onFill(.persimmon, palette)
+        let art = RefinedRules.recordArt(mac: mac, compact: compact)
         Group {
             if compact {
                 HStack(spacing: 12) {
@@ -217,9 +221,10 @@ struct RecordCardFace: View {
                         Text(status).refinedFont(.chip, weight: .semibold).lineLimit(1)
                     }
                     Spacer(minLength: 8)
-                    RecordDiscMark(size: 40)
+                    // Room for the disc, which the art draws in the rings' own coordinates.
+                    Color.clear.frame(width: art.textReserve, height: art.disc)
                 }
-                .padding(.horizontal, mac ? 20 : 16).padding(.vertical, 12)
+                .padding(.horizontal, art.padding).padding(.vertical, 12)
                 .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
@@ -232,21 +237,43 @@ struct RecordCardFace: View {
                             Text(hint).refinedFont(.hint).fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 8)
-                        RecordDiscMark(size: 56)
+                        // The text stops short of the disc (the mockup's 90 pt), at every text size.
+                        Color.clear.frame(width: max(0, art.textReserve - 12), height: 1)
                     }
                 }
-                .padding(.horizontal, mac ? 22 : 18).padding(.vertical, mac ? 18 : 16)
+                .padding(.horizontal, art.padding).padding(.vertical, mac ? 18 : 16)
                 .frame(maxWidth: .infinity, minHeight: mac ? 150 : 168, alignment: .leading)
             }
         }
         .foregroundStyle(ink)
-        .background(alignment: .topTrailing) {
-            RecordRings(color: Refined.rings(palette), lineWidth: mac ? 2.2 : 2.4)
-                .frame(width: compact ? 140 : (mac ? 260 : 210), height: compact ? 140 : (mac ? 260 : 210))
-                .offset(x: compact ? 20 : (mac ? -90 : 46), y: compact ? -30 : (mac ? -40 : -14))
-        }
+        .background { RecordArtLayer(art: art, color: Refined.rings(palette), lineWidth: mac ? 2.2 : 2.4) }
         .refinedSurface(Refined.fill(.persimmon, palette), radius: RefinedPlatform.radius(.record))
         .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.record), style: .continuous))
+    }
+}
+
+/// The Record card's rings and record disc in one coordinate system: the disc is drawn inside the rings' square at
+/// the innermost ring's center, and the square is placed so that point lands where `RefinedRules.RecordArt` puts the
+/// disc on this card. Clipped by the card's surface.
+struct RecordArtLayer: View {
+    var art: RefinedRules.RecordArt
+    var color: Color
+    var lineWidth: CGFloat
+
+    var body: some View {
+        GeometryReader { geo in
+            let side = CGFloat(art.side)
+            let origin = art.ringOrigin(width: Double(geo.size.width), height: Double(geo.size.height))
+            ZStack(alignment: .topLeading) {
+                RecordRings(color: color, lineWidth: lineWidth)
+                    .frame(width: side, height: side)
+                RecordDiscMark(size: CGFloat(art.disc))
+                    .position(x: side * CGFloat(RefinedRules.RecordArt.innerCenter.x), y: side * CGFloat(RefinedRules.RecordArt.innerCenter.y))
+            }
+            .frame(width: side, height: side)
+            .position(x: CGFloat(origin.x) + side / 2, y: CGFloat(origin.y) + side / 2)
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -309,23 +336,27 @@ struct RecordRings: View {
 // MARK: - Tiles
 
 /// A Home tile (mockup: Home's four): a bare glyph top left and the name at the foot, on its hue's fill (butter
-/// Dictate, sage Import, petal What's playing or App audio, the card for anything else). The Mac shows the shortcut
-/// at the trailing edge of the name. iPhone 74 pt tall with a 16 pt radius, Mac 84 pt with 14. Compact (Edit Home's
-/// size, and the Mac recorder mockup's row) is 58 pt: the name alone on the Mac, a smaller glyph over it on iPhone.
+/// Dictate, sage Import, petal What's playing or App audio, the card for anything else), with a quiet line pattern in
+/// its top-right corner for what it does (`RefinedRules.tilePattern(forTile:)`). The Mac shows the shortcut at the
+/// trailing edge of the name. iPhone 74 pt tall with a 16 pt radius, Mac 84 pt with 14. Compact (Edit Home's size,
+/// and the Mac recorder mockup's row) is 58 pt: the name alone on the Mac, a smaller glyph over it on iPhone.
 struct ColorTile: View {
     var title: String
     var art: BrandArt
     var hue: RefinedHue
+    var pattern: RefinedRules.TilePattern? = nil
     var shortcut: String? = nil
     var compact = false
     var action: () -> Void
 
-    init(title: String, art: BrandArt, hue: RefinedHue, shortcut: String? = nil, compact: Bool = false, action: @escaping () -> Void) {
-        self.title = title; self.art = art; self.hue = hue; self.shortcut = shortcut; self.compact = compact; self.action = action
+    init(title: String, art: BrandArt, hue: RefinedHue, pattern: RefinedRules.TilePattern? = nil, shortcut: String? = nil,
+         compact: Bool = false, action: @escaping () -> Void) {
+        self.title = title; self.art = art; self.hue = hue; self.pattern = pattern; self.shortcut = shortcut
+        self.compact = compact; self.action = action
     }
 
     var body: some View {
-        Button(action: action) { ColorTileFace(title: title, art: art, hue: hue, shortcut: shortcut, compact: compact) }
+        Button(action: action) { ColorTileFace(title: title, art: art, hue: hue, pattern: pattern, shortcut: shortcut, compact: compact) }
             .buttonStyle(RefinedPress())
             .accessibilityLabel(title)
             .accessibilityHint(shortcut.map { "Shortcut: " + Keycap.spoken($0) } ?? "")
@@ -337,13 +368,16 @@ struct ColorTileFace: View {
     var title: String
     var art: BrandArt
     var hue: RefinedHue
+    var pattern: RefinedRules.TilePattern? = nil
     var shortcut: String? = nil
     var compact = false
     @CurrentPalette private var palette: AppPalette
+    @Environment(\.colorSchemeContrast) private var contrast
     private let mac = RefinedPlatform.mac
 
-    init(title: String, art: BrandArt, hue: RefinedHue, shortcut: String? = nil, compact: Bool = false) {
-        self.title = title; self.art = art; self.hue = hue; self.shortcut = shortcut; self.compact = compact
+    init(title: String, art: BrandArt, hue: RefinedHue, pattern: RefinedRules.TilePattern? = nil, shortcut: String? = nil,
+         compact: Bool = false) {
+        self.title = title; self.art = art; self.hue = hue; self.pattern = pattern; self.shortcut = shortcut; self.compact = compact
     }
 
     var body: some View {
@@ -360,8 +394,123 @@ struct ColorTileFace: View {
         .foregroundStyle(ink)
         .padding(.horizontal, compact && !mac ? 10 : 14).padding(.vertical, compact ? 10 : (mac ? 14 : 12))
         .frame(maxWidth: .infinity, minHeight: compact ? 58 : (mac ? 84 : 74), alignment: .leading)
+        // The pattern sits on the fill, under the glyph and name, clipped to the tile. Off under Increase Contrast.
+        .background(alignment: .topTrailing) {
+            if let pattern, contrast != .increased {
+                TilePatternArt(pattern: pattern, color: Refined.tilePattern(hue, palette), scale: compact ? 0.75 : 1)
+            }
+        }
         .refinedSurface(Refined.fill(hue, palette), radius: RefinedPlatform.radius(.tile))
         .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.tile), style: .continuous))
+    }
+}
+
+/// A tile's line pattern (mockup: Home): thin round-capped lines in the pattern's own box, placed past the tile's
+/// top-right corner as the mockup does, so the tile's clip cuts it. No animation, hidden from VoiceOver.
+struct TilePatternArt: View {
+    var pattern: RefinedRules.TilePattern
+    var color: Color
+    var scale: CGFloat = 1
+
+    /// The box the pattern is drawn in, its size on the tile, and how far past the top-right corner it sits.
+    struct Spec {
+        var box: CGSize
+        var size: CGSize
+        var dx: CGFloat
+        var dy: CGFloat
+    }
+
+    static func spec(_ p: RefinedRules.TilePattern) -> Spec {
+        switch p {
+        case .waves: return Spec(box: CGSize(width: 120, height: 90), size: CGSize(width: 80, height: 60), dx: 14, dy: -8)
+        case .chevrons: return Spec(box: CGSize(width: 110, height: 100), size: CGSize(width: 72, height: 66), dx: 10, dy: -18)
+        case .offsetCircles: return Spec(box: CGSize(width: 110, height: 110), size: CGSize(width: 74, height: 74), dx: 18, dy: -22)
+        case .shortLines: return Spec(box: CGSize(width: 100, height: 90), size: CGSize(width: 64, height: 58), dx: 6, dy: -2)
+        case .captionLines: return Spec(box: CGSize(width: 110, height: 90), size: CGSize(width: 70, height: 58), dx: 8, dy: -4)
+        case .pageLines: return Spec(box: CGSize(width: 110, height: 80), size: CGSize(width: 72, height: 52), dx: 8, dy: -4)
+        case .pageCurl: return Spec(box: CGSize(width: 110, height: 90), size: CGSize(width: 66, height: 54), dx: 8, dy: -8)
+        case .checklist: return Spec(box: CGSize(width: 110, height: 80), size: CGSize(width: 72, height: 52), dx: 8, dy: -4)
+        case .folderTab: return Spec(box: CGSize(width: 110, height: 90), size: CGSize(width: 72, height: 58), dx: 12, dy: -10)
+        case .bubbles: return Spec(box: CGSize(width: 110, height: 100), size: CGSize(width: 70, height: 64), dx: 10, dy: -10)
+        case .dictationLines: return Spec(box: CGSize(width: 120, height: 90), size: CGSize(width: 76, height: 57), dx: 12, dy: -6)
+        }
+    }
+
+    var body: some View {
+        let spec = Self.spec(pattern)
+        TilePatternShape(pattern: pattern, box: spec.box)
+            // The mockup's 2.2-unit stroke, in the box's units.
+            .stroke(color, style: StrokeStyle(lineWidth: 2.2 * spec.size.width / spec.box.width * scale, lineCap: .round, lineJoin: .round))
+            .frame(width: spec.size.width * scale, height: spec.size.height * scale)
+            .offset(x: spec.dx * scale, y: spec.dy * scale)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// A tile pattern's lines, drawn in its box's coordinates and scaled to the frame.
+struct TilePatternShape: Shape {
+    var pattern: RefinedRules.TilePattern
+    var box: CGSize
+
+    func path(in rect: CGRect) -> Path {
+        let sx = rect.width / box.width, sy = rect.height / box.height
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * sx, y: rect.minY + y * sy) }
+        var p = Path()
+        func line(_ points: [(CGFloat, CGFloat)]) {
+            guard let first = points.first else { return }
+            p.move(to: pt(first.0, first.1))
+            for q in points.dropFirst() { p.addLine(to: pt(q.0, q.1)) }
+        }
+        func circle(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat) {
+            p.addEllipse(in: CGRect(x: rect.minX + (cx - r) * sx, y: rect.minY + (cy - r) * sy, width: 2 * r * sx, height: 2 * r * sy))
+        }
+        /// A sine line across the box, in four half-waves of 30 units (the mockup's "c10-12 20-12 30 0 s…").
+        func wave(_ y: CGFloat, _ a: CGFloat, width: CGFloat = 120) {
+            p.move(to: pt(0, y))
+            var x: CGFloat = 0, up = true
+            while x < width - 0.5 {
+                let d: CGFloat = up ? -a : a
+                p.addCurve(to: pt(x + 30, y), control1: pt(x + 10, y + d), control2: pt(x + 20, y + d))
+                x += 30; up.toggle()
+            }
+        }
+        switch pattern {
+        case .waves:
+            for y: CGFloat in [18, 36, 54, 72] { wave(y, 12) }
+        case .chevrons:
+            for d: CGFloat in [0, 18, 36, 54] { line([(15, 10 + d), (55, 40 + d), (95, 10 + d)]) }
+        case .offsetCircles:
+            for c: (CGFloat, CGFloat) in [(55, 50), (69, 36), (83, 22), (95, 9)] { circle(c.0, 55, c.1) }
+        case .shortLines:
+            for l: (CGFloat, CGFloat) in [(16, 96), (32, 84), (48, 96), (64, 70), (80, 90)] { line([(20, l.0), (l.1, l.0)]) }
+        case .captionLines:
+            for l: (CGFloat, CGFloat) in [(22, 40), (38, 26), (62, 44), (78, 30)] { line([(55 - l.1, l.0), (55 + l.1, l.0)]) }
+        case .pageLines:
+            line([(55, 8), (55, 76)])
+            for l: (CGFloat, CGFloat) in [(18, 39), (32, 34), (46, 39), (60, 26)] {
+                line([(47 - l.1, l.0), (47, l.0)]); line([(63, l.0), (63 + l.1, l.0)])
+            }
+        case .pageCurl:
+            line([(22, 84), (22, 6), (98, 6), (98, 62)])
+            p.move(to: pt(98, 62)); p.addQuadCurve(to: pt(76, 84), control: pt(94, 80)); p.addLine(to: pt(22, 84))
+            p.move(to: pt(98, 62)); p.addQuadCurve(to: pt(76, 84), control: pt(78, 64))
+            for l: (CGFloat, CGFloat) in [(26, 86), (40, 86), (54, 70)] { line([(34, l.0), (l.1, l.0)]) }
+        case .checklist:
+            for (i, y) in ([18, 42, 66] as [CGFloat]).enumerated() {
+                line([(10, y), (16, y + 6), (28, y - 6)])
+                line([(40, y), (102 - CGFloat(i) * 14, y)])
+            }
+        case .folderTab:
+            line([(22, 30), (22, 18), (50, 18), (58, 28), (106, 28), (106, 74)])
+            line([(10, 36), (42, 36), (50, 46), (98, 46), (98, 86), (10, 86), (10, 36)])
+        case .bubbles:
+            circle(22, 86, 6); circle(42, 66, 10); circle(74, 34, 24)
+        case .dictationLines:
+            wave(18, 10)
+            for l: (CGFloat, CGFloat) in [(44, 120), (62, 96), (80, 112)] { line([(6, l.0), (l.1, l.0)]) }
+        }
+        return p
     }
 }
 
@@ -407,6 +556,51 @@ struct RefinedActionStyle: ButtonStyle {
                 .animation(limitMotion ? Motion.fade : Motion.press, value: configuration.isPressed)
         }
     }
+}
+
+/// A compact text action at a row's trailing edge (Recent's Clean up): the label in the accent text color, semibold,
+/// at the subheadline size (it scales with Dynamic Type), with no fill. The hit area is the content shape, not the
+/// text: 44 by 44 pt on iPhone, the row's height on the Mac. Put it over a row's button, never inside its label (macOS
+/// 26 click safety), and align it with the row's title (`.rowTitle`).
+struct RefinedTextActionStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { TextActionBody(configuration: configuration) }
+
+    private struct TextActionBody: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isEnabled) private var enabled
+        private let mac = RefinedPlatform.mac
+
+        var body: some View {
+            configuration.label
+                .modifier(RefinedTextActionFont())
+                .lineLimit(1)
+                .foregroundStyle(Refined.accentText)
+                .padding(.horizontal, mac ? 4 : 8)
+                .frame(minWidth: mac ? 0 : CGFloat(RefinedRules.minTapTarget), minHeight: mac ? 28 : CGFloat(RefinedRules.minTapTarget))
+                .contentShape(Rectangle())
+                .opacity(enabled ? (configuration.isPressed ? 0.6 : 1) : 0.45)
+        }
+    }
+}
+
+/// The text action's type: subheadline semibold on iPhone, the Mac's hint size semibold.
+struct RefinedTextActionFont: ViewModifier {
+    @ViewBuilder func body(content: Content) -> some View {
+        if RefinedPlatform.mac {
+            content.refinedFont(.hint, weight: .semibold)
+        } else {
+            content.font(.subheadline.weight(.semibold))
+        }
+    }
+}
+
+extension VerticalAlignment {
+    private enum RowTitle: AlignmentID {
+        static func defaultValue(in d: ViewDimensions) -> CGFloat { d[VerticalAlignment.center] }
+    }
+    /// The middle of a row's title line (`PaperRow` sets it), so a trailing text action lines up with the title, not
+    /// with the middle of a two-line row. Elsewhere it's the middle.
+    static let rowTitle = VerticalAlignment(RowTitle.self)
 }
 
 // MARK: - Filters and search
@@ -787,6 +981,7 @@ struct PaperRow<Trailing: View>: View {
                         if pinned { IconGlyph(art: .iconPin, size: 13, color: Refined.mute).accessibilityHidden(true) }
                         Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
                     }
+                    .alignmentGuide(.rowTitle) { d in d[VerticalAlignment.center] }
                     Text(meta).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1261,10 +1456,10 @@ struct ColorTile_Previews: PreviewProvider {
         ForEach(AppPalette.allCases) { p in
             RefinedPreviewPage {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    ColorTile(title: "Dictate", art: .iconDictations, hue: .butter, shortcut: RefinedPlatform.mac ? "⌃⌥" : nil) {}
-                    ColorTile(title: "Import", art: .iconDownload, hue: .sage) {}
-                    ColorTile(title: "What's playing", art: .iconVoice, hue: .petal) {}
-                    ColorTile(title: "New thought", art: .iconThought, hue: .neutral) {}
+                    ColorTile(title: "Dictate", art: .iconDictations, hue: .butter, pattern: .waves, shortcut: RefinedPlatform.mac ? "⌃⌥" : nil) {}
+                    ColorTile(title: "Import", art: .iconDownload, hue: .sage, pattern: .chevrons) {}
+                    ColorTile(title: "What's playing", art: .iconVoice, hue: .petal, pattern: .offsetCircles) {}
+                    ColorTile(title: "New thought", art: .iconThought, hue: .neutral, pattern: .shortLines) {}
                 }
             }
             .environment(\.paletteOverride, p)

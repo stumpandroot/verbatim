@@ -65,7 +65,8 @@ check("sessions: RecordingRoute.allowHaptics sets allowHapticsAndSystemSoundsDur
       body(recorder, "static func allowHaptics(").contains("setAllowHapticsAndSystemSoundsDuringRecording(true)"))
 // Home's meter (HomeKit.swift) retired with the refined Home, and its microphone session with it.
 let setUps = ["Verbatim/Audio/Recorder.swift", "VerbatimPhone/KeyboardSession.swift", "VerbatimPhone/PhoneDucker.swift"]
-let missing = setUps.filter { !read($0).contains("RecordingRoute.setCategory(") }
+// The keyboard session and voice notes set it through RecordingRoute.prepare, which calls RecordingRoute.setCategory.
+let missing = setUps.filter { !read($0).contains("RecordingRoute.setCategory(") && !read($0).contains("RecordingRoute.prepare(") }
 check("sessions: voice notes, thoughts, Live captions, the keyboard session, and lowering audio all use it",
       missing.isEmpty, "\(missing)")
 check("sessions: reactivations after a route change or a call allow haptics again",

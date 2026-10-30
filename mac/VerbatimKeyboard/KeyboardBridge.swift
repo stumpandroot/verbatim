@@ -48,7 +48,7 @@ enum KeyboardBridge {
         static let sessionActive = "kb.s.active"          // Bool
         static let heartbeat = "kb.s.heartbeat"           // Double: time of the last heartbeat
         static let endsAt = "kb.s.endsAt"                 // Double: idle timeout, 0 when it runs until you end it
-        static let micName = "kb.s.mic"                   // String: "iPhone Microphone"
+        static let micName = "kb.s.mic"                   // String: "iPhone microphone"
         static let pausedAt = "kb.s.pausedAt"             // Double: when a call paused the session, 0 when it isn't paused
         static let engineReady = "kb.s.engineReady"       // Bool: the speech model is loaded and warm (missing reads as ready)
         static let endReason = "kb.s.endReason"           // String: why the last session ended, when it matters

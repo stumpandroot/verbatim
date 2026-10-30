@@ -23,7 +23,8 @@ struct HomeScreen: View {
     @ObservedObject private var layouts = HomeLayoutStore.shared
     /// Edit Home, as a sheet from the button at the end of Home.
     @State private var editingHome = false
-    @State private var micName = HomeScreen.currentMic()
+    /// The Record card's chip at rest ("Ready · AirPods Pro"), named again on every route change.
+    @State private var readyText = RecordingRoute.readyText()
     /// The press on Record (RecordTray.swift): just touched, or held with the Record as tray open.
     @State private var recordPress: RecordPressPhase = .idle
     @ObservedObject private var flow = FlowSettings.shared
@@ -59,11 +60,12 @@ struct HomeScreen: View {
         .onReceive(NotificationCenter.default.publisher(for: .verbatimEditHome)) { note in
             editingHome = (note.object as? Bool) ?? true
         }
-        .onAppear { now = Date(); micName = Self.currentMic(); Self.recordCardsOnScreen.insert(look) }
+        .onAppear { now = Date(); readyText = RecordingRoute.readyText(); Self.recordCardsOnScreen.insert(look) }
         .onDisappear { Self.recordCardsOnScreen.remove(look) }
+        .onChange(of: app.recordingActive) { _, _ in readyText = RecordingRoute.readyText() }
         .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)) { _ in
-            DispatchQueue.main.async { micName = Self.currentMic() }
+            DispatchQueue.main.async { readyText = RecordingRoute.readyText() }
         }
     }
 
@@ -108,10 +110,9 @@ struct HomeScreen: View {
         }
     }
 
-    /// The input the system would record from, read from the current route (this never opens the microphone).
-    static func currentMic() -> String {
-        AVAudioSession.sharedInstance().currentRoute.inputs.first?.portName ?? "iPhone Microphone"
-    }
+    /// The input a recording hears or will hear, by name ("AirPods Pro", "iPhone microphone"). It never opens the
+    /// microphone or changes the session (RecordingRoute).
+    static func currentMic() -> String { RecordingRoute.currentName() }
 
     // MARK: Header
 
@@ -139,11 +140,13 @@ struct HomeScreen: View {
 
     // MARK: Record
 
-    /// "Ready · iPhone Microphone", or the recording's state while one runs (a tap brings the recorder back).
+    /// "Ready · AirPods Pro" (the input a recording will use: RecordingInputRules picks AirPods over the iPhone's
+    /// microphone, and the route alone can't say before the first recording), or the recording's state while one
+    /// runs (a tap brings the recorder back).
     private var recordStatus: String {
         if app.savingRecording { return "Saving…" }
         if app.recordingActive { return app.recorder.isPaused ? "Paused" : "Recording" }
-        return "Ready · \(micName)"
+        return readyText
     }
 
     /// The Record card (the kit's `RecordCardFace`) under Record's own press: a tap records a voice note (or brings back
@@ -183,7 +186,8 @@ struct HomeScreen: View {
         let hues = HomeTile.refinedHues(picks)
         return ForEach(HomeTileSlot.slots(picks, slots), id: \.tile) { s in
             HomeTileButton(tile: s.tile) {
-                ColorTileFace(title: s.tile.title, art: s.tile.art, hue: hues[s.slot], compact: compact)
+                ColorTileFace(title: s.tile.title, art: s.tile.art, hue: hues[s.slot],
+                              pattern: RefinedRules.tilePattern(forTile: s.tile.rawValue), compact: compact)
             }
         }
     }
@@ -268,6 +272,7 @@ struct HomeScreen: View {
                         KindBadge(kind: t.refinedKind, size: 8)
                         Text(PhoneRowTitle.title(t, withTime: false)).refinedFont(.rowTitle, weight: .semibold)
                             .foregroundStyle(Refined.ink).lineLimit(1)
+                            .alignmentGuide(.rowTitle) { d in d[VerticalAlignment.center] }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         trailing(t, cleanUp: cleanUp)
                     }
@@ -278,14 +283,16 @@ struct HomeScreen: View {
             }
         }
         .buttonStyle(RefinedPress())
-        // The real Clean up sits on top of the row's button, so it takes its own taps.
-        .overlay(alignment: .trailing) {
+        // The real Clean up sits on top of the row's button, so it takes its own taps: a compact accent text action
+        // at the trailing edge, level with the title, with a 44 pt hit area (RefinedTextActionStyle).
+        .overlay(alignment: Alignment(horizontal: .trailing, vertical: .rowTitle)) {
             if cleanUp {
                 Button("Clean up") { app.focusSegment = nil; app.homePath.append(DocumentRoute(id: t.id)) }
-                    .buttonStyle(RefinedActionStyle())
-                    .padding(.trailing, 8)
+                    .buttonStyle(RefinedTextActionStyle())
+                    .padding(.trailing, 6)
                     .accessibilityLabel("Clean up \(t.title)")
                     .accessibilityHint("Opens the cleaned text without the filler words.")
+                    .accessibilityIdentifier("home.recent.cleanup")
             }
         }
         .contextMenu { RowActions(transcript: t) }
@@ -295,7 +302,7 @@ struct HomeScreen: View {
     /// The length on the right, or where it is while it's being made; room for Clean up when it shows.
     @ViewBuilder private func trailing(_ t: Transcript, cleanUp: Bool) -> some View {
         if cleanUp {
-            Text("Clean up").refinedFont(.hint, weight: .semibold).padding(.horizontal, 16).hidden()
+            Text("Clean up").modifier(RefinedTextActionFont()).hidden()
         } else if t.status == .ready {
             if t.duration > 0 { RowLength(text: HomeRecentStyle.length(t.duration)) }
         } else {

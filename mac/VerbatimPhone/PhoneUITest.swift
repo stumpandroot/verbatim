@@ -79,12 +79,20 @@ enum PhoneUITest {
     private static func noisyPhoneChecks(_ app: PhoneState) {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") noisy: \(name)") }
         if #available(iOS 26, *) {
-            check("recording: AirPods high-quality recording is asked for", RecordingRoute.asksForHighQuality)
+            check("recording: AirPods high-quality recording is asked for", RecordingRoute.asksForHighQuality
+                  && RecordingRoute.options(highQuality: true).contains(.bluetoothHighQualityRecording))
+            check("recording: the high-quality option stays out of spoken audio and measurement sessions",
+                  !RecordingRoute.options().contains(.bluetoothHighQualityRecording))
         } else {
             check("recording: before iOS 26, the session asks for HFP only", !RecordingRoute.asksForHighQuality)
         }
-        check("recording: the session still allows Bluetooth (HFP fallback)", RecordingRoute.options().contains(.allowBluetooth))
-        Log.note("UITEST note: last recording route \(RecordingRoute.lastRoute ?? "none yet")")
+        check("recording: the session still allows Bluetooth (HFP fallback)", RecordingRoute.options().contains(.allowBluetooth)
+              && RecordingRoute.options(highQuality: true).contains(.allowBluetooth))
+        check("recording: the modes map to the session's", RecordingRoute.mode(.standard) == .default
+              && RecordingRoute.mode(.spokenAudio) == .spokenAudio && RecordingRoute.mode(.measurement) == .measurement)
+        // Which input wins, the chip's text from a mocked route, the menu, the plan, and route changes.
+        RecordingInputChecks.run { name, ok in check(name, ok) }
+        Log.note("UITEST note: last recording route \(RecordingRoute.lastRoute ?? "none yet"), ready chip now \(RecordingRoute.readyText())")
         if !app.macCanTranscribe {
             var t = Transcript(title: "Self-test no Mac", source: .voiceMemo, sourceLabel: "Voice memo", duration: 5, audioFileName: "selftest-nomac.m4a", model: "")
             t.segments = [Segment(start: 0, end: 5, text: "Hello.")]

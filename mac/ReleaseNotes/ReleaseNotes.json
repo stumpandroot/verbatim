@@ -60,6 +60,34 @@
           ],
           "text": "The You page has the new look, with your week's bars and where you dictate in cards.",
           "detail": "Click your name to change it. Websites still count by domain only."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Recordings use your AirPods when they're connected, at full quality on iOS 26.",
+          "detail": "The Record card names the microphone a recording will use, such as AirPods Pro. A recording stays on its microphone until you take it out, then moves to the iPhone's."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Tap the microphone in the recorder to record from another one.",
+          "detail": "Pick the iPhone microphone, AirPods, or a wired or USB microphone. Your choice lasts for that recording."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Home's tiles have quiet line patterns, and the record disc sits centered in its rings."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Clean up in Recent is a smaller text button beside the recording's title."
         }
       ]
     },
