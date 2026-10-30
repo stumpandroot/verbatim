@@ -150,8 +150,14 @@ TITLE="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["not
 HTML="$(python3 -I "$py" notes "$out/stamped.json" --build "$N")"
 MD="$(python3 -I "$py" notes "$out/stamped.json" --build "$N" --format markdown)"
 TF="$(python3 -I "$py" notes "$out/stamped.json" --build "$N" --format testflight)"
+# The Mac-first checks need a top entry with a Mac item; after an iPhone-only catch-up the next entry may have none.
+HASMAC="$(python3 -I -c 'import json,sys; n=json.load(open(sys.argv[1]))["notes"][0]; print(any(isinstance(i,dict) and "mac" in i.get("platforms",[]) or isinstance(i,str) for i in n["items"]))' "$out/stamped.json")"
+if [ "$HASMAC" = "True" ]; then
 check "Sparkle: the build's title, then the Mac's items" 'grep -qF "<h3>$TITLE</h3><h4>Mac</h4><ul><li>" <<< "$HTML" && [[ "$HTML" == *"</li></ul>" ]]'
 check "Sparkle: the iPhone and Apple Watch items fold under Also on, after the Mac's" 'V html-order "$HTML" "$out/stamped.json"'
+else
+  check "Sparkle: with no Mac items, the build's title and the folded items still render" 'grep -qF "<h3>$TITLE</h3>" <<< "$HTML"'
+fi
 check "Sparkle: the HTML parses (no stray markup from the text)" 'python3 -I -c "import sys,xml.etree.ElementTree as E; E.fromstring(\"<d>\" + sys.argv[1] + \"</d>\")" "$HTML"'
 check "GitHub: the title in bold" '[ "$(head -n 1 <<< "$MD")" = "**$TITLE**" ]'
 check "GitHub: Mac, iPhone, and Apple Watch headings in that order, a bullet under each platform an item names" 'V md-headings "$MD" "$out/stamped.json"'

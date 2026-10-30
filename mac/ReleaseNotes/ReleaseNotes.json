@@ -6,6 +6,35 @@
       "items": [
         {
           "platforms": [
+            "iphone"
+          ],
+          "text": "Transcripts have the new look: serif text, colored speaker chips, and a glass player.",
+          "detail": "The line playing has a sage wash, and marked lines have a small bookmark. Summary is a tab beside Original and Cleaned, and the player's speed menu has Mark this moment and Follow playback."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "The recorder has the new look: the kind in serif and a persimmon clock.",
+          "detail": "Your words show in serif, with the newest sentence darker. Mark moment, Stop, and Pause sit under your thumb, with Discard below. It's the same sheet in both looks."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Minimized, a recording shows its time with Pause and Stop above the tab bar.",
+          "detail": "In Native it's in the tab bar, in the same design. Tap it to bring the recorder back."
+        }
+      ]
+    },
+    {
+      "build": "241",
+      "date": "2026-10-28",
+      "version": "1.0 beta",
+      "title": "Mac only: a new look for Home, the Library, transcripts, and recording",
+      "items": [
+        {
+          "platforms": [
             "mac"
           ],
           "text": "Home has the new look: a persimmon Record card, colored tiles, Recent, and This week.",
@@ -27,31 +56,10 @@
         },
         {
           "platforms": [
-            "iphone"
-          ],
-          "text": "Transcripts have the new look: serif text, colored speaker chips, and a glass player.",
-          "detail": "The line playing has a sage wash, and marked lines have a small bookmark. Summary is a tab beside Original and Cleaned, and the player's speed menu has Mark this moment and Follow playback."
-        },
-        {
-          "platforms": [
             "mac"
           ],
           "text": "Transcripts read in a centered serif column with speaker chips and a glass player.",
           "detail": "Original, Cleaned, Summary, and a template's result are tabs at the top. Share and More hold Copy, Export, Run a template, and the rest, and moments and details sit in the side column."
-        },
-        {
-          "platforms": [
-            "iphone"
-          ],
-          "text": "The recorder has the new look: the kind in serif and a persimmon clock.",
-          "detail": "Your words show in serif, with the newest sentence darker. Mark moment, Stop, and Pause sit under your thumb, with Discard below. It's the same sheet in both looks."
-        },
-        {
-          "platforms": [
-            "iphone"
-          ],
-          "text": "Minimized, a recording shows its time with Pause and Stop above the tab bar.",
-          "detail": "In Native it's in the tab bar, in the same design. Tap it to bring the recorder back."
         },
         {
           "platforms": [
