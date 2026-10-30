@@ -91,7 +91,7 @@ final class ThoughtPadController {
         endEditing()
         panel?.orderOut(nil)
         if state.shown { state.shown = false }
-        // The ink outline on the newest thought lasts until you've opened the page and closed it again.
+        // The persimmon tint on the newest thought lasts until you've opened the page and closed it again.
         ThoughtCapture.shared.lastAdded = nil
     }
 
@@ -301,7 +301,7 @@ struct ThoughtPageView: View {
                         LazyVStack(spacing: 0) {
                             ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
                                 if i > 0 { PaperDivider(leading: 64, trailing: 12) }
-                                ThoughtCard(transcript: t, outlined: t.id == capture.lastAdded, state: state, controller: controller).id(t.id)
+                                ThoughtCard(transcript: t, highlighted: t.id == capture.lastAdded, state: state, controller: controller).id(t.id)
                             }
                         }
                         .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
@@ -463,7 +463,7 @@ struct ThoughtEmptyPage: View {
 /// right-click to copy or delete.
 struct ThoughtCard: View {
     let transcript: Transcript
-    var outlined: Bool
+    var highlighted: Bool
     @ObservedObject var state: ThoughtPageState
     let controller: ThoughtPadController
 
@@ -477,7 +477,7 @@ struct ThoughtCard: View {
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(outlined || editing ? Refined.persimmonTint : Color.clear)
+        .background(highlighted || editing ? Refined.persimmonTint : Color.clear)
         .contextMenu {
             if t.status == .ready { Button("Edit") { startEditing() } }
             Button("Copy") { Paster.copy(Thoughts.words(t)) }.disabled(Thoughts.words(t).isEmpty)

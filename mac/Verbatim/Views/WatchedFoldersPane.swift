@@ -133,8 +133,7 @@ struct WatchedFolderRow: View {
         return formats.joined(separator: " + ") + " → " + dest
     }
 
-    /// The folder's status as plain text (website style: never a capsule). Needs access is a line mini pill that
-    /// asks for the folder again.
+    /// The folder's status as plain text, never a capsule. Needs access is a button that asks for the folder again.
     @ViewBuilder private var tag: some View {
         switch status {
         case .watching: RefinedStatus(text: busy > 0 ? "Transcribing \(busy)" : "Watching", tone: busy > 0 ? .accent : .kept, check: busy == 0)
