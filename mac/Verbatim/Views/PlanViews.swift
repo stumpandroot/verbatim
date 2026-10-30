@@ -1,18 +1,16 @@
 import SwiftUI
 
-// Plan my day's sections and Audio only's waveform, shared by the Mac and the iPhone in both looks (approved mockup
-// "Verbose Brain Dump", October 27, 2026; DayPlan.swift, AudioOnly.swift).
+// Plan my day's sections and Audio only's waveform, shared by the Mac and the iPhone (approved mockup "Verbose Brain
+// Dump", October 27, 2026; DayPlan.swift, AudioOnly.swift), on the refined kit (DESIGN.md §13) in both look settings.
 //
-// Verbose style: section titles in the serif, tasks as checkboxes, ideas as bullets (they aren't things to check off),
-// and the mono time after each task, which opens the line it came from. Native: Reminders' shape, an empty circle on
-// each task, the time in the accent on the right, and a lightbulb on each idea. Plans and kinds are neutral: no
-// persimmon, butter, sage, or petal on a plan. Sent tasks show a check and "Sent" (Verbose) or "In Reminders" (Native).
+// Section titles in the serif, tasks with an empty ring to tick, ideas as bullets (they aren't things to check off),
+// and each task's time at the trailing end in the accent, which opens the line it came from. Plans and kinds are
+// neutral: no persimmon, butter, sage, or petal fill on a plan. Sent tasks show the accent's check and "In Reminders".
 
 struct PlanSections: View {
     var plan: DayPlan
     var recordedAt: Date
     var sent: [String: String] = [:]
-    var native: Bool
     /// Section title and body sizes: the iPhone's 20 and 16, the Mac's 17 and 13.
     var headingSize: CGFloat = 20
     var textSize: CGFloat = 16
@@ -22,74 +20,58 @@ struct PlanSections: View {
     var onJump: ((DayPlan.Item) -> Void)? = nil
     /// VoiceOver's Send to Reminders action on a task.
     var onSend: ((DayPlan.Item) -> Void)? = nil
-    /// Mac, Verbose style: the pointer is over an item (its sentence underlines in the note).
+    /// Mac: the pointer is over an item (its sentence underlines in the note).
     var onHover: ((DayPlan.Item?) -> Void)? = nil
 
     var body: some View {
         if plan.isEmpty {
-            Text(DayPlan.noTasksLine).font(.system(size: textSize)).foregroundStyle(native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.mute))
-        } else if native {
-            nativeBody
+            Text(DayPlan.noTasksLine).font(.system(size: textSize)).foregroundStyle(Refined.mute)
         } else {
-            verboseBody
-        }
-    }
-
-    // MARK: Verbose
-
-    private var verboseBody: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(plan.shownSections, id: \.self) { sec in
-                verboseHeading(sec)
-                    .padding(.top, sec == plan.shownSections.first ? 0 : 12)
-                if sec == .top, plan.topInferred { note(DayPlan.topInferredLine) }
-                if sec == .someday { note(DayPlan.somedayLine) }
-                ForEach(Array(plan.items(sec).enumerated()), id: \.element.id) { i, item in
-                    verboseRow(item, number: sec == .top ? i + 1 : nil)
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(plan.shownSections, id: \.self) { sec in
+                    heading(sec)
+                        .padding(.top, sec == plan.shownSections.first ? 0 : 12)
+                    if sec == .top, plan.topInferred { note(DayPlan.topInferredLine) }
+                    if sec == .someday { note(DayPlan.somedayLine) }
+                    ForEach(Array(plan.items(sec).enumerated()), id: \.element.id) { i, item in
+                        row(item, number: sec == .top ? i + 1 : nil)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func verboseHeading(_ sec: DayPlan.Section) -> some View {
+    private func heading(_ sec: DayPlan.Section) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            if sec == .top {
-                (Text("Top ") + Text("three").italic()).font(Ink.serif(headingSize))
-            } else {
-                Text(sec.title).font(Ink.serif(headingSize))
-            }
+            Text(sec == .top ? "Top three" : sec.title).font(.system(size: headingSize, design: .serif))
+                .foregroundStyle(Refined.ink)
             if sec == .tomorrow {
-                Text(DayPlan.tomorrowLabel(recordedAt: recordedAt)).font(Ink.mono(max(12, textSize - 3))).foregroundStyle(Ink.mute)
+                Text(DayPlan.tomorrowLabel(recordedAt: recordedAt)).font(.system(size: max(12, textSize - 3))).foregroundStyle(Refined.mute)
             }
         }
-        .foregroundStyle(Ink.ink)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
 
     private func note(_ s: String) -> some View {
-        Text(s).font(.system(size: textSize - 2)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
+        Text(s).font(.system(size: textSize - 2)).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
     }
 
-    private func verboseRow(_ item: DayPlan.Item, number: Int?) -> some View {
+    private func row(_ item: DayPlan.Item, number: Int?) -> some View {
         let isSent = sent[item.key] != nil
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             if let number {
-                Text("\(number)").font(Ink.mono(max(12, textSize - 3))).foregroundStyle(Ink.mute).frame(minWidth: 12, alignment: .leading)
+                Text("\(number)").font(.system(size: max(12, textSize - 3))).monospacedDigit().foregroundStyle(Refined.mute)
+                    .frame(minWidth: 12, alignment: .leading)
                     .accessibilityHidden(true)
             }
             if item.isIdea {
-                Circle().fill(Ink.mute).frame(width: 5, height: 5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + textSize * 0.28 }
-                    .frame(width: 14).accessibilityHidden(true)
+                Circle().fill(Refined.mute).frame(width: 5, height: 5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + textSize * 0.28 }
+                    .frame(width: textSize * 0.95).accessibilityHidden(true)
             } else {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .strokeBorder(Ink.ink, lineWidth: 1.4)
-                    .background(isSent ? Ink.ink : Color.clear, in: RoundedRectangle(cornerRadius: 2, style: .continuous))
-                    .overlay { if isSent { Image(systemName: "checkmark").font(.system(size: textSize * 0.55, weight: .bold)).foregroundStyle(Ink.paper) } }
-                    .frame(width: textSize * 0.85, height: textSize * 0.85)
+                RefinedCheckbox(on: isSent, size: textSize * 0.95)
                     .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
-                    .accessibilityHidden(true)
             }
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -112,97 +94,28 @@ struct PlanSections: View {
 
     private func words(_ item: DayPlan.Item, isSent: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(item.text).font(.system(size: textSize)).foregroundStyle(isSent ? Ink.dim : Ink.ink).fixedSize(horizontal: false, vertical: true)
+            Text(item.text).font(.system(size: textSize)).foregroundStyle(isSent ? Refined.dim : Refined.ink).fixedSize(horizontal: false, vertical: true)
             if let w = item.weekday, item.section == .week {
-                Text(DayPlan.weekdayShort(w)).font(Ink.mono(max(12, textSize - 3))).foregroundStyle(Ink.mute)
+                Text(DayPlan.weekdayShort(w)).font(.system(size: max(12, textSize - 3))).foregroundStyle(Refined.mute)
             }
         }
     }
 
     @ViewBuilder private func trailing(_ item: DayPlan.Item, isSent: Bool) -> some View {
         HStack(spacing: 8) {
-            if let l = link(item) {
+            if isSent {
+                Text("In Reminders").font(.system(size: max(12, textSize - 3))).foregroundStyle(Refined.mute)
+            } else if let l = link(item) {
                 Button { onJump?(item) } label: {
-                    Text(l).font(Ink.mono(max(12, textSize - 3))).foregroundStyle(Ink.dim).underline(onJump != nil)
+                    Text(l).font(.system(size: max(12, textSize - 3))).monospacedDigit().foregroundStyle(onJump == nil ? Refined.mute : Refined.accentText)
                 }
                 .buttonStyle(.plain)
                 .disabled(onJump == nil)
                 .accessibilityHidden(true)
             }
-            if isSent { Text("Sent").font(.system(size: textSize - 3)).foregroundStyle(Ink.mute) }
         }
         .fixedSize()
     }
-
-    // MARK: Native
-    // brand: native begin
-
-    private var nativeBody: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            ForEach(plan.shownSections, id: \.self) { sec in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(sec == .tomorrow ? "Tomorrow, \(DayPlan.tomorrowLabel(recordedAt: recordedAt))" : sec.title)
-                        .font(.system(size: textSize - 2, weight: .semibold)).foregroundStyle(.secondary)
-                        .accessibilityAddTraits(.isHeader)
-                        .padding(.leading, 4)
-                    VStack(spacing: 0) {
-                        ForEach(Array(plan.items(sec).enumerated()), id: \.element.id) { i, item in
-                            if i > 0 { Divider().padding(.leading, 36) }
-                            nativeRow(item)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    if sec == .top, plan.topInferred { nativeFooter(DayPlan.topInferredLine) }
-                    if sec == .someday { nativeFooter(DayPlan.somedayLine + ".") }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func nativeFooter(_ s: String) -> some View {
-        Text(s).font(.system(size: textSize - 3)).foregroundStyle(.secondary).padding(.horizontal, 4).fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func nativeRow(_ item: DayPlan.Item) -> some View {
-        let isSent = sent[item.key] != nil
-        return HStack(alignment: .center, spacing: 12) {
-            Group {
-                if item.isIdea {
-                    Image(systemName: "lightbulb").foregroundStyle(.secondary)
-                } else if isSent {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor)
-                } else {
-                    Image(systemName: "circle").foregroundStyle(.tertiary)
-                }
-            }
-            .font(.system(size: textSize + 3))
-            .frame(width: 24)
-            .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(item.text).font(.system(size: textSize)).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
-                if let w = item.weekday, item.section == .week {
-                    Text(DayPlan.weekdayShort(w)).font(.system(size: textSize - 3)).foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 6)
-            if isSent {
-                Text("In Reminders").font(.system(size: textSize - 3)).foregroundStyle(.secondary)
-            } else if let l = link(item) {
-                Button { onJump?(item) } label: {
-                    Text(l).font(.system(size: textSize - 2)).monospacedDigit().foregroundStyle(Color.accentColor)
-                }
-                .buttonStyle(.plain)
-                .disabled(onJump == nil)
-                .accessibilityHidden(true)
-            }
-        }
-        .padding(.vertical, 10)
-        .contentShape(Rectangle())
-        .modifier(PlanItemAccessibility(item: item, recordedAt: recordedAt, sent: isSent, link: link(item), onJump: onJump, onSend: onSend))
-    }
-    // brand: native end
 }
 
 /// A plan item for VoiceOver: its words, its day, and "said at 0:04", with an action to play that line and one to

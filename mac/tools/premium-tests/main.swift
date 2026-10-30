@@ -16,7 +16,7 @@ func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "")
 let args = CommandLine.arguments
 let views = args.count > 1 ? args[1] : ""
 // The window's chrome (MacChrome.swift, MacSidebar.swift) moved to the refined look, which keeps its persimmon.
-let nativeFiles = ["NativeSettings", "PremiumLook", "PremiumItems"]
+let nativeFiles = ["NativeSettings", "PremiumLook"]
 let banned = ["nativeAccent", "persimmon", "Persimmon", "PremiumInk.accentSoft", "PremiumInk.onAccent", "PremiumInk.shadow",
               "gradientCard", "RadialGradient", "LinearGradient", ".shadow(", "design: .rounded", "glow"]
 var read = 0

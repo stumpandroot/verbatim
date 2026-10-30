@@ -68,12 +68,11 @@ struct ActionSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                // Actions are neutral (DESIGN.md §1): an ink glyph on a neutral tile; persimmon means Record.
-                IconGlyph(art: action.art, size: 16, color: Ink.ink)
-                    .frame(width: 30, height: 30).background(Ink.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                // Actions are neutral (DESIGN.md §1): an ink glyph on a neutral square; persimmon means Record.
+                IconSquare(art: action.art, hue: .neutral)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(action.name).font(Ink.serif(20)).foregroundStyle(Ink.ink)
-                    Text("On \(sourceLabel) · \(source.split(whereSeparator: \.isWhitespace).count.formatted()) words").font(.system(size: 12)).foregroundStyle(Ink.mute)
+                    Text(action.name).refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
+                    Text("On \(sourceLabel) · \(source.split(whereSeparator: \.isWhitespace).count.formatted()) words").refinedFont(.meta).foregroundStyle(Refined.mute)
                 }
                 Spacer()
             }
@@ -84,38 +83,36 @@ struct ActionSheet: View {
                 case .running:
                     VStack(spacing: 10) {
                         ProgressView().controlSize(.small)
-                        Text(part.isEmpty ? "Working on your Mac…" : part).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                        Text(part.isEmpty ? "Working on your Mac…" : part).refinedFont(.meta).foregroundStyle(Refined.mute)
                             .contentTransition(.numericText())
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .done:
                     VStack(alignment: .leading, spacing: 0) {
-                        // A solid marked strip, so the result never reads as the transcript.
+                        // A marked strip, so the result never reads as the transcript.
                         HStack(spacing: 7) {
-                            ArtIcon(art: .iconAI, size: 13)
-                            Text(aiLabel).font(.system(size: 12, weight: .semibold))
+                            IconGlyph(art: .iconAI, size: 13, color: Refined.ink)
+                            Text(aiLabel).refinedFont(.meta, weight: .semibold)
                             Spacer(minLength: 6)
-                            if !skipped.isEmpty { Text(skipped).font(.system(size: 11.5)).foregroundStyle(Ink.mute) }
+                            if !skipped.isEmpty { Text(skipped).refinedFont(.caption).foregroundStyle(Refined.mute) }
                         }
-                        .foregroundStyle(Ink.ink)
+                        .foregroundStyle(Refined.ink)
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Ink.ink.opacity(0.06))
+                        .background(Refined.neutral)
                         .accessibilityElement(children: .combine)
                         TextEditor(text: $result)
-                            .font(.system(size: 14)).scrollContentBackground(.hidden)
+                            .refinedFont(.body).foregroundStyle(Refined.ink).scrollContentBackground(.hidden)
                             .padding(10)
                             .accessibilityLabel("Result, editable. \(aiLabel)")
                     }
-                    .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
+                    .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
                 case .failed:
                     VStack(spacing: 6) {
-                        Text("Couldn't run this action").font(Ink.serif(18)).foregroundStyle(Ink.ink)
+                        Text("Couldn't run this action").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
                         Text(failure ?? (FlowCleanup.available ? "Apple's on-device model didn't answer. Try again, or try a shorter piece of text."
                                                    : "Actions use Apple Intelligence, which needs macOS 26 and Apple Intelligence turned on in System Settings."))
-                            .font(.system(size: 13)).foregroundStyle(Ink.mute).multilineTextAlignment(.center)
+                            .refinedFont(.body).foregroundStyle(Refined.mute).multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -124,20 +121,23 @@ struct ActionSheet: View {
             .animation(Motion.settle, value: state)
 
             HStack(spacing: 10) {
-                if state == .done { Text("Apple Intelligence can be wrong. Edit the result before you keep it.").font(.system(size: 12)).foregroundStyle(Ink.mute) }
+                if state == .done { Text("Apple Intelligence can be wrong. Edit the result before you keep it.").refinedFont(.meta).foregroundStyle(Refined.mute) }
                 Spacer()
-                Button("Close") { stop(); dismiss() }.buttonStyle(.pillLine(large: true)).keyboardShortcut(.cancelAction)
-                if state != .running { Button("Try again") { start() }.buttonStyle(.pillLine(large: true)) }
+                Button("Close") { stop(); dismiss() }.keyboardShortcut(.cancelAction)
+                if state != .running { Button("Try again") { start() } }
                 if state == .done {
-                    if let saveNote { Button("Save as note") { saveNote(result); app.toast = Toast("Saved as a note"); dismiss() }.buttonStyle(.pillLine(large: true)) }
-                    Button("Copy") { Paster.copy(result); app.toast = Toast("Copied"); dismiss() }.buttonStyle(.pillDark(large: true)).keyboardShortcut(.defaultAction)
+                    if let saveNote { Button("Save as note") { saveNote(result); app.toast = Toast("Saved as a note"); dismiss() } }
+                    Button("Copy") { Paster.copy(result); app.toast = Toast("Copied"); dismiss() }
+                        .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
                 }
             }
+            .controlSize(.large)
             .padding(.top, 14)
         }
         .padding(22)
         .frame(width: 640, height: 500)
-        .background(Ink.paper)
+        .background(Refined.paper)
+        .tint(Refined.accentText)
         .onAppear { start() }
         .onDisappear { stop() }
     }
@@ -193,43 +193,42 @@ struct TextActionDetailCard: View {
     var body: some View {
         if let i = index {
             let a = settings.actions[i]
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Eyebrow(text: "Text action")
-                    let parts = TemplateTitle.split(a.name.isEmpty ? "Untitled action" : a.name)
-                    WebText.serif(parts.0, italic: parts.1, size: 28).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Text action").refinedFont(.meta).foregroundStyle(Refined.mute)
+                    Text(a.name.isEmpty ? "Untitled action" : a.name).refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
+                        .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
-                    Text("Works on " + TemplateScope.textAction.title.lowercased()).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
+                    Text("Works on " + TemplateScope.textAction.title.lowercased()).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
                     Text("Select text in any app and choose it from the Ribbon's menu, or run it from a transcript's or a dictation's Actions menu.")
-                        .font(.system(size: 12.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
+                        .refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
                 }
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Name").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
+                    Text("Name").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
                     TextField("Name", text: field(\.name)).textFieldStyle(.roundedBorder)
                         .uiTarget("text-action-name")
-                    Text("Instruction").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
-                    TextEditor(text: field(\.instruction)).font(.system(size: 13)).frame(minHeight: 90)
+                    Text("Instruction").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+                    TextEditor(text: field(\.instruction)).refinedFont(.body).foregroundStyle(Refined.ink).frame(minHeight: 90)
                         .scrollContentBackground(.hidden).padding(4)
-                        .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
+                        .refinedFieldBox()
                         .accessibilityLabel("Instruction")
                     Picker("Long text", selection: field(\.kind)) {
                         ForEach(FlowAction.Kind.allCases) { k in Text(k.title).tag(k) }
                     }
                     .fixedSize()
                     Text(a.kind == .rewrite ? "Long text is done in parts, kept in order." : "Long text is done in parts, then the results are merged into one.")
-                        .font(.system(size: 11.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
+                        .refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
                 }
                 HStack(spacing: 8) {
-                    PillButton(title: "Move up", kind: .line, size: .mini, enabled: i > 0) { move(by: -1) }
-                    PillButton(title: "Move down", kind: .line, size: .mini, enabled: i < settings.actions.count - 1) { move(by: 1) }
+                    Button("Move up") { move(by: -1) }.buttonStyle(RefinedActionStyle()).disabled(i == 0)
+                    Button("Move down") { move(by: 1) }.buttonStyle(RefinedActionStyle()).disabled(i >= settings.actions.count - 1)
                 }
                 Button("Delete text action…", role: .destructive) { confirmDelete = true }
-                    .buttonStyle(.plain).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.danger)
+                    .buttonStyle(RefinedActionStyle())
                     .uiTarget("text-action-delete")
                 HStack(alignment: .top, spacing: 7) {
-                    IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
-                    Text("On this Mac with Apple Intelligence. Nothing leaves it.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                    IconGlyph(art: .iconPrivacy, size: 14, color: Refined.mute)
+                    Text("On this Mac with Apple Intelligence. Nothing leaves it.").refinedFont(.meta).foregroundStyle(Refined.dim)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

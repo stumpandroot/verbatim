@@ -1,8 +1,6 @@
 import SwiftUI
 import AppKit
 
-// brand: web style
-//
 // Today's page's note (consolidation, October 28, 2026): the Mac's Brain dump window became a mode of Today's page,
 // "Write or dictate" (Flow/ThoughtPad.swift). File › Today's Note, the menu bar's Today's note, and Home's Brain dump
 // tile open the page in that mode. The note is a plain text view, so you type and fix between takes; while the page
@@ -10,6 +8,7 @@ import AppKit
 // (decision 11, Dictation.swift). Plan my day runs on the note's paragraphs; each task links to its paragraph. The
 // note and its plan are the day's (`DayPlanRecord`, source note, in `plans.json`), so they sync, and a note the Brain
 // dump window kept is that day's page note as it is: nothing is copied, and an older build still opens it in its window.
+// Drawn with the refined kit (DESIGN.md §13) in both look settings.
 
 /// The page's note while it's on screen: where dictation inserts, and where a plan task's ¶ link lands.
 @MainActor
@@ -55,37 +54,25 @@ enum DayNote {
     }
 }
 
-/// The page's note in either look: the text view, the ⌃⌥ hint, and Plan my day (its plan opens in its own window,
+/// The page's note: the text view on the card, the ⌃⌥ hint, and Plan my day (its plan opens in its own window,
 /// `ThoughtsPlanWindow`, as Organize's does).
 struct DayNoteView: View {
     var day: Date
     @Binding var note: String
     @ObservedObject private var center = DayPlanCenter.shared
     @ObservedObject private var capture = ThoughtCapture.shared
-    @Environment(\.look) private var look
 
     private var record: DayPlanRecord? { capture.app?.store.dayPlan(day, source: .note) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Group {
-                if look == .native {
-                    DayNoteTextView(text: $note)
-                        .padding(8)
-                        .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 10, style: .continuous))   // brand: native
-                } else {
-                    DayNoteTextView(text: $note)
-                        .padding(10)
-                        .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5))
-                }
-            }
-            .uiTarget("page-note")
-            HStack(spacing: 6) {
-                Keycap(keys: "⌃", size: 12); Keycap(keys: "⌥", size: 12)
-                Text("Hold to dictate here, or type. Your words stay in this note.")
-            }
-            .font(.system(size: 12)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.mute))
+            DayNoteTextView(text: $note)
+                .padding(10)
+                .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+                .uiTarget("page-note")
+            Text("Hold \u{2303}\u{2325} to dictate here, or type. Your words stay in this note.")
+                .refinedFont(.meta).foregroundStyle(Refined.mute)
+                .fixedSize(horizontal: false, vertical: true)
             planRow
         }
     }
@@ -95,21 +82,27 @@ struct DayNoteView: View {
         HStack(spacing: 8) {
             if let r = record, r.hasPlan {
                 let at = r.madeAt.map { Formats.style(date: .none, time: .short).string(from: $0) } ?? ""
-                Text("Plan \u{00B7} made \(at)").font(.system(size: 12)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.mute)).lineLimit(1)
+                Text("Plan \u{00B7} made \(at)").refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
                 Spacer(minLength: 4)
-                PillButton(title: "Open Plan", kind: .line, size: .mini) { openPlan() }
+                Button("Open plan") { openPlan() }.buttonStyle(RefinedActionStyle())
                     .uiTarget("note-open-plan")
-                PillButton(title: "Run again", kind: .line, size: .mini, icon: .iconRecent, enabled: !running) { plan() }
+                Button("Run again") { plan() }.buttonStyle(RefinedActionStyle()).disabled(running)
             } else {
                 if let why = center.failure(day, .note) {
-                    Text(why).font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(2)
+                    Text(why).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(2)
                 }
                 Spacer(minLength: 4)
                 if running { ProgressView().controlSize(.small) }
                 // One plan maker, Plan my day, everywhere (Make a plan merged into it).
-                PillButton(title: "Plan my day", kind: .line, size: .mini, icon: .iconPlanDay,
-                           enabled: !running && !DayPlan.paragraphs(note).isEmpty) { plan() }
-                    .uiTarget("note-plan-my-day")
+                Button { plan() } label: {
+                    HStack(spacing: 6) {
+                        IconGlyph(art: .iconPlanDay, size: 14, color: Refined.ink)
+                        Text("Plan my day")
+                    }
+                }
+                .buttonStyle(RefinedActionStyle())
+                .disabled(running || DayPlan.paragraphs(note).isEmpty)
+                .uiTarget("note-plan-my-day")
             }
         }
     }
@@ -172,13 +165,12 @@ struct DayNoteTextView: NSViewRepresentable {
 
 // MARK: - The plan beside a note or a day's thoughts
 
-/// A day's plan (the page's note, or Organize today's thoughts): what it was made from, Send to Reminders
-/// (a popover in Verbose style, a sheet in Native), Run again, the sections, and the footer.
+/// A day's plan (the page's note, or Organize today's thoughts): what it was made from, Send to Reminders (a sheet),
+/// Run again, the sections, and the footer, on the refined card.
 struct MacPlanPanel: View {
     @EnvironmentObject var app: AppState
     var source: DayPlanRecord.Source
     var day: Date
-    @Environment(\.look) private var look
     @ObservedObject private var center = DayPlanCenter.shared
     @State private var model: SendToReminders? = nil
 
@@ -188,37 +180,33 @@ struct MacPlanPanel: View {
     var body: some View {
         if let r = record, r.hasPlan {
             let plan = r.plan
-            VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Eyebrow(text: "Template")
-                    if look == .native { Text("Plan my day").font(.system(size: 15, weight: .bold)) }
-                    else { WebText.serif("Plan my", italic: "day", size: 23).foregroundStyle(Ink.ink) }
-                    Text(madeLine(r)).font(.system(size: 12)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.mute))
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Template").refinedFont(.meta).foregroundStyle(Refined.mute)
+                    Text("Plan my day").refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
+                    Text(madeLine(r)).refinedFont(.meta).foregroundStyle(Refined.mute)
                 }
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     if DayPlan.allSent(plan, sent: r.sent) {
-                        Text("\u{2713} " + (DayPlan.sentStatus(plan, sent: r.sent) ?? "")).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
+                        Text("\u{2713} " + (DayPlan.sentStatus(plan, sent: r.sent) ?? "")).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
                     } else {
-                        PillButton(title: "Send to Reminders", kind: .dark, size: .mini) { open(plan, r, only: nil) }
+                        Button("Send to Reminders") { open(plan, r, only: nil) }
+                            .buttonStyle(RefinedActionStyle(kind: .strong))
                             .uiTarget("plan-send-reminders")
-                            .popover(isPresented: Binding(get: { model != nil && look != .native }, set: { if !$0 { model = nil } }), arrowEdge: .bottom) {
-                                if let m = model { MacRemindersSend(model: m, onSent: { sent(r, $0, $1) }, onCancel: { model = nil }).environmentObject(app) }
-                            }
                     }
                     if source == .thoughts || r.hasPlan {
-                        PillButton(title: "Run again", kind: .line, size: .mini, icon: .iconRecent, enabled: !center.isRunning(day, source)) { runAgain() }
+                        Button("Run again") { runAgain() }.buttonStyle(RefinedActionStyle()).disabled(center.isRunning(day, source))
                     }
                 }
-                PlanSections(plan: plan, recordedAt: day, sent: r.sent, native: look == .native, headingSize: 17, textSize: 13,
+                PlanSections(plan: plan, recordedAt: day, sent: r.sent, headingSize: 17, textSize: 13,
                              link: { link($0, r) }, onJump: { jump($0, r) }, onSend: { open(plan, r, only: $0) })
-                Rectangle().fill(Ink.hairline).frame(height: 1)
+                PaperDivider(leading: 0)
                 Text(TemplateCopy.onDevice("Mac") + (source == .note ? " Made from this note" : " Made from this day\u{2019}s thoughts") + "; it can be wrong, so check the plan before you rely on it.")
-                    .font(.system(size: 12)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.dim)).fixedSize(horizontal: false, vertical: true)
+                    .refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
             }
-            .padding(look == .native ? 0 : 16)
-            .background { if look != .native { RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).fill(Ink.card) } }
-            .overlay { if look != .native { RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5) } }
-            .sheet(isPresented: Binding(get: { model != nil && look == .native }, set: { if !$0 { model = nil } })) {
+            .padding(16)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+            .sheet(isPresented: Binding(get: { model != nil }, set: { if !$0 { model = nil } })) {
                 if let m = model { MacRemindersSend(model: m, onSent: { sent(r, $0, $1) }, onCancel: { model = nil }).environmentObject(app) }
             }
         }
@@ -278,28 +266,26 @@ struct MacPlanPanel: View {
     }
 }
 
-/// Send to Reminders on the Mac: the list pop-up, each task with a checkbox and its due date, the ideas unchecked, and
-/// Add as the default button. Verbose style draws it on the reader card (a popover); Native, as a standard sheet.
+/// Send to Reminders on the Mac (a sheet): the list pop-up, each task with a checkbox and its due date, the ideas
+/// unchecked, and Add as the default button.
 struct MacRemindersSend: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var model: SendToReminders
     var onSent: ([String: String], String) -> Void
     var onCancel: () -> Void
-    @Environment(\.look) private var look
 
     /// On screen, for the self-test.
     static weak var shown: SendToReminders? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if look == .native {
-                Text("Send to Reminders").font(.system(size: 15, weight: .bold))
-                Text("Each task keeps the day you said as its due date.").font(.system(size: 12)).foregroundStyle(.secondary)
-            } else {
-                WebText.serif("Send \(DayPages.count(model.plan.tasks.count, "task", "tasks")) to", italic: "Reminders", size: 22).foregroundStyle(Ink.ink)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Send \(DayPages.count(model.plan.tasks.count, "task", "tasks")) to Reminders").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Text("Each task keeps the day you said as its due date.").refinedFont(.meta).foregroundStyle(Refined.mute)
             }
             HStack {
-                Text("List:").font(.system(size: 13))
+                Text("List").refinedFont(.rowTitle).foregroundStyle(Refined.ink)
                 Picker("List", selection: Binding(get: { model.list?.id ?? "" }, set: { id in if let l = model.lists.first(where: { $0.id == id }) { model.pick(l) } })) {
                     if model.lists.isEmpty { Text("Reminders\u{2019} default list").tag("") }
                     ForEach(model.lists) { l in Text(l.title).tag(l.id) }
@@ -308,35 +294,47 @@ struct MacRemindersSend: View {
                 .disabled(model.lists.isEmpty)
             }
             ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(model.plan.tasks) { row($0) }
+                VStack(alignment: .leading, spacing: 0) {
+                    PaperCard {
+                        ForEach(Array(model.plan.tasks.enumerated()), id: \.element.id) { i, item in
+                            if i > 0 { PaperDivider(leading: 12, trailing: 12) }
+                            row(item)
+                        }
+                    }
                     if !model.plan.ideas.isEmpty {
-                        Text("Ideas · not sent unless you check them").font(.system(size: 12)).foregroundStyle(Ink.mute).padding(.top, 8)
-                        ForEach(model.plan.ideas) { row($0) }
+                        PaperGroup("Ideas · not sent unless you check them") {
+                            ForEach(Array(model.plan.ideas.enumerated()), id: \.element.id) { i, item in
+                                if i > 0 { PaperDivider(leading: 12, trailing: 12) }
+                                row(item)
+                            }
+                        }
+                        .padding(.top, 12)
                     }
                 }
             }
             .frame(maxHeight: 300)
             if let p = model.problem {
                 HStack(spacing: 8) {
-                    Text(p).font(.system(size: 12.5)).foregroundStyle(Ink.danger).fixedSize(horizontal: false, vertical: true)
-                    if model.access == .denied { PillButton(title: "Open Settings", kind: .line, size: .mini) { RemindersBridge.openSettings() } }
+                    Text(p).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
+                    if model.access == .denied { Button("Open Settings") { RemindersBridge.openSettings() } }
                 }
             }
             HStack(spacing: 8) {
-                Text("Due dates only where you said a day.").font(.system(size: 12)).foregroundStyle(Ink.mute)
+                Text("Due dates only where you said a day.").refinedFont(.meta).foregroundStyle(Refined.mute)
                 Spacer()
                 Button("Cancel") { onCancel() }.keyboardShortcut(.cancelAction)
                 Button(model.checkedCount == 0 ? "Add" : "Add \(model.checkedCount)") { send() }
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(PillButtonStyle(kind: .dark, size: .mini))
+                    .buttonStyle(.borderedProminent)
                     .disabled(model.sending || model.checkedCount == 0)
                     .uiTarget("reminders-add")
             }
+            .controlSize(.large)
         }
-        .padding(18)
-        .frame(width: 440)
-        .background(look == .native ? Color.clear : Ink.card)
+        .padding(20)
+        .frame(width: 460)
+        .background(Refined.paper)
+        .tint(Refined.accentText)
         .onAppear { Self.shown = model }
         .onDisappear { if Self.shown === model { Self.shown = nil } }
     }
@@ -345,13 +343,14 @@ struct MacRemindersSend: View {
         let sent = model.isSent(item)
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Toggle(isOn: Binding(get: { sent || model.selection.contains(item.key) }, set: { _ in model.toggle(item) })) {
-                Text(item.text).font(.system(size: 13)).foregroundStyle(sent ? Ink.dim : Ink.ink).fixedSize(horizontal: false, vertical: true)
+                Text(item.text).refinedFont(.rowTitle).foregroundStyle(sent ? Refined.dim : Refined.ink).fixedSize(horizontal: false, vertical: true)
             }
             .toggleStyle(.checkbox)
             .disabled(sent)
             Spacer(minLength: 6)
-            Text(sent ? "Sent" : model.dueLabel(item)).font(Ink.mono(12)).foregroundStyle(Ink.mute)
+            Text(sent ? "In Reminders" : model.dueLabel(item)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
         }
+        .padding(.horizontal, 12).padding(.vertical, 7)
     }
 
     private func send() {
@@ -373,7 +372,8 @@ enum ThoughtsPlanWindow {
     static func open(day: Date, source: DayPlanRecord.Source = .thoughts, app: AppState) {
         let root = ScrollView { MacPlanPanel(source: source, day: day).padding(18) }
             .frame(minWidth: 360, minHeight: 360)
-            .background(Ink.paper)
+            .background(Refined.paper)
+            .tint(Refined.accentText)
             .environmentObject(app).limitMotionRoot().lookRoot()
         if let w = window {
             (w.contentViewController as? NSHostingController<AnyView>)?.rootView = AnyView(root)

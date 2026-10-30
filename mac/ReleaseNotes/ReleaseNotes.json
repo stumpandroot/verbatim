@@ -38,6 +38,13 @@
           ],
           "text": "The tab bar has the new look, with Record above it on every tab but Home.",
           "detail": "Record sits in the tab bar's accessory in both look settings. Tap for a voice note, or touch and hold for Record as."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Templates, Ask, By day, and today's page have the new look.",
+          "detail": "Cards on paper, serif titles, the kit's chips, and the persimmon tint on what you select. Plans tick off with the accent, and Send to Reminders is a sheet."
         }
       ]
     },

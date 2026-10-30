@@ -62,7 +62,7 @@ struct PhonePlanResult: View {
         let plan = self.plan
         VStack(alignment: .leading, spacing: 12) {
             sendRow(plan)
-            PlanSections(plan: plan, recordedAt: transcript.createdAt, sent: sent, native: look.isNative,
+            PlanSections(plan: plan, recordedAt: transcript.createdAt, sent: sent,
                          headingSize: 20, textSize: 16,
                          link: { $0.anchor.map(DayPlan.clock) },
                          onJump: jumpToItem,
@@ -427,7 +427,7 @@ struct ThoughtsPlanScreen: View {
                         .disabled(center.isRunning(day, .thoughts))
                 }
                 .labelStyle(.titleAndIcon)
-                PlanSections(plan: plan, recordedAt: day, sent: r.sent, native: look.isNative, headingSize: 20, textSize: 16,
+                PlanSections(plan: plan, recordedAt: day, sent: r.sent, headingSize: 20, textSize: 16,
                              link: { item in link(item, r) },
                              onJump: { _ in dismiss() },
                              onSend: { item in openSheet(plan, r, only: item) })

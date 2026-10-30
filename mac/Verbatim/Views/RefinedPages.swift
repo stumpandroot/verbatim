@@ -191,6 +191,42 @@ struct RefinedCheckbox: View {
     }
 }
 
+// MARK: - Menus
+
+/// A menu's face on the page (Try on a recording, a list's More): the quiet action's wash and ink text with a small
+/// chevron, the same size as `RefinedActionStyle`'s buttons. Put it in a `Menu`'s label with the plain button style.
+struct RefinedMenuLabel: View {
+    var title: String
+    private let mac = RefinedPlatform.mac
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(title).refinedFont(.hint, weight: .semibold).lineLimit(1)
+            Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).accessibilityHidden(true)
+        }
+        .foregroundStyle(Refined.ink)
+        .padding(.horizontal, mac ? 14 : 16)
+        .frame(minHeight: mac ? 32 : CGFloat(RefinedRules.minTapTarget))
+        .background(Refined.neutral, in: RoundedRectangle(cornerRadius: mac ? 8 : 22, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: mac ? 8 : 22, style: .continuous))
+    }
+}
+
+/// A text field's box on the page or in a sheet (a template's instruction, a note): the field color with the field
+/// radius, and a hairline under Increase Contrast.
+struct RefinedFieldBox: ViewModifier {
+    @Environment(\.colorSchemeContrast) private var contrast
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: RefinedPlatform.radius(.field), style: .continuous)
+        content
+            .background(Refined.field, in: shape)
+            .overlay { if contrast == .increased { shape.strokeBorder(Refined.separator, lineWidth: 1) } }
+    }
+}
+
+extension View {
+    func refinedFieldBox() -> some View { modifier(RefinedFieldBox()) }
+}
+
 // MARK: - Sheets (Mac)
 
 #if os(macOS)
@@ -272,6 +308,15 @@ struct PaperGroup_Previews: PreviewProvider {
             PaperGroup("Today", serif: true) {
                 IconSquareRow(art: .iconThought, hue: .butter, title: "6 thoughts", value: "9:40 AM")
             }
+        }
+    }
+}
+
+struct RefinedMenuLabel_Previews: PreviewProvider {
+    static var previews: some View {
+        RefinedPreviewPage {
+            RefinedMenuLabel(title: "Try on a recording")
+            Text("A field").padding(8).refinedFieldBox()
         }
     }
 }

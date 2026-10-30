@@ -213,7 +213,7 @@ struct HomeJournalMac: View {
                         if let t = latest {
                             Text(PremiumDateLine.line(t.createdAt)).refinedFont(.meta).foregroundStyle(Refined.mute)
                             Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
-                            Text(PremiumPreview.text(t)).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)
+                            Text(TranscriptPreview.text(t)).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)
                         } else {
                             Text("Record with the Journal kind, and your newest entry shows here.")
                                 .refinedFont(.body).foregroundStyle(Refined.dim)
