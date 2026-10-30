@@ -159,6 +159,34 @@ enum RecordChromeRule {
     }
 }
 
+/// What a tap on Record in the tab bar's accessory starts: on Thoughts a thought and on Journal a journal entry, since
+/// you're already there; a voice note on every other tab. Touch and hold still opens Record as everywhere.
+enum TabRecordDefault: String, CaseIterable, Sendable {
+    case voiceNote, thought, journal
+
+    static func forTab(_ tab: PhoneTab) -> TabRecordDefault {
+        switch tab {
+        case .thoughts: return .thought
+        case .journal: return .journal
+        default: return .voiceNote
+        }
+    }
+
+    /// The accessory's second line under "Record".
+    var subtitle: String {
+        switch self {
+        case .voiceNote: return "Voice note"
+        case .thought: return "Thought"
+        case .journal: return "Journal entry"
+        }
+    }
+
+    /// VoiceOver's hint for Record.
+    var hint: String {
+        "Starts a \(subtitle.lowercased()). Touch and hold for more ways to record, and for Dictate, Live captions, and Import."
+    }
+}
+
 #if canImport(Combine)
 /// This iPhone's bar, read once and written on each change. PhoneRoot builds its TabView from it.
 @MainActor

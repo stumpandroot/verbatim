@@ -396,5 +396,17 @@ check("record chrome: reading hides the tab bar with nothing recording, and befo
       RC.readingHidesTabBar(recording: false, systemAccessory: true) && RC.readingHidesTabBar(recording: false, systemAccessory: false)
       && RC.readingHidesTabBar(recording: true, systemAccessory: false))
 
+// MARK: What a tap on Record starts on each tab (TabRecordDefault, PhoneTabBar.swift)
+
+check("record tap: a thought on Thoughts and a journal entry on Journal, since you're there",
+      TabRecordDefault.forTab(.thoughts) == .thought && TabRecordDefault.forTab(.journal) == .journal)
+check("record tap: a voice note on every other tab",
+      [PhoneTab.home, .library, .dictations, .projects, .settings].allSatisfy { TabRecordDefault.forTab($0) == .voiceNote })
+check("record tap: the accessory's second line names what a tap starts",
+      TabRecordDefault.allCases.map(\.subtitle) == ["Voice note", "Thought", "Journal entry"])
+check("record tap: VoiceOver's hint says what a tap starts, and that touch and hold has the rest",
+      TabRecordDefault.journal.hint.hasPrefix("Starts a journal entry. Touch and hold")
+      && TabRecordDefault.voiceNote.hint.hasPrefix("Starts a voice note.") && !TabRecordDefault.allCases.contains { $0.hint.contains("!") })
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

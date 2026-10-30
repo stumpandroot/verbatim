@@ -3,7 +3,8 @@ import UIKit
 
 // Record in the tab bar (DESIGN.md §13 and §16; mockup "Verbose Refined Look"): the
 // tab bar's bottom accessory, the slot Apple Music uses for its player, on every tab but Home's own screen, where the
-// refined Record card stands in for it while it's shown (HomeSpacing.hidesRecordChrome). A tap records a voice note;
+// refined Record card stands in for it while it's shown (HomeSpacing.hidesRecordChrome). A tap records a voice note
+// (a thought on Thoughts, a journal entry on Journal: `TabRecordDefault`);
 // touch and hold opens Record as, a system Menu built like Books' reading menu (an icon row for Dictate, Live
 // captions, and Import, then the ways to record, each with the line that says what it does). While a recording runs,
 // the accessory is the minimized recorder (`PhoneMiniRecorder`, the refined kit's design: the persimmon dot, the time,
@@ -71,6 +72,8 @@ struct AccessoryRecordButton: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
+        // On Thoughts a tap records a thought, on Journal a journal entry; elsewhere a voice note.
+        let quick = TabRecordDefault.forTab(app.tab)
         HStack(spacing: 4) {
             Menu {
                 RecordAsMenu(settings: auto.settings, templates: app.store.allTemplates)
@@ -80,7 +83,7 @@ struct AccessoryRecordButton: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Text("Record").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
                         if !inline, !typeSize.isAccessibilitySize {
-                            Text("Voice note").refinedFont(.meta).foregroundStyle(Refined.dim)
+                            Text(quick.subtitle).refinedFont(.meta).foregroundStyle(Refined.dim)
                         }
                     }
                     .lineLimit(1)
@@ -90,13 +93,18 @@ struct AccessoryRecordButton: View {
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
             } primaryAction: {
-                if RecordTray.shared.app == nil { RecordTray.shared.app = app }
-                RecordTray.shared.tap()
+                switch quick {
+                case .voiceNote:
+                    if RecordTray.shared.app == nil { RecordTray.shared.app = app }
+                    RecordTray.shared.tap()
+                case .thought: app.startRecordChoice(.thought)
+                case .journal: app.startRecordChoice(.kind(.journal))
+                }
             }
             .menuStyle(.button)
             .buttonStyle(.plain)
             .accessibilityLabel("Record")
-            .accessibilityHint("Starts a voice note. Touch and hold for more ways to record, and for Dictate, Live captions, and Import.")
+            .accessibilityHint(quick.hint)
             .recordChoiceActions(app)
             .accessibilityIdentifier("accessory.record")
             if !inline {

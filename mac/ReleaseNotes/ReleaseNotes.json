@@ -1,6 +1,26 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "AirPods on the first recording, and Record that fits the tab",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Your first recording with AirPods in records from them, with no need to pick them.",
+          "detail": "iOS lists AirPods' microphone a moment after a recording starts. The recorder waits for it instead of locking onto the iPhone microphone."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "On Thoughts, Record starts a thought, and on Journal a journal entry.",
+          "detail": "Tap Record in the tab bar to record what the tab is for. Touch and hold for the other ways to record."
+        }
+      ]
+    },
+    {
       "build": "248",
       "date": "2026-10-30",
       "version": "1.0 beta",
