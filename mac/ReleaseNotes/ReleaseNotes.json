@@ -66,6 +66,42 @@
           ],
           "text": "The menu bar, meeting panel, bubble, and Live captions have the new look.",
           "detail": "The menu bar panel and the meeting panel show the recording as a small persimmon card, and the meeting banner uses the new cards and buttons."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Settings has the new look: colored icons, values on the right, and switches in a card.",
+          "detail": "The You card sits at the top, and Delete all data has a card of its own. Every setting, page, and search result is where it was."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "The You page shows your week, About me, your voice, and cleanup in cards.",
+          "detail": "Typing speed and your pace sit under This week. Tap your name to change it."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "In Appearance, the look is one row with a menu.",
+          "detail": "On the Mac it's a pop-up in Personalization. Picking a look still switches at once."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The Settings window has the new look: a colored square beside each pane and its title.",
+          "detail": "Rows sit on cards with switches in persimmon and the system's buttons and menus. The version and What's new stay at the foot of the sidebar, and search works as before."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The You page has the new look, with your week's bars and where you dictate in cards.",
+          "detail": "Click your name to change it. Websites still count by domain only."
         }
       ]
     },
