@@ -5,7 +5,8 @@ import Foundation
 /// It shows once after an update that raises `version` (so everyone sees a new tour once), and again whenever
 /// "Show the welcome tour when Verbatim opens" is on in Settings. Finishing or skipping turns that switch off.
 enum Onboarding {
-    static let version = 1
+    /// 2: the feature steps (Mac: Four more ways in; iPhone: ways to record and the keyboard), October 30, 2026.
+    static let version = 2
     private static let d = UserDefaults.standard
     private static let seenKey = "onboarding.seenVersion"
     static let showKey = "onboarding.showOnLaunch"

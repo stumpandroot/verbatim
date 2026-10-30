@@ -2,8 +2,22 @@
   "notes": [
     {
       "build": "next",
-      "title": "A TestFlight link for friends",
+      "title": "A welcome tour that shows the way in, and a TestFlight link for friends",
       "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The welcome tour shows four more ways in: Record, Import, New thought, and Search or ask.",
+          "detail": "Each one shows its shortcut. Everyone sees the new tour once; open it again from Settings."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "The welcome tour shows the ways to record and how to add the Verbose keyboard.",
+          "detail": "Open Settings takes you to Verbose's page in the Settings app, where Keyboards is. Everyone sees the new tour once."
+        },
         {
           "platforms": [
             "iphone"

@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 
 /// The welcome tour on the Mac, on the refined kit (DESIGN.md §13): what Verbatim does, permissions, a first dictation,
-/// where the Ribbon lives, and transcription quality. Shown once after an update and whenever Settings asks for it.
+/// four more ways in (Record, Import, New thought, Search or ask), where the Ribbon lives, and transcription quality. Shown once after an update and whenever Settings asks for it.
 /// Steps are `OnboardingStep` (below).
 struct OnboardingView: View {
     @EnvironmentObject var app: AppState
@@ -32,6 +32,7 @@ struct OnboardingView: View {
                 case .welcome: welcome
                 case .permissions: permissions
                 case .tryIt: tryIt
+                case .ways: ways
                 case .placement: placement
                 case .quality: quality
                 }
@@ -73,6 +74,26 @@ struct OnboardingView: View {
                 pillar("Dictate", "Talk into any app", .document, .butter)
             }
             .padding(.top, 22)
+        }
+    }
+
+    /// Four more ways in (mockup "Verbose Tour Steps", October 30, 2026): Home's hues with each one's shortcut. The tiles
+    /// only show; nothing here starts a recording.
+    private var ways: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            title("Four more ways in")
+            para("You just dictated. These start from Verbose, and New thought starts from any app.")
+            Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+                GridRow {
+                    wayTile("Record", keys: "⌥⇧R", spoken: "Option Shift R", "A voice memo or a call. Right-click Record for a meeting or a brain dump.", .iconMic, .persimmon)
+                    wayTile("Import", keys: "⌘O", spoken: "Command O", "Audio or video files, or a YouTube or podcast link.", .iconLinks, .sage)
+                }
+                GridRow {
+                    wayTile("New thought", keys: "⌃⌥P", spoken: "Control Option P", "From any app. Press it, talk, press it again. It lands on today's page.", .iconThought, .butter)
+                    wayTile("Search or ask", keys: "⌘K", spoken: "Command K", "Every transcript. Ask a question and the answer cites where it came from.", .iconAsk, .petal)
+                }
+            }
+            .padding(.top, 20)
         }
     }
 
@@ -281,6 +302,27 @@ struct OnboardingView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// One of the four ways in: the name, its keycap, and a line, on the hue's Full fill with its ink.
+    private func wayTile(_ name: String, keys: String, spoken: String, _ line: String, _ art: BrandArt, _ hue: RefinedHue) -> some View {
+        let ink = Refined.onBadge(hue)
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                IconGlyph(art: art, size: 17, color: ink)
+                Text(name).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(ink)
+                Spacer(minLength: 6)
+                Text(keys).refinedFont(.meta, weight: .semibold).monospacedDigit().foregroundStyle(ink)
+                    .padding(.horizontal, 7).padding(.vertical, 1)
+                    .background(Refined.lift.opacity(0.55), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            Text(line).refinedFont(.meta).foregroundStyle(ink).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+        .refinedSurface(Refined.badge(hue), radius: RefinedPlatform.radius(.tile))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name), \(spoken). \(line)")
+    }
+
     private func permissionRow(art: BrandArt, hue: RefinedHue, name: String, why: String, ok: Bool, action: String, perform: @escaping () -> Void) -> some View {
         HStack(spacing: 14) {
             IconSquare(art: art, hue: hue)
@@ -331,7 +373,7 @@ struct OnboardingView: View {
 
 /// The Mac welcome tour's steps, in order.
 enum OnboardingStep: Int, CaseIterable {
-    case welcome, permissions, tryIt, placement, quality
+    case welcome, permissions, tryIt, ways, placement, quality
 
     /// The header's label for the step.
     var label: String {
@@ -339,6 +381,7 @@ enum OnboardingStep: Int, CaseIterable {
         case .welcome: return "Welcome to Verbose"
         case .permissions: return "Permissions"
         case .tryIt: return "Try it"
+        case .ways: return "More ways in"
         case .placement: return "The Ribbon"
         case .quality: return "Last step"
         }

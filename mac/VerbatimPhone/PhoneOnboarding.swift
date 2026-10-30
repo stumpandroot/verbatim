@@ -1,7 +1,8 @@
 import SwiftUI
 import AVFoundation
 
-/// The welcome tour on iPhone: what Verbatim does, the microphone, and transcription quality with iCloud status. Drawn
+/// The welcome tour on iPhone: what Verbatim does, the microphone, the ways to record, the keyboard, and transcription
+/// quality with iCloud status (the two middle steps: mockup "Verbose Tour Steps", October 30, 2026). Drawn
 /// on the refined kit (DESIGN.md §13): the step count, the large serif title, cards, and the kit's strong action.
 struct PhoneOnboarding: View {
     @EnvironmentObject var app: PhoneState
@@ -9,8 +10,11 @@ struct PhoneOnboarding: View {
     @State private var micAllowed = AVAudioApplication.shared.recordPermission == .granted
     /// The last step's iCloud sync switch (off on a new install; `Cloud.settleSyncDefault`).
     @State private var syncWanted = Cloud.wantsSync
+    /// The keyboard step's Open Settings was tapped, so its button reads Continue.
+    @State private var openedSettings = false
     @Environment(\.limitMotion) private var reduceMotion
-    private let total = 3
+    @Environment(\.openURL) private var openURL
+    private let total = 5
 
     init(startStep: Int = 0) { _step = State(initialValue: startStep) }
 
@@ -22,6 +26,8 @@ struct PhoneOnboarding: View {
                 switch step {
                 case 0: welcome
                 case 1: microphone
+                case 2: ways
+                case 3: keyboard
                 default: quality
                 }
             }
@@ -79,6 +85,83 @@ struct PhoneOnboarding: View {
             .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
             .padding(.top, 28)
         }
+    }
+
+    /// The ways to record. They only show; nothing here starts a recording.
+    private var ways: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            title("Catch it however it comes.")
+            para("Tap Record on Home for a voice note. Touch and hold it for the other kinds.")
+            VStack(spacing: 0) {
+                wayRow(.capture, .persimmon, "Record", "Keeps going with the screen locked. Touch and hold for:") {
+                    FlowRow(spacing: 6, lineSpacing: 6) {
+                        kindChip("Meeting", .persimmon); kindChip("Thought", .butter); kindChip("Brain dump", .butter); kindChip("Audio only", .petal)
+                    }
+                    .padding(.top, 6)
+                    .accessibilityElement(children: .combine)
+                }
+                PaperDivider(leading: 66)
+                wayRow(.iconShare, .sage, "Share to Verbose", "From Voice Memos, Files, or a podcast app.") { EmptyView() }
+                PaperDivider(leading: 66)
+                wayRow(.iconWidgets, .petal, "Widgets and the Action button", "Start a recording without opening the app. Set them up in Settings.") { EmptyView() }
+            }
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+            .padding(.top, 24)
+        }
+    }
+
+    /// Adding the Verbose keyboard: Open Settings goes to Verbose's page in the Settings app, where Keyboards is.
+    private var keyboard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            title("Dictate in any app.")
+            para("Add the Verbose keyboard, then tap Start a session in any app. Verbose turns on the mic and sends you back to talk.")
+            VStack(spacing: 0) {
+                numberRow(1, "Open Settings", "The button below opens Verbose's page in Settings.")
+                PaperDivider(leading: 16)
+                numberRow(2, "Keyboards", "Turn on Verbose and Allow Full Access.")
+                PaperDivider(leading: 16)
+                numberRow(3, "In any app", "Touch and hold the globe key, then choose Verbose.")
+            }
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+            .padding(.top, 24)
+            Text("Full Access lets the keyboard open Verbose and receive your words. Listening happens in the app.")
+                .refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true).padding(.top, 14)
+        }
+    }
+
+    private func wayRow<Extra: View>(_ art: BrandArt, _ hue: RefinedHue, _ name: String, _ note: String, @ViewBuilder extra: () -> Extra) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            IconSquare(art: art, hue: hue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                Text(note).refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
+                extra()
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 13)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func kindChip(_ name: String, _ hue: RefinedHue) -> some View {
+        Text(name).refinedFont(.chip, weight: .semibold).foregroundStyle(Refined.onBadge(hue)).lineLimit(1)
+            .padding(.horizontal, 9).padding(.vertical, 3)
+            .background(Refined.badge(hue), in: Capsule())
+    }
+
+    private func numberRow(_ n: Int, _ name: String, _ note: String) -> some View {
+        HStack(spacing: 14) {
+            Text("\(n)").refinedFont(.chip, weight: .semibold).monospacedDigit().foregroundStyle(Refined.ink)
+                .frame(width: 24, height: 24).background(Refined.neutral, in: Circle())
+                .frame(width: 36)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                Text(note).refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 13)
+        .accessibilityElement(children: .combine)
     }
 
     private var quality: some View {
@@ -148,6 +231,15 @@ struct PhoneOnboarding: View {
                     }
                 }
             }
+        case 2: bigButton("Continue") { step = 3 }
+        case 3:
+            if openedSettings { bigButton("Continue") { step = 4 } }
+            else {
+                bigButton("Open Settings") {
+                    openedSettings = true
+                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                }
+            }
         default: bigButton("Start using Verbose") { done() }
         }
     }
@@ -156,7 +248,9 @@ struct PhoneOnboarding: View {
         switch step {
         case 0: quiet("Skip the tour") { done() }
         case 1: quiet(micAllowed ? "Back" : "Not now") { if micAllowed { step = 0 } else { step = 2 } }
-        default: quiet("Back") { step = 1 }
+        case 2: quiet("Back") { step = 1 }
+        case 3: quiet(openedSettings ? "Back" : "Later") { step = openedSettings ? 2 : 4 }
+        default: quiet("Back") { step = 3 }
         }
     }
 

@@ -728,7 +728,7 @@ enum UITest {
         app.go(.home)
         await show("10-home-again")
         await whatsNewLine(app: app, window: window, name: "10f-home-whats-new")
-        for (i, name) in ["10a-onboarding-welcome", "10b-onboarding-permissions", "10c-onboarding-try", "10d-onboarding-placement", "10e-onboarding-quality"].enumerated() {
+        for (i, name) in ["10a-onboarding-welcome", "10b-onboarding-permissions", "10c-onboarding-try", "10c1-onboarding-ways", "10d-onboarding-placement", "10e-onboarding-quality"].enumerated() {
             onboardingStep = i
             app.showOnboarding = true
             await show(name)
@@ -1509,7 +1509,7 @@ enum UITest {
         check("every settings pane is searchable", SettingsTab.allCases.allSatisfy { t in SettingsIndex.all.contains { $0.section == t } })
         check("settings ids are unique", Set(SettingsIndex.all.map(\.id)).count == SettingsIndex.all.count)
         // The welcome tour's steps (OnboardingView.swift), and no Look setting (one look since step 7, DESIGN.md §13).
-        check("onboarding: the tour has five steps, permissions after the welcome", OnboardingStep.count == 5 && OnboardingStep.at(1) == .permissions)
+        check("onboarding: the tour has six steps, permissions after the welcome, the ways in after Try it", OnboardingStep.count == 6 && OnboardingStep.at(1) == .permissions && OnboardingStep.at(3) == .ways)
         check("settings: there's no Look setting, and Palette is searchable",
               !SettingsIndex.all.contains { $0.id == "general.look" } && SettingsIndex.search("palette").map(\.id).contains("general.palette"))
         // What's new: the bundled notes, their rules, when Home's note shows, and where it's found (ReleaseNotes.swift).

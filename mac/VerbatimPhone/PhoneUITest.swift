@@ -432,8 +432,8 @@ enum PhoneUITest {
             await tabBarTour(app, suffix: "")
             await homeThoughtsTour(app, suffix: "")
             app.appearance = "light"
-            // The welcome tour: the welcome, the microphone, and the last step.
-            for (i, name) in [(0, "p10-onboarding"), (1, "p11-onboarding"), (2, "p12-onboarding")] {
+            // The welcome tour: the welcome, the microphone, the ways to record, the keyboard, and the last step.
+            for (i, name) in [(0, "p10-onboarding"), (1, "p11-onboarding"), (2, "p11a-onboarding-ways"), (3, "p11b-onboarding-keyboard"), (4, "p12-onboarding")] {
                 onboardingStep = i
                 app.showOnboarding = true
                 await show(name)
