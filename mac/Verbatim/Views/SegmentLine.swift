@@ -286,11 +286,8 @@ struct TranscriptLines: View {
     }
 }
 
-/// Speaker pills' fixed rotation (DESIGN.md §1): record, petal, sage, butter, by the order speakers first talk. The
-/// multitrack sheet colors its tracks in the same order, so a speaker keeps one color from the sheet to the transcript.
+/// Who talks first: the order speaker chips take their colors in (`RefinedRules.speakerHue`, DESIGN.md §13).
 enum SpeakerRotation {
-    static let fills: [Color] = [Refined.persimmon, Refined.petal, Refined.sage, Refined.butter]
-
     /// The speaker's place in the order of first appearance in `segments`, or nil when they never talk. Stops at
     /// their first line, so speakers who talk early are found at once.
     static func firstAppearance(_ id: String, in segments: [Segment]) -> Int? {
