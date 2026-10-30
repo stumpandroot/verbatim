@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 // An Audio only recording's own screen (approved mockup "Verbose Brain Dump", section 4, October 27, 2026), on the
-// refined kit (DESIGN.md §13) in both look settings, in place of the transcript while it has no words: a title you
+// refined kit (DESIGN.md §13), in place of the transcript while it has no words: a title you
 // type over the kind's chip and when, the player as the main content (AudioPlayerCard), the moments (each takes a name
 // you give it, since there's no line to quote), notes, Transcribe, and Share. Tap Transcribe for a plain transcribe (a
 // voice note when it's done); touch and hold it to Transcribe as each kind, like Record as. While it transcribes, the

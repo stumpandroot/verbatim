@@ -3,12 +3,12 @@ import UIKit
 
 // The Settings pages the regrouped root opens (PhoneSettingsMap, SettingsScreen.swift): Speakers, More transcription
 // options, Cloud cleanup, Welcome tour, Widgets and controls, and Shortcuts and Siri, plus the spot Customize Home
-// fills. Each page uses the root's refined rows and groups in both look settings, and every row keeps the search id it
+// fills. Each page uses the root's refined rows and groups, and every row keeps the search id it
 // had on the root, so search and the self-test find it here.
 
 // MARK: - Page structure
 
-/// A Settings page in the refined look (DESIGN.md §13), one layout in both look settings: the page's large serif title
+/// A Settings page in the refined look (DESIGN.md §13): the page's large serif title
 /// on the paper under the system's navigation bar (Back, and the page's own buttons), then its groups. A detail of a
 /// detail passes `inline`, which sets the title at the section size.
 struct SettingsPageScaffold<Content: View>: View {

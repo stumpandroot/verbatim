@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Settings › Dictionary on the iPhone, on the refined kit (DESIGN.md §13) in both look settings: the serif title, the
+/// Settings › Dictionary on the iPhone, on the refined kit (DESIGN.md §13): the serif title, the
 /// suggestions, Add a word, your words with a switch each, the built-in vocabulary, and CSV, each group on a card.
 struct DictionaryScreen: View {
     @EnvironmentObject var app: PhoneState

@@ -460,9 +460,9 @@ enum Refined {
 }
 
 extension View {
-    /// The neutral card surface: a fill (reader white by default) in a continuous rounded rectangle, with an
-    /// ink hairline. iPhone Native draws a grouped card instead (the Mac's tokens already switch).
-    func cardSurface(radius: CGFloat, fill: Color = Ink.card) -> some View {
+    /// The neutral card surface (DESIGN.md §13): a fill (the card by default) in a continuous rounded rectangle, with no
+    /// outline; a separator edge under Increase Contrast, where an off-white card on paper is about 1.1:1.
+    func cardSurface(radius: CGFloat, fill: Color = Refined.card) -> some View {
         modifier(CardSurface(radius: radius, fill: fill))
     }
 }
@@ -470,32 +470,12 @@ extension View {
 private struct CardSurface: ViewModifier {
     var radius: CGFloat
     var fill: Color
-    @Environment(\.look) private var look
+    @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        #if os(iOS)
-        // brand: native begin
-        if look == .native {
-            // The card and reader whites become the grouped card; any other fill (a selection tint) stays. No hairline.
-            let native = fill == Ink.card || fill == Ink.reader ? Color(uiColor: .secondarySystemGroupedBackground) : fill
-            content.background(native, in: shape)
-        } else {
-            content.background(fill, in: shape).overlay(shape.strokeBorder(Ink.hairline))
-        }
-        // brand: native end
-        #else
-        content.background(fill, in: shape).overlay(shape.strokeBorder(Ink.hairline))
-        #endif
-    }
-}
-
-/// Small uppercase monospaced label with tracking: "01 / RECENT". Sparse use.
-struct Overline: View {
-    var text: String
-    var color: Color = Ink.mute
-    var body: some View {
-        Text(text.uppercased()).font(Ink.mono(10.5, weight: .medium)).tracking(1.1).foregroundStyle(color).lineLimit(1)
+        content.background(fill, in: shape)
+            .overlay { if contrast == .increased { shape.strokeBorder(Refined.separator) } }
     }
 }
 

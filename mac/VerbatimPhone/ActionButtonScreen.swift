@@ -26,11 +26,11 @@ struct ActionButtonScreen: View {
         SettingsPageScaffold(title: "Action button") {
             VStack(alignment: .leading, spacing: 10) {
                 Text(Self.lede)
-                    .font(.system(size: 15)).foregroundStyle(.lookDim)
+                    .font(.system(size: 15)).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 6)
 
-                PhoneEyebrow(text: "Press the Action button to")
+                Text("Press the Action button to").refinedFont(.meta).foregroundStyle(Refined.mute)
                     .accessibilityAddTraits(.isHeader)
                     .padding(.top, 10).padding(.leading, 4)
                 VStack(spacing: 0) {
@@ -47,7 +47,7 @@ struct ActionButtonScreen: View {
 
                 VStack(spacing: 0) {
                     HStack(spacing: 10) {
-                        Text("After a take").font(.system(size: 16)).foregroundStyle(.lookInk)
+                        Text("After a take").font(.system(size: 16)).foregroundStyle(Refined.ink)
                         Spacer(minLength: 8)
                         SettingsValue("Insert or copy")
                     }
@@ -55,14 +55,14 @@ struct ActionButtonScreen: View {
                     .frame(minHeight: 50)
                     .accessibilityElement(children: .combine)
                     .accessibilityHint("Into the text field when the Verbose keyboard is open; otherwise on the clipboard and in the keyboard's Recent row.")
-                    Rectangle().fill(.lookHairline).frame(height: 1).padding(.leading, 14)
+                    Rectangle().fill(Refined.separator).frame(height: 1).padding(.leading, 14)
                     IdleTimeoutRow(session: app.session)
                 }
                 .cardSurface(radius: Radius.row)
                 .padding(.top, 6)
 
                 Text("While a session is on, the orange microphone dot shows at the top of the screen. Audio is saved only while you dictate.")
-                    .font(.system(size: 13)).foregroundStyle(.lookDim)
+                    .font(.system(size: 13)).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 4)
             }
@@ -86,65 +86,50 @@ enum ActionChoiceMirror {
 }
 
 /// Set up the Action button (mockup "Library features", section 3b): the Action button icon, "Set up the *Action
-/// button*" in the serif, the three steps with numbers in rings, and Open Settings. Verbose style: an ink-outlined
-/// reader card. Premium Native: a grouped card with a bold title and the accent's button.
+/// button" in the serif, the three steps with numbers in rings, and Open Settings, on the off-white card.
 struct ActionButtonSetupCard: View {
     var openSettings: () -> Void
-    @Environment(\.look) private var look
 
     var body: some View {
-        let native = look.isNative
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                IconGlyph(art: .iconActionButton, size: 17, color: native ? NativeInk.accent : Ink.ink)
-                    .frame(width: 30, height: 30)
-                    .background(native ? NativeInk.fill : Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                IconSquare(art: .iconActionButton, hue: .neutral)
                     .accessibilityHidden(true)
-                Group {
-                    if native {
-                        Text("Set up the Action button").font(.system(size: 17, weight: .semibold))
-                    } else {
-                        Text("Set up the \(Text("Action button").italic())").lookSerif(21)
-                    }
-                }
-                .foregroundStyle(.lookInk)
-                .accessibilityAddTraits(.isHeader)
+                Text("Set up the Action button").font(.system(size: 21, design: .serif))
+                    .foregroundStyle(Refined.ink)
+                    .accessibilityAddTraits(.isHeader)
             }
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(ActionButtonScreen.steps.enumerated()), id: \.offset) { i, step in
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text("\(i + 1)").font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                            .foregroundStyle(.lookInk)
+                            .foregroundStyle(Refined.ink)
                             .frame(width: 22, height: 22)
-                            .overlay(Circle().strokeBorder(native ? NativeInk.secondary : Ink.ink, lineWidth: 1.2))
-                        Text(step).font(.system(size: 16)).foregroundStyle(.lookInk)
+                            .overlay(Circle().strokeBorder(Refined.ink, lineWidth: 1.2))
+                        Text(step).font(.system(size: 16)).foregroundStyle(Refined.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("Step \(i + 1): \(step)")
                 }
             }
-            Button("Open Settings", action: openSettings).buttonStyle(.phonePrimary)
+            Button("Open Settings", action: openSettings).buttonStyle(RefinedActionStyle(kind: .strong))
                 .accessibilityHint("Opens the Settings app.")
                 .padding(.top, 2)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface(radius: Radius.row)
-        .overlay {
-            if !native { RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5) }
-        }
     }
 }
 
 /// End the session after: 10 or 30 minutes, 1, 2, or 4 hours idle, or Until I end it. The same setting as
 /// Settings › Keyboard.
 private struct IdleTimeoutRow: View {
-    @Environment(\.look) private var look
     @ObservedObject var session: KeyboardSession
     var body: some View {
         HStack(spacing: 10) {
-            Text("End the session after").font(.system(size: 16)).foregroundStyle(.lookInk)
+            Text("End the session after").font(.system(size: 16)).foregroundStyle(Refined.ink)
             Spacer(minLength: 8)
             Picker("End the session after", selection: $session.timeoutSeconds) {
                 ForEach(KeyboardSession.timeoutChoices, id: \.seconds) { c in
@@ -152,7 +137,7 @@ private struct IdleTimeoutRow: View {
                 }
             }
             .labelsHidden()
-            .tint(look.isNative ? NativeInk.accent : Ink.accentText)
+            .tint(Refined.accentText)
         }
         .padding(.horizontal, 14).padding(.vertical, 6)
         .frame(minHeight: 50)
@@ -169,12 +154,12 @@ private struct ActionChoiceRow: View {
     var body: some View {
         Button(action: pick) {
             HStack(spacing: 12) {
-                IconGlyph(art: art, size: 20, color: Ink.ink)
+                IconGlyph(art: art, size: 20, color: Refined.ink)
                     .frame(width: 30, height: 30)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(choice.title).font(.system(size: 17)).foregroundStyle(.lookInk)
-                    Text(choice.detail).font(.system(size: 13)).foregroundStyle(.lookMute)
+                    Text(choice.title).font(.system(size: 17)).foregroundStyle(Refined.ink)
+                    Text(choice.detail).font(.system(size: 13)).foregroundStyle(Refined.mute)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .multilineTextAlignment(.leading)
@@ -204,12 +189,12 @@ private struct ActionChoiceRow: View {
     }
 }
 
-/// The mockup's radio: an outlined circle, filled with ink when chosen.
+/// The radio: an outlined circle, the accent's ring when chosen.
 private struct RadioMark: View {
     var on: Bool
     var body: some View {
         ZStack {
-            Circle().strokeBorder(on ? Ink.ink : Ink.mute, lineWidth: on ? 5 : 1.5)
+            Circle().strokeBorder(on ? Refined.accentText : Refined.mute, lineWidth: on ? 5 : 1.5)
         }
         .frame(width: 18, height: 18)
         .accessibilityHidden(true)

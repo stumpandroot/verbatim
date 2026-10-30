@@ -2,7 +2,7 @@ import SwiftUI
 
 /// A podcast show or feed's latest episodes (up to 20): title, date, and length. Tapping one adds it as a link.
 /// Shown inside the link sheet for a show link, or as its own sheet when a pasted link turned out to be a feed. On the
-/// refined kit (DESIGN.md §13) in both look settings.
+/// refined kit (DESIGN.md §13).
 struct EpisodePicker: View {
     let link: URL
     /// Already loaded (a feed found while fetching), or nil to load it here.

@@ -59,12 +59,12 @@ final class PhoneState: ObservableObject {
     @Published var showPhotoPicker = false
     /// Transcribe what's playing (PhoneWhatsPlaying.swift): the sheet with the system broadcast picker.
     @Published var showPlayingSheet = false
-    /// Native: Record as's Import asks where from (Photos, files, or a link) (RecordAccessory.swift).
+    /// Record as's Import asks where from (Photos, files, or a link) (RecordAccessory.swift).
     @Published var showImportChoices = false
-    /// Edit Record as (the tray's foot, the Native Record menu's last item): which ways to record the tray shows.
+    /// Edit Record as (the tray's foot, the Record menu's last item): which ways to record the tray shows.
     @Published var showRecordAsEditor = false
     /// Transcript screens on screen, one token each, so a second onAppear can't leave Record's accessory off after you
-    /// leave (build 233). The Native tab bar's Record accessory turns off while you read (RecordAccessory.swift).
+    /// leave (build 233). The tab bar's Record accessory turns off while you read (RecordAccessory.swift).
     @Published var readingScreens: Set<UUID> = []
     var readingTranscripts: Int { readingScreens.count }
     /// The Action button's What's playing: the sheet asks for the system broadcast picker as soon as it shows.
@@ -108,15 +108,13 @@ final class PhoneState: ObservableObject {
     @Published var v3Offer: ParakeetV3Offer? = nil
     /// A passage to land on when the next transcript opens (from Moments or search).
     var focusSegment: UUID? = nil
-    /// Premium's play pill: the transcript that starts playing once it opens and its audio is ready.
+    /// A play button's transcript: the transcript that starts playing once it opens and its audio is ready.
     var autoplay: UUID? = nil
     /// Moments marked while recording (Model/Marks.swift): from the recorder's Mark, the Dynamic Island, the Lock
     /// Screen, or the Action button. Written beside the recording as they're made, saved as bookmarks when you stop.
     @Published var recordingMoments: [RecordingMoment] = []
     /// "Marked 4:12 · 3 moments" for two seconds after a mark (the recorder, the Island, the Lock Screen).
     @Published private(set) var lastMark: MarkConfirmation? = nil
-    /// Premium's Saved sheet after Stop: the transcript that was just saved (PremiumRecord.swift).
-    @Published var savedRecording: SavedRecording? = nil
 
     // Preferences (same keys as the Mac app; each device keeps its own).
     @Published var presetRaw: String = UserDefaults.standard.string(forKey: "preset") ?? QualityPreset.defaultPreset.rawValue { didSet { UserDefaults.standard.set(presetRaw, forKey: "preset") } }
@@ -470,20 +468,10 @@ final class PhoneState: ObservableObject {
         if t.isAudioOnly {
             // Audio only: kept as sound, never queued ("Saved. No transcript.").
             coordinator.keepAudioOnly(t)
-            if AppLook.current == .native {
-                let saved = SavedRecording(id: t.id, length: r.duration, moments: moments.count, savedAt: Date())
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.savedRecording = saved }
-            } else {
-                say(AudioOnlyCopy.saved)
-            }
+            say(AudioOnlyCopy.saved)
             return
         }
         enqueue(t)
-        // Premium Native: the Saved sheet, once the recorder's cover has gone.
-        if AppLook.current == .native {
-            let saved = SavedRecording(id: t.id, length: r.duration, moments: moments.count, savedAt: Date())
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.savedRecording = saved }
-        }
     }
 
     /// Mark a moment (Model/Marks.swift): a bookmark at the recording's current time, saved with it when you stop. From

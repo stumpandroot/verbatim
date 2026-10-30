@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-// Record in the tab bar (DESIGN.md §13 and §16; mockup "Verbose Refined Look"), one design in both look settings: the
+// Record in the tab bar (DESIGN.md §13 and §16; mockup "Verbose Refined Look"): the
 // tab bar's bottom accessory, the slot Apple Music uses for its player, on every tab but Home's own screen, where the
 // refined Record card stands in for it while it's shown (HomeSpacing.hidesRecordAccessory). A tap records a voice note;
 // touch and hold opens Record as, a system Menu built like Books' reading menu (an icon row for Dictate, Live
@@ -165,8 +165,8 @@ struct AccessoryRecordDisc: View {
 // MARK: - On the tab view
 
 extension View {
-    /// The tab bar's chrome: Record in the bottom accessory and a tab bar that shrinks on scroll down, in both look
-    /// settings. `hidden` turns the accessory off while you read a transcript (the tab bar hides then, and the player
+    /// The tab bar's chrome: Record in the bottom accessory and a tab bar that shrinks on scroll down.
+    /// `hidden` turns the accessory off while you read a transcript (the tab bar hides then, and the player
     /// takes the bottom), and on Home's own screen while its Record card is there.
     func recordTabChrome(hidden: Bool) -> some View {
         modifier(RecordTabChrome(hidden: hidden))

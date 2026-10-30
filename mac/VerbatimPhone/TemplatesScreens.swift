@@ -5,7 +5,7 @@ import UIKit
 // sections, Try on a recording, Run automatically for a kind, and your own templates), Settings › Templates (Run
 // automatically: one template or Off per kind, and three options, kept on this iPhone), the result as a tab in the
 // transcript. Record a kind from a long press on Record is the Record as tray (RecordTray.swift). Built from the Settings page kit
-// and the refined kit (DESIGN.md §13), one design in both look settings.
+// and the refined kit (DESIGN.md §13).
 
 struct TemplatesRoute: Hashable {}
 struct TemplateDetailRoute: Hashable { var id: UUID }
@@ -76,7 +76,7 @@ struct TemplatesScreen: View {
     private func row(_ t: TranscriptTemplate, _ s: AutoRunSettings) -> some View {
         let kinds = s.kinds(for: t.id)
         return SettingsRow(hue: .neutral, art: t.art, title: t.name, subtitle: TemplateLibrary.summaryLine(t), subtitleLines: 1) {
-            if !kinds.isEmpty { Text("Auto").font(.system(size: 14)).foregroundStyle(.lookMute) }
+            if !kinds.isEmpty { Text("Auto").font(.system(size: 14)).foregroundStyle(Refined.mute) }
             SettingsChevron()
         }
         .accessibilityElement(children: .combine)

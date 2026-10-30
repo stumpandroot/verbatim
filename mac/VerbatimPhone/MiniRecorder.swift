@@ -6,7 +6,7 @@ import UIKit
 //
 // Recording on iPhone starts in the recorder sheet (RecorderSheet.swift). Minimize, a swipe down, or VoiceOver's escape
 // gesture minimizes it: the sheet goes away, and the recording carries on in `PhoneState.recorder`, which lives as long
-// as the app. The minimized recorder (`MiniRecordingBar`, the refined kit; one design in both looks) shows it on every
+// as the app. The minimized recorder (`MiniRecordingBar`, the refined kit; one design) shows it on every
 // tab, with Pause or Resume and Stop, in the tab bar's bottom accessory (RecordAccessory.swift; before iOS 26, an
 // opaque bar above the tab bar). Tapping it brings the sheet back. Minimizing never stops, pauses, or discards
 // anything: it only changes what's on screen.
@@ -196,13 +196,12 @@ final class RecordingLiveText: ObservableObject {
 // MARK: - The minimized recorder
 
 /// Before iOS 26, where the tab bar has no bottom accessory: Record (or the live recording) in an opaque bar above the
-/// tab bar on a tab's content (`RecordBar`), in both look settings. A safe-area inset, so lists and scroll views end
+/// tab bar on a tab's content (`RecordBar`). A safe-area inset, so lists and scroll views end
 /// above it instead of under it. Off while you read a transcript, and on Home's own screen while its Record card is
 /// there. From iOS 26 the tab bar's accessory carries it (RecordAccessory.swift) and this adds nothing.
 struct MiniRecorderInset: ViewModifier {
     @EnvironmentObject var app: PhoneState
     var tab: PhoneState.Tab
-    @Environment(\.look) private var look
     @ObservedObject private var layouts = HomeLayoutStore.shared
 
     private var showsBar: Bool {
@@ -227,7 +226,7 @@ extension View {
 }
 
 /// The minimized recorder with the app's recording: the kit's `MiniRecordingBar` (the persimmon dot, "Recording ·
-/// 4:12", your newest words or the kind, Pause or Resume, and Stop), the same in both looks.
+/// 4:12", your newest words or the kind, Pause or Resume, and Stop), the same.
 struct PhoneMiniRecorder: View {
     @EnvironmentObject var app: PhoneState
     var inline = false

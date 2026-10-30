@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Library › Recently Deleted on the iPhone, on the refined kit (DESIGN.md §13) in both look settings: the serif title
+/// Library › Recently Deleted on the iPhone, on the refined kit (DESIGN.md §13): the serif title
 /// with the count, the deleted recordings on a card with the days each has left, swipe right to restore and left to
 /// delete now, and Restore all or Empty in the bar's menu.
 struct TrashScreen: View {

@@ -39,7 +39,6 @@ enum PhoneSettingsMap {
     static let groups: [Group] = [
         Group(title: personalization, rows: [
             Row(id: "appearanceRow", page: "appearance", settings: [
-                Setting("look", keys: ["appearance.look"]),
                 Setting("palette", keys: ["appearance.palette"]),
                 Setting("appearance", keys: ["appearance"]),
             ]),

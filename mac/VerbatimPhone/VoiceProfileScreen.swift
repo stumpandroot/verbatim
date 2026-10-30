@@ -17,7 +17,6 @@ struct VoiceProfileScreen: View {
     @State private var overview: Bool
     @Environment(\.limitMotion) private var limitMotion
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.look) private var look
 
     init(preview: Bool = false) {
         _model = StateObject(wrappedValue: VoiceEnrollment(preview: preview))
@@ -35,11 +34,11 @@ struct VoiceProfileScreen: View {
             .animation(limitMotion ? Motion.fade : Motion.nav, value: overview)
         }
         .safeAreaInset(edge: .bottom) { bottomBar }
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
         .navigationTitle("Your voice")
         .navigationBarTitleDisplayMode(.inline)
-        // Verbose style: the eyebrow and serif title sit on the paper, as on every Settings page; the bar stays empty.
-        .toolbar { if !look.isNative { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } } }
+        // The eyebrow and serif title sit on the paper, as on every Settings page; the bar stays empty.
+        .toolbar { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
         .onDisappear { model.cancel() }
         .sensoryFeedback(trigger: isGoodResult) { _, good in good ? Haptics.feedback(.milestone) : nil }
     }
@@ -53,12 +52,12 @@ struct VoiceProfileScreen: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            PhoneEyebrow(text: overview ? "Your voice" : "Your voice · step \(model.step.number) of 3")
-            Text(title).lookSerif(36).foregroundStyle(.lookInk)
+            Text(overview ? "Your voice" : "Your voice · step \(model.step.number) of 3").refinedFont(.meta).foregroundStyle(Refined.mute)
+            Text(title).font(.system(size: 36, design: .serif)).foregroundStyle(Refined.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             if let detail {
-                Text(detail).font(.system(size: 15)).foregroundStyle(.lookDim).lineSpacing(2)
+                Text(detail).font(.system(size: 15)).foregroundStyle(Refined.dim).lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -108,7 +107,7 @@ struct VoiceProfileScreen: View {
             case .analyzing:
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text("Learning your voice…").font(.system(size: 15)).foregroundStyle(.lookMute)
+                    Text("Learning your voice…").font(.system(size: 15)).foregroundStyle(Refined.mute)
                 }
                 .padding(.top, 8)
             case .result(let r):
@@ -122,11 +121,11 @@ struct VoiceProfileScreen: View {
 
     private var privacyCard: some View {
         HStack(alignment: .top, spacing: 12) {
-            VoiceRingsMark(lineWidth: 2.4, color: Ink.ink).frame(width: 48, height: 32)
+            VoiceRingsMark(lineWidth: 2.4, color: Refined.ink).frame(width: 48, height: 32)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Stays on this iPhone").font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
+                Text("Stays on this iPhone").font(.system(size: 16, weight: .semibold)).foregroundStyle(Refined.ink)
                 Text("Your voice profile is saved only here. It isn't synced to iCloud or sent anywhere, and you can delete it any time.")
-                    .font(.system(size: 14)).foregroundStyle(.lookDim)
+                    .font(.system(size: 14)).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -150,19 +149,19 @@ struct VoiceProfileScreen: View {
                 SettingsDivider()
                 if confirmingDelete {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Delete your voice profile from this iPhone?").font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
+                        Text("Delete your voice profile from this iPhone?").font(.system(size: 16, weight: .semibold)).foregroundStyle(Refined.ink)
                         Text("Transcripts stop naming you You. You can set it up again any time.")
-                            .font(.system(size: 14)).foregroundStyle(.lookMute)
+                            .font(.system(size: 14)).foregroundStyle(Refined.mute)
                             .fixedSize(horizontal: false, vertical: true)
                         HStack(spacing: 10) {
-                            Button("Cancel") { confirmingDelete = false }.buttonStyle(.phoneSecondaryLarge)
+                            Button("Cancel") { confirmingDelete = false }.buttonStyle(RefinedActionStyle(kind: .quiet))
                             Button("Delete") {
                                 status.delete()
                                 confirmingDelete = false
                                 overview = false
                                 model.backToIntro()
                             }
-                            .buttonStyle(.phonePrimaryLarge)
+                            .buttonStyle(RefinedActionStyle(kind: .strong))
                             .accessibilityLabel("Delete voice profile")
                         }
                     }
@@ -185,34 +184,34 @@ struct VoiceProfileScreen: View {
         VStack(spacing: 10) {
             if overview {
                 HStack(spacing: 10) {
-                    Button("Start over") { overview = false; model.start() }.buttonStyle(.phoneSecondaryLarge)
-                    Button("Read more") { overview = false; model.readMore() }.buttonStyle(.phonePrimaryLarge)
+                    Button("Start over") { overview = false; model.start() }.buttonStyle(RefinedActionStyle(kind: .quiet))
+                    Button("Read more") { overview = false; model.readMore() }.buttonStyle(RefinedActionStyle(kind: .strong))
                 }
             } else {
                 switch model.step {
                 case .intro:
-                    Button("Start") { model.start() }.buttonStyle(.phonePrimaryLarge)
+                    Button("Start") { model.start() }.buttonStyle(RefinedActionStyle(kind: .strong))
                 case .reading:
                     VoiceProgress(model: model, centered: true)
                     VoiceRecordButton(model: model, size: 72)
                         .padding(.top, 6)
                     if model.isPaused {
-                        Button("Finish now") { model.finishNow() }.buttonStyle(.phoneSecondaryLarge)
+                        Button("Finish now") { model.finishNow() }.buttonStyle(RefinedActionStyle(kind: .quiet))
                     }
                 case .analyzing:
                     EmptyView()
                 case .result:
                     HStack(spacing: 10) {
-                        Button("Read more") { model.readMore() }.buttonStyle(.phoneSecondaryLarge)
-                        Button("Done") { dismiss() }.buttonStyle(.phonePrimaryLarge)
+                        Button("Read more") { model.readMore() }.buttonStyle(RefinedActionStyle(kind: .quiet))
+                        Button("Done") { dismiss() }.buttonStyle(RefinedActionStyle(kind: .strong))
                     }
                 case .failed:
-                    Button("Try again") { model.start() }.buttonStyle(.phonePrimaryLarge)
+                    Button("Try again") { model.start() }.buttonStyle(RefinedActionStyle(kind: .strong))
                 }
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 16)
-        .background(Ink.paper)
+        .background(Refined.paper)
     }
 }

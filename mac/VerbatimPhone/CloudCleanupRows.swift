@@ -34,9 +34,9 @@ struct CloudCleanupRows: View {
             .settingsSearchTarget("cloudProvider", flash: searchFlash)
             SettingsDivider()
             VStack(alignment: .leading, spacing: 8) {
-                Text("API key").font(.system(size: 16)).foregroundStyle(.lookInk)
+                Text("API key").font(.system(size: 16)).foregroundStyle(Refined.ink)
                 Text(keyNote ?? (hasKey ? "A key is saved in this iPhone's Keychain." : "Paste your own \(provider.company) API key. It's saved in this iPhone's Keychain only."))
-                    .font(.system(size: 13)).foregroundStyle(.lookMute).fixedSize(horizontal: false, vertical: true)
+                    .font(.system(size: 13)).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 10) {
                     SecureField(hasKey ? "Replace the saved key" : provider.keyPlaceholder, text: $key)
                         .textContentType(.password).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -56,8 +56,8 @@ struct CloudCleanupRows: View {
             .settingsSearchTarget("cloudKey", flash: searchFlash)
             SettingsDivider()
             VStack(alignment: .leading, spacing: 8) {
-                Text("Model").font(.system(size: 16)).foregroundStyle(.lookInk)
-                Text("Leave empty for \(provider.defaultModel).").font(.system(size: 13)).foregroundStyle(.lookMute)
+                Text("Model").font(.system(size: 16)).foregroundStyle(Refined.ink)
+                Text("Leave empty for \(provider.defaultModel).").font(.system(size: 13)).foregroundStyle(Refined.mute)
                 TextField(provider.defaultModel, text: $model)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                     .textFieldStyle(.roundedBorder)

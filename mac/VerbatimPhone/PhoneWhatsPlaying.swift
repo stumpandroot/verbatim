@@ -7,7 +7,7 @@ import ReplayKit
 /// (PhoneInbox.swift). Nothing is downloaded from those apps.
 ///
 /// iOS starts a broadcast only from its own picker. The system picker sits behind the Start button, and Start
-/// forwards the tap to the picker's button. On the refined kit (DESIGN.md §13) in both look settings.
+/// forwards the tap to the picker's button. On the refined kit (DESIGN.md §13).
 struct WhatsPlayingSheet: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss

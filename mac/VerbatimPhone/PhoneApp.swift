@@ -27,15 +27,13 @@ struct VerbatimPhoneApp: App {
         WindowGroup {
             PhoneRoot()
                 .environmentObject(app)
-                .phoneLookRoot()     // the tint outside the tabs (onboarding's cover sets its own)
+                .tint(Refined.accentText)   // the accent outside the tabs (DESIGN.md §13)
                 .limitMotionRoot()   // Reduce Motion or Settings › Limit animation → \.limitMotion everywhere
-                .lookRoot()          // Settings › Appearance › Look → \.look everywhere (and in the keyboard)
         }
     }
 }
 
-/// The tabs in the system tab bar (Liquid Glass on iOS 26, standard before; DESIGN.md §13 and §16), one design in both
-/// look settings: Home, up to three you pick (Library and Thoughts unless you change them in Settings › Personalization
+/// The tabs in the system tab bar (Liquid Glass on iOS 26, standard before; DESIGN.md §13 and §16): Home, up to three you pick (Library and Thoughts unless you change them in Settings › Personalization
 /// and preferences › Tab bar), and Settings, each with its fine-line glyph, the selected tab in the accent. Paper
 /// underneath. Record sits in the tab bar's bottom accessory on every tab but Home's own screen while its Record card
 /// is there, and the recording rides in it once minimized (RecordAccessory.swift); the recorder is a sheet
@@ -48,22 +46,13 @@ struct PhoneRoot: View {
     @ObservedObject private var rename = RenameCenter.shared
     /// The tabs in the bar (PhoneTabBar.swift); the TabView follows a change at once.
     @ObservedObject private var tabBar = PhoneTabBarStore.shared
-    /// Home's layouts: Record's accessory steps aside on Home while its Record card is there.
+    /// Home's layout: Record's accessory steps aside on Home while its Record card is there.
     @ObservedObject private var layouts = HomeLayoutStore.shared
-    @Environment(\.look) private var look
-    /// The look each tab you've left was last drawn in. A look switch rebuilds only the tab on screen; the others keep
-    /// their look (and do no work) until you come back to them, when they rebuild in the new one.
-    @State private var tabLooks: [PhoneState.Tab: AppLook] = [:]
-
-    /// The look a tab draws in: the current one on screen, or the one it was left in until it's shown again.
-    private func builtLook(_ tab: PhoneState.Tab) -> AppLook {
-        tab == app.tab ? look : (tabLooks[tab] ?? look)
-    }
 
     /// Each tab's icon: its fine-line glyph as a template image, so the tab bar tints it (the accent when selected).
     private func tabIcon(_ t: PhoneState.Tab) -> Image { Image(uiImage: t.art.templateImage(size: 26, key: "tab-\(t.rawValue)")) }
 
-    /// The tabs in the bar, left to right, each drawn in its own look (`builtLook`) except Settings.
+    /// The tabs in the bar, left to right.
     private var tabs: some View {
         TabView(selection: $app.tab) {
             ForEach(tabBar.bar.tabs, id: \.self) { t in
@@ -84,29 +73,20 @@ struct PhoneRoot: View {
         // The selected tab, and the chrome's buttons, take the accent (DESIGN.md §13). iPhone switches keep the
         // system's green (`refinedSwitchTint()`).
         .tint(Refined.accentText)
-        // The tab you leave keeps the look it was drawn in; the one you open follows the current look.
-        .onChange(of: app.tab) { old, new in
-            tabLooks[old] = look
-            tabLooks[new] = nil
-        }
-        // Until the library has loaded at launch: the look's page and, after a moment, a small spinner.
+        // Until the library has loaded at launch: the paper and, after a moment, a small spinner.
         .overlay { loadingCover }
         .onAppear { LaunchClock.rootAppeared() }
     }
 
-    /// A tab and its own navigation stack. Every tab but Settings is rebuilt in a new look (like the Mac's
-    /// `lookRebuild()`), so each screen and its navigation bar start fresh in it; the paths live in PhoneState, so
-    /// they're kept. Changed in place, Home kept its Verbose layout under a half-made bar, and Library kept its inline
-    /// title. Only the tab on screen rebuilds when the look changes; the others wait until they're shown
-    /// (`builtLook`). Settings isn't rebuilt: the look changes from Settings › Appearance, which would pop. Every stack
-    /// can push every screen (`phoneRoutes`), so a screen whose tab isn't in the bar opens inside Library or Home.
+    /// A tab and its own navigation stack; the paths live in PhoneState. Every stack can push every screen
+    /// (`phoneRoutes`), so a screen whose tab isn't in the bar opens inside Library or Home.
     @ViewBuilder private func tabRoot(_ t: PhoneState.Tab) -> some View {
         if t == .settings {
             NavigationStack { SettingsScreen() }
                 .miniRecorderInset(.settings)
         } else {
             NavigationStack(path: app.pathBinding(t)) { rootScreen(t).phoneRoutes() }
-                .tabLook(builtLook(t))
+                .tint(Refined.accentText)
                 .miniRecorderInset(t)
         }
     }
@@ -133,7 +113,7 @@ struct PhoneRoot: View {
 
     var body: some View {
         tabs
-        // The recorder: one sheet with a grabber in both looks (RecorderSheet.swift). Swiping it down minimizes it; the
+        // The recorder: one sheet with a grabber (RecorderSheet.swift). Swiping it down minimizes it; the
         // recording goes on.
         .sheet(isPresented: $app.showRecorder) {
             RecorderSheet().environmentObject(app)
@@ -202,17 +182,14 @@ struct PhoneRoot: View {
             Button("Cancel", role: .cancel) { rename.target = nil }
             Button("Rename") { rename.commit(app.store); app.say("Renamed") }
         }
-        // The tour's Pick a look step switches the look live, so the cover reads it itself too.
         .fullScreenCover(isPresented: $app.showOnboarding) {
             PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app)
-                .lookSwitchLayer().phoneLookRoot().lookRoot()
+                .tint(Refined.accentText)
         }
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
         .sheet(isPresented: $app.showRecordAsEditor) { PhoneRecordAsEditor() }
         .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet().environmentObject(app) }
         .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }
-        // Saved to Library, after Stop in Native (SavedSheet.swift).
-        .sheet(item: $app.savedRecording) { s in NativeSavedSheet(saved: s).environmentObject(app) }
         // A pasted link that turned out to be a whole show or feed: pick the episode.
         .sheet(item: $app.episodeChoice) { choice in
             NavigationStack {
@@ -244,8 +221,6 @@ struct PhoneRoot: View {
             }
         }
         .animation(Motion.settle, value: app.toast)
-        // Switching looks: the card in the new look, with the rebuild behind it (LookSwitch.swift).
-        .lookSwitchLayer()
         // Settings › Appearance: read here rather than in the App struct, which doesn't observe PhoneState.
         .preferredColorScheme(app.colorScheme)
     }
@@ -259,21 +234,11 @@ final class PhoneHolder: ObservableObject {
     init() { app = PhoneState() }
 }
 
-/// Screen state a look switch would otherwise lose: every tab but Settings starts fresh in a new look (their paths live
-/// in PhoneState), and these come back with them. In memory only; nothing new is stored.
-enum LookKeep {
+/// The Library's search and filter, kept when its screen is built again (its tab leaves the bar or comes back). In
+/// memory only; nothing new is stored.
+enum LibraryKeep {
     static var librarySearch = ""
     static var libraryFilter: LibraryScreen.Filter = .all
-}
-
-private extension View {
-    /// A tab's stack in its own look: the look, the accent tint, and a fresh identity when the look changes (Home and
-    /// Edit Home keep a layout per look until the look switch goes).
-    func tabLook(_ look: AppLook) -> some View {
-        environment(\.look, look)
-            .tint(Refined.accentText)
-            .id(look)
-    }
 }
 
 /// "Session ended" after a call or another app's audio ended the session, with Restart session. Under the start

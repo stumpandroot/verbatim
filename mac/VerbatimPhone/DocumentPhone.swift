@@ -3,7 +3,7 @@ import SwiftUI
 /// The Cleaned tab on iPhone: editable paragraphs (no timecodes), Harper's spelling and grammar suggestions, and
 /// Clean up and Tone with Apple's on-device model. Same data as the Mac's Cleaned tab, so edits and cleanup sync
 /// both ways. Clean up and Tone always start from the corrected lines, never from the cleaned text. On the refined kit
-/// (DESIGN.md §13) in both look settings: menu faces for Clean up and Tone, the text on a card, and the kit's actions.
+/// (DESIGN.md §13): menu faces for Clean up and Tone, the text on a card, and the kit's actions.
 struct PhoneDocument: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript

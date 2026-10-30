@@ -4,7 +4,7 @@ import UIKit
 // Record as (approved mockup "Record as", October 26, 2026; DESIGN.md §17.6): touching and holding Record opens
 // Verbose's own tray instead of the system's context menu, after the trays in Family. It rises from the bottom and
 // covers the tab bar; slide your finger to a kind and lift to start it, or lift without sliding and tap one. It opens
-// from Home's Record card (both sizes) in both look settings, drawn with the refined kit (DESIGN.md §13): an opaque
+// from Home's Record card (both sizes), drawn with the refined kit (DESIGN.md §13): an opaque
 // paper tray, the serif title, and each kind on its colored icon square. The tray over everything is `RecordTrayLayer`,
 // put once at the root above the tab view.
 //

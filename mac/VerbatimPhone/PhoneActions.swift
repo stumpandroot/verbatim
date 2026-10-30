@@ -14,7 +14,7 @@ struct PhoneActionItems: View {
 
 /// Runs a transcript action on the Original text with corrections and shows the result, marked as Apple
 /// Intelligence's, before anything is kept. Edit it, copy it, share it, or save it as a note; closing is the undo. On
-/// the refined kit (DESIGN.md §13) in both look settings.
+/// the refined kit (DESIGN.md §13).
 struct PhoneActionSheet: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss

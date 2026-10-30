@@ -4,10 +4,8 @@ import AVFoundation
 /// Home in the refined look (DESIGN.md §6 and §13; mockup "Verbose Refined Look", Main): the date over the large serif
 /// greeting, then the sections Edit Home lists (HomeLayout.swift), in its order and sizes. By default: the persimmon
 /// Record card (a tap records a voice note; touch and hold opens Record as), the four tiles in the colors of what they
-/// do, a slim This week, and Recent recordings in a card; Today's thoughts and Journal when you show them. It's the
-/// same Home in both looks until the look switch goes, each look reading its own layout; the tab bar stays each look's
-/// (in Native, Record's tab bar accessory steps aside on Home while the card is there). Edit Home's button closes the
-/// page. Whatever you record here shows up on your Mac. Sections arrive at once: no entrance animation, and a layout
+/// do, a slim This week, and Recent recordings in a card; Today's thoughts and Journal when you show them. Record's
+/// tab bar accessory steps aside on Home while the card is there. Edit Home's button closes the page. Whatever you record here shows up on your Mac. Sections arrive at once: no entrance animation, and a layout
 /// change re-renders them in place.
 struct HomeScreen: View {
     /// Ticks `now` once a minute: one timer for every render. Built in `body`, each render made a new timer and
@@ -15,11 +13,10 @@ struct HomeScreen: View {
     private static let minute = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
     @EnvironmentObject var app: PhoneState
     @Environment(\.limitMotion) private var limitMotion
-    @Environment(\.look) private var look
     /// Your name for the greeting (the Mac's key); empty means a greeting without a name.
     @AppStorage("profile.name") private var storedName = ""
     @State private var now = Date()
-    /// Edit Home's layouts (both looks); Home draws the one for its look.
+    /// Edit Home's layout.
     @ObservedObject private var layouts = HomeLayoutStore.shared
     /// Edit Home, as a sheet from the button at the end of Home.
     @State private var editingHome = false
@@ -29,8 +26,8 @@ struct HomeScreen: View {
     @State private var recordPress: RecordPressPhase = .idle
     @ObservedObject private var flow = FlowSettings.shared
 
-    /// The looks Home is on screen in (the self-test checks a look draws the refined Home, and only once).
-    static var recordCardsOnScreen = Set<AppLook>()
+    /// How many Homes are on screen (the self-test checks Home draws once).
+    static var recordCardsOnScreen = 0
 
     var body: some View {
         let layout = layouts.layout
@@ -60,8 +57,8 @@ struct HomeScreen: View {
         .onReceive(NotificationCenter.default.publisher(for: .verbatimEditHome)) { note in
             editingHome = (note.object as? Bool) ?? true
         }
-        .onAppear { now = Date(); readyText = RecordingRoute.readyText(); Self.recordCardsOnScreen.insert(look) }
-        .onDisappear { Self.recordCardsOnScreen.remove(look) }
+        .onAppear { now = Date(); readyText = RecordingRoute.readyText(); Self.recordCardsOnScreen += 1 }
+        .onDisappear { Self.recordCardsOnScreen = max(0, Self.recordCardsOnScreen - 1) }
         .onChange(of: app.recordingActive) { _, _ in readyText = RecordingRoute.readyText() }
         .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)) { _ in
@@ -192,16 +189,12 @@ struct HomeScreen: View {
         }
     }
 
-    /// A picked tile's fill in Verbose style's Edit Home (its capture mode's panel color, or nil for paper with an ink
-    /// outline; review P-14). Home itself uses `HomeTile.refinedHues`.
-    static func tileFill(_ tile: HomeTile, in picks: [HomeTile]) -> Color? {
+    /// A picked tile's fill on Home and in Edit Home: its hue's fill in the palette (`HomeTile.refinedHues`), or nil
+    /// for the off-white card (review P-14).
+    static func tileFill(_ tile: HomeTile, in picks: [HomeTile], palette: AppPalette = .current) -> Color? {
         guard let i = picks.firstIndex(of: tile) else { return nil }
-        switch HomeTile.hues(picks)[i] {
-        case .butter?: return PhoneInk.butter
-        case .sage?: return PhoneInk.sage
-        case .petal?: return PhoneInk.petal
-        case nil: return nil
-        }
+        let hue = HomeTile.refinedHues(picks)[i]
+        return hue == .neutral ? nil : Refined.fill(hue, palette)
     }
 
     // MARK: This week
@@ -259,18 +252,18 @@ struct HomeScreen: View {
     }
 
     private func recentRow(_ t: Transcript, large: Bool) -> some View {
-        let cleanUp = t.status == .ready && !PhoneRowState.cleaned(t) && app.store.fillerCount(t.id) > 0
+        let cleanUp = t.status == .ready && !t.isCleaned && app.store.fillerCount(t.id) > 0
         return Button { app.open(t.id) } label: {
             // The live progress (StageClock) in the meta line: a tick re-renders the row, not Home.
             LiveStage(t) { t in
                 if large {
-                    PaperRow(kind: t.refinedKind, title: PhoneRowTitle.title(t, withTime: false), meta: Self.recentMeta(t, now: now)) {
+                    PaperRow(kind: t.refinedKind, title: RecordingRowTitle.title(t, withTime: false), meta: Self.recentMeta(t, now: now)) {
                         trailing(t, cleanUp: cleanUp)
                     }
                 } else {
                     HStack(spacing: 12) {
                         KindBadge(kind: t.refinedKind, size: 8)
-                        Text(PhoneRowTitle.title(t, withTime: false)).refinedFont(.rowTitle, weight: .semibold)
+                        Text(RecordingRowTitle.title(t, withTime: false)).refinedFont(.rowTitle, weight: .semibold)
                             .foregroundStyle(Refined.ink).lineLimit(1)
                             .alignmentGuide(.rowTitle) { d in d[VerticalAlignment.center] }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -410,14 +403,13 @@ struct LinkSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 8) {
-                        IconGlyph(art: .iconLinks, size: 18, color: Ink.mute)
+                        IconGlyph(art: .iconLinks, size: 18, color: Refined.mute)
                         TextField("https://…", text: $link).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL).focused($focused)
                     }
                     .padding(12)
-                    .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(.lookHairline))
+                    .refinedFieldBox()
                     Text("Paste a YouTube, Vimeo, or podcast link, or a link to an audio or video file. Verbose downloads the audio and transcribes it on this iPhone.")
-                        .font(.system(size: 13.5)).foregroundStyle(.lookDim)
+                        .refinedFont(.meta).foregroundStyle(Refined.dim)
                         .fixedSize(horizontal: false, vertical: true)
                     PasteButton(payloadType: String.self) { strings in link = strings.first ?? link }
                         .buttonBorderShape(.capsule).labelStyle(.titleAndIcon)
@@ -425,7 +417,7 @@ struct LinkSheet: View {
                 .padding(20)
             }
             .scrollBounceBehavior(.basedOnSize)
-            .phonePage()
+            .background(Refined.paper.ignoresSafeArea())
             .navigationTitle("Add a link")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

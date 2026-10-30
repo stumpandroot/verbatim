@@ -1,10 +1,8 @@
 import SwiftUI
 import AVFoundation
 
-/// The welcome tour on iPhone: what Verbatim does, Pick a look (Verbose style or Native; tapping one switches the tour
-/// itself live), the microphone, and transcription quality with iCloud status. New installs start in Verbose style;
-/// skipping the tour keeps it. Every step but Pick a look is drawn on the refined kit (DESIGN.md §13) in both look
-/// settings: the step count, the large serif title, cards, and the kit's strong action.
+/// The welcome tour on iPhone: what Verbatim does, the microphone, and transcription quality with iCloud status. Drawn
+/// on the refined kit (DESIGN.md §13): the step count, the large serif title, cards, and the kit's strong action.
 struct PhoneOnboarding: View {
     @EnvironmentObject var app: PhoneState
     @State private var step: Int
@@ -12,11 +10,7 @@ struct PhoneOnboarding: View {
     /// The last step's iCloud sync switch (off on a new install; `Cloud.settleSyncDefault`).
     @State private var syncWanted = Cloud.wantsSync
     @Environment(\.limitMotion) private var reduceMotion
-    /// The look, chosen on step 2 (`AppLook`, per device in the App Group).
-    @AppStorage(AppLook.key, store: AppLook.store) private var lookRaw = AppLook.verbose.rawValue
-    private let total = 4
-    /// The step indexes, for the screenshot tour.
-    static let lookStep = 1
+    private let total = 3
 
     init(startStep: Int = 0) { _step = State(initialValue: startStep) }
 
@@ -27,8 +21,7 @@ struct PhoneOnboarding: View {
             Group {
                 switch step {
                 case 0: welcome
-                case Self.lookStep: lookPicker
-                case 2: microphone
+                case 1: microphone
                 default: quality
                 }
             }
@@ -66,16 +59,6 @@ struct PhoneOnboarding: View {
             BrandGlyph(art: .diagramCapture, color: Refined.ink, minLineWidth: 1.2)
                 .frame(width: 170, height: 220).frame(maxWidth: .infinity).padding(.top, 50)
                 .accessibilityHidden(true)
-        }
-    }
-
-    /// Both looks side by side; tapping one switches the look at once, so this step itself shows it.
-    private var lookPicker: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            title("Pick a look.")
-            para("Both work the same. Choose the one you'd rather look at.")
-            LookPicker(selection: Binding(get: { AppLook(rawValue: lookRaw) ?? .verbose }, set: { LookSwitch.shared.pick($0) }), thumbWidth: 112)
-                .padding(.top, 28)
         }
     }
 
@@ -156,13 +139,12 @@ struct PhoneOnboarding: View {
     @ViewBuilder private var primary: some View {
         switch step {
         case 0: bigButton("Get started") { step = 1 }
-        case Self.lookStep: bigButton("Continue") { step = 2 }
-        case 2:
-            if micAllowed { bigButton("Continue") { step = 3 } }
+        case 1:
+            if micAllowed { bigButton("Continue") { step = 2 } }
             else {
                 bigButton("Allow microphone") {
                     AVAudioApplication.requestRecordPermission { ok in
-                        DispatchQueue.main.async { micAllowed = ok; step = 3 }
+                        DispatchQueue.main.async { micAllowed = ok; step = 2 }
                     }
                 }
             }
@@ -173,11 +155,8 @@ struct PhoneOnboarding: View {
     @ViewBuilder private var secondary: some View {
         switch step {
         case 0: quiet("Skip the tour") { done() }
-        case Self.lookStep:
-            Text("You can change this anytime in Settings › Appearance.").refinedFont(.meta).foregroundStyle(Refined.mute)
-                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-        case 2: quiet(micAllowed ? "Back" : "Not now") { if micAllowed { step = 1 } else { step = 3 } }
-        default: quiet("Back") { step = 2 }
+        case 1: quiet(micAllowed ? "Back" : "Not now") { if micAllowed { step = 0 } else { step = 2 } }
+        default: quiet("Back") { step = 1 }
         }
     }
 

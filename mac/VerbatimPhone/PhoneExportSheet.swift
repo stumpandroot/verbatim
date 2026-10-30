@@ -9,7 +9,7 @@ struct PhoneExportRequest: Identifiable {
 
 /// The iPhone export sheet: the Mac sheet's options as a list (format first; SRT and VTT show subtitle settings), a
 /// preview of the actual output, then Copy and Share. Changes are saved for the next export; Copy text on the
-/// transcript keeps its own defaults (the tab you're on). On the refined kit (DESIGN.md §13) in both look settings.
+/// transcript keeps its own defaults (the tab you're on). On the refined kit (DESIGN.md §13).
 struct PhoneExportSheet: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss

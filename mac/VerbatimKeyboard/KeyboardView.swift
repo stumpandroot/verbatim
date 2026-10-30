@@ -1,9 +1,9 @@
 import SwiftUI
 import UIKit
 
-/// The keyboard's palette: Verbatim's tokens (Tokens.swift is in this target), so it matches the app in light,
-/// dark, and Increase Contrast. Each color follows the keyboard's appearance, which `KeyboardViewController` sets
-/// from the host app. Dictation is butter (DESIGN.md §1: butter means Dictate); errors are `Ink.danger`.
+/// The keyboard's palette: the refined tokens (Tokens.swift is in this target, DESIGN.md §13), so it matches the app
+/// in light, dark, and Increase Contrast. Each color follows the keyboard's appearance, which `KeyboardViewController`
+/// sets from the host app. Dictation is the persimmon accent with ink on it; errors are the danger red.
 ///
 /// There's no panel color: the keyboard's backdrop is Apple's (system chrome stays Apple's). iOS draws the keyboard
 /// container, its rounded top, and the globe and dictation strip below in a neutral gray (about #1F1F1F in dark,
@@ -11,104 +11,57 @@ import UIKit
 /// numbers, Listening, the bar's notices) uses `ink`, `dim`, `muted`, and `deep`, which hold 4.5:1 on that gray
 /// in both appearances.
 enum KB {
-    /// The look chosen on this iPhone (Settings › Appearance; `KeyboardLook`), read once per appearance from the App
-    /// Group like the dictate button's settings. Set by `KeyboardModel.resume` before it publishes the change; the
-    /// keyboard view takes a new identity then, so every color and font below is read again. Verbose style without
-    /// Full Access (no App Group).
-    static var native = false
+    static var uiInk: UIColor { Refined.uiColor(RefinedHex.ink) }
 
-    static var uiInk: UIColor { native ? UIColor.label : Ink.inkUI }
-
-    static var paper: Color { native ? N.paper : Ink.paper }
-    static var ink: Color { native ? N.ink : Ink.ink }
+    static let paper = Refined.paper
+    static let ink = Refined.ink
     /// Cards and outlined circles: the menu, the lists, the Full Access notice, ABC, Recent, and Settings.
-    static var card: Color { native ? N.card : Ink.card }
+    static let card = Refined.card
     /// Secondary text: the line under Home's number, the live words while you talk.
-    static var dim: Color { native ? N.dim : Ink.dim }
-    /// Notices (a failure). `Ink.danger`, a step deeper in light so it holds 4.5:1 on the system's light gray.
-    static let deep = Ink.dynC(0x9E361E, 0xFF8A6B, 0x8A2E18, 0xFFA48A)
-    /// Metadata. `Ink.mute`, a step deeper in light so it holds 4.5:1 on the system's light gray and on `wash`.
-    static var muted: Color { native ? N.muted : V.muted }
-    static var hairline: Color { native ? N.hairline : Ink.hairline }
-    /// Text and glyphs on the filled dictate button: fixed ink on butter (butter stays butter in dark); white on
-    /// Native's system blue, as on Apple's own keys.
-    static var inkFixed: Color { native ? Color.white : Ink.inkFixed }
-    /// Native's accent: system blue, like the system keyboard's return key (DESIGN.md §13, item 1).
-    static let nativeAccent = Color(uiColor: .systemBlue)
+    static let dim = Refined.dim
+    /// Notices (a failure): the danger red, a step deeper in light so it holds 4.5:1 on the system's light gray.
+    static let deep = Refined.color(RefinedHex.Tone(0x9E361E, 0xFF8A6B, hc: (0x8A2E18, 0xFFA48A)))
+    /// Metadata: `mute`, a step deeper in light so it holds 4.5:1 on the system's light gray and on `wash`.
+    static let muted = Refined.color(RefinedHex.Tone(0x48514A, 0xA1A29A, hc: (0x3E4A43, 0xD4CDC0)))
+    static let hairline = Refined.separator
+    /// Text and glyphs on the filled dictate button: ink on persimmon, in both appearances.
+    static let inkFixed = Refined.onFill
 
-    // Keyboard-only colors (not in Tokens.swift; defined here, not shared). The keys and soft surfaces are tuned
-    // for Apple's keyboard backdrop rather than a panel of ours.
-    /// The keyboard's one action, dictation: Tap to talk, Start, and Listening's done button. Butter in Verbose style
-    /// (dark is #DDB563, a little lighter than `Ink.butter`'s dark value, so it holds up on the dark backdrop); the
-    /// Native accent in Native.
-    static var dictate: Color { native ? nativeAccent : V.dictate }
-    /// The butter's 1.5 pt outline: fixed ink in light, as the mockup; none in dark, where a dark ring would
-    /// melt into the dark backdrop and shrink the butter. The butter itself holds 8:1 against the dark gray. None in
-    /// Native.
-    static var dictateRim: Color { native ? Color.clear : V.dictateRim }
-    /// Letter keys and the key popup: reader white in light; a raised gray-green in dark, lighter than the
-    /// system's dark gray (1.7:1), with ink labels at 8.7:1 (7:1 with Increase Contrast, on a lighter key). Native:
-    /// Apple's white and gray keys.
-    static var key: Color { native ? N.key : V.key }
+    // Keyboard-only colors. The keys and soft surfaces are tuned for Apple's keyboard backdrop rather than the page.
+    /// The keyboard's one action, dictation: Tap to talk, Start, and Listening's done button. Persimmon, the accent
+    /// (DESIGN.md §13), with ink on it.
+    static let dictate = Refined.persimmon
+    /// Letter keys and the key popup: the card in light; a raised gray-green in dark, lighter than the system's dark
+    /// gray (1.7:1), with ink labels at 8.7:1 (7:1 with Increase Contrast, on a lighter key).
+    static let key = Refined.color(RefinedHex.Tone(0xFFFDF9, 0x3A4641, hc: (0xFFFDF9, 0x47544E)))
     /// The space bar's name on a key: `muted`, lighter in dark so it holds 5:1 on `key`.
-    static var keyMuted: Color { native ? N.keyMuted : V.keyMuted }
-    /// Chips, soft circles, and function keys: a warm step darker than the system's light gray in light (like
-    /// Apple's function keys), and a quiet step above the backdrop in dark (1.3:1), under the letter keys. Native:
-    /// Apple's gray function keys.
-    static var wash: Color { native ? N.wash : V.wash }
-    /// The butter pills' and the menu card's hard offset shadow. None in Native.
-    static var hard: Color { native ? Color.clear : V.hard }
-    /// A key's 1 pt bottom edge: ink at 25% in light (50% with Increase Contrast); a dark shadow in dark, as the
-    /// system keys have (a light edge under a dark key reads as a rim), with a paper edge under Increase Contrast.
-    static var keyShadow: Color { native ? N.keyShadow : V.keyShadow }
-    /// The voice bars while you talk: ink in Verbose style, the accent in Native (the one place color moves).
-    static var voice: Color { native ? nativeAccent : Ink.ink }
+    static let keyMuted = Refined.color(RefinedHex.Tone(0x606962, 0xB9BAB2, hc: (0x3E4A43, 0xD4CDC0)))
+    /// Chips, soft circles, and function keys: a warm step darker than the system's light gray in light (like Apple's
+    /// function keys), and a quiet step above the backdrop in dark (1.3:1), under the letter keys.
+    static let wash = Refined.color(RefinedHex.Tone(0xCCC3B1, 0x2B3530, hc: (0xC0B6A2, 0x36423C)))
+    /// A key's 1 pt bottom edge: ink at 25% in light (50% with Increase Contrast); a dark shadow in dark, as the system
+    /// keys have (a light edge under a dark key reads as a rim), with a paper edge under Increase Contrast.
+    static let keyShadow = Ink.make { dark, hc in
+        if dark { return hc ? PColor(hex: RefinedHex.paper.light).withAlphaComponent(0.35) : PColor.black.withAlphaComponent(0.5) }
+        return PColor(hex: RefinedHex.ink.light).withAlphaComponent(hc ? 0.5 : 0.25)
+    }
+    /// The voice bars while you talk: ink.
+    static let voice = Refined.ink
 
-    /// Keys use a 7 pt radius, like the system keyboard's keys; cards use the Record panel's radius (12 pt in Native).
+    /// Keys use a 7 pt radius, like the system keyboard's keys; cards use the refined card's (14 pt on iPhone).
     static let keyRadius: CGFloat = 7
-    static var cardRadius: CGFloat { native ? 12 : Radius.record }
+    static let cardRadius: CGFloat = 14
     /// The top bar: 46 pt circles and pills, 10 pt from the edges.
     static let barHeight: CGFloat = 46
     static let barInset: CGFloat = 10
 
-    /// The display serif in Verbose style; SF Pro in Native (bold where the serif was regular, as Apple's numbers are).
+    /// The display serif, for Home's numbers and the notices' titles.
     static func serif(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        native ? .system(size: size, weight: weight == .regular ? .bold : weight) : Ink.serif(size, weight: weight)
+        .system(size: size, weight: weight, design: .serif)
     }
-    /// Mono data in Verbose style; SF Pro with monospaced digits in Native.
+    /// Data (times, counts): SF Pro with monospaced digits.
     static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        native ? .system(size: size, weight: weight).monospacedDigit() : Ink.mono(size, weight: weight)
-    }
-
-    /// Verbose style's keyboard colors.
-    private enum V {
-        static let muted = Ink.dynC(0x48514A, 0xA1A29A, 0x3E4A43, 0xD4CDC0)
-        static let dictate = Ink.dyn(Ink.butterHex, 0xDDB563)
-        static let dictateRim = Ink.make { dark, _ in dark ? PColor.clear : PColor(hex: Ink.inkHex) }
-        static let key = Ink.dynC(Ink.readerHex, 0x3A4641, Ink.readerHex, 0x47544E)
-        static let keyMuted = Ink.dynC(0x606962, 0xB9BAB2, 0x3E4A43, 0xD4CDC0)
-        static let wash = Ink.dynC(0xCCC3B1, 0x2B3530, 0xC0B6A2, 0x36423C)
-        static let hard = Ink.dyn(Ink.inkHex, 0x0C1310)
-        static let keyShadow = Ink.make { dark, hc in
-            if dark { return hc ? PColor(hex: Ink.paperHex).withAlphaComponent(0.35) : PColor.black.withAlphaComponent(0.5) }
-            return PColor(hex: Ink.inkHex).withAlphaComponent(hc ? 0.5 : 0.25)
-        }
-    }
-
-    /// Native's keyboard colors: Apple's gray keyboard approximated with flat colors (an extension can't use the
-    /// system keyboard's glass or key art), over Apple's own backdrop. Secondary text holds 4.5:1 on the backdrop
-    /// and on the function keys in both appearances.
-    private enum N {
-        static let paper = Ink.dyn(0xFFFFFF, 0x000000)
-        static let ink = Ink.dyn(0x000000, 0xFFFFFF)
-        static let card = Ink.dyn(0xFFFFFF, 0x3A3A3C)
-        static let dim = Ink.dynC(0x48484D, 0xAEAEB2, 0x3C3C43, 0xC7C7CC)
-        static let muted = Ink.dynC(0x3C3C43, 0xC7C7CC, 0x2C2C2E, 0xE5E5EA)
-        static let key = Ink.dynC(0xFFFFFF, 0x6B6B6B, 0xFFFFFF, 0x7C7C80)
-        static let keyMuted = Ink.dynC(0x6C6C70, 0xD1D1D6, 0x48484D, 0xE5E5EA)
-        static let wash = Ink.dynC(0xACB1B9, 0x474747, 0x9EA3AB, 0x545456)
-        static let keyShadow = Ink.make { dark, _ in dark ? PColor.black.withAlphaComponent(0.45) : PColor(white: 0.54, alpha: 1) }
-        static let hairline = Ink.make { dark, _ in dark ? PColor.white.withAlphaComponent(0.16) : PColor.black.withAlphaComponent(0.14) }
+        .system(size: size, weight: weight).monospacedDigit()
     }
 }
 
@@ -138,10 +91,6 @@ struct KeyboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             if model.showingMenu && model.mode == .typing { menuLayer }
         }
-        // A new identity when the look changes (once per appearance, at most), so every KB color and font is read
-        // again; the state worth keeping lives in the model.
-        .id(model.native)
-        .environment(\.look, model.native ? .native : .verbose)
         // No background: Apple's keyboard backdrop shows through (see `KB`).
     }
 
@@ -658,8 +607,8 @@ private struct StatsPager: View {
     var body: some View {
         VStack(spacing: 6) {
             if let p = current {
-                Text("\(Text(p.number)) \(Text(p.unit).italic(!KB.native))")
-                    .font(KB.native ? .system(size: 36, weight: .bold) : KB.serif(50)).tracking(KB.native ? 0 : -1).foregroundStyle(KB.ink)
+                Text("\(p.number) \(p.unit)")
+                    .font(KB.serif(50)).tracking(-1).foregroundStyle(KB.ink)
                     .lineLimit(1).minimumScaleFactor(0.5)
                 Text(p.line)
                     .font(.system(size: 15)).foregroundStyle(KB.dim)
@@ -668,8 +617,8 @@ private struct StatsPager: View {
                     .frame(maxWidth: 300)
             } else {
                 // Before the first dictation.
-                Text("\(Text("Talk, "))\(Text("don't type.").italic(!KB.native))")
-                    .font(KB.native ? .system(size: 30, weight: .bold) : KB.serif(40)).tracking(KB.native ? 0 : -0.8).foregroundStyle(KB.ink)
+                Text("Talk, don't type.")
+                    .font(KB.serif(40)).tracking(-0.8).foregroundStyle(KB.ink)
                     .lineLimit(1).minimumScaleFactor(0.5)
                 Text("Your numbers show up here after your first dictation.")
                     .font(.system(size: 15)).foregroundStyle(KB.dim)
@@ -716,11 +665,7 @@ private struct TalkPill: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                if KB.native {
-                    Image(systemName: "mic.fill").font(.system(size: 16, weight: .semibold)).foregroundStyle(dictateForeground(style))   // brand: native
-                } else {
-                    StillBars(height: 18, barWidth: 3, color: dictateForeground(style))
-                }
+                StillBars(height: 18, barWidth: 3, color: dictateForeground(style))
                 Text(label).font(.system(size: 16, weight: .bold)).foregroundStyle(dictateForeground(style)).lineLimit(1)
             }
             .padding(.horizontal, 24).frame(height: 50)
@@ -794,31 +739,22 @@ private struct StillBars: View {
     }
 }
 
-/// Text and glyphs on the dictate button: fixed ink on butter (butter stays butter in dark), adaptive ink on card.
+/// Text and glyphs on the dictate button: ink on persimmon (persimmon stays light in dark), the accent on the card.
 private func dictateForeground(_ style: DictateButton.Style) -> Color {
-    // Native: white on system blue, or system blue on a white key.
-    if KB.native { return style == .filled ? Color.white : KB.nativeAccent }
-    return style == .filled ? KB.inkFixed : KB.ink
+    style == .filled ? KB.inkFixed : Refined.accentText
 }
 
 private extension View {
-    /// The dictate button's surface. Filled: butter with a 1.5 pt fixed-ink outline (none in dark, `KB.dictateRim`)
-    /// and the grain. Outline: card white with a 1.5 pt ink ring. Both with a hard shadow offset by `shadow`.
-    func dictateSurface<S: InsettableShape>(_ style: DictateButton.Style, shape: S, shadow: CGSize, grain: Bool = true) -> some View {
-        background {
-            ZStack {
-                shape.fill(style == .filled ? KB.dictate : KB.card)
-                if style == .filled && grain && !KB.native { GrainOverlay().clipShape(shape) }
-            }
-        }
-        // Native: a flat .borderedProminent capsule (filled) or a white key (outline), no ring and no hard shadow.
-        .overlay(shape.strokeBorder(style == .filled ? KB.dictateRim : (KB.native ? Color.clear : KB.ink), lineWidth: 1.5))
-        .background(shape.fill(KB.hard).offset(x: shadow.width, y: shadow.height))
-        .contentShape(shape)
+    /// The dictate button's surface. Filled: persimmon. Outline: the card with the accent's 1.5 pt ring. No grain and
+    /// no shadow (DESIGN.md §13). `shadow` and `grain` are kept for the callers and draw nothing.
+    func dictateSurface<S: InsettableShape>(_ style: DictateButton.Style, shape: S, shadow: CGSize = .zero, grain: Bool = true) -> some View {
+        background(shape.fill(style == .filled ? KB.dictate : KB.card))
+            .overlay { if style != .filled { shape.strokeBorder(Refined.accentText, lineWidth: 1.5) } }
+            .contentShape(shape)
     }
 }
 
-/// A 46 pt circle in the top bar: soft (wash), outline (card with an ink ring), or active (ink, for the open menu).
+/// A 46 pt circle in the top bar: soft (wash), outline (card with a hairline ring), or active (ink, for the open menu).
 /// Listening's done is `DictateDone`.
 private struct CircleButton<Label: View>: View {
     enum Look { case soft, outline, active }
@@ -855,15 +791,14 @@ private struct CircleButton<Label: View>: View {
 
     @ViewBuilder private var ring: some View {
         switch look {
-        // Native: a plain white key, no ink ring.
-        case .outline: if !KB.native { Circle().strokeBorder(KB.ink, lineWidth: 1.5) }
+        case .outline: Circle().strokeBorder(KB.hairline, lineWidth: 1)
         default: EmptyView()
         }
     }
 }
 
 /// The Typing menu: Cleanup (the level and format; tap for the next format), Snippets, Recent dictations, Use as
-/// spoken (after cleaned-up words went in), and Open Verbose. Card fill, ink outline, hard shadow.
+/// spoken (after cleaned-up words went in), and Open Verbose. The card, a hairline edge, and a soft shadow, as it floats.
 private struct MenuCard: View {
     @ObservedObject var model: KeyboardModel
 
@@ -894,10 +829,8 @@ private struct MenuCard: View {
         .padding(6)
         .frame(width: 228)
         .background(KB.card, in: RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous))
-        // Verbose style: the ink outline and hard shadow. Native: a soft system shadow.
-        .overlay(RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous).strokeBorder(KB.native ? Color.clear : KB.ink, lineWidth: 1.5))
-        .background(RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous).fill(KB.hard).offset(x: 4, y: 5))
-        .shadow(color: KB.native ? Color.black.opacity(0.18) : Color.clear, radius: 10, y: 4)
+        .overlay(RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous).strokeBorder(KB.hairline, lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.18), radius: 10, y: 4)
         .accessibilityElement(children: .contain)
         .accessibilityAction(.escape) { model.closeMenu() }
     }
@@ -1004,62 +937,14 @@ struct KBKeyFace: View {
     }
 }
 
-/// Paper grain for the butter pills and notice cards: one 128 px tile of ink noise, made once and tiled (64 KB), never redrawn per
-/// frame. Off under Increase Contrast and Reduce Transparency.
-private enum KBGrain {
-    static let tile: CGImage? = {
-        let n = 128
-        var bytes = [UInt8](repeating: 0, count: n * n * 4)
-        var seed: UInt32 = 0x9E37_79B9
-        func next() -> Double {
-            seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5
-            return Double(seed & 0xFFFF) / 65535
-        }
-        // Ink (0.15, 0.2, 0.18) at up to 0.55 × 0.32 alpha, as the website's grain; premultiplied.
-        for i in 0..<(n * n) {
-            let a = (next() + next()) / 2 * 0.55 * 0.32
-            bytes[i * 4] = UInt8(0.15 * a * 255)
-            bytes[i * 4 + 1] = UInt8(0.20 * a * 255)
-            bytes[i * 4 + 2] = UInt8(0.18 * a * 255)
-            bytes[i * 4 + 3] = UInt8(a * 255)
-        }
-        guard let provider = CGDataProvider(data: Data(bytes) as CFData) else { return nil }
-        return CGImage(width: n, height: n, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: n * 4,
-                       space: CGColorSpaceCreateDeviceRGB(),
-                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
-                       provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
-    }()
-}
-
-private struct GrainOverlay: View {
-    @Environment(\.colorSchemeContrast) private var contrast
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    var body: some View {
-        if contrast == .standard, !reduceTransparency, let tile = KBGrain.tile {
-            Image(decorative: tile, scale: 2)
-                .resizable(resizingMode: .tile)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-    }
-}
-
-/// A notice card on Home (Full Access, how to start a session): card color, ink outline, and the grain.
+/// A notice card on Home (Full Access, how to start a session): the card, no outline (DESIGN.md §13).
 private struct CardShell<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous)
         content()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background {
-                ZStack {
-                    shape.fill(KB.card)
-                    if !KB.native { GrainOverlay().clipShape(shape) }
-                }
-            }
-            .overlay { if !KB.native { shape.strokeBorder(KB.ink, lineWidth: 1.5) } }
+            .background(KB.card, in: RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous))
     }
 }
 
@@ -1091,7 +976,7 @@ private struct FullAccessCard: View {
                 .frame(width: 44, height: 44)
                 .accessibilityHidden(true)
             }
-            Text("\(Text("Dictation needs "))\(Text("Full Access.").italic(!KB.native))")
+            Text("Dictation needs Full Access.")
                 .font(KB.serif(21)).foregroundStyle(KB.ink)
                 .multilineTextAlignment(.center)
                 .lineLimit(1).minimumScaleFactor(0.75)
@@ -1121,8 +1006,8 @@ private struct StartSessionHeadline: View {
     var returnsByItself: Bool
     var body: some View {
         VStack(spacing: 6) {
-            Text("\(Text("Start a session "))\(Text("to dictate.").italic(!KB.native))")
-                .font(KB.serif(34)).tracking(KB.native ? 0 : -0.6).foregroundStyle(KB.ink)
+            Text("Start a session to dictate.")
+                .font(KB.serif(34)).tracking(-0.6).foregroundStyle(KB.ink)
                 .multilineTextAlignment(.center)
                 .lineLimit(2).minimumScaleFactor(0.6)
             Text(StartCard.detail(returnsByItself: returnsByItself))
@@ -1145,7 +1030,7 @@ private struct StartSessionWays: View {
     var body: some View {
         CardShell {
             VStack(alignment: .leading, spacing: 6) {
-                Text("\(Text("Verbose didn't open. "))\(Text("Try one of these.").italic(!KB.native))")
+                Text("Verbose didn't open. Try one of these.")
                     .font(KB.serif(19)).foregroundStyle(KB.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 ForEach(Array(StartCard.ways.enumerated()), id: \.offset) { i, text in
@@ -1197,10 +1082,9 @@ private struct ListRow: View {
                 Text(Self.oneLine(text)).font(.system(size: 14.5)).foregroundStyle(KB.ink).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Insert").font(.system(size: 13, weight: .bold)).foregroundStyle(KB.native ? KB.nativeAccent : KB.ink)
+            Text("Insert").font(.system(size: 13, weight: .bold)).foregroundStyle(Refined.accentText)
                 .padding(.horizontal, 11).frame(height: 28)
-                .background(Capsule().fill(KB.native ? KB.wash : Color.clear))
-                .overlay(Capsule().strokeBorder(KB.native ? Color.clear : KB.ink, lineWidth: 1.3))
+                .background(Capsule().fill(KB.wash))
         }
         .padding(.horizontal, 14).padding(.vertical, 9)
         .contentShape(Rectangle())
@@ -1247,8 +1131,8 @@ private struct CleanupChip: View {
                 }
             }
             .padding(.horizontal, 12).frame(height: 34)
-            .background(KB.wash, in: RoundedRectangle(cornerRadius: KB.native ? 17 : Radius.button, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: KB.native ? 17 : Radius.button, style: .continuous))
+            .background(KB.wash, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
         }
         .buttonStyle(PressFade())
         .disabled(!enabled)
@@ -1338,7 +1222,7 @@ private struct LiveWordsLine: View {
     var body: some View {
         let joiner = settled.isEmpty || volatile.isEmpty ? "" : " "
         line(joiner)
-            .font(KB.native ? .system(size: size) : KB.serif(size))
+            .font(KB.serif(size))
             .lineSpacing(3)
             .lineLimit(3)
             .truncationMode(.head)
@@ -1401,23 +1285,23 @@ private struct Chip: View {
         Button(action: action) {
             Text(title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 34)
-                .background(KB.wash, in: RoundedRectangle(cornerRadius: KB.native ? 17 : Radius.button, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: KB.native ? 17 : Radius.button, style: .continuous))
+                .background(KB.wash, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(title)
     }
 }
 
-/// The dark pill: ink with paper text (paper with ink text in dark, so it shows on the dark card).
+/// The strong pill: ink with paper text (paper with ink text in dark, so it shows on the dark card).
 private struct DarkPill: View {
     var title: String
     var action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.native ? Color.white : KB.paper).lineLimit(1)
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.paper).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 30)
-                .background(KB.native ? KB.nativeAccent : KB.ink, in: Capsule())
+                .background(KB.ink, in: Capsule())
                 .contentShape(Capsule())
         }
         .buttonStyle(PressFade())
@@ -1451,8 +1335,7 @@ struct GlobeKey: UIViewRepresentable {
     func updateUIView(_ uiView: UIButton, context: Context) {}
 }
 
-// brand: native begin
-/// A brand line icon in Verbose style; its SF Symbol in Native (Recent → clock, Settings → gearshape).
+/// A brand line icon (`symbol` names the SF Symbol it stood in for, kept for the call sites).
 struct KBIcon: View {
     var art: BrandArt
     var symbol: String
@@ -1461,13 +1344,6 @@ struct KBIcon: View {
     var minLineWidth: CGFloat = 1.2
 
     var body: some View {
-        if KB.native {
-            Image(systemName: symbol).font(.system(size: size * 0.82, weight: .medium)).foregroundStyle(color)
-                .frame(width: size, height: size)
-                .accessibilityHidden(true)
-        } else {
-            KBGlyph(art: art, size: size, color: color, minLineWidth: minLineWidth)
-        }
+        KBGlyph(art: art, size: size, color: color, minLineWidth: minLineWidth)
     }
 }
-// brand: native end

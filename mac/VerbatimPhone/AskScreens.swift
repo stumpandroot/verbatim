@@ -4,8 +4,8 @@ import UIKit
 // Ask your library on the iPhone (mockup "Library features", sections 2b and 2c): Library › Ask (from the Library's
 // card, or "Ask about …" under the Library's search field), with the question, the scope chips, and the answer with its
 // citations above the matching passages; and Ask › Recipes, saved questions you run now or weekly, with their digests.
-// A citation opens the transcript at that line and plays it. On the refined kit (DESIGN.md §13), one design in both
-// look settings: the large serif title, the question in the kit's field, the kit's chips, and the answer on a card.
+// A citation opens the transcript at that line and plays it. On the refined kit (DESIGN.md §13)
+// : the large serif title, the question in the kit's field, the kit's chips, and the answer on a card.
 
 struct AskRoute: Hashable { var query: String? = nil }
 struct RecipesRoute: Hashable {}

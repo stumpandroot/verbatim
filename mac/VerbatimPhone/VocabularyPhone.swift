@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 // The iPhone Dictionary screen's Suggestions (About me names, repeated fixes, Contacts) and Built-in vocabulary, on the
-// refined kit (DESIGN.md §13) in both look settings: sections on cards, the kit's actions, and the accent's checks.
+// refined kit (DESIGN.md §13): sections on cards, the kit's actions, and the accent's checks.
 
 /// Names from About me and fixes you keep making, each with Add and Dismiss, plus the Contacts button.
 struct PhoneDictionarySuggestions: View {

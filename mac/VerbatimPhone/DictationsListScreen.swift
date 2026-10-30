@@ -5,7 +5,7 @@ import UIKit
 /// With Dictations in the tab bar, the list is that tab's root too.
 struct DictationsRoute: Hashable {}
 
-/// Every dictation, newest first, on the refined kit (DESIGN.md §13) in both look settings: the large serif title with
+/// Every dictation, newest first, on the refined kit (DESIGN.md §13): the large serif title with
 /// "128 kept", a lede, serif day titles, and each day's dictations in a card (the app's initial on a neutral square, the
 /// app and time, the words, the cleanup level when one was set, and "not pasted" in the accent when the words didn't
 /// land). Tap a row, or its round button, to copy the words; the button turns into a check for 1.6 seconds. A butter
@@ -47,7 +47,7 @@ struct DictationsListScreen: View {
                     .modifier(DictationPageRow())
             }
             ForEach(order, id: \.self) { day in
-                SectionTitle(PhoneDayHeader.label(day))
+                SectionTitle(DayLabel.title(day))
                     .padding(.top, 22).padding(.bottom, 8)
                     .modifier(DictationPageRow())
                 let list = days[day] ?? []

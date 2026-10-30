@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Add from Library on iPhone: a searchable list of transcripts not in Recently Deleted and not already in the project,
-/// built like the Library on the refined kit (DESIGN.md §13, both look settings): the kit's type and platform chips,
+/// built like the Library on the refined kit (DESIGN.md §13): the kit's type and platform chips,
 /// serif day titles, and each day's rows in a card with a leading check; tap to select, and an Add button. A transcript is in one project at a
 /// time, so one from another project says where it moves from, and adding asks first.
 struct PhoneAddFromLibrarySheet: View {
@@ -37,7 +37,7 @@ struct PhoneAddFromLibrarySheet: View {
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     }
                     ForEach(Self.days(shown), id: \.day) { group in
-                        SectionTitle(PhoneDayHeader.label(group.day))
+                        SectionTitle(DayLabel.title(group.day))
                             .padding(.top, 18).padding(.bottom, 8)
                             .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -132,7 +132,7 @@ struct PhoneAddFromLibrarySheet: View {
             HStack(spacing: 10) {
                 RefinedCheckbox(on: on, size: 22)
                     .frame(width: 44, height: 44)
-                PaperRow(kind: t.refinedKind, title: PhoneRowTitle.title(t, withTime: false), meta: meta, badge: 32, pinned: false) {
+                PaperRow(kind: t.refinedKind, title: RecordingRowTitle.title(t, withTime: false), meta: meta, badge: 32, pinned: false) {
                     if t.duration > 0 { RowLength(text: HomeRecentStyle.length(t.duration)) }
                 }
             }

@@ -340,8 +340,6 @@ private struct KeyCap: View {
     }
 
     private var fill: Color {
-        // Native: Apple's gray return key, like the other function keys.
-        if kind == .returnKey, KB.native { return pressed ? KB.key : KB.wash }
         if kind == .returnKey { return pressed ? KB.ink.opacity(0.8) : KB.ink }
         if isFunction { return pressed ? KB.key : KB.wash }
         return pressed ? KB.wash : KB.key
@@ -373,7 +371,7 @@ private struct KeyCap: View {
             Text(typing.returnKind.label ?? "return")
                 .font(.system(size: 15, weight: .semibold))
                 .lineLimit(1).minimumScaleFactor(0.6).padding(.horizontal, 4)
-                .foregroundStyle(KB.native ? KB.ink : KB.paper)
+                .foregroundStyle(KB.paper)
                 .opacity(typing.returnEnabled ? 1 : 0.4)
         case .layer:
             Text(kind.layerTitle ?? "").font(.system(size: 15)).foregroundStyle(KB.ink)

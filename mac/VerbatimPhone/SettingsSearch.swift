@@ -71,10 +71,8 @@ enum SettingsSearchIndex {
     private static let features = PhoneSettingsMap.features
 
     static let all: [SettingsSearchEntry] = [
-        // Personalization and preferences. Settings › Appearance: the look, light or dark, and the Record card.
-        .init(id: "look", section: personalization, label: "Appearance", keywords: ["look", "native", "verbose style", "apple", "plain", "illustrated", "theme", "style", "keyboard look", "appearance"],
-              description: "The look: Verbose style or Native", target: .page(.appearance)),
-        .init(id: "palette", section: personalization, label: "Palette", keywords: ["color", "colour", "soft", "full", "tint", "muted", "bright", "pastel", "record card", "tiles"],
+        // Personalization and preferences. Settings › Appearance: the palette, and light or dark.
+        .init(id: "palette", section: personalization, label: "Palette", keywords: ["color", "colour", "soft", "full", "tint", "muted", "bright", "pastel", "record card", "tiles", "look", "style"],
               description: "Full color or soft tints on the Record card and tiles", target: .page(.appearance)),
         .init(id: "appearance", section: personalization, label: "Light or dark", keywords: ["appearance", "dark mode", "light mode", "theme", "night", "color"],
               description: "Match the system, light, or dark", target: .page(.appearance)),
@@ -276,7 +274,6 @@ enum SettingsSearchIndex {
         case "aboutMe": return (d.string(forKey: Profile.aboutMeKey) ?? "").isEmpty ? "Add" : "Added"
         case "dictionary": return "\(app.store.dictionary.count)"
         case "builtInVocabulary": return onOff(BuiltInVocabulary.isOn)
-        case "look": return AppLook.current.label
         case "palette": return AppPalette.current.label
         case "appearance": return app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"
         case "limitMotion": return onOff(d.bool(forKey: MotionPreference.key))

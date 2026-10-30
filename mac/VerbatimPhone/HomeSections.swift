@@ -2,7 +2,7 @@ import SwiftUI
 
 // Home's sections on iPhone beyond the Record card, tiles, This week, and Recent recordings (HomeScreen.swift): Today's
 // thoughts and Journal, each Compact (one slim row) or Large (the card under its serif title); the shortcut tiles'
-// actions; and the Edit Home button at the end of Home. Drawn with the refined kit (DESIGN.md §13) in both looks.
+// actions; and the Edit Home button at the end of Home. Drawn with the refined kit (DESIGN.md §13).
 
 // MARK: - Spacing
 
@@ -22,11 +22,11 @@ enum HomeSpacing {
         return headed(item) ? 22 : 14
     }
 
-    /// The sections Home draws: the layout's shown ones, in both looks. Native's Record accessory steps aside on Home
+    /// The sections Home draws: the layout's shown ones. Record's accessory steps aside on Home
     /// while the Record card is drawn (`hidesRecordAccessory`).
     static func drawn(_ layout: HomeLayout) -> [HomeLayout.Item] { layout.shown }
 
-    /// Whether Native's Record accessory (RecordAccessory.swift) stays off on this tab: on Home's own screen, while
+    /// Whether Record's accessory (RecordAccessory.swift) stays off on this tab: on Home's own screen, while
     /// its Record card is there and nothing is recording (the accessory carries the live recording on every tab).
     static func hidesRecordAccessory(tab: PhoneState.Tab, homeAtRoot: Bool, recording: Bool, layout: HomeLayout) -> Bool {
         tab == .home && homeAtRoot && !recording && layout.isVisible(.record)

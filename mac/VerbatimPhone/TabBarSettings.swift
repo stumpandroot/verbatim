@@ -3,7 +3,7 @@ import SwiftUI
 /// Settings › Personalization and preferences › Tab bar (and Edit Home's Tab bar…): a live preview of the bar, then
 /// every tab you can add. Check up to three; drag the checked ones to reorder. Home stays first and Settings last.
 /// Changes reach the bar at once and are kept on this iPhone (PhoneTabBar.swift). On the refined kit (DESIGN.md §13)
-/// in both look settings: the large serif title, the preview with Record above the tabs, and the rows in cards.
+///: the large serif title, the preview with Record above the tabs, and the rows in cards.
 struct TabBarSettingsScreen: View {
     @EnvironmentObject var app: PhoneState
     /// Done, when presented as a sheet (from Edit Home). Nil when pushed from Settings.

@@ -1,8 +1,7 @@
-// brand: native file
 import SwiftUI
 
-// The transcript's sheets (DESIGN.md §13: Apple draws sheets), opened from the More menu (TranscriptScreen.swift) in
-// both look settings: Find, Speakers, and Details. Standard sheets with a grabber, inset grouped lists, and system
+// The transcript's sheets (DESIGN.md §13: Apple draws sheets), opened from the More menu (TranscriptScreen.swift):
+// Find, Speakers, and Details. Standard sheets with a grabber, inset grouped lists, and system
 // controls. The summary is the transcript's Summary tab (SummaryBlock.swift).
 
 /// Find: the lines that contain what you type, with their times. A tap closes the sheet, plays from that line, and

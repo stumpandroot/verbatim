@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The Library in the refined look (DESIGN.md §6.8 and §13; mockup "Verbose Refined Look", PhoneLibrary), one layout
-/// in both look settings: the large serif "Library" with the count, the system search field (Search or ask), the quick
+///: the large serif "Library" with the count, the system search field (Search or ask), the quick
 /// filter chips (All, Voice notes, Meetings, Thoughts, Audio, Links, Marked), a card of places (Dictations, By day,
 /// Templates, Ask, and Projects when you have one), then each day under its serif title as a card of recordings: the
 /// kind's badge, the title, a meta line (the kind, who, the moments, or where it is while it's being made), and the
@@ -11,9 +11,9 @@ import SwiftUI
 /// selection; each row draws its share of the card (`PaperRowBackground`). Nothing enters with an animation.
 struct LibraryScreen: View {
     @EnvironmentObject var app: PhoneState
-    /// The search and the filter, kept when a look switch rebuilds Library (`LookKeep`).
-    @State private var search = LookKeep.librarySearch
-    @State private var filter: Filter = LookKeep.libraryFilter
+    /// The search and the filter, kept when Library is built again (`LibraryKeep`).
+    @State private var search = LibraryKeep.librarySearch
+    @State private var filter: Filter = LibraryKeep.libraryFilter
     /// The type (Voice notes, Links, Marked, …) and its platform, remembered on this iPhone.
     @State private var typeFilter = LibraryFilter.saved(LibraryFilter.libraryKey)
     @State private var newProject = false
@@ -21,7 +21,6 @@ struct LibraryScreen: View {
     /// Newest, Oldest, Longest, or Title A–Z, remembered on this iPhone.
     @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
     private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
-    @Environment(\.look) private var look
     /// Pushed inside another tab (Library isn't in the bar, or a project from the Projects tab), opened on this filter.
     /// Nil for the Library tab itself.
     var route: LibraryRoute? = nil
@@ -32,8 +31,8 @@ struct LibraryScreen: View {
     @State private var showTrash = false
     @State private var showProjects = false
 
-    /// The looks the Library is on screen in (the self-test checks each look draws this one layout, once).
-    static var onScreen = Set<AppLook>()
+    /// How many Libraries are on screen (the self-test checks there's one).
+    static var onScreen = 0
 
     /// A filter besides the type: a kind, Pinned, In progress, or a project. A type and these don't combine: choosing
     /// one clears the other.
@@ -92,7 +91,7 @@ struct LibraryScreen: View {
         for t in items {
             if byDate {
                 let day = cal.startOfDay(for: t.createdAt)
-                if day != lastDay { out.append(.day(day, PhoneDayHeader.label(day))); lastDay = day }
+                if day != lastDay { out.append(.day(day, DayLabel.title(day))); lastDay = day }
             }
             out.append(.row(t))
         }
@@ -105,7 +104,7 @@ struct LibraryScreen: View {
         var out: [(label: String, items: [Transcript])] = []
         for line in lines {
             switch line {
-            case .day(_, let label): out.append((PhoneDayHeader.nativeLabel(label), []))
+            case .day(_, let label): out.append((DayLabel.short(label), []))
             case .row(let t):
                 if out.isEmpty { out.append(("", [])) }
                 out[out.count - 1].items.append(t)
@@ -145,17 +144,17 @@ struct LibraryScreen: View {
         .toolbar { toolbar }
         .navigationDestination(isPresented: $showTrash) { TrashScreen() }
         .navigationDestination(isPresented: $showProjects) { ProjectsScreen() }
-        .onChange(of: search) { _, v in if route == nil { LookKeep.librarySearch = v } }
-        .onChange(of: filter) { _, v in if route == nil { LookKeep.libraryFilter = v } }
+        .onChange(of: search) { _, v in if route == nil { LibraryKeep.librarySearch = v } }
+        .onChange(of: filter) { _, v in if route == nil { LibraryKeep.libraryFilter = v } }
         .onAppear {
-            Self.onScreen.insert(look)
+            Self.onScreen += 1
             // Pushed: starts on its own filter and an empty search, once.
             guard let route, !routeApplied else { return }
             routeApplied = true
             search = ""
             if let r = route.request { applyRequest(r) } else { filter = .all }
         }
-        .onDisappear { Self.onScreen.remove(look) }
+        .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
         .onReceive(app.$libraryFilterRequest) { r in
             // The screenshot tour (and anything else) can open Library on a kind, or back on All; Home's tiles and
             // sections open it on what's transcribing ("working") or on a project ("project:<id>"). For the Library
@@ -618,11 +617,11 @@ private struct LibraryRow: View {
     private func face(_ t: Transcript) -> some View {
         let meta = LibraryScreen.rowMeta(t)
         let length = t.duration > 0 && !(t.kind == .idea && t.audioFileName == nil) ? HomeRecentStyle.length(t.duration) : nil
-        return PaperRow(kind: t.refinedKind, title: PhoneRowTitle.title(t, withTime: false), meta: meta, badge: 32, pinned: t.pinned) {
+        return PaperRow(kind: t.refinedKind, title: RecordingRowTitle.title(t, withTime: false), meta: meta, badge: 32, pinned: t.pinned) {
             if let length { RowLength(text: length) }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(([t.pinned ? "Pinned" : nil, PhoneRowTitle.title(t, withTime: false), meta,
+        .accessibilityLabel(([t.pinned ? "Pinned" : nil, RecordingRowTitle.title(t, withTime: false), meta,
                               length.map { _ in RefinedRules.spokenTime(t.duration) }] as [String?]).compactMap { $0 }.joined(separator: ", "))
     }
 }

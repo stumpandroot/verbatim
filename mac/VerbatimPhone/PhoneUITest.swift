@@ -109,13 +109,12 @@ enum PhoneUITest {
         KeyboardSessionChecks.run()   // Build E2: format chip, host map, App Store seams, session timeouts.
         ribbonChecks(app)             // The recording ribbon: routing, takes, timeouts, and the session's take API.
         libraryChecks()
-        lookChecks()
         // What's new: the bundled notes, their rules, and when Home's note shows (ReleaseNotes.swift).
         ReleaseNotes.selfTest(app: .phone) { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)") }
         homeChecks()
         homeActionChecks(app)
         recorderChecks(app)
-        premiumChecks(app)
+        momentChecks(app)
         markChecks(app)
         reviewFixesPhoneA(app)        // Build 228 review fixes: cross-cutting, Home and Edit Home, and Record.
         hapticChecks(app)             // Haptics: the policy, the switch in the App Group, and haptics while recording.
@@ -139,7 +138,7 @@ enum PhoneUITest {
                 app.tab = .home
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 await show("\(prefix)01-home")
-                if prefix == "p" { homeLayoutCheck(.verbose) }
+                if prefix == "p" { homeLayoutCheck() }
                 // The rest of Home: This week and Recent recordings.
                 NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-recent")
                 await show("\(prefix)01b-home-recent")
@@ -147,10 +146,10 @@ enum PhoneUITest {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 // Home's note after an update, then What's new, which it opens (WhatsNewScreen.swift).
                 await whatsNewTour(app, prefix: prefix, suffix: "")
-                if prefix == "p" { await recordTrayTour(app, native: false) }
+                if prefix == "p" { await recordTrayTour(app) }
                 app.showRecorder = true
                 await show("\(prefix)02-record")
-                if prefix == "p" { recorderLayoutCheck(.verbose) }
+                if prefix == "p" { recorderLayoutCheck() }
                 app.showRecorder = false
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 // A recording with live text, then minimized to the bar over Library. A stand-in recording with
@@ -214,7 +213,7 @@ enum PhoneUITest {
                 }
                 app.tab = .library
                 await show("\(prefix)04-library")
-                if prefix == "p" { libraryLayoutCheck(.verbose) }
+                if prefix == "p" { libraryLayoutCheck() }
                 app.libraryPath.append(DictationsRoute())
                 await show("\(prefix)04d-dictations")
                 app.libraryPath = NavigationPath()
@@ -253,7 +252,11 @@ enum PhoneUITest {
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
                     await show("\(prefix)05-transcript")
-                    if prefix == "p" { transcriptLayoutCheck(.verbose, rich) }
+                    if prefix == "p" {
+                        transcriptLayoutCheck(rich)
+                        // Reading: the tab bar hides, and Record's accessory turns off with it (the player takes the bottom).
+                        layoutCheck("a transcript turns off Record's accessory while you read", app.readingTranscripts > 0)
+                    }
                     NotificationCenter.default.post(name: .phoneTranscriptMode, object: "summary")
                     await show("\(prefix)05e-transcript-summary")
                     NotificationCenter.default.post(name: .phoneTranscriptMode, object: "transcript")
@@ -267,7 +270,9 @@ enum PhoneUITest {
                     keep.save()
                     try? await Task.sleep(nanoseconds: 700_000_000)
                     app.libraryPath = NavigationPath()
-                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    // The pop's transition ends before onDisappear; give a slow runner up to 3 s.
+                    for _ in 0..<12 where app.readingTranscripts > 0 { try? await Task.sleep(nanoseconds: 250_000_000) }
+                    if prefix == "p" { layoutCheck("leaving the transcript brings Record's accessory back (\(app.readingTranscripts) still open)", app.readingTranscripts == 0) }
                     app.tab = .home
                     app.homePath.append(DocumentRoute(id: rich.id))
                     await show("\(prefix)06-document")
@@ -320,17 +325,17 @@ enum PhoneUITest {
                 app.libraryFilterRequest = "all"
                 app.tab = .settings
                 await show("\(prefix)09-settings")
-                if prefix == "p" { lookCheck("Settings draws the refined layout in \(AppLook.current.label)", SettingsScreen.onScreen.contains(AppLook.current)) }
+                if prefix == "p" { layoutCheck("Settings draws its layout", SettingsScreen.onScreen > 0) }
                 // The seven groups run long: the middle (Dictation and keyboard) and the end (Features and the version).
                 await settingsScrollShots(prefix: prefix, suffix: "")
-                if prefix == "p" { await settingsSearchResolves(app, native: false) }
+                if prefix == "p" { await settingsSearchResolves(app) }
                 SettingsSearchModel.shared.query = "keyboard"
                 await show("\(prefix)09b-settings-search")
                 SettingsSearchModel.shared.query = ""
-                // Settings › Appearance: the look as a plain row, the palette, and light or dark.
+                // Settings › Appearance: the palette, and light or dark.
                 SettingsPage.open("appearance")
                 await show("\(prefix)09m-appearance")
-                if prefix == "p" { lookCheck("Settings opens Appearance", AppearanceScreen.visible) }
+                if prefix == "p" { layoutCheck("Settings opens Appearance", AppearanceScreen.visible) }
                 SettingsPage.open("root")
                 try? await Task.sleep(nanoseconds: 800_000_000)
                 // Settings › Your voice, step 2, with made-up progress (no microphone in the simulator).
@@ -344,7 +349,7 @@ enum PhoneUITest {
                 HomeScreen.openProfile(app)
                 await show("\(prefix)09f-you")
                 if prefix == "p" { youCheck("This week opens the You page", app.tab == .settings && YouScreen.visible) }
-                if prefix == "p" { youCheck("the You page draws the refined layout in \(AppLook.current.label)", YouScreen.onScreen.contains(AppLook.current)) }
+                if prefix == "p" { youCheck("the You page draws its layout", YouScreen.onScreen > 0) }
                 NotificationCenter.default.post(name: .verbatimYouPage, object: true)
                 await show("\(prefix)09g-you-about-me")
                 if prefix == "p" { youCheck("the You page opens About me", AboutMeScreen.visible) }
@@ -394,140 +399,16 @@ enum PhoneUITest {
                 SettingsPage.open("root")
                 try? await Task.sleep(nanoseconds: 800_000_000)
             }
-            // Record in the tab bar's accessory, in the first look too (one design in both, DESIGN.md §16).
+            // Record in the tab bar's accessory (DESIGN.md §16).
             await recordAccessoryTour(app, suffix: "")
-            // Edit Home in the first look (Verbose style on a fresh simulator), from Home's button.
-            await editHomeTour(app, look: AppLook.current, suffix: "")
-            // The tab bar (Settings › Tab bar) and Home's Today's thoughts and Journal, in the first look.
+            // Edit Home, from Home's button.
+            await editHomeTour(app, suffix: "")
+            // The tab bar (Settings › Tab bar) and Home's Today's thoughts and Journal.
             await tabBarTour(app, suffix: "")
-            await homeThoughtsTour(app, look: AppLook.current, suffix: "")
-            // The Native look (DESIGN.md §13): the key screens again, named p…-native and d…-native. The look is
-            // stored per device in the App Group; the one this simulator had is put back after.
-            // It switches as people do, from Settings › Appearance (LookSwitch.swift): the card in the new look, the
-            // rebuild behind it, and its time.
-            let keepLook = AppLook.current
-            app.tab = .settings
-            SettingsPage.open("appearance")
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            await lookSwitch(to: .native, on: "appearance", card: "d09o-look-switching-native")
-            SettingsPage.open("root")
-            try? await Task.sleep(nanoseconds: 800_000_000)
-            for (prefix, mode) in [("p", "light"), ("d", "dark")] {
-                app.appearance = mode
-                app.tab = .home
-                await show("\(prefix)01-home-native")
-                if prefix == "p" {
-                    homeLayoutCheck(.native)
-                    lookCheck("Home in Native draws the Record card, and Record's accessory steps aside on Home",
-                              HomeProbe.sections[.record] != nil && (RecordAccessory.onScreen == 0 || !RecordPlacement.systemAccessory))
-                }
-                // The rest of Home in Native: the same refined Home (light only, to keep the tour short).
-                if prefix == "p" {
-                    NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-recent")
-                    await show("p01b-home-recent-native")
-                    NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-top")
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                }
-                await whatsNewTour(app, prefix: prefix, suffix: "-native")
-                if prefix == "p" { await recordAccessoryTour(app, suffix: "-native") }
-                // The record flow: the full-screen recorder with two marked moments (a stand-in recording; no
-                // microphone in the simulator), then the Saved sheet for a seeded recording (nothing is changed).
-                app.previewRecording = true
-                app.recorder.live.setElapsed(134)
-                app.recordingMoments = [RecordingMoment(at: 42, source: MarkSource.phoneApp.rawValue), RecordingMoment(at: 118, source: MarkSource.lockScreen.rawValue)]
-                app.openRecorder()
-                await show("\(prefix)02-record-native")
-                if prefix == "p" { recorderLayoutCheck(.native) }
-                app.minimizeRecorder()
-                app.previewRecording = false
-                app.recordingMoments = []
-                app.recorder.live.reset()
-                try? await Task.sleep(nanoseconds: 700_000_000)
-                if let voice = app.store.live.first(where: { !$0.isDictation && $0.source == .voiceMemo }) ?? app.store.live.first(where: { !$0.isDictation }) {
-                    app.savedRecording = SavedRecording(id: voice.id, length: 134, moments: 2, savedAt: Date())
-                    await show("\(prefix)02s-saved-native")
-                    if prefix == "p" { lookCheck("Stop opens the Saved sheet", NativeSavedSheet.visible) }
-                    app.savedRecording = nil
-                    try? await Task.sleep(nanoseconds: 800_000_000)
-                }
-                app.tab = .library
-                await show("\(prefix)04-library-native")
-                if prefix == "p" { libraryLayoutCheck(.native) }
-                app.libraryPath.append(DictationsRoute())
-                await show("\(prefix)04d-dictations-native")
-                app.libraryPath = NavigationPath()
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                await thoughtsTour(app, prefix: prefix, suffix: "-native", checks: prefix == "p")
-                await templatesTour(app, prefix: prefix, suffix: "-native", checks: false)
-                await brainDumpTour(app, prefix: prefix, suffix: "-native", checks: false)
-                await askTour(app, prefix: prefix, suffix: "-native", checks: false)
-                // The screens step 6 moved onto the refined kit, in Native too (light only): one design in both looks.
-                if prefix == "p" { await sharedScreensNative(app) }
-                if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
-                    app.libraryPath.append(rich.id)
-                    await show("\(prefix)05-transcript-native")
-                    if prefix == "p" { transcriptLayoutCheck(.native, rich) }
-                    NotificationCenter.default.post(name: .phoneTranscriptMode, object: "summary")
-                    await show("\(prefix)05e-transcript-summary-native")
-                    NotificationCenter.default.post(name: .phoneTranscriptMode, object: "transcript")
-                    if prefix == "p" {
-                        // Reading: the tab bar hides, and Record's accessory turns off with it (the player takes the bottom).
-                        lookCheck("a transcript turns off Record's accessory while you read", app.readingTranscripts > 0)
-                    }
-                    app.libraryPath = NavigationPath()
-                    // The pop's transition ends before onDisappear; give a slow runner up to 3 s.
-                    for _ in 0..<12 where app.readingTranscripts > 0 { try? await Task.sleep(nanoseconds: 250_000_000) }
-                    if prefix == "p" { lookCheck("leaving the transcript brings Record's accessory back (\(app.readingTranscripts) still open)", app.readingTranscripts == 0) }
-                }
-                // You, from Home's This week card: the week, the year, the stat cards, and the calendar.
-                app.tab = .home
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                HomeScreen.openProfile(app)
-                await show("\(prefix)09f-you-native")
-                if prefix == "p" { youCheck("You in Native draws the same refined page", YouScreen.visible && YouScreen.onScreen.contains(.native)) }
-                NotificationCenter.default.post(name: .verbatimYouPage, object: false)
-                try? await Task.sleep(nanoseconds: 900_000_000)
-                app.openMarked()
-                await show("\(prefix)08-library-marked-native")
-                app.libraryFilterRequest = "all"
-                app.tab = .settings
-                await show("\(prefix)09-settings-native")
-                if prefix == "p" { lookCheck("Settings in Native draws the same refined layout", SettingsScreen.onScreen.contains(.native)) }
-                await settingsScrollShots(prefix: prefix, suffix: "-native")
-                if prefix == "p" { await settingsSearchResolves(app, native: true) }
-                SettingsPage.open("appearance")
-                await show("\(prefix)09m-appearance-native")
-                SettingsPage.open("root")
-                try? await Task.sleep(nanoseconds: 800_000_000)
-                await thoughtsSettingsTour(prefix: prefix, suffix: "-native", checks: prefix == "p")
-                // The keyboard preview follows the look, as the keyboard does.
-                let keepButton = DictateButton.read(KeyboardBridge.defaults)
-                DictateButton.standard.write(KeyboardBridge.defaults)
-                SettingsPage.open("keyboard")
-                await show("\(prefix)09h-keyboard-dictate-button-native")
-                DictateButton(size: .large, position: .center, style: .filled).write(KeyboardBridge.defaults)
-                await show("\(prefix)09j-keyboard-dictate-large-center-native")
-                keepButton.write(KeyboardBridge.defaults)
-                SettingsPage.open("root")
-                try? await Task.sleep(nanoseconds: 800_000_000)
-                onboardingStep = PhoneOnboarding.lookStep
-                app.showOnboarding = true
-                await show("\(prefix)10b-onboarding-look-native")
-                app.showOnboarding = false
-                onboardingStep = 0
-                try? await Task.sleep(nanoseconds: 700_000_000)
-            }
-            await editHomeTour(app, look: .native, suffix: "-native")
-            await tabBarTour(app, suffix: "-native")
-            await homeThoughtsTour(app, look: .native, suffix: "-native")
-            // Back to the look the simulator had, from Home this time: the tab on screen rebuilds behind the card.
-            app.tab = .home
-            try? await Task.sleep(nanoseconds: 800_000_000)
-            await lookSwitch(to: keepLook, on: "home", card: nil)
-            try? await Task.sleep(nanoseconds: 600_000_000)
+            await homeThoughtsTour(app, suffix: "")
             app.appearance = "light"
-            // The tour in Verbose style: the welcome, Pick a look, the microphone, and the last step.
-            for (i, name) in [(0, "p10-onboarding"), (PhoneOnboarding.lookStep, "p10b-onboarding-look"), (2, "p11-onboarding"), (3, "p12-onboarding")] {
+            // The welcome tour: the welcome, the microphone, and the last step.
+            for (i, name) in [(0, "p10-onboarding"), (1, "p11-onboarding"), (2, "p12-onboarding")] {
                 onboardingStep = i
                 app.showOnboarding = true
                 await show(name)
@@ -544,13 +425,12 @@ enum PhoneUITest {
     // MARK: Record as
 
     /// The Record as tray (RecordTray.swift, mockup "Record as"): opened from Home's Record card, a row lit under the
-    /// finger, a lift in place, and (Premium Native) the floating button's tray; then what a lift on a row, a quick tap,
+    /// finger, and a lift in place; then what a lift on a row, a quick tap,
     /// a kind, and Thought start. A stand-in finger drives the tray's own model (no touches in the simulator). The
     /// choices are recorded instead of started, except Interview and Thought, which run up to the consent notice with
     /// it turned back on for a moment, so nothing records. Light only; Run automatically is put back afterward.
-    private static func recordTrayTour(_ app: PhoneState, native: Bool) async {
-        let suffix = native ? "-native" : ""
-        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") record as\(suffix): \(name)") }
+    private static func recordTrayTour(_ app: PhoneState) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") record as: \(name)") }
         let tray = RecordTray.shared
         let saved = TemplateSettingsModel.shared.settings
         var shown = AutoRunSettings()
@@ -565,7 +445,7 @@ enum PhoneUITest {
 
         // Touch and hold on Home's Record card, then slide to Meeting and lift.
         tray.tourHold(.card)
-        await show("p01t-record-tray\(suffix)")
+        await show("p01t-record-tray")
         // Five rows by default since the consolidation (October 28, 2026); the others come back from Edit Record as.
         let shownRows = RecordAsStore.shared.visible
         let ys = shownRows.compactMap { tray.rowFrames[$0]?.minY }
@@ -579,7 +459,7 @@ enum PhoneUITest {
               && RecordChoice.kind(.brainDump).hint(settings: AutoRunSettings.startingChoices, templates: app.store.allTemplates) == "Runs Plan my day when it finishes")
         check("a kind with a template says what runs", RecordChoice.kind(.meeting).hint(settings: shown, templates: app.store.allTemplates) == "Runs Meeting notes when it finishes")
         let end = tray.tourSlide(to: .kind(.meeting))
-        await show("p01u-record-tray-meeting\(suffix)")
+        await show("p01u-record-tray-meeting")
         check("sliding lights the row under the finger", tray.highlighted == .kind(.meeting))
         tray.lift(at: end)
         check("lifting on Meeting starts a meeting and closes the tray", picked == [.kind(.meeting)] && !tray.isOpen)
@@ -593,7 +473,7 @@ enum PhoneUITest {
         picked = []
         tray.tapLifted { tray.tap() }
         check("the lift after the hold doesn't also start a voice note", picked.isEmpty && tray.isOpen)
-        if !native { await show("p01w-record-tray-tap") }
+        await show("p01w-record-tray-tap")
         picked = []
         tray.choose(.kind(.talk))
         check("tapping a row starts it", picked == [.kind(.talk)] && !tray.isOpen)
@@ -603,7 +483,7 @@ enum PhoneUITest {
         let rowsBefore = RecordAsStore.shared.rows
         app.showRecordAsEditor = true
         try? await Task.sleep(nanoseconds: 900_000_000)
-        await show("p01v-edit-record-as\(suffix)")
+        await show("p01v-edit-record-as")
         check("Edit Record as opens its list", PhoneRecordAsEditor.visible)
         RecordAsStore.shared.set(.kind(.talk), shown: true)
         check("turning Talk on puts it back in Record as, in its place", RecordAsStore.shared.visible.contains(.kind(.talk))
@@ -622,111 +502,57 @@ enum PhoneUITest {
 
         tray.override = nil
 
-        if !native {
-            // The real paths, stopped at the consent notice so nothing records.
-            let key = PhoneState.consentNoticeKey
-            let seen = UserDefaults.standard.object(forKey: key)
-            UserDefaults.standard.set(false, forKey: key)
-            app.startRecordChoice(.kind(.interview))
-            check("Interview records as yours, waiting for the recording", app.recordKind == .interview && app.showConsentNotice && !app.pendingThought)
-            app.showConsentNotice = false
-            app.dismissConsentNotice()
-            app.recordKind = nil
-            try? await Task.sleep(nanoseconds: 700_000_000)
-            app.startRecordChoice(.thought)
-            check("Thought asks for a thought, not a recording of the Thoughts kind", app.pendingThought && app.recordKind == nil && app.showConsentNotice)
-            let url = app.store.newRecordingURL()
-            app.beginThoughtIfAsked(url)
-            check("Thought opens the thought recorder (Thought, Adds to today's page)", app.recordingThought && app.recordingChoice == .thought)
-            app.recordingThought = false
-            app.thoughtStartedAt = nil
-            Store.clearThoughtMark(url)
-            app.showConsentNotice = false
-            app.dismissConsentNotice()
-            UserDefaults.standard.set(seen, forKey: key)
-            try? await Task.sleep(nanoseconds: 700_000_000)
-        }
+        // The real paths, stopped at the consent notice so nothing records.
+        let key = PhoneState.consentNoticeKey
+        let seen = UserDefaults.standard.object(forKey: key)
+        UserDefaults.standard.set(false, forKey: key)
+        app.startRecordChoice(.kind(.interview))
+        check("Interview records as yours, waiting for the recording", app.recordKind == .interview && app.showConsentNotice && !app.pendingThought)
+        app.showConsentNotice = false
+        app.dismissConsentNotice()
+        app.recordKind = nil
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        app.startRecordChoice(.thought)
+        check("Thought asks for a thought, not a recording of the Thoughts kind", app.pendingThought && app.recordKind == nil && app.showConsentNotice)
+        let url = app.store.newRecordingURL()
+        app.beginThoughtIfAsked(url)
+        check("Thought opens the thought recorder (Thought, Adds to today's page)", app.recordingThought && app.recordingChoice == .thought)
+        app.recordingThought = false
+        app.thoughtStartedAt = nil
+        Store.clearThoughtMark(url)
+        app.showConsentNotice = false
+        app.dismissConsentNotice()
+        UserDefaults.standard.set(seen, forKey: key)
+        try? await Task.sleep(nanoseconds: 700_000_000)
 
         // The recorder for a Meeting: the neutral kind chip and the template that runs when you stop.
         app.previewRecording = true
         app.recordKind = .meeting
         app.recorder.live.setElapsed(12)
         app.openRecorder()
-        await show("p02k-record-meeting\(suffix)")
+        await show("p02k-record-meeting")
         check("the recorder shows the picked kind", app.recordingChoice == .kind(.meeting))
         app.minimizeRecorder()
         app.recordKind = nil
         try? await Task.sleep(nanoseconds: 700_000_000)
-        if !native {
-            // And a thought's: "Thought" and "Adds to today's page".
-            app.recordingThought = true
-            app.openRecorder()
-            await show("p02q-record-thought")
-            app.minimizeRecorder()
-            app.recordingThought = false
-            try? await Task.sleep(nanoseconds: 700_000_000)
-        }
+        // And a thought's: "Thought" and "Adds to today's page".
+        app.recordingThought = true
+        app.openRecorder()
+        await show("p02q-record-thought")
+        app.minimizeRecorder()
+        app.recordingThought = false
+        try? await Task.sleep(nanoseconds: 700_000_000)
         app.previewRecording = false
         app.recorder.live.reset()
         TemplateSettingsModel.shared.settings = saved
         try? await Task.sleep(nanoseconds: 700_000_000)
     }
 
-    /// Record in the tab bar (RecordAccessory.swift; DESIGN.md §16), one design in both look settings: Record in the
+    /// Record in the tab bar (RecordAccessory.swift; DESIGN.md §16): Record in the
     /// tab bar's bottom accessory on every tab, a tap as the plain voice note, the system menu's ways with the line
     /// under each, the live recording in the accessory, and the recorder sheet with its red stop. The system menu itself
     /// can't be opened without a finger, so its contents are checked through `RecordAsMenu`. Light only; Run
     /// automatically and the tab are put back afterward.
-    /// The screens and sheets on the refined kit since step 6, in Native with `-native` names, to compare with their
-    /// Verbose shots (DESIGN.md §13): the link card, What's playing, Live captions, Add from Library, the export sheet,
-    /// the Cleaned tab, and the welcome tour's steps around Pick a look.
-    private static func sharedScreensNative(_ app: PhoneState) async {
-        app.tab = .home
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        let card = LinkImport(id: UUID(), url: "https://www.youtube.com/watch?v=Q7r2mDn4x1k", site: "YouTube")
-        card.title = "How we light interviews in small rooms"; card.duration = 3852
-        card.phase = .downloading; card.progress = 0.42
-        app.linkCardImport = card
-        await show("p03b-link-card-native")
-        app.linkCardImport = nil
-        try? await Task.sleep(nanoseconds: 400_000_000)
-        app.showPlayingSheet = true
-        await show("p03c-whats-playing-native")
-        app.showPlayingSheet = false
-        try? await Task.sleep(nanoseconds: 700_000_000)
-        app.requestCaptions()
-        await show("p02b-live-captions-native")
-        app.stopCaptions(save: false)
-        try? await Task.sleep(nanoseconds: 600_000_000)
-        if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
-            app.tab = .library
-            app.addFromLibrary = project.id
-            await show("p04e-add-from-library-native")
-            app.addFromLibrary = nil
-            try? await Task.sleep(nanoseconds: 600_000_000)
-        }
-        if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
-            app.exportRequest = PhoneExportRequest(ids: [rich.id])
-            await show("p05c-export-native")
-            app.exportRequest = nil
-            try? await Task.sleep(nanoseconds: 700_000_000)
-            app.tab = .home
-            app.homePath.append(DocumentRoute(id: rich.id))
-            await show("p06-document-native")
-            app.homePath = NavigationPath()
-            try? await Task.sleep(nanoseconds: 500_000_000)
-        }
-        for (i, name) in [(0, "p10-onboarding-native"), (2, "p11-onboarding-native"), (3, "p12-onboarding-native")] {
-            onboardingStep = i
-            app.showOnboarding = true
-            await show(name)
-            app.showOnboarding = false
-            try? await Task.sleep(nanoseconds: 700_000_000)
-        }
-        onboardingStep = 0
-        app.tab = .home
-    }
-
     private static func recordAccessoryTour(_ app: PhoneState, suffix: String) async {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") record accessory\(suffix): \(name)") }
         let tray = RecordTray.shared
@@ -811,7 +637,7 @@ enum PhoneUITest {
     // MARK: Thoughts
 
     /// Today's Thoughts page (the seeded thoughts in the order they started), the day arrows, and By day for Thoughts
-    /// and Journal with their dots. Screenshots in each look; the checks in light.
+    /// and Journal with their dots. Screenshots in light and dark; the checks in light.
     private static func thoughtsTour(_ app: PhoneState, prefix: String, suffix: String, checks: Bool) async {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") thoughts\(suffix): \(name)") }
         let hour = app.newPageHour
@@ -1438,33 +1264,6 @@ enum PhoneUITest {
         Log.note("UITEST ribbon checks: \(pass) passed, \(fail) failed")
     }
 
-    /// The look (Look.swift, DESIGN.md §13): new installs start in Verbose style, the keyboard reads the app's choice
-    /// from the App Group, search finds the setting, and the Native accent's values meet 4.5:1 for small text.
-    static func lookChecks() {
-        var pass = 0, fail = 0
-        func check(_ name: String, _ ok: Bool) {
-            if ok { pass += 1 } else { fail += 1 }
-            Log.note("UITEST \(ok ? "PASS" : "FAIL") look: \(name)")
-        }
-        let store = AppLook.store
-        let keep = store.string(forKey: AppLook.key)
-        store.removeObject(forKey: AppLook.key)
-        check("a new install starts in Verbose style", AppLook.current == .verbose)
-        check("the keyboard reads Verbose style with nothing stored", !KeyboardLook.isNative(KeyboardBridge.defaults))
-        AppLook.current = .native
-        check("the keyboard reads the app's Native choice from the App Group", KeyboardLook.isNative(KeyboardBridge.defaults))
-        check("the keyboard's key is the app's", KeyboardLook.key == AppLook.key)
-        AppLook.current = .verbose
-        check("and Verbose style again", !KeyboardLook.isNative(KeyboardBridge.defaults))
-        check("without Full Access (no App Group) the keyboard keeps Verbose style", !KeyboardLook.isNative(nil))
-        if let keep { store.set(keep, forKey: AppLook.key) } else { store.removeObject(forKey: AppLook.key) }
-        check("settings search finds the look", SettingsSearchIndex.search("native").flatMap(\.entries).contains { $0.id == "look" })
-        check("Limit animation is a switch on the Settings root", SettingsSearchIndex.all.first { $0.id == "limitMotion" }?.target == .row)
-        check("white on the light accent reaches 4.5:1", KeyboardLook.contrast(Ink.nativeAccentLightHex, 0xFFFFFF) >= 4.5)
-        check("the dark accent reaches 4.5:1 on dark gray", KeyboardLook.contrast(Ink.nativeAccentDarkHex, 0x1C1C1E) >= 4.5)
-        Log.note("UITEST look checks: \(pass) passed, \(fail) failed")
-    }
-
     /// Settings scrolled to Dictation and keyboard, then to its foot (the version and What's new), then back to the top.
     /// Screens <prefix>09p-settings-dictation<suffix> and <prefix>09q-settings-end<suffix>.
     private static func settingsScrollShots(prefix: String, suffix: String) async {
@@ -1478,16 +1277,16 @@ enum PhoneUITest {
 
     /// Every Settings search entry resolves to something on screen: a root row is laid out on the Settings root, and
     /// an entry on a page opens that page (SettingsPage, the same push a result makes). On the pages the regroup
-    /// added, and on Appearance, the entry's row has to be laid out there too. One UITEST line per look.
-    private static func settingsSearchResolves(_ app: PhoneState, native: Bool) async {
-        let name = native ? "settings (native)" : "settings"
+    /// added, and on Appearance, the entry's row has to be laid out there too.
+    private static func settingsSearchResolves(_ app: PhoneState) async {
+        let name = "settings"
         SettingsSearchModel.shared.query = ""
         app.tab = .settings
         SettingsPage.open("root")
         try? await Task.sleep(nanoseconds: 900_000_000)
         var missing: [String] = []
         for e in SettingsSearchIndex.all where e.target == .row && !SettingsRowRegistry.isOnScreen(e.id) { missing.append(e.id) }
-        // Rows that show only in one look or with a setting on.
+        // Rows that show only with a setting on.
         var conditional: Set<String> = []
         if !CloudCleanup.enabled { conditional.insert("cloudProvider") }
         let rowsChecked: Set<SettingsSubpage> = [.appearance, .speakers, .moreTranscription, .cloudCleanup, .tour, .widgets, .shortcuts]
@@ -1564,27 +1363,6 @@ enum PhoneUITest {
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
-    /// Switches the look as the picker does, checks the card shows in the new look and goes, and logs the time from the
-    /// pick to the rebuild's first frame: `UITEST TIMING look-switch <ms> to=<look> screen=<screen>`. With a `card`
-    /// name, the card is captured mid-switch into Documents/screens.
-    private static func lookSwitch(to look: AppLook, on screen: String, card: String?) async {
-        guard look != AppLook.current else { return }
-        let before = LookSwitch.shared.cardsShown
-        let switching = Task { await LookSwitch.shared.switchTo(look) }
-        if let card {
-            try? await Task.sleep(nanoseconds: 250_000_000)   // past the card's fade in
-            if LookSwitch.shared.card != nil { snapshot(card) }
-        }
-        let ms = await switching.value
-        // Counted when the card is set, so a busy main thread on the CI machine can't make the check miss it (sampling
-        // `card == look` 60 ms in could land after the card had already gone).
-        let shown = LookSwitch.shared.cardsShown > before
-        try? await Task.sleep(nanoseconds: 300_000_000)   // the card's fade out
-        lookCheck("switching to \(look.label) shows the card, then the look (card \(shown ? "shown" : "missing"))",
-                  shown && AppLook.current == look && LookSwitch.shared.card == nil)
-        Log.note("UITEST TIMING look-switch \(Int(ms.rounded())) to=\(look.rawValue) screen=\(screen) rebuild=\(Int(LookSwitch.shared.lastRebuildMs.rounded()))")
-    }
-
     /// Waits up to `seconds` for `done`, checking every 50 ms: whether it came true, and after how long (ms).
     private static func waitFor(_ seconds: Double, _ done: () -> Bool) async -> (ok: Bool, ms: Int) {
         let start = Date()
@@ -1613,58 +1391,50 @@ enum PhoneUITest {
         return find(start)?.viewControllers.count
     }
 
-    /// Home draws the refined layout in either look, once: the Home on screen is the one built in the current look
-    /// (build 204's Native Home kept Verbose style's layout under a half-made navigation bar), with the Record card
-    /// when the look's layout shows it.
-    private static func homeLayoutCheck(_ look: AppLook) {
+    /// Home draws once, with the Record card when the layout shows it.
+    private static func homeLayoutCheck() {
         let shown = HomeScreen.recordCardsOnScreen
         let record = HomeLayoutStore.shared.layout.isVisible(.record) == (HomeProbe.sections[.record] != nil)
-        lookCheck("Home in \(look == .native ? "Native" : "Verbose style") draws the refined Home, once (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))",
-                  shown == [look] && record)
+        layoutCheck("Home draws once (on screen: \(shown))", shown == 1 && record)
     }
 
-    /// The Library draws its one refined layout in either look (DESIGN.md §6.8), once: the Library on screen is the one
-    /// built in the current look, with the mockup's seven chips and the card of places.
-    private static func libraryLayoutCheck(_ look: AppLook) {
+    /// The Library draws once (DESIGN.md §6.8), with the mockup's seven chips and the card of places.
+    private static func libraryLayoutCheck() {
         let shown = LibraryScreen.onScreen
-        lookCheck("Library in \(look == .native ? "Native" : "Verbose style") draws the refined Library, once (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))",
-                  shown == [look])
-        lookCheck("Library's chips are All, Voice notes, Meetings, Thoughts, Audio, Links, and Marked",
+        layoutCheck("the Library draws once (on screen: \(shown))", shown == 1)
+        layoutCheck("Library's chips are All, Voice notes, Meetings, Thoughts, Audio, Links, and Marked",
                   LibraryChip.allCases.map(\.label) == ["All", "Voice notes", "Meetings", "Thoughts", "Audio", "Links", "Marked"])
         let places = LibraryScreen.placeRows(dictations: 1, todayThoughts: 1, templates: 1, recipes: 1, projects: 1).map { $0.id }
-        lookCheck("Library's places keep the self-test's identifiers",
+        layoutCheck("Library's places keep the self-test's identifiers",
                   places == ["library.dictations", "library.byDay", "library.templates", "library.ask", "library.projects"])
     }
 
-    /// The recorder draws its one refined sheet in either look (DESIGN.md §6.10), once: the sheet on screen is the one
-    /// built in the current look, with the system red stop square, and the minimized recorder's rules hold.
-    private static func recorderLayoutCheck(_ look: AppLook) {
+    /// The recorder draws its sheet once (DESIGN.md §6.10), with the system red stop square, and the minimized
+    /// recorder's rules hold.
+    private static func recorderLayoutCheck() {
         let shown = RecorderSheet.onScreen
-        lookCheck("the recorder in \(look == .native ? "Native" : "Verbose style") is the refined sheet, once (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))",
-                  RecorderSheet.visible && shown == [look])
-        lookCheck("the recorder's stop square is system red", RecorderSheet.stopColor.map { sameColor($0, .systemRed) } ?? false)
+        layoutCheck("the recorder is one sheet (on screen: \(shown))", RecorderSheet.visible && shown == 1)
+        layoutCheck("the recorder's stop square is system red", RecorderSheet.stopColor.map { sameColor($0, .systemRed) } ?? false)
         let words = RefinedRules.liveWords("The wheels first. Then the wagons in the field.")
-        lookCheck("the recorder's newest sentence is ink, the older words mute", words.older == "The wheels first." && words.newest == "Then the wagons in the field.")
+        layoutCheck("the recorder's newest sentence is ink, the older words mute", words.older == "The wheels first." && words.newest == "Then the wagons in the field.")
     }
 
-    /// A transcript draws its one refined layout in either look (DESIGN.md §13), once: the screen on screen is the one
-    /// built in the current look, its tabs are Original, Cleaned, and Summary (then Review and a result when there are
-    /// any), and each turn's speaker chip takes the rotation by who talks first.
-    private static func transcriptLayoutCheck(_ look: AppLook, _ t: Transcript) {
+    /// A transcript draws once (DESIGN.md §13): its tabs are Original, Cleaned, and Summary (then Review and a result
+    /// when there are any), and each turn's speaker chip takes the rotation by who talks first.
+    private static func transcriptLayoutCheck(_ t: Transcript) {
         let shown = TranscriptScreen.onScreen
-        lookCheck("a transcript in \(look == .native ? "Native" : "Verbose style") draws the refined transcript, once (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))",
-                  shown == [look])
+        layoutCheck("a transcript draws once (on screen: \(shown))", shown == 1)
         let tabs = TranscriptScreen.modes(t, current: .transcript, busyName: nil).map(\.1)
-        lookCheck("a transcript's tabs start Original, Cleaned, Summary (\(tabs.joined(separator: ", ")))", Array(tabs.prefix(3)) == ["Original", "Cleaned", "Summary"])
+        layoutCheck("a transcript's tabs start Original, Cleaned, Summary (\(tabs.joined(separator: ", ")))", Array(tabs.prefix(3)) == ["Original", "Cleaned", "Summary"])
         let order = t.speakerOrder
         let first = t.segments.first?.speaker
-        lookCheck("the first speaker to talk takes the first chip color", first.map { order[$0] == 0 } ?? true)
+        layoutCheck("the first speaker to talk takes the first chip color", first.map { order[$0] == 0 } ?? true)
     }
 
     /// Edit Home (EditHome.swift, HomeLayout.swift) from Home's button: open it, hide a section (This week), reorder
     /// two, change a size (the tiles) and a tile (Search in the last slot), check Home draws exactly that, then reset.
     /// The layout store starts from the defaults in UI test mode and never writes the simulator's layout.
-    private static func editHomeTour(_ app: PhoneState, look: AppLook, suffix: String) async {
+    private static func editHomeTour(_ app: PhoneState, suffix: String) async {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") edit home\(suffix): \(name)") }
         let store = HomeLayoutStore.shared
         app.appearance = "light"
@@ -1716,7 +1486,7 @@ enum PhoneUITest {
         app.tab = .home
         try? await Task.sleep(nanoseconds: 600_000_000)
         if RecordPlacement.systemAccessory {
-            // With the Record card hidden, Record's accessory comes back on Home (both looks, DESIGN.md §16).
+            // With the Record card hidden, Record's accessory comes back on Home (DESIGN.md §16).
             store.update { $0.setVisible(.record, false) }
             try? await Task.sleep(nanoseconds: 900_000_000)
             check("Record comes back in the tab bar's accessory on Home while the Record card is hidden",
@@ -1745,7 +1515,7 @@ enum PhoneUITest {
     /// Settings › Personalization and preferences › Tab bar (TabBarSettings.swift, PhoneTabBar.swift): the default on a
     /// fresh install (Library and Thoughts since Moments left), Journal added, each tab opening its own root, a Marked
     /// link (the Library's filter) and today's page with the bar changed, reordering, removing the selected tab, Dictations and Projects as roots, and a
-    /// Library link with no Library tab. Screenshots of the picker and the new tabs in each look; the checks in the
+    /// Library link with no Library tab. Screenshots of the picker and the new tabs; the checks in the
     /// first. The bar store starts from the default in UI test mode and never writes the simulator's bar.
     private static func tabBarTour(_ app: PhoneState, suffix: String) async {
         let checks = suffix.isEmpty
@@ -1843,7 +1613,7 @@ enum PhoneUITest {
     /// Home's Today's thoughts and Journal (HomeSections.swift) and the New thought and Journal tiles: shown, they render
     /// Large and Compact; the New thought tile adds a thought (simulated audio; no microphone in the simulator) that
     /// lands on today's page and in the section's count; the Journal tile opens Journal By day. Then Home is reset.
-    private static func homeThoughtsTour(_ app: PhoneState, look: AppLook, suffix: String) async {
+    private static func homeThoughtsTour(_ app: PhoneState, suffix: String) async {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") home thoughts\(suffix): \(name)") }
         let store = HomeLayoutStore.shared
         app.appearance = "light"
@@ -1888,8 +1658,8 @@ enum PhoneUITest {
         try? await Task.sleep(nanoseconds: 700_000_000)
     }
 
-    private static func lookCheck(_ name: String, _ ok: Bool) {
-        Log.note("UITEST \(ok ? "PASS" : "FAIL") look: \(name)")
+    private static func layoutCheck(_ name: String, _ ok: Bool) {
+        Log.note("UITEST \(ok ? "PASS" : "FAIL") layout: \(name)")
     }
 
     /// The You page (YouScreen.swift), checked on screen during the tour.
@@ -2027,8 +1797,6 @@ enum PhoneUITest {
         if let storedHaptics { hapticsStore.set(storedHaptics, forKey: hapticsKey) } else { hapticsStore.removeObject(forKey: hapticsKey) }
         check("haptics are on by default and the switch turns them off (P-04)", onByDefault && offWhenOff)
         check("settings search finds Haptics (P-04)", SettingsSearchIndex.search("haptics").flatMap(\.entries).contains { $0.id == "haptics" })
-        // P-07: no banned words in You's week sentence.
-        check("You's week sentence has no \"just\" (P-07)", !PremiumRules.daysSentence(5).contains("just"))
         // P-08: voice notes, everywhere you read it.
         let memo = Transcript(title: "Self-test memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 30, audioFileName: nil, model: "")
         check("the filter chip says Voice notes (P-08)", LibrarySource.voiceMemos.label == "Voice notes")
@@ -2039,34 +1807,30 @@ enum PhoneUITest {
         check("New thought and Journal stay neutral in the first slots (P-14)",
               HomeScreen.tileFill(.newThought, in: edited) == nil && HomeScreen.tileFill(.journal, in: edited) == nil)
         check("Dictate is butter and Import sage wherever they sit (P-14)",
-              HomeScreen.tileFill(.dictate, in: edited) == PhoneInk.butter && HomeScreen.tileFill(.importMedia, in: edited) == PhoneInk.sage)
-        check("Live captions keeps the outline (P-14)", HomeScreen.tileFill(.captions, in: [.dictate, .importMedia, .whatsPlaying, .captions]) == nil)
+              HomeScreen.tileFill(.dictate, in: edited, palette: .full) == Refined.butter
+              && HomeScreen.tileFill(.importMedia, in: edited, palette: .full) == Refined.sage
+              && HomeScreen.tileFill(.dictate, in: edited, palette: .soft) == Refined.butterTint)
+        check("Live captions is the off-white tile (P-14)", HomeScreen.tileFill(.captions, in: [.dictate, .importMedia, .whatsPlaying, .captions]) == nil)
         // P-15: Recent recordings, newest first by date, no dictations.
         let recent = HomeScreen.recentRecordings(app.store)
         check("Recent recordings run newest first (P-15)", zip(recent, recent.dropFirst()).allSatisfy { $0.createdAt >= $1.createdAt }
               && !recent.contains(where: \.isDictation))
         // P-16: no "?" for a missing name.
         check("no name means no initial, never \"?\" (P-16)", RefinedRules.initial("") == nil && RefinedRules.initial("Tim Medina") == "T")
-        // P-21: an item with nothing to play carries its length in the date line.
-        var silent = Transcript(title: "Self-test silent", source: .file, sourceLabel: "MP3 file", duration: 1920, audioFileName: nil, model: "")
-        silent.status = .ready
-        check("an item with nothing to play shows its length in the date line (P-21)",
-              NativeRows.dateLine(silent, now: Date(), length: true).hasSuffix("· 32:00")
-              && !NativeRows.dateLine(silent, now: Date()).contains("32:00"))
         // P-23: live words keep whole words; the last word alone is always a candidate.
         let tails = TailWords<Text>.candidates("about the spec sheet before Thursday")
         check("live words drop whole words from the front (P-23)", tails.first == "about the spec sheet before Thursday" && tails.last == "Thursday")
         Log.note("UITEST review A checks: \(pass) passed, \(fail) failed")
     }
 
-    /// Premium Native's record flow and Home (PremiumRecord.swift, PremiumHome.swift): Mark moment saves a moment at
-    /// the elapsed time, moments become bookmarks (named, or the line's words once transcribed; offset when added to a transcript), the Record
-    /// card is off by default, and the gradients meet contrast (the full set runs on Linux, test-premium-phone.sh).
-    static func premiumChecks(_ app: PhoneState) {
+    /// The record flow and Home: Mark moment saves a moment at the elapsed time, moments become bookmarks (named, or the
+    /// line's words once transcribed; offset when added to a transcript), the Record card is on by default, and
+    /// Settings' squares take the four hues.
+    static func momentChecks(_ app: PhoneState) {
         var pass = 0, fail = 0
         func check(_ name: String, _ ok: Bool) {
             if ok { pass += 1 } else { fail += 1 }
-            Log.note("UITEST \(ok ? "PASS" : "FAIL") premium: \(name)")
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") moments: \(name)")
         }
         app.previewRecording = true
         app.recorder.live.setElapsed(42)
@@ -2083,21 +1847,11 @@ enum PhoneUITest {
               && notes.allSatisfy { $0.markSource == MarkSource.phoneApp.rawValue })
         check("moments added to a transcript start after it", notes.map { $0.at ?? -1 } == [642, 718])
         check("the Record card is on Home by default", HomeLayout.defaults(.phone).isVisible(.record))
-        // The Native redesign (October 27, 2026): system blue for what you tap, system red only for recording, system
-        // backgrounds, and no persimmon in the chrome.
-        check("Native's accent is system blue", sameColor(NativeInk.accent, .systemBlue))
-        check("Native's record color is system red", sameColor(NativeInk.record, .systemRed))
-        check("Native's pages are the system's grouped and plain backgrounds",
-              sameColor(NativeInk.paper, .systemGroupedBackground) && sameColor(NativeInk.plain, .systemBackground))
-        check("Native's switches stay system green", sameColor(NativeInk.toggle, .systemGreen))
-        let persimmons: [UInt32] = [Ink.persimmonHex, Ink.nativeAccentLightHex, Ink.nativeAccentDarkHex]
-        let chrome: [Color] = [NativeInk.accent, NativeInk.record, NativeInk.paper, NativeInk.plain, NativeInk.card, NativeInk.fill, NativeInk.onAccent]
-        check("no persimmon in Native's chrome", !chrome.contains { c in persimmons.contains { sameColor(c, UIColor(Color(hex: $0))) } })
-        check("Native's recorder clock shows hundredths", NativeRules.recorderClock(138.41) == "02:18.41")
+        check("the recorder's clock shows hundredths", RefinedRules.clock(138.5) == "02:18.50")
         check("Settings' squares take the four hues, never red: red means recording", !RefinedRules.settingsRotation.contains(.neutral)
               && RefinedRules.settingsHue(0, destructive: true) == .neutral)
         check("Settings' Appearance square is persimmon, as in the mockup", RefinedRules.settingsHue(0) == .persimmon)
-        Log.note("UITEST premium checks: \(pass) passed, \(fail) failed")
+        Log.note("UITEST moment checks: \(pass) passed, \(fail) failed")
     }
 
     /// Mark a moment (Model/Marks.swift, mockup "Library features", section 3): the shared rules, marks from each place
@@ -2186,7 +1940,7 @@ enum PhoneUITest {
     }
 
     /// The build 228 review's system-surface fixes (W-01 to W-10) that the app can check: the timers' widths, the Action
-    /// button control's name and its mirror in the App Group, and the Lock Screen's and the Native accent's contrast.
+    /// button control's name and its mirror in the App Group, and the Lock Screen's contrast.
     /// mac/tools/test-live-activity.sh checks the widget sources on Linux.
     static func reviewFixesWidgets() {
         var pass = 0, fail = 0
@@ -2207,10 +1961,8 @@ enum PhoneUITest {
         if let saved { UserDefaults.standard.set(saved, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) }
         ActionChoiceMirror.sync()
         check("the mirror follows the choice back", KeyboardBridge.defaults?.string(forKey: key) == Ribbon.actionChoice(saved).rawValue)
-        check("Lock Screen in dark: paper text on the dark paper keeps 7:1", PremiumRules.contrast(Ink.paperHex, Ink.darkPaperHex) >= 7)
-        check("Lock Screen in light: ink on paper keeps 7:1", PremiumRules.contrast(Ink.inkHex, Ink.paperHex) >= 7)
-        check("the keyboard's and widgets' text on the dark accent is black, 7:1", PremiumRules.contrast(Ink.nativeAccentDarkHex, PremiumInk.onAccentDarkHex) >= 7
-              && PremiumRules.contrast(Ink.nativeAccentDarkHex, 0xFFFFFF) < 3)
+        check("Lock Screen in dark: paper text on the dark paper keeps 7:1", RefinedRules.contrast(RefinedHex.ink.dark, RefinedHex.paper.dark) >= 7)
+        check("Lock Screen in light: ink on paper keeps 7:1", RefinedRules.contrast(RefinedHex.ink.light, RefinedHex.paper.light) >= 7)
         Log.note("UITEST review widgets checks: \(pass) passed, \(fail) failed")
     }
 

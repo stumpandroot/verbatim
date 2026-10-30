@@ -2,8 +2,8 @@ import SwiftUI
 import Combine
 import UIKit
 
-/// A transcript in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", PhoneTranscript), one layout in both
-/// look settings. Apple draws the chrome: the navigation bar's glass Back, Share, and More (a standard menu built like
+/// A transcript in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", PhoneTranscript)
+/// . Apple draws the chrome: the navigation bar's glass Back, Share, and More (a standard menu built like
 /// Books' reading menu), the sheets, and the tab bar, which hides while you read. Verbose draws the content on paper:
 /// the title in the serif, a meta line led by the kind's chip (and the project's), the segmented control (Original,
 /// Cleaned, Summary, Review once something was corrected, and a template's result), then each turn as the speaker's
@@ -51,7 +51,6 @@ struct TranscriptScreen: View {
     @State private var dockHeight: CGFloat = 70
     /// The transcript is long enough for the scrubber, which then replaces the system scroll indicator.
     @State private var scrubLong = false
-    @Environment(\.look) private var look
     @Environment(\.dismiss) private var dismiss
     /// More's Find, Speakers, and Details open sheets; Delete asks first.
     @State private var showFind = false
@@ -63,11 +62,11 @@ struct TranscriptScreen: View {
 
     private static let scrollSpace = "transcript-scroll"
 
-    /// Each transcript screen on view, by its token, and the look it was built in. Keyed by screen rather than look, so
-    /// a transcript leaving late can't take a newer one's look with it (build 241).
-    private static var shownScreens: [UUID: AppLook] = [:]
-    /// The looks a transcript is on screen in (the self-test checks each look draws this one layout, once).
-    static var onScreen: Set<AppLook> { Set(shownScreens.values) }
+    /// Each transcript screen on view, by its token, so a transcript leaving late can't take a newer one with it
+    /// (build 241).
+    private static var shownScreens: Set<UUID> = []
+    /// How many transcripts are on screen (the self-test checks there's one).
+    static var onScreen: Int { shownScreens.count }
 
     /// The player bar shows under every tab but Cleaned, for a recording with audio.
     private func hasPlayer(_ t: Transcript) -> Bool { t.audioFileName != nil && t.status == .ready && mode != .document }
@@ -254,8 +253,8 @@ struct TranscriptScreen: View {
             }
         }
         // Reading: Record's accessory turns off with the tab bar (RecordAccessory.swift).
-        .onAppear { app.readingScreens.insert(readingToken); Self.shownScreens[readingToken] = look }
-        .onDisappear { app.readingScreens.remove(readingToken); Self.shownScreens[readingToken] = nil }
+        .onAppear { app.readingScreens.insert(readingToken); Self.shownScreens.insert(readingToken) }
+        .onDisappear { app.readingScreens.remove(readingToken); Self.shownScreens.remove(readingToken) }
     }
 
     /// Shares the recording's audio file, after it downloads from iCloud when it lives on the other device.

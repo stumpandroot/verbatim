@@ -3,7 +3,7 @@ import UIKit
 
 // Plan my day on iPhone (approved mockup "Verbose Brain Dump", sections 5 to 7, October 27, 2026): the plan in a
 // transcript's result tab, the kind-change offer for a recording filed as a Brain dump, Send to Reminders, and Organize
-// today's thoughts with its plan screen, on the refined kit (DESIGN.md §13) in both look settings. The plan's parts are
+// today's thoughts with its plan screen, on the refined kit (DESIGN.md §13). The plan's parts are
 // shared with the Mac (PlanViews.swift).
 
 // MARK: - The offer

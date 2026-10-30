@@ -40,25 +40,25 @@ struct PhonePrivacyScreen: View {
     var body: some View {
         List {
             Section {
-                Text(PrivacyStatement.text).font(.system(size: 15)).foregroundStyle(.lookInk)
+                Text(PrivacyStatement.text).font(.system(size: 15)).foregroundStyle(Refined.ink)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Section {
                 Toggle(isOn: $model.localOnly) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Local only").font(.system(size: 16, weight: .semibold))
-                        Text(PrivacyStatement.localOnlyDetail).font(.system(size: 13)).foregroundStyle(.lookMute)
+                        Text(PrivacyStatement.localOnlyDetail).font(.system(size: 13)).foregroundStyle(Refined.mute)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .tint(PhoneInk.switchOn)
+                .refinedSwitchTint()
             } footer: {
                 Text("iCloud sync is Apple's and isn't listed here. Turn it on or off in Settings › Sync and storage.")
             }
             Section {
                 if model.events.isEmpty {
                     Text("Nothing yet. Verbose hasn't used the network on this iPhone since the list was cleared.")
-                        .font(.system(size: 14)).foregroundStyle(.lookMute)
+                        .font(.system(size: 14)).foregroundStyle(Refined.mute)
                 } else {
                     ForEach(model.events) { e in PhoneNetworkEventRow(event: e) }
                 }
@@ -73,7 +73,7 @@ struct PhonePrivacyScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
         .navigationTitle("Privacy")
         .onAppear { model.reload() }
     }
@@ -84,16 +84,16 @@ struct PhoneNetworkEventRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(event.purpose.label).font(.system(size: 15, weight: .medium)).foregroundStyle(.lookInk)
-                Text(event.host.isEmpty ? "Unknown host" : event.host).font(.system(size: 13)).foregroundStyle(.lookDim).lineLimit(1).truncationMode(.middle)
+                Text(event.purpose.label).font(.system(size: 15, weight: .medium)).foregroundStyle(Refined.ink)
+                Text(event.host.isEmpty ? "Unknown host" : event.host).font(.system(size: 13)).foregroundStyle(Refined.dim).lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 6)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(NetworkActivityModel.when(event.date)).font(.system(size: 13)).foregroundStyle(.lookMute).monospacedDigit()
+                Text(NetworkActivityModel.when(event.date)).font(.system(size: 13)).foregroundStyle(Refined.mute).monospacedDigit()
                 if event.refused {
-                    Text("Refused by Local Only").font(.system(size: 12, weight: .medium)).foregroundStyle(.lookAccentText)
+                    Text("Refused by Local Only").font(.system(size: 12, weight: .medium)).foregroundStyle(Refined.accentText)
                 } else if let b = ByteText.format(event.bytes) {
-                    Text(b).font(.system(size: 12)).foregroundStyle(.lookMute).monospacedDigit()
+                    Text(b).font(.system(size: 12)).foregroundStyle(Refined.mute).monospacedDigit()
                 }
             }
         }
@@ -113,8 +113,8 @@ struct PhoneProvenanceLine: View {
             Button { open.toggle() } label: {
                 HStack(spacing: 5) {
                     IconGlyph(art: .iconPrivacy, size: 12, color: Ink.dim)
-                    Text(transcript.dataPathBadge).font(.system(size: 12.5)).foregroundStyle(.lookDim)
-                    Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(.lookMute)
+                    Text(transcript.dataPathBadge).font(.system(size: 12.5)).foregroundStyle(Refined.dim)
+                    Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(Refined.mute)
                 }
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Ink.ink.opacity(0.06), in: Capsule())
@@ -125,7 +125,7 @@ struct PhoneProvenanceLine: View {
             .accessibilityValue(open ? "Details shown" : "")
             .accessibilityHint(open ? "Hides the details." : "Shows the source, engine, and time.")
             if open {
-                Text(transcript.provenanceLine).font(.system(size: 13)).foregroundStyle(.lookMute)
+                Text(transcript.provenanceLine).font(.system(size: 13)).foregroundStyle(Refined.mute)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -145,7 +145,7 @@ struct PhoneAllowDownloadButton: View {
                 LocalOnly.allowModelDownloads()
                 app.retry(transcript)
             }
-            .buttonStyle(.phoneSecondary)
+            .buttonStyle(RefinedActionStyle(kind: .quiet))
         }
     }
 }

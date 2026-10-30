@@ -10,7 +10,7 @@ import SwiftUI
 struct LibraryRoute: Hashable { var request: String? = nil }
 
 extension PhoneTab {
-    /// The tab's fine-line glyph in the tab bar (both look settings). Journal is the Mac sidebar's journal glyph.
+    /// The tab's fine-line glyph in the tab bar. Journal is the Mac sidebar's journal glyph.
     var art: BrandArt {
         switch self {
         case .home: return .iconHome

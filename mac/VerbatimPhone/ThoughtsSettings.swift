@@ -17,7 +17,6 @@ struct ThoughtsSettingsScreen: View {
     @AppStorage(DayPages.newPageHourKey) private var newPageHour = 0
     @State private var widgets: Int? = nil
     @State private var control: Bool? = nil
-    @Environment(\.look) private var look
 
     /// For the self-test: the page is on screen, and its rows' values once read.
     static var visible = false
@@ -42,7 +41,7 @@ struct ThoughtsSettingsScreen: View {
                     .frame(height: 170)
                     .padding(.top, 8)
                 Text("Start a thought from anywhere. Each one is added, with its time, to today's page.")
-                    .font(.system(size: 15)).foregroundStyle(.lookDim)
+                    .font(.system(size: 15)).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 8)
@@ -72,7 +71,7 @@ struct ThoughtsSettingsScreen: View {
             StepCard(art: .iconBackTap, icon: "hand.tap", title: ("Back", "Tap"), steps: backTapSteps) {
                 HStack(spacing: 10) {
                     pill("Open Shortcuts") { if let u = URL(string: "shortcuts://") { openURL(u) } }
-                    Text("Then come back here.").font(.system(size: 13)).foregroundStyle(.lookMute)
+                    Text("Then come back here.").font(.system(size: 13)).foregroundStyle(Refined.mute)
                 }
             }
             .padding(.top, 12)
@@ -94,7 +93,7 @@ struct ThoughtsSettingsScreen: View {
                         ForEach(DayPages.hours, id: \.self) { h in Text(DayPages.hourLabel(h)).tag(h) }
                     }
                     .labelsHidden()
-                    .tint(look.isNative ? NativeInk.accent : Ink.accentText)
+                    .tint(Refined.accentText)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 6)
                 .frame(minHeight: 50)
@@ -141,18 +140,11 @@ struct ThoughtsSettingsScreen: View {
     }
 
     private func pill(_ title: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title).font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(look.isNative ? Color.white : Ink.paper)
-                .padding(.horizontal, 16).frame(height: 36)
-                .background(Capsule().fill(look.isNative ? NativeInk.accent : Ink.ink))
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
+        Button(title, action: action).buttonStyle(RefinedActionStyle(kind: .strong))
     }
 }
 
-/// A how-to card: the icon, the serif title with its last word in italic (one upright run in Native), numbered
+/// A how-to card: the icon, the serif title with its last word in italic, numbered
 /// steps, and its buttons.
 private struct StepCard<Footer: View>: View {
     var art: BrandArt
@@ -160,20 +152,19 @@ private struct StepCard<Footer: View>: View {
     var title: (String, String)
     var steps: [String]
     @ViewBuilder var footer: () -> Footer
-    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 SettingsLabel(hue: .sage, art: art, title: "")
                     .fixedSize()
-                SerifTitle(title.0, italic: title.1, size: 20).foregroundStyle(.lookInk)
+                SerifTitle(title.0, italic: title.1, size: 20).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
             }
             ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("\(i + 1).").lookMono(15, weight: .medium).foregroundStyle(.lookMute)
-                    Text(step).font(.system(size: 15.5)).foregroundStyle(.lookInk)
+                    Text("\(i + 1).").font(.system(size: 15, weight: .medium).monospacedDigit()).foregroundStyle(Refined.mute)
+                    Text(step).font(.system(size: 15.5)).foregroundStyle(Refined.ink)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .accessibilityElement(children: .combine)
@@ -182,28 +173,27 @@ private struct StepCard<Footer: View>: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: Radius.row, fill: look.isNative ? NativeInk.card : Ink.card)
+        .cardSurface(radius: Radius.row)
     }
 }
 
 /// Siri: the phrase, with no setup.
 private struct SiriCard: View {
-    @Environment(\.look) private var look
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 SettingsLabel(hue: .sage, art: .iconSpeak, title: "").fixedSize()
-                Text("Siri").font(look.isNative ? .system(size: 20, weight: .semibold) : Ink.serif(20)).foregroundStyle(.lookInk)
+                Text("Siri").font(.system(size: 20, design: .serif)).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
             }
-            Text("Say this, with no setup:").font(.system(size: 15)).foregroundStyle(.lookDim)
+            Text("Say this, with no setup:").font(.system(size: 15)).foregroundStyle(Refined.dim)
             Text("\u{201C}\(ThoughtRules.siriPhrase)\u{201D}")
-                .font(look.isNative ? .system(size: 19, weight: .semibold) : Ink.serif(21)).foregroundStyle(.lookInk)
+                .font(.system(size: 21, design: .serif)).foregroundStyle(Refined.ink)
                 .textSelection(.enabled)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: Radius.row, fill: look.isNative ? NativeInk.card : Ink.card)
+        .cardSurface(radius: Radius.row)
         .accessibilityElement(children: .combine)
     }
 }

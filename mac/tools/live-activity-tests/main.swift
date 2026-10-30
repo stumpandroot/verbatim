@@ -197,10 +197,10 @@ if let panel = home.range(of: "private struct VerboseRecordPanel") {
 } else {
     check("the small Record widget's Verbose panel exists", false)
 }
-// The Native redesign (October 27, 2026): the keyboard's accent is system blue, like the system keyboard's return key,
-// with white on it (Apple's own filled keys); the old rule against white held only on the dark persimmon (2.8:1).
-check("the keyboard's filled Native button is white on system blue", keyboard.contains("style == .filled ? Color.white : KB.nativeAccent")
-      && keyboard.contains("static let nativeAccent = Color(uiColor: .systemBlue)") && !keyboard.contains("Ink.nativeAccent"))
+// The one look (DESIGN.md §13): the keyboard's action, dictation, is the persimmon fill with ink on it (bold 16 or
+// larger, as ink on persimmon is 4.45:1), and the outline style takes the accent's text color.
+check("the keyboard's filled dictate button is ink on persimmon", keyboard.contains("style == .filled ? KB.inkFixed : Refined.accentText")
+      && keyboard.contains("static let dictate = Refined.persimmon") && keyboard.contains("static let inkFixed = Refined.onFill"))
 if let done = keyboard.range(of: "private struct DictateDone") {
     let body = String(keyboard[done.lowerBound...].prefix(1400))
     check("the keyboard's Done reads as Done to VoiceOver", body.contains(".accessibilityLabel(\"Done\")") && body.contains(".accessibilityHint("))

@@ -28,15 +28,15 @@ extension PhoneUITest {
         // P-28: no empty or generic row titles.
         var thought = Transcript(title: "", source: .voiceMemo, sourceLabel: PhoneState.thoughtSource, duration: 4, audioFileName: nil, model: "")
         thought.kind = .idea
-        let thoughtTitle = PhoneRowTitle.title(thought)
+        let thoughtTitle = RecordingRowTitle.title(thought)
         check("an untitled thought's row says Thought and its time (\(thoughtTitle))", thoughtTitle.hasPrefix("Thought · ") && thoughtTitle.count > 10)
         thought.title = "Thought"
-        check("a thought titled Thought gets its time too", PhoneRowTitle.title(thought).hasPrefix("Thought · "))
-        check("Premium's item, with the time on its date line, says Thought alone", PhoneRowTitle.title(thought, withTime: false) == "Thought")
+        check("a thought titled Thought gets its time too", RecordingRowTitle.title(thought).hasPrefix("Thought · "))
+        check("an item with the time on its date line says Thought alone", RecordingRowTitle.title(thought, withTime: false) == "Thought")
         let memo = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 4, audioFileName: nil, model: "")
-        check("a placeholder voice memo title reads Voice note and its time", PhoneRowTitle.title(memo).hasPrefix("Voice note · "))
+        check("a placeholder voice memo title reads Voice note and its time", RecordingRowTitle.title(memo).hasPrefix("Voice note · "))
         let named = Transcript(title: "Catalog shoot plan", source: .voiceMemo, sourceLabel: "Voice memo", duration: 4, audioFileName: nil, model: "")
-        check("a real title stays as it is", PhoneRowTitle.title(named) == "Catalog shoot plan")
+        check("a real title stays as it is", RecordingRowTitle.title(named) == "Catalog shoot plan")
 
         // P-29: Dictations' rows.
         check("a dictation with no cleanup level and pasted words has no status line", PhoneDictationRow.statusLine(level: nil, notPasted: false) == nil)
@@ -83,9 +83,9 @@ extension PhoneUITest {
         // P-44: the Action button page's lede.
         check("the Action button lede has no Settings path in it", !ActionButtonScreen.lede.contains("›") && ActionButtonScreen.lede.hasPrefix("Choose what happens"))
 
-        // P-46: search calls Appearance by its name.
-        let look = SettingsSearchIndex.all.first { $0.id == "look" }
-        check("search names the look's page Appearance and still finds \"look\"", look?.label == "Appearance" && look?.keywords.contains("look") == true)
+        // P-46: searching "look" still finds the Appearance page (its Palette).
+        let look = SettingsSearchIndex.all.first { $0.id == "palette" }
+        check("search finds Appearance for \"look\"", look?.target == .page(.appearance) && look?.keywords.contains("look") == true)
 
         // P-49: What's new leads with what this iPhone can use.
         if let next = ReleaseNotes.bundled.first {
@@ -95,8 +95,6 @@ extension PhoneUITest {
             check("What's new keeps every item", sum.sections.reduce(0) { $0 + $1.items.count } + sum.alsoCount == next.items.count)
         }
 
-        // P-50: Native Dictionary and Journal tiles differ.
-        check("Native Dictionary and Journal tiles have different symbols", HomeTile.dictionary.symbol != HomeTile.journal.symbol)
     }
 
     /// P-32: the Journal tab's root has no Thoughts and Journal switch.

@@ -516,3 +516,22 @@ private struct NotchCountdownRing: View {
         withAnimation(.linear(duration: c.seconds)) { progress = 0 }
     }
 }
+
+/// The app a dictation goes to, by its icon. An app that can't be found gets a neutral app glyph, never an empty
+/// square (review M-23).
+struct AppIconView: View {
+    var bundleID: String?
+
+    var body: some View {
+        AppIcon(key: bundleID.flatMap { $0.isEmpty ? nil : .bundleID($0) }) {
+            RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Refined.neutralSquare)
+                .overlay {
+                    GeometryReader { g in
+                        IconGlyph(art: .iconWidgets, size: g.size.width * 0.7, color: Refined.dim)
+                            .frame(width: g.size.width, height: g.size.height)
+                    }
+                }
+        }
+        .accessibilityHidden(true)
+    }
+}

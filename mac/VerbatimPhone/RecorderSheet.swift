@@ -3,25 +3,29 @@ import UIKit
 import AVFoundation
 import Combine
 
-// The recorder (DESIGN.md §6.10; approved mockup "Verbose Refined Look", PhoneRecorder, October 28, 2026): one sheet in
-// both look settings, built from the refined kit (§13). Apple draws the sheet and its grabber; Verbose draws the page:
+// The recorder (DESIGN.md §6.10; approved mockup "Verbose Refined Look", PhoneRecorder, October 28, 2026): one sheet,
+// built from the refined kit (§13). Apple draws the sheet and its grabber; Verbose draws the page:
 // Minimize (a glass circle) and the microphone, the kind in the serif (Voice note, Meeting, Thought, Brain dump, Audio
 // only) over when it started and "Saved as you go", what runs when you stop, the persimmon clock panel
 // (`RecorderClockPanel`: Recording or Paused, the clock with hundredths, the waveform under its ink playhead with the
 // moments as dots), your words in the serif (older words in mute, the newest in ink; none for Audio only), the moments
 // line, and the thumb row: Mark moment, Stop (the system red square in a ring), and Pause, with Discard under it.
 //
-// Swipe the sheet down, tap Minimize, or use VoiceOver's escape, and the recording goes on: the bar above the tab bar
-// (Verbose style) or the tab bar's accessory (Native) shows it, and a tap brings the sheet back (MiniRecorder.swift).
-// Stop saves; Native then opens the Saved sheet (SavedSheet.swift), and Verbose style says so in a toast for Audio only.
-// Haptics, the Live Activity, route changes, automatic pauses, and crash safety live in PhoneState and Recorder, so
-// they're the same whichever look is on.
+// Swipe the sheet down, tap Minimize, or use VoiceOver's escape, and the recording goes on: the tab bar's accessory
+// (iOS 26) or the bar above the tab bar (before it) shows it, and a tap brings the sheet back (MiniRecorder.swift).
+// Stop saves, and says so in a toast for Audio only. Haptics, the Live Activity, route changes, automatic pauses, and
+// crash safety live in PhoneState and Recorder.
+
+/// A moment marked while recording: when, where from, and the name you gave it (empty until you name it). The same
+/// mark as the Dynamic Island's, the Lock Screen's, and the Action button's (Model/Marks.swift); saved as bookmarks
+/// with the recording (`RecordingMark.notes`), each on the line being said once the words are in.
+typealias RecordingMoment = RecordingMark
 
 struct RecorderSheet: View {
     /// Whether the recorder is on screen, for the self-test.
     static var visible = false
-    /// The looks the recorders on screen were built in (one, the current look), for the self-test.
-    static var onScreen: [AppLook] = []
+    /// How many recorders are on screen (one), for the self-test.
+    static var onScreen = 0
     /// The stop square's color as drawn, for the self-test (it must be the system red).
     static var stopColor: Color? = nil
     /// Started from the Record as tray: the next recorder appears with no system transition and its page slides up
@@ -29,7 +33,6 @@ struct RecorderSheet: View {
     static var slideInNext = false
 
     @EnvironmentObject var app: PhoneState
-    @Environment(\.look) private var look
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @State private var naming: RecordingMoment.ID? = nil
     @State private var nameDraft = ""
@@ -75,7 +78,7 @@ struct RecorderSheet: View {
         .presentationBackground(Refined.paper)
         .onAppear {
             Self.visible = true
-            Self.onScreen.append(look)
+            Self.onScreen += 1
             startedAt = Date().addingTimeInterval(-app.recorder.live.elapsed)
             mic = HomeScreen.currentMic()
             inputs = RecordingInputRules.menu(RecordingRoute.knownInputs())
@@ -85,7 +88,7 @@ struct RecorderSheet: View {
         }
         .onDisappear {
             Self.visible = false
-            if let i = Self.onScreen.firstIndex(of: look) { Self.onScreen.remove(at: i) }
+            Self.onScreen = max(0, Self.onScreen - 1)
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification).receive(on: RunLoop.main)) { _ in
             mic = HomeScreen.currentMic()
@@ -125,7 +128,7 @@ struct RecorderSheet: View {
             }
             .buttonStyle(RefinedPress())
             .accessibilityLabel("Minimize")
-            .accessibilityHint(look.isNative ? "Keeps recording. Record in the tab bar brings it back." : "Keeps recording. Use the bar above the tab bar to come back.")
+            .accessibilityHint(RecordPlacement.systemAccessory ? "Keeps recording. Record in the tab bar brings it back." : "Keeps recording. Use the bar above the tab bar to come back.")
             Spacer(minLength: 8)
             micMenu
         }

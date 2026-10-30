@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 // The iPhone's Thoughts and Journal pages (approved mockup "Thoughts", section 07; DESIGN.md §13 and §14), one refined
-// design in both look settings:
+// design:
 //
 // - A day's page (`DayPageScreen`): the large serif title with the day and its count over it, the day arrows (the
 //   nearest earlier page with something on it, and the nearest later one; Next is off on today), Copy for the whole

@@ -1,7 +1,6 @@
 import SwiftUI
 
-// The You page on iPhone (Settings › You, and Home's This week card) in the refined look (DESIGN.md §13), one layout in
-// both look settings: who you are, your week of dictation, About me, your voice, and cleanup, built from the kit. The
+// The You page on iPhone (Settings › You, and Home's This week card) in the refined look (DESIGN.md §13): who you are, your week of dictation, About me, your voice, and cleanup, built from the kit. The
 // iPhone's keyboard can't tell which app a dictation went to, so there's no "Where you dictate" here (the Mac's You
 // page lists apps and websites), and it keeps no separate activity log, so there's nothing to reset: the week is
 // counted from your dictations, the same as Home's This week card.
@@ -24,7 +23,6 @@ struct YouScreen: View {
     @AppStorage(CloudCleanup.enabledKey) private var cloudCleanup = false
     @ObservedObject private var flow = FlowSettings.shared
     @ObservedObject private var voice = VoiceProfileStatus.shared
-    @Environment(\.look) private var look
     @State private var editingAbout = false
     @State private var showVoice = false
     @State private var editingName = false
@@ -34,8 +32,8 @@ struct YouScreen: View {
 
     /// Whether the You page is on screen, for the UI tour's checks.
     static var visible = false
-    /// The looks the You page is on screen in (the self-test checks each look draws this one layout).
-    static var onScreen = Set<AppLook>()
+    /// How many You pages are on screen (the self-test checks the page draws).
+    static var onScreen = 0
 
     var body: some View {
         let week = app.store.dictationWeek(now: now)
@@ -57,8 +55,8 @@ struct YouScreen: View {
         .toolbar { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
         .navigationDestination(isPresented: $editingAbout) { AboutMeScreen() }
         .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: false) }
-        .onAppear { Self.visible = true; Self.onScreen.insert(look); now = Date(); voice.refresh() }
-        .onDisappear { Self.visible = false; Self.onScreen.remove(look); commitName() }
+        .onAppear { Self.visible = true; Self.onScreen += 1; now = Date(); voice.refresh() }
+        .onDisappear { Self.visible = false; Self.onScreen = max(0, Self.onScreen - 1); commitName() }
         .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimYouPage)) { note in
             if note.object as? Bool == true { editingAbout = true }

@@ -10,7 +10,6 @@ import UIKit
 /// tap Start session.
 struct SessionStartScreen: View {
     @ObservedObject var session: KeyboardSession
-    @Environment(\.look) private var look
 
     var body: some View {
         if session.confirming != nil { confirmation } else { starting }
@@ -22,22 +21,22 @@ struct SessionStartScreen: View {
             .padding(.top, 24)
 
             Text("Start a keyboard session?")
-                .lookSerif(34).foregroundStyle(.lookInk)
+                .font(.system(size: 34, design: .serif)).foregroundStyle(Refined.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 14)
                 .accessibilityAddTraits(.isHeader)
 
             Text("Verbose turns on the microphone so you can dictate with the Verbose keyboard in any app. The orange microphone dot stays on until the session ends. Audio is saved only while you dictate.")
-                .font(.system(size: 16)).foregroundStyle(.lookDim)
+                .font(.system(size: 16)).foregroundStyle(Refined.dim)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 12)
 
             HStack(spacing: 12) {
                 Button("Not now") { session.declineStart() }
-                    .buttonStyle(.phoneSecondaryLarge)
+                    .buttonStyle(RefinedActionStyle(kind: .quiet))
                     .accessibilityHint("Closes this screen. The microphone stays off.")
                 Button("Start session") { session.confirmStart() }
-                    .buttonStyle(.phonePrimaryLarge)
+                    .buttonStyle(RefinedActionStyle(kind: .strong))
                     .accessibilityHint("Turns on the microphone for the Verbose keyboard")
             }
             .padding(.top, 26)
@@ -46,7 +45,7 @@ struct SessionStartScreen: View {
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
     }
 
     private var starting: some View {
@@ -56,19 +55,19 @@ struct SessionStartScreen: View {
                 .padding(.top, 24)
 
                 Text(title)
-                    .lookSerif(34).foregroundStyle(.lookInk)
+                    .font(.system(size: 34, design: .serif)).foregroundStyle(Refined.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 14)
                     .accessibilityAddTraits(.isHeader)
 
                 if showsWayBack {
                     Text(Ribbon.coachTitle(sourceApp: session.sourceAppName))
-                        .lookSerif(22).foregroundStyle(.lookInk)
+                        .font(.system(size: 22, design: .serif)).foregroundStyle(Refined.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 6)
                     if let detail = takeDetail {
                         Text(detail)
-                            .font(.system(size: 16)).foregroundStyle(.lookDim)
+                            .font(.system(size: 16)).foregroundStyle(Refined.dim)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
                     }
@@ -78,23 +77,23 @@ struct SessionStartScreen: View {
                             .padding(.top, 20)
                     case .reminder:
                         Text(reminderLine)
-                            .font(.system(size: 15)).foregroundStyle(.lookDim)
+                            .font(.system(size: 15)).foregroundStyle(Refined.dim)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
                     }
                 } else {
                     Text(detail)
-                        .font(.system(size: 16)).foregroundStyle(.lookDim)
+                        .font(.system(size: 16)).foregroundStyle(Refined.dim)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 12)
                 }
 
-                // A status, not a recording: a neutral card with an ink outline, and persimmon only on the voice bars.
+                // A status, not a recording: a neutral card, and persimmon only on the voice bars.
                 HStack(spacing: 18) {
-                    VoiceBars(level: session.isOn ? 0.35 : 0, color: look.isNative ? NativeInk.accent : Ink.persimmon, barWidth: 14, maxHeight: 64)
+                    VoiceBars(level: session.isOn ? 0.35 : 0, color: Refined.persimmon, barWidth: 14, maxHeight: 64)
                         .frame(width: 72)
                     Text(session.dictating ? "Listening" : session.isOn ? "Ready" : "Starting…")
-                        .lookSerif(24).foregroundStyle(.lookInk)
+                        .font(.system(size: 24, design: .serif)).foregroundStyle(Refined.ink)
                     Spacer(minLength: 0)
                 }
                 .padding(22)
@@ -113,7 +112,7 @@ struct SessionStartScreen: View {
                 if session.needsManualReturn {
                     HStack(spacing: 12) {
                         Button("Stay in Verbose") { session.showScreen = false }
-                            .buttonStyle(.phoneSecondaryLarge)
+                            .buttonStyle(RefinedActionStyle(kind: .quiet))
                             .accessibilityHint("Closes this screen. The session stays on.")
                         Button("End session") { session.end(reason: nil) }
                             .buttonStyle(SessionQuietButton())
@@ -128,7 +127,7 @@ struct SessionStartScreen: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
     }
 
     /// Once the session is on and you have to go back yourself (always in App Store builds, which can't switch
@@ -182,7 +181,7 @@ private struct WayBackCoach: View {
         VStack(alignment: .leading, spacing: 0) {
             row(illustration: AnyView(SwipeHint()), text: "Swipe right along the bottom edge")
             if showsBreadcrumb {
-                Rectangle().fill(.lookHairline).frame(height: 1).padding(.leading, 112)
+                Rectangle().fill(Refined.separator).frame(height: 1).padding(.leading, 112)
                 row(illustration: AnyView(BreadcrumbHint(name: sourceApp)), text: Ribbon.breadcrumbLine(sourceApp: sourceApp))
             }
         }
@@ -194,7 +193,7 @@ private struct WayBackCoach: View {
     private func row(illustration: AnyView, text: String) -> some View {
         HStack(spacing: 16) {
             illustration.frame(width: 84, height: 56)
-            Text(text).font(.system(size: 16, weight: .medium)).foregroundStyle(.lookInk)
+            Text(text).font(.system(size: 16, weight: .medium)).foregroundStyle(Refined.ink)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -212,15 +211,15 @@ private struct SwipeHint: View {
             let w = g.size.width, h = g.size.height
             ZStack(alignment: .topLeading) {
                 UnevenRoundedRectangle(bottomLeadingRadius: 16, bottomTrailingRadius: 16, style: .continuous)
-                    .stroke(.lookInk, lineWidth: 1.5)
+                    .stroke(Refined.ink, lineWidth: 1.5)
                     .frame(width: w, height: h)
-                Capsule().fill(.lookInk).frame(width: w * 0.46, height: 4)
+                Capsule().fill(Refined.ink).frame(width: w * 0.46, height: 4)
                     .position(x: w / 2, y: h - 9)
-                Circle().fill(.lookMark).frame(width: 12, height: 12)
+                Circle().fill(Refined.persimmon).frame(width: 12, height: 12)
                     .position(x: limitMotion || travel ? w * 0.72 : w * 0.28, y: h - 9)
                     .opacity(limitMotion ? 1 : (travel ? 0.15 : 1))
                 if limitMotion {
-                    Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookAccentText)
+                    Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.accentText)
                         .position(x: w * 0.5, y: h - 24)
                 }
             }
@@ -241,18 +240,18 @@ private struct BreadcrumbHint: View {
             let w = g.size.width, h = g.size.height
             ZStack(alignment: .topLeading) {
                 UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16, style: .continuous)
-                    .stroke(.lookInk, lineWidth: 1.5)
+                    .stroke(Refined.ink, lineWidth: 1.5)
                     .frame(width: w, height: h)
                 HStack(spacing: 2) {
                     Image(systemName: "chevron.left").font(.system(size: 9, weight: .bold))
                     Text(name ?? "Your app").font(.system(size: 10, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
                 }
-                .foregroundStyle(.lookInk)
+                .foregroundStyle(Refined.ink)
                 .padding(.horizontal, 6).padding(.vertical, 3)
-                .overlay(Capsule().stroke(.lookMark, lineWidth: 2))
+                .overlay(Capsule().stroke(Refined.persimmon, lineWidth: 2))
                 .frame(maxWidth: w - 16, alignment: .leading)
                 .offset(x: 8, y: 9)
-                Text("9:41").lookMono(9).foregroundStyle(.lookMute)
+                Text("9:41").font(.system(size: 9).monospacedDigit()).foregroundStyle(Refined.mute)
                     .position(x: w - 18, y: 16)
             }
         }
@@ -264,9 +263,9 @@ private struct BreadcrumbHint: View {
 struct FirstDictationNote: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Diamond().stroke(.lookAccentText, lineWidth: 1).frame(width: 7, height: 7).padding(.top, 6)
+            Diamond().stroke(Refined.accentText, lineWidth: 1).frame(width: 7, height: 7).padding(.top, 6)
             Text(Ribbon.firstDictationNote)
-                .font(.system(size: 14)).foregroundStyle(.lookDim)
+                .font(.system(size: 14)).foregroundStyle(Refined.dim)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
@@ -317,7 +316,7 @@ struct KeyboardSetupScreen: View {
         SettingsPageScaffold(title: "Keyboard") {
             VStack(alignment: .leading, spacing: 16) {
                 Text("The Verbose keyboard puts dictation in every app. You tap the dictate button, talk, and tap the check.")
-                    .font(.system(size: 16)).foregroundStyle(.lookInk)
+                    .font(.system(size: 16)).foregroundStyle(Refined.ink)
                     .fixedSize(horizontal: false, vertical: true)
 
                 DictateButtonSettings()
@@ -327,8 +326,8 @@ struct KeyboardSetupScreen: View {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text("\(i + 1).").lookMono(15, weight: .medium).foregroundStyle(.lookMute)
-                            Text(step).font(.system(size: 16)).foregroundStyle(.lookInk)
+                            Text("\(i + 1).").font(.system(size: 15, weight: .medium).monospacedDigit()).foregroundStyle(Refined.mute)
+                            Text(step).font(.system(size: 16)).foregroundStyle(Refined.ink)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .accessibilityElement(children: .combine)
@@ -367,15 +366,15 @@ struct KeyboardSetupScreen: View {
                 Text(Distribution.current.returnsToHostApp
                      ? "The first time you tap the record button, Verbose opens for a second to turn on the microphone, then switches back. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it. If Verbose can't switch back by itself, tap ◀ and your app's name at the top left."
                      : "The first time you tap Start a session, Verbose opens to turn on the microphone. Go back to your app with ◀ and its name at the top left, or swipe right along the bottom edge. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it.")
-                    .font(.system(size: 15)).foregroundStyle(.lookDim)
+                    .font(.system(size: 15)).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
 
                 SettingsPageLabel(text: "Start a session from anywhere").padding(.top, 6)
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(startWays.enumerated()), id: \.offset) { _, way in
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Image(systemName: way.symbol).font(.system(size: 14, weight: .medium)).foregroundStyle(.lookAccentText).frame(width: 20)
-                            Text(way.text).font(.system(size: 16)).foregroundStyle(.lookInk)
+                            Image(systemName: way.symbol).font(.system(size: 14, weight: .medium)).foregroundStyle(Refined.accentText).frame(width: 20)
+                            Text(way.text).font(.system(size: 16)).foregroundStyle(Refined.ink)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .accessibilityElement(children: .combine)
@@ -386,18 +385,18 @@ struct KeyboardSetupScreen: View {
 
                 SettingsPageLabel(text: "Privacy").padding(.top, 6)
                 Text("While a session is on, Verbose keeps the microphone open so dictation starts instantly, and the orange microphone dot stays on. Audio is only saved while you're dictating, and stays on this iPhone unless iCloud sync is on. Each dictation is saved in Library › Dictations; deleting it also removes it from the keyboard's recent dictations, which keep at most 10 from the last day.")
-                    .font(.system(size: 15)).foregroundStyle(.lookDim)
+                    .font(.system(size: 15)).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
 
                 SettingsPageLabel(text: "Why Full Access").padding(.top, 6)
                 Text("Full Access lets the keyboard open Verbose to start a session and receive your words from it." + " Listening and transcription happen in the Verbose app on this iPhone; the keyboard never sends what you type or say anywhere else.")
-                    .font(.system(size: 15)).foregroundStyle(.lookDim)
+                    .font(.system(size: 15)).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                 }
-                .buttonStyle(.phonePrimaryLarge)
+                .buttonStyle(RefinedActionStyle(kind: .strong))
                 .padding(.top, 8)
                 .accessibilityHint("Opens Verbose's page in the Settings app")
             }
@@ -409,20 +408,19 @@ struct KeyboardSetupScreen: View {
 /// The session's state, End session, and the idle timeout.
 private struct SessionCard: View {
     @ObservedObject var session: KeyboardSession
-    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                Circle().fill(session.isOn ? AnyShapeStyle(.lookMark) : AnyShapeStyle(Ink.mute.opacity(0.4))).frame(width: 9, height: 9)
+                Circle().fill(session.isOn ? AnyShapeStyle(Refined.persimmon) : AnyShapeStyle(Refined.mute.opacity(0.4))).frame(width: 9, height: 9)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(session.paused ? "Paused for a call" : session.isOn ? "Session on" : "No session").font(.system(size: 16, weight: .medium)).foregroundStyle(.lookInk)
+                    Text(session.paused ? "Paused for a call" : session.isOn ? "Session on" : "No session").font(.system(size: 16, weight: .medium)).foregroundStyle(Refined.ink)
                     if session.isOn {
                         if let ends = session.endsAt {
                             (Text("Ends in ") + Text(timerInterval: Date()...max(Date(), ends), countsDown: true))
-                                .font(.system(size: 13)).monospacedDigit().foregroundStyle(.lookMute)
+                                .font(.system(size: 13)).monospacedDigit().foregroundStyle(Refined.mute)
                         } else {
-                            Text("Runs until you end it").font(.system(size: 13)).monospacedDigit().foregroundStyle(.lookMute)
+                            Text("Runs until you end it").font(.system(size: 13)).monospacedDigit().foregroundStyle(Refined.mute)
                         }
                     }
                 }
@@ -431,18 +429,18 @@ private struct SessionCard: View {
                 if session.isOn {
                     Button("End session") { session.end(reason: nil) }
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.lookAccentText)
+                        .foregroundStyle(Refined.accentText)
                         .accessibilityHint("Turns off the microphone")
                 }
             }
             if !session.isOn {
                 Button("Start keyboard session") { session.startFromOutside(.app) }
-                    .buttonStyle(.phonePrimaryLarge)
+                    .buttonStyle(RefinedActionStyle(kind: .strong))
                     .accessibilityHint("Turns on the microphone for the Verbose keyboard")
             }
             Divider()
             HStack {
-                Text("End keyboard sessions after").font(.system(size: 16)).foregroundStyle(.lookInk)
+                Text("End keyboard sessions after").font(.system(size: 16)).foregroundStyle(Refined.ink)
                 Spacer(minLength: 8)
                 Picker("End keyboard sessions after", selection: $session.timeoutSeconds) {
                     ForEach(KeyboardSession.timeoutChoices, id: \.seconds) { c in
@@ -450,10 +448,10 @@ private struct SessionCard: View {
                     }
                 }
                 .labelsHidden()
-                .tint(look.isNative ? NativeInk.accent : Ink.accentText)
+                .tint(Refined.accentText)
             }
             Text("A call or Siri pauses the session; it picks up when the call ends. While a session is on, the orange microphone dot shows at the top of the screen.")
-                .font(.system(size: 13)).foregroundStyle(.lookMute)
+                .font(.system(size: 13)).foregroundStyle(Refined.mute)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
@@ -480,22 +478,22 @@ struct SessionEndedScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Session ended")
-                .lookSerif(34).foregroundStyle(.lookInk)
+                .font(.system(size: 34, design: .serif)).foregroundStyle(Refined.ink)
                 .padding(.top, 24)
                 .accessibilityAddTraits(.isHeader)
 
             Text(notice.reason + (notice.lastTake == nil ? "" : " Your last take is saved in Dictations."))
-                .font(.system(size: 16)).foregroundStyle(.lookDim)
+                .font(.system(size: 16)).foregroundStyle(Refined.dim)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 12)
 
             if let take = notice.lastTake {
                 HStack(spacing: 10) {
-                    LookIcon(art: .iconRecent, symbol: "clock.arrow.circlepath", size: 20)
-                    Text(take).font(.system(size: 16)).foregroundStyle(.lookInk).lineLimit(1).truncationMode(.tail)
+                    IconGlyph(art: .iconRecent, size: 20, color: Refined.ink)
+                    Text(take).font(.system(size: 16)).foregroundStyle(Refined.ink).lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: 8)
                     if let at = notice.lastTakeAt {
-                        Text(at, style: .time).font(.system(size: 14)).monospacedDigit().foregroundStyle(.lookMute)
+                        Text(at, style: .time).font(.system(size: 14)).monospacedDigit().foregroundStyle(Refined.mute)
                     }
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
@@ -508,12 +506,12 @@ struct SessionEndedScreen: View {
             // Side by side, the same layout as the session's start screens.
             HStack(spacing: 12) {
                 Button("Not now") { session.endedNotice = nil }
-                    .buttonStyle(.phoneSecondaryLarge)
+                    .buttonStyle(RefinedActionStyle(kind: .quiet))
                 Button("Restart session") {
                     session.endedNotice = nil
                     session.startFromOutside(.app)
                 }
-                .buttonStyle(.phonePrimaryLarge)
+                .buttonStyle(RefinedActionStyle(kind: .strong))
                 .accessibilityHint("Turns the microphone back on")
             }
             .padding(.top, 20)
@@ -522,51 +520,30 @@ struct SessionEndedScreen: View {
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
     }
 }
 
-// brand: native begin
-/// "Keyboard session" over the session screens: the diamond and the overline in Verbose style, a plain secondary line
-/// in Native.
+/// "Keyboard session" over the session screens, in the meta style.
 private struct SessionEyebrow: View {
-    @Environment(\.look) private var look
     var body: some View {
-        Group {
-            if look.isNative {
-                Text("Keyboard session").font(.subheadline.weight(.semibold)).foregroundStyle(NativeInk.secondary)
-            } else {
-                HStack(spacing: 8) {
-                    Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7)
-                    Overline(text: "Keyboard session", color: Ink.dim)
-                }
-            }
-        }
-        .accessibilityElement(children: .combine)
+        Text("Keyboard session").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
     }
 }
 
-/// The session's status card: the ink-outlined card in Verbose style, a grouped cell in Native.
+/// The session's status card: the off-white card, no outline.
 private struct SessionStatusSurface: ViewModifier {
-    @Environment(\.look) private var look
     func body(content: Content) -> some View {
-        if look.isNative {
-            content.nativeCell()
-        } else {
-            content
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5))
-        }
+        content.refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
     }
 }
-// brand: native end
 
 /// A quiet text button beside a pill on the session screens ("End session"): semibold dim text, no fill or outline,
 /// a 44 pt target.
 private struct SessionQuietButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookDim)
+            .font(.system(size: 15, weight: .semibold)).foregroundStyle(Refined.dim)
             .padding(.horizontal, 12).frame(minHeight: 44)
             .contentShape(Rectangle())
             .opacity(configuration.isPressed ? 0.6 : 1)

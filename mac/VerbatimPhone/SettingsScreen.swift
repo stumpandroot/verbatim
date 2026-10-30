@@ -13,8 +13,7 @@ extension Notification.Name {
     static let verbatimSettingsScroll = Notification.Name("verbatimSettingsScroll")
 }
 
-/// Settings in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", PhoneSettings), one layout in both look
-/// settings: the large serif "Settings", the system search field, the You card (your initial on persimmon, your name,
+/// Settings (DESIGN.md §13; mockup "Verbose Refined Look", PhoneSettings): the large serif "Settings", the system search field, the You card (your initial on persimmon, your name,
 /// and what's inside; it opens the You page, YouScreen.swift), then the seven groups of PhoneSettingsMap, each a label
 /// over cards: the rows that open a page, run something, or choose from a menu, each with its colored icon square
 /// (persimmon, butter, sage, petal down the card, `RefinedRules.settingsHue`), its value in `mute`, and a chevron;
@@ -74,9 +73,8 @@ struct SettingsScreen: View {
     @ObservedObject private var search = SettingsSearchModel.shared
     @State private var searchFlash: String? = nil
     @Environment(\.limitMotion) private var limitMotion
-    @Environment(\.look) private var look
-    /// The looks the refined Settings is on screen in (the self-test checks each look draws this one layout).
-    static var onScreen = Set<AppLook>()
+    /// How many Settings roots are on screen (the self-test checks Settings draws).
+    static var onScreen = 0
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -144,8 +142,8 @@ struct SettingsScreen: View {
         // Home's This week card opens the You page, and its keyboard row opens Keyboard (SettingsPage, HomeScreen.swift).
         // On the tab's first appearance (Home's What's new note creates it), the push waits a turn of the main loop: a
         // destination presented during the stack's own first appearance can push before the stack is in the window.
-        .onAppear { Self.onScreen.insert(look); DispatchQueue.main.async { openRequestedPage() } }
-        .onDisappear { Self.onScreen.remove(look) }
+        .onAppear { Self.onScreen += 1; DispatchQueue.main.async { openRequestedPage() } }
+        .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettingsPage)) { _ in openRequestedPage() }
         // UI tour: `false` closes the You page (and anything pushed from it).
         .onReceive(NotificationCenter.default.publisher(for: .verbatimYouPage)) { note in

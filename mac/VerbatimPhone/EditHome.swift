@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Edit Home (mockup "premium", section 03): Home's sections in a list you drag to reorder, each with Compact or Large
 /// and a control to show or hide it, and the four shortcut tiles (HomeTilePicker). Changes reach Home at once and are
-/// kept on this iPhone (HomeLayout.swift). One refined design in both look settings (DESIGN.md §13): the large serif
+/// kept on this iPhone (HomeLayout.swift). On the refined kit (DESIGN.md §13): the large serif
 /// title, the sections in cards, and the accent's checks.
 ///
 /// Two ways in: the Edit Home button at the end of Home presents it in a sheet with Reset and Done (`onDone`), and

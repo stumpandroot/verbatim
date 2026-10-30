@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Settings › Snippets: say a trigger while dictating and its saved text goes in instead. The same list as the
 /// Mac's (synced through iCloud with the Dictionary), and the Verbatim keyboard's Snippets chip inserts them too. On
-/// the refined kit (DESIGN.md §13) in both look settings.
+/// the refined kit (DESIGN.md §13).
 struct SnippetsScreen: View {
     @EnvironmentObject var app: PhoneState
     @State private var trigger = ""
