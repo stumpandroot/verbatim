@@ -24,6 +24,34 @@
           ],
           "text": "Minimized, a recording shows its time with Pause and Stop above the tab bar.",
           "detail": "In Native it's in the tab bar, in the same design. Tap it to bring the recorder back."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Recordings use your AirPods when they're connected, at full quality on iOS 26.",
+          "detail": "The Record card names the microphone a recording will use, such as AirPods Pro. A recording stays on its microphone until you take it out, then moves to the iPhone's."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Tap the microphone in the recorder to record from another one.",
+          "detail": "Pick the iPhone microphone, AirPods, or a wired or USB microphone. Your choice lasts for that recording."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Home's tiles have quiet line patterns, and the record disc sits centered in its rings."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Clean up in Recent is a smaller text button beside the recording's title."
         }
       ]
     },
