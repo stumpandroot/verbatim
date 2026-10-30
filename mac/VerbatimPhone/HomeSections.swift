@@ -14,13 +14,15 @@ enum HomeSpacing {
     }
 
     /// The sections Home draws: the layout's shown ones. Record's accessory steps aside on Home
-    /// while the Record card is drawn (`hidesRecordAccessory`).
+    /// while the Record card is drawn (`hidesRecordChrome`).
     static func drawn(_ layout: HomeLayout) -> [HomeLayout.Item] { layout.shown }
 
-    /// Whether Record's accessory (RecordAccessory.swift) stays off on this tab: on Home's own screen, while
-    /// its Record card is there and nothing is recording (the accessory carries the live recording on every tab).
-    static func hidesRecordAccessory(tab: PhoneState.Tab, homeAtRoot: Bool, recording: Bool, layout: HomeLayout) -> Bool {
-        tab == .home && homeAtRoot && !recording && layout.isVisible(.record)
+    /// Whether Record's accessory (RecordAccessory.swift), or the bar before iOS 26, is off on this tab
+    /// (`RecordChromeRule`): while you read a transcript, or on Home's own screen with its Record card, and only when
+    /// nothing is recording (the accessory carries the live recording on every screen).
+    @MainActor static func hidesRecordChrome(_ app: PhoneState, tab: PhoneState.Tab, layout: HomeLayout) -> Bool {
+        RecordChromeRule.hidden(tab: tab, homeAtRoot: app.homePath.isEmpty, recordCardShown: layout.isVisible(.record),
+                                readingTranscript: app.readingTranscripts > 0, recording: app.recordingActive)
     }
 }
 

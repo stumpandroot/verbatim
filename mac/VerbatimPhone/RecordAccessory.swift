@@ -3,7 +3,7 @@ import UIKit
 
 // Record in the tab bar (DESIGN.md §13 and §16; mockup "Verbose Refined Look"): the
 // tab bar's bottom accessory, the slot Apple Music uses for its player, on every tab but Home's own screen, where the
-// refined Record card stands in for it while it's shown (HomeSpacing.hidesRecordAccessory). A tap records a voice note;
+// refined Record card stands in for it while it's shown (HomeSpacing.hidesRecordChrome). A tap records a voice note;
 // touch and hold opens Record as, a system Menu built like Books' reading menu (an icon row for Dictate, Live
 // captions, and Import, then the ways to record, each with the line that says what it does). While a recording runs,
 // the accessory is the minimized recorder (`PhoneMiniRecorder`, the refined kit's design: the persimmon dot, the time,

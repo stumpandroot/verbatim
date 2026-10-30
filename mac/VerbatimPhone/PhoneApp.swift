@@ -65,11 +65,9 @@ struct PhoneRoot: View {
             }
         }
         // Record in the tab bar's bottom accessory, and a tab bar that shrinks on scroll down (iOS 26;
-        // RecordAccessory.swift). Off while you read a transcript, and on Home's own screen while its Record card is
-        // there (HomeSections.swift).
-        .recordTabChrome(hidden: app.readingTranscripts > 0
-                         || HomeSpacing.hidesRecordAccessory(tab: app.tab, homeAtRoot: app.homePath.isEmpty,
-                                                             recording: app.recordingActive, layout: layouts.layout))
+        // RecordAccessory.swift). With nothing recording, off while you read a transcript and on Home's own screen
+        // while its Record card is there; while a recording exists, on every screen (`RecordChromeRule`).
+        .recordTabChrome(hidden: HomeSpacing.hidesRecordChrome(app, tab: app.tab, layout: layouts.layout))
         // The selected tab, and the chrome's buttons, take the accent (DESIGN.md §13). iPhone switches keep the
         // system's green (`refinedSwitchTint()`).
         .tint(Refined.accentText)

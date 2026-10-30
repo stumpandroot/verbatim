@@ -256,6 +256,15 @@ enum PhoneUITest {
                         transcriptLayoutCheck(rich)
                         // Reading: the tab bar hides, and Record's accessory turns off with it (the player takes the bottom).
                         layoutCheck("a transcript turns off Record's accessory while you read", app.readingTranscripts > 0)
+                        // A minimized recording stays while you read: the accessory (the tab bar stays to carry it from
+                        // iOS 26), or the opaque bar before iOS 26 (review fix 1).
+                        app.previewRecording = true
+                        try? await Task.sleep(nanoseconds: 800_000_000)
+                        layoutCheck("a minimized recording stays on a transcript (\(RecordAccessory.onScreen) on screen)",
+                                    !HomeSpacing.hidesRecordChrome(app, tab: app.tab, layout: HomeLayoutStore.shared.layout)
+                                    && RecordAccessory.onScreen > 0 && !RecordAccessory.showsRecord)
+                        app.previewRecording = false
+                        try? await Task.sleep(nanoseconds: 600_000_000)
                     }
                     NotificationCenter.default.post(name: .phoneTranscriptMode, object: "summary")
                     await show("\(prefix)05e-transcript-summary")

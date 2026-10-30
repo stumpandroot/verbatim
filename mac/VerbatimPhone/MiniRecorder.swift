@@ -193,17 +193,16 @@ final class RecordingLiveText: ObservableObject {
 
 /// Before iOS 26, where the tab bar has no bottom accessory: Record (or the live recording) in an opaque bar above the
 /// tab bar on a tab's content (`RecordBar`). A safe-area inset, so lists and scroll views end
-/// above it instead of under it. Off while you read a transcript, and on Home's own screen while its Record card is
-/// there. From iOS 26 the tab bar's accessory carries it (RecordAccessory.swift) and this adds nothing.
+/// above it instead of under it. With nothing recording, off while you read a transcript and on Home's own screen while
+/// its Record card is there; while a recording exists, on every screen (`RecordChromeRule`). From iOS 26 the tab bar's
+/// accessory carries it (RecordAccessory.swift) and this adds nothing.
 struct MiniRecorderInset: ViewModifier {
     @EnvironmentObject var app: PhoneState
     var tab: PhoneState.Tab
     @ObservedObject private var layouts = HomeLayoutStore.shared
 
     private var showsBar: Bool {
-        !RecordPlacement.systemAccessory && app.readingTranscripts == 0
-            && !HomeSpacing.hidesRecordAccessory(tab: tab, homeAtRoot: app.homePath.isEmpty, recording: app.recordingActive,
-                                                 layout: layouts.layout)
+        !RecordPlacement.systemAccessory && !HomeSpacing.hidesRecordChrome(app, tab: tab, layout: layouts.layout)
     }
 
     func body(content: Content) -> some View {
@@ -272,6 +271,13 @@ struct ChevronDownMark: Shape {
 extension PhoneState {
     /// A recording exists: running, paused, or being saved (or the screenshot tour's stand-in).
     var recordingActive: Bool { recorder.isRecording || savingRecording || previewRecording }
+
+    /// A transcript's or Audio only screen's tab bar: hidden while you read, except from iOS 26 while a recording
+    /// exists, when it stays to carry the minimized recorder in its accessory (`RecordChromeRule`).
+    var readingTabBar: Visibility {
+        RecordChromeRule.readingHidesTabBar(recording: recordingActive, systemAccessory: RecordPlacement.systemAccessory)
+            ? .hidden : .visible
+    }
 
     /// Minimize, a swipe down, or VoiceOver's escape: the recorder sheet goes away and the recording carries on.
     /// Never stops, pauses, or discards anything.

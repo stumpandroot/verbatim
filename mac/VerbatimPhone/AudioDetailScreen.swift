@@ -7,7 +7,7 @@ import UIKit
 // you give it, since there's no line to quote), notes, Transcribe, and Share. Tap Transcribe for a plain transcribe (a
 // voice note when it's done); touch and hold it to Transcribe as each kind, like Record as. While it transcribes, the
 // progress is where Transcribe was, and the screen turns into the transcript when the words are in. The tab bar hides,
-// as it does in a transcript.
+// as it does in a transcript, except while a recording exists (`PhoneState.readingTabBar`).
 
 struct PhoneAudioDetail: View {
     @EnvironmentObject var app: PhoneState
@@ -37,7 +37,8 @@ struct PhoneAudioDetail: View {
         }
         .background(Refined.paper.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
+        // While a recording exists, the tab bar stays from iOS 26 to carry the minimized recorder (`readingTabBar`).
+        .toolbar(app.readingTabBar, for: .tabBar)
         .toolbar { toolbar }
         .onAppear {
             Self.shown = id
@@ -69,7 +70,7 @@ struct PhoneAudioDetail: View {
             Button("Move to Recently Deleted", role: .destructive) { app.delete([id]); dismiss() }
             Button("Cancel", role: .cancel) {}
         } message: { Text("You can restore it for 30 days.") }
-        // Reading: Record's accessory turns off with the tab bar (RecordAccessory.swift).
+        // Reading: with nothing recording, Record's accessory turns off with the tab bar (RecordAccessory.swift).
         .onAppear { app.readingScreens.insert(readingToken) }
         .onDisappear { app.readingScreens.remove(readingToken) }
     }

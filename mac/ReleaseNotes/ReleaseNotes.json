@@ -122,6 +122,13 @@
           ],
           "text": "Widgets and the Live Activity have the new look: cards, serif titles, and the record disc.",
           "detail": "This week's widget no longer has a Color option. Widgets you already placed keep working."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "A minimized recording stays in view on transcripts and Audio only recordings.",
+          "detail": "On iOS 26 the tab bar stays to carry it. With nothing recording, the tab bar still steps aside while you read."
         }
       ]
     },

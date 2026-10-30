@@ -374,5 +374,27 @@ check("headed: Today's thoughts and Journal only when Large",
       && HomeLayout.Item(section: .journal, visible: true, size: .large).headed && !HomeLayout.Item(section: .journal, visible: true, size: .compact).headed)
 check("headed: the Record card, tiles, and This week never", [HomeSection.record, .tiles, .week].allSatisfy { !HomeLayout.Item(section: $0, visible: true, size: .large).headed })
 
+// MARK: Record's accessory and the opaque bar (RecordChromeRule, PhoneTabBar.swift)
+
+typealias RC = RecordChromeRule
+check("record chrome: shown on Library with nothing recording",
+      !RC.hidden(tab: .library, homeAtRoot: true, recordCardShown: true, readingTranscript: false, recording: false))
+check("record chrome: off on Home's own screen while its Record card shows and nothing records",
+      RC.hidden(tab: .home, homeAtRoot: true, recordCardShown: true, readingTranscript: false, recording: false))
+check("record chrome: on Home with the card hidden, or deeper in Home's stack",
+      !RC.hidden(tab: .home, homeAtRoot: true, recordCardShown: false, readingTranscript: false, recording: false)
+      && !RC.hidden(tab: .home, homeAtRoot: false, recordCardShown: true, readingTranscript: false, recording: false))
+check("record chrome: off on a transcript or Audio only screen with nothing recording",
+      PhoneTab.allCases.allSatisfy { RC.hidden(tab: $0, homeAtRoot: false, recordCardShown: true, readingTranscript: true, recording: false) })
+check("record chrome: a minimized recording stays on transcripts and Audio only screens, on every tab (review fix 1)",
+      PhoneTab.allCases.allSatisfy { t in [true, false].allSatisfy { root in [true, false].allSatisfy { card in
+          !RC.hidden(tab: t, homeAtRoot: root, recordCardShown: card, readingTranscript: true, recording: true)
+          && !RC.hidden(tab: t, homeAtRoot: root, recordCardShown: card, readingTranscript: false, recording: true) } } })
+check("record chrome: reading keeps the tab bar from iOS 26 while recording, so its accessory can carry the recording",
+      !RC.readingHidesTabBar(recording: true, systemAccessory: true))
+check("record chrome: reading hides the tab bar with nothing recording, and before iOS 26 (the bar sits on the content)",
+      RC.readingHidesTabBar(recording: false, systemAccessory: true) && RC.readingHidesTabBar(recording: false, systemAccessory: false)
+      && RC.readingHidesTabBar(recording: true, systemAccessory: false))
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

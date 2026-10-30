@@ -139,6 +139,26 @@ struct PhoneTabBar: Equatable, Sendable {
     }
 }
 
+/// Where Record's tab bar accessory (iOS 26, RecordAccessory.swift) and the opaque bar before iOS 26 (`RecordBar`)
+/// show. While a recording exists (running, paused, or saving), they carry the minimized recorder on every screen,
+/// transcripts and Audio only included, so you can always get back to it. With nothing recording, Record steps aside
+/// while you read a transcript or an Audio only recording, and on Home's own screen while its Record card is there.
+enum RecordChromeRule {
+    static func hidden(tab: PhoneTab, homeAtRoot: Bool, recordCardShown: Bool, readingTranscript: Bool,
+                       recording: Bool) -> Bool {
+        if recording { return false }
+        if readingTranscript { return true }
+        return tab == .home && homeAtRoot && recordCardShown
+    }
+
+    /// Whether a transcript or an Audio only recording hides the tab bar while you read. From iOS 26 the minimized
+    /// recorder lives in the tab bar's accessory, which goes with the tab bar, so the tab bar stays while a recording
+    /// exists. Before iOS 26 the opaque bar sits on the screen's content, so the tab bar can go.
+    static func readingHidesTabBar(recording: Bool, systemAccessory: Bool) -> Bool {
+        !(recording && systemAccessory)
+    }
+}
+
 #if canImport(Combine)
 /// This iPhone's bar, read once and written on each change. PhoneRoot builds its TabView from it.
 @MainActor

@@ -173,8 +173,9 @@ struct TranscriptScreen: View {
                 .background(Refined.paper.ignoresSafeArea())
                 .modifier(ReadingEdges())
                 .navigationBarTitleDisplayMode(.inline)
-                // Reading: the tab bar goes, and the player sits at the bottom edge instead of floating over it.
-                .toolbar(.hidden, for: .tabBar)
+                // Reading: the tab bar goes, and the player sits at the bottom edge instead of floating over it. While a
+                // recording exists, the tab bar stays from iOS 26 to carry the minimized recorder (`readingTabBar`).
+                .toolbar(app.readingTabBar, for: .tabBar)
                 .toolbar {
                     // Two glass controls beside Back: Share and More (Books' reading menu).
                     ToolbarItemGroup(placement: .topBarTrailing) {
