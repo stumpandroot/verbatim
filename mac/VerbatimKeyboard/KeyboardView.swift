@@ -41,7 +41,7 @@ enum KB {
     static let wash = Refined.color(RefinedHex.Tone(0xCCC3B1, 0x2B3530, hc: (0xC0B6A2, 0x36423C)))
     /// A key's 1 pt bottom edge: ink at 25% in light (50% with Increase Contrast); a dark shadow in dark, as the system
     /// keys have (a light edge under a dark key reads as a rim), with a paper edge under Increase Contrast.
-    static let keyShadow = Ink.make { dark, hc in
+    static let keyShadow = Refined.make { dark, hc in
         if dark { return hc ? PColor(hex: RefinedHex.paper.light).withAlphaComponent(0.35) : PColor.black.withAlphaComponent(0.5) }
         return PColor(hex: RefinedHex.ink.light).withAlphaComponent(hc ? 0.5 : 0.25)
     }
@@ -68,12 +68,12 @@ enum KB {
 /// Three modes, like Wispr Flow's keyboard, in Verbose's look (the approved mockup, kb2). The dictate button's size,
 /// position, and style follow Settings › Keyboard › Dictate button (`DictateButton`, the notch mockup's section 05):
 /// Typing's Start, Home's Tap to talk, and Listening's done button move and change with it.
-/// - Home: close and ABC (to Typing), Recent, and Settings over your numbers in the serif, with one butter Tap to talk.
+/// - Home: close and ABC (to Typing), Recent, and Settings over your numbers in the serif, with one persimmon Tap to talk.
 ///   With no session, the same layout offers Start a session instead (it opens Verbose straight into one), with
 ///   "Or use Control Center or the Action button" under it; when Verbose couldn't be opened, the other ways.
-/// - Typing: the menu and a butter Start over the full keyboard. Words that go in come back here with
+/// - Typing: the menu and a persimmon Start over the full keyboard. Words that go in come back here with
 ///   "✓ Inserted · 14 words" and Undo for a few seconds.
-/// - Listening: cancel, the cleanup chip, and a butter done button over your words, the voice bars, "Listening", and
+/// - Listening: cancel, the cleanup chip, and a persimmon done button over your words, the voice bars, "Listening", and
 ///   the microphone and time. Starting, writing, and polishing use the same screen.
 /// Typing works without Allow Full Access; Home explains why dictation needs it.
 struct KeyboardView: View {
@@ -656,8 +656,8 @@ private struct StatsPager: View {
     }
 }
 
-/// Home's one big action: Tap to talk with five still voice bars, butter with grain (Filled) or card white with an
-/// ink ring (Outline), with the hard shadow either way.
+/// Home's one big action: Tap to talk with five still voice bars, persimmon (Filled) or the card with the accent's
+/// ring (Outline).
 private struct TalkPill: View {
     var label: String
     var style: DictateButton.Style
@@ -669,7 +669,7 @@ private struct TalkPill: View {
                 Text(label).font(.system(size: 16, weight: .bold)).foregroundStyle(dictateForeground(style)).lineLimit(1)
             }
             .padding(.horizontal, 24).frame(height: 50)
-            .dictateSurface(style, shape: Capsule(), shadow: CGSize(width: 3, height: 4))
+            .dictateSurface(style, shape: Capsule())
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(label)
@@ -686,14 +686,14 @@ private struct DictateStart: View {
             if look.size == .large {
                 StillBars(height: 24, barWidth: 3.5, color: dictateForeground(look.style))
                     .frame(width: CGFloat(DictateButton.disc), height: CGFloat(DictateButton.disc))
-                    .dictateSurface(look.style, shape: Circle(), shadow: CGSize(width: 3, height: 4))
+                    .dictateSurface(look.style, shape: Circle())
             } else {
                 HStack(spacing: 10) {
                     Text("Start").font(.system(size: 17, weight: .bold)).foregroundStyle(dictateForeground(look.style)).lineLimit(1)
                     StillBars(height: 20, barWidth: 3, color: dictateForeground(look.style))
                 }
                 .padding(.leading, 20).padding(.trailing, 16).frame(height: KB.barHeight)
-                .dictateSurface(look.style, shape: Capsule(), shadow: CGSize(width: 2, height: 3))
+                .dictateSurface(look.style, shape: Capsule())
             }
         }
         .buttonStyle(PressFade())
@@ -701,8 +701,7 @@ private struct DictateStart: View {
     }
 }
 
-/// Listening's done, in the dictate button's place and look: the 46 pt circle (no grain, as before) or the 62 pt
-/// disc (with grain), filled or outlined.
+/// Listening's done, in the dictate button's place and style: the 46 pt circle or the 62 pt disc, filled or outlined.
 private struct DictateDone: View {
     var look: DictateButton
     var action: () -> Void
@@ -713,7 +712,7 @@ private struct DictateDone: View {
             Image(systemName: "checkmark").font(.system(size: large ? 23 : 19, weight: .bold))
                 .foregroundStyle(dictateForeground(look.style))
                 .frame(width: d, height: d)
-                .dictateSurface(look.style, shape: Circle(), shadow: large ? CGSize(width: 3, height: 4) : CGSize(width: 2, height: 3), grain: large)
+                .dictateSurface(look.style, shape: Circle())
         }
         .buttonStyle(PressFade())
         // Icon only, so VoiceOver would read "Checkmark".
@@ -746,8 +745,8 @@ private func dictateForeground(_ style: DictateButton.Style) -> Color {
 
 private extension View {
     /// The dictate button's surface. Filled: persimmon. Outline: the card with the accent's 1.5 pt ring. No grain and
-    /// no shadow (DESIGN.md §13). `shadow` and `grain` are kept for the callers and draw nothing.
-    func dictateSurface<S: InsettableShape>(_ style: DictateButton.Style, shape: S, shadow: CGSize = .zero, grain: Bool = true) -> some View {
+    /// no shadow (DESIGN.md §13).
+    func dictateSurface<S: InsettableShape>(_ style: DictateButton.Style, shape: S) -> some View {
         background(shape.fill(style == .filled ? KB.dictate : KB.card))
             .overlay { if style != .filled { shape.strokeBorder(Refined.accentText, lineWidth: 1.5) } }
             .contentShape(shape)
@@ -1000,7 +999,7 @@ private struct FullAccessCard: View {
 }
 
 /// Home with no session, in the kb2 Home's place for the numbers: "Start a session *to dictate.*" in the serif
-/// and what Start a session does. The butter Start a session pill and the quieter line sit below it, where Tap to
+/// and what Start a session does. The persimmon Start a session pill and the quieter line sit below it, where Tap to
 /// talk does.
 private struct StartSessionHeadline: View {
     var returnsByItself: Bool

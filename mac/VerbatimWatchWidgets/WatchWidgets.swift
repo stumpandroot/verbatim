@@ -52,8 +52,8 @@ struct WatchProvider: TimelineProvider {
 private struct WatchCardHeader: View {
     var body: some View {
         HStack(spacing: 5) {
-            BarsMark(color: WatchInk.record).frame(width: 11, height: 11)
-            Text("Verbose").font(.system(size: 12, weight: .bold)).foregroundStyle(WatchInk.record)
+            BarsMark(color: WatchColor.record).frame(width: 11, height: 11)
+            Text("Verbose").font(.system(size: 12, weight: .bold)).foregroundStyle(WatchColor.record)
         }
         .widgetAccentable()
         .accessibilityElement(children: .combine)
@@ -66,12 +66,12 @@ struct WatchRecordComplication: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "co.stumpandroot.verbatim.watch.record", provider: WatchProvider()) { _ in
             ZStack {
-                Circle().fill(WatchInk.record).widgetAccentable()
-                BarsMark(color: WatchInk.onRecord).padding(13)
+                Circle().fill(WatchColor.record).widgetAccentable()
+                BarsMark(color: WatchColor.onRecord).padding(13)
             }
             .accessibilityLabel("Record")
             .widgetURL(WatchRules.recordLink)
-            .containerBackground(WatchInk.card, for: .widget)
+            .containerBackground(WatchColor.card, for: .widget)
         }
         .configurationDisplayName("Record")
         .description("Start a voice note from your watch face.")
@@ -87,13 +87,13 @@ struct WatchThoughtsComplication: Widget {
             VStack(alignment: .leading, spacing: 1) {
                 WatchCardHeader()
                 Text(WatchRules.complicationTitle(entry.thoughts))
-                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(WatchInk.text).monospacedDigit()
-                Text(WatchRules.complicationDetail).font(.system(size: 12)).foregroundStyle(WatchInk.dim)
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(WatchColor.text).monospacedDigit()
+                Text(WatchRules.complicationDetail).font(.system(size: 12)).foregroundStyle(WatchColor.dim)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
             .widgetURL(WatchRules.thoughtLink)
-            .containerBackground(WatchInk.card, for: .widget)
+            .containerBackground(WatchColor.card, for: .widget)
         }
         .configurationDisplayName("Today's thoughts")
         .description("See how many thoughts you have today, and tap to add one.")
@@ -110,19 +110,19 @@ struct WatchSmartStackCard: Widget {
             VStack(alignment: .leading, spacing: 1) {
                 WatchCardHeader()
                 if let c = entry.context, let title = c.lastTitle {
-                    Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(WatchInk.text).lineLimit(1).privacySensitive()
+                    Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(WatchColor.text).lineLimit(1).privacySensitive()
                     if let line = WatchRules.lastLine(c, time: { $0.formatted(date: .omitted, time: .shortened) }) {
-                        Text(line).font(.system(size: 12)).foregroundStyle(WatchInk.dim).lineLimit(1)
+                        Text(line).font(.system(size: 12)).foregroundStyle(WatchColor.dim).lineLimit(1)
                     }
                 } else {
-                    Text(WatchRules.complicationTitle(entry.thoughts)).font(.system(size: 15, weight: .semibold)).foregroundStyle(WatchInk.text)
+                    Text(WatchRules.complicationTitle(entry.thoughts)).font(.system(size: 15, weight: .semibold)).foregroundStyle(WatchColor.text)
                 }
-                Text("Tap to record").font(.system(size: 12, weight: .semibold)).foregroundStyle(WatchInk.record)
+                Text("Tap to record").font(.system(size: 12, weight: .semibold)).foregroundStyle(WatchColor.record)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
             .widgetURL(WatchRules.recordLink)
-            .containerBackground(WatchInk.card, for: .widget)
+            .containerBackground(WatchColor.card, for: .widget)
         }
         .configurationDisplayName("Last capture")
         .description("Your last recording, with Record, in the Smart Stack.")

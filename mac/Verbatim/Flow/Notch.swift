@@ -167,7 +167,7 @@ struct NotchView: View {
     private var still: Bool { systemReduceMotion || motionLimited }
 
     private static let space = "notch-panel"
-    private static let black = Ink.notchBlack
+    private static let black = Refined.black
 
     private enum Look: Equatable { case hidden, rest, peek, listening, open, working, pasted, error, notice, prompt }
 
@@ -276,11 +276,11 @@ struct NotchView: View {
         case .hidden, .rest:
             EmptyView()
         case .peek, .notice, .prompt:
-            BarsMark(color: Ink.persimmonFixed).frame(width: 14, height: 15)
+            BarsMark(color: Refined.persimmonFixed).frame(width: 14, height: 15)
         case .listening, .open, .working, .error:
             appIcon
             Text(model.targetName.isEmpty ? "Dictation" : model.targetName)
-                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.onBlack).lineLimit(1)
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.onBlack).lineLimit(1)
         case .pasted:
             appIcon
         }
@@ -294,13 +294,13 @@ struct NotchView: View {
             DarkKeycap(text: controller.hotkeyKeycap)
         case .listening, .open:
             VoiceBars(levels: VoiceBars.live(live.levels, count: 9), height: 16)
-            Text(SurfaceClock.text(live.elapsed)).font(SurfaceFont.mono(12)).foregroundStyle(Ink.onBlackDim).monospacedDigit()
+            Text(SurfaceClock.text(live.elapsed)).font(SurfaceFont.mono(12)).foregroundStyle(Refined.onBlackDim).monospacedDigit()
         case .working:
             SurfaceSpinner(size: 13, still: still)
-            Text(workingText).font(.system(size: 12.5)).foregroundStyle(Ink.onBlack).lineLimit(1)
+            Text(workingText).font(.system(size: 12.5)).foregroundStyle(Refined.onBlack).lineLimit(1)
         case .pasted:
             if let n = pastedWords {
-                Text(n == 1 ? "1 word" : "\(n) words").font(SurfaceFont.mono(12)).foregroundStyle(Ink.onBlackDim)
+                Text(n == 1 ? "1 word" : "\(n) words").font(SurfaceFont.mono(12)).foregroundStyle(Refined.onBlackDim)
             }
         case .prompt:
             if let p = model.prompt { closeRing(p) }
@@ -312,7 +312,7 @@ struct NotchView: View {
         case .listening:
             if let a = model.alert { problem(title: a.title, detail: a.detail, strong: a.strong, action: nil) }
             else if !model.warning.isEmpty {
-                Text(model.warning).font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.dangerOnBlack)
+                Text(model.warning).font(.system(size: 12, weight: .medium)).foregroundStyle(Refined.dangerOnBlack)
                     .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16).padding(.top, 2).padding(.bottom, 10)
             }
@@ -324,20 +324,20 @@ struct NotchView: View {
                     Spacer(minLength: 0)
                     RibbonControl(id: "notch-cancel", label: "Cancel", help: "Cancel (Esc)", action: controller.cancel) { pressed in
                         HStack(spacing: 7) {
-                            Text("Cancel").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.onBlack)
-                            DarkKeycap(text: "esc", color: Ink.onBlackDim)
+                            Text("Cancel").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Refined.onBlack)
+                            DarkKeycap(text: "esc", color: Refined.onBlackDim)
                         }
                         .padding(.leading, 12).padding(.trailing, 8).frame(height: 28)
-                        .overlay(Capsule().strokeBorder(Ink.onBlackHair, lineWidth: 1))
+                        .overlay(Capsule().strokeBorder(Refined.onBlackHair, lineWidth: 1))
                         .opacity(pressed ? 0.8 : 1)
                     }
                     RibbonControl(id: "notch-stop", label: "Stop", help: "Stop and paste", action: controller.stop) { pressed in
                         HStack(spacing: 7) {
-                            RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Ink.inkFixed).frame(width: 9, height: 9)
-                            Text("Stop").font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                            RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.inkFixed).frame(width: 9, height: 9)
+                            Text("Stop").font(.system(size: 14, weight: .semibold)).foregroundStyle(Refined.inkFixed)
                         }
                         .padding(.horizontal, 12).frame(height: 28)
-                        .background(Ink.persimmonFixed, in: Capsule())
+                        .background(Refined.persimmonFixed, in: Capsule())
                         .opacity(pressed ? 0.85 : 1)
                     }
                 }
@@ -351,7 +351,7 @@ struct NotchView: View {
             problem(title: t.title, detail: t.detail, strong: true, action: model.noticeAction)
         case .notice:
             HStack(alignment: .center, spacing: 10) {
-                Text(model.notice).font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.onBlack)
+                Text(model.notice).font(.system(size: 13, weight: .medium)).foregroundStyle(Refined.onBlack)
                     .lineLimit(3).fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let a = model.noticeAction { actionPill(a) }
@@ -374,8 +374,8 @@ struct NotchView: View {
 
     private var pastedLine: some View {
         HStack(spacing: 8) {
-            BrandGlyph(art: .webCheck, color: Ink.persimmonFixed, minLineWidth: 1.6).frame(width: 14, height: 14)
-            Text(model.notice).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.onBlack).lineLimit(1)
+            BrandGlyph(art: .webCheck, color: Refined.persimmonFixed, minLineWidth: 1.6).frame(width: 14, height: 14)
+            Text(model.notice).font(.system(size: 14, weight: .semibold)).foregroundStyle(Refined.onBlack).lineLimit(1)
         }
         .frame(maxWidth: .infinity)
     }
@@ -397,11 +397,11 @@ struct NotchView: View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 7) {
-                    BrandGlyph(art: .webAttention, color: Ink.dangerOnBlack, minLineWidth: 1.4).frame(width: 16, height: 16)
-                    Text(title).font(.system(size: 13.5, weight: strong ? .semibold : .medium)).foregroundStyle(Ink.dangerOnBlack).lineLimit(2)
+                    BrandGlyph(art: .webAttention, color: Refined.dangerOnBlack, minLineWidth: 1.4).frame(width: 16, height: 16)
+                    Text(title).font(.system(size: 13.5, weight: strong ? .semibold : .medium)).foregroundStyle(Refined.dangerOnBlack).lineLimit(2)
                 }
                 if !detail.isEmpty {
-                    Text(detail).font(.system(size: 12.5)).foregroundStyle(Ink.onBlackDim).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                    Text(detail).font(.system(size: 12.5)).foregroundStyle(Refined.onBlackDim).lineLimit(3).fixedSize(horizontal: false, vertical: true)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -412,9 +412,9 @@ struct NotchView: View {
 
     private func actionPill(_ title: String) -> some View {
         RibbonControl(id: "notch-notice-action", label: title, action: controller.performNoticeAction) { pressed in
-            Text(title).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.onBlack)
+            Text(title).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Refined.onBlack)
                 .padding(.horizontal, 12).frame(height: 28)
-                .overlay(Capsule().strokeBorder(Ink.onBlackHair, lineWidth: 1))
+                .overlay(Capsule().strokeBorder(Refined.onBlackHair, lineWidth: 1))
                 .opacity(pressed ? 0.8 : 1)
         }
     }
@@ -426,11 +426,11 @@ struct NotchView: View {
     /// Hidden from VoiceOver, like the Ribbon's: announcing every word would drown everything else out.
     private var wordsLine: some View {
         let d = words.words.tail(140).display
-        let older = Text(d.settled).foregroundColor(Ink.onBlackDim)
-        let recent = Text((d.settled.isEmpty ? "" : " ") + ([d.volatile, d.newest].filter { !$0.isEmpty }.joined(separator: " "))).foregroundColor(Ink.onBlack)
+        let older = Text(d.settled).foregroundColor(Refined.onBlackDim)
+        let recent = Text((d.settled.isEmpty ? "" : " ") + ([d.volatile, d.newest].filter { !$0.isEmpty }.joined(separator: " "))).foregroundColor(Refined.onBlack)
         return Group {
             if words.words.isEmpty {
-                Text("Listening…").italic().foregroundColor(Ink.onBlackDim)
+                Text("Listening…").italic().foregroundColor(Refined.onBlackDim)
             } else {
                 older + recent
             }
@@ -454,24 +454,24 @@ struct NotchView: View {
 
     private func promptRow(_ p: FlowBarModel.Prompt) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(p.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.onBlack)
-            (Text(p.body) + Text(p.quote.map { "“\($0)”" } ?? "").foregroundColor(Ink.onBlack) + Text(p.after))
-                .font(.system(size: 13)).foregroundStyle(Ink.onBlackDim).fixedSize(horizontal: false, vertical: true)
+            Text(p.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Refined.onBlack)
+            (Text(p.body) + Text(p.quote.map { "“\($0)”" } ?? "").foregroundColor(Refined.onBlack) + Text(p.after))
+                .font(.system(size: 13)).foregroundStyle(Refined.onBlackDim).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Spacer(minLength: 0)
                 RibbonControl(id: "notch-prompt-secondary", label: p.secondary, action: { controller.answer(primary: false) }) { pressed in
-                    Text(p.secondary).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.onBlack)
+                    Text(p.secondary).font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.onBlack)
                         .padding(.horizontal, 14).frame(height: 28)
-                        .overlay(Capsule().strokeBorder(Ink.onBlackHair, lineWidth: 1))
+                        .overlay(Capsule().strokeBorder(Refined.onBlackHair, lineWidth: 1))
                         .opacity(pressed ? 0.8 : 1)
                 }
                 if let primary = p.primary {
                     RibbonControl(id: "notch-prompt-primary", label: primary, action: { controller.answer(primary: true) }) { pressed in
                         // Paper on the notch's black, ink text: persimmon stays on Record and Stop (DESIGN.md §1).
-                        Text(primary).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                        Text(primary).font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.inkFixed)
                             .lineLimit(1).fixedSize()
                             .padding(.horizontal, 14).frame(height: 28)
-                            .background(Ink.onBlack, in: Capsule())
+                            .background(Refined.onBlack, in: Capsule())
                             .opacity(pressed ? 0.85 : 1)
                     }
                 }
@@ -502,9 +502,9 @@ private struct NotchCountdownRing: View {
     @State private var progress: CGFloat = 1
     var body: some View {
         ZStack {
-            Circle().stroke(Ink.onBlackHair, lineWidth: 2)
-            Circle().trim(from: 0, to: progress).stroke(Ink.onBlackDim, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
-            Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Ink.onBlack)
+            Circle().stroke(Refined.onBlackHair, lineWidth: 2)
+            Circle().trim(from: 0, to: progress).stroke(Refined.onBlackDim, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
+            Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Refined.onBlack)
         }
         .onAppear { run(countdown) }
         .onChange(of: countdown) { _, c in run(c) }

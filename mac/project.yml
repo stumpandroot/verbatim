@@ -318,7 +318,6 @@ targets:
       - VerbatimWidgets/WidgetSnapshot.swift
       - VerbatimWidgets/HomeWidgets.swift
       - Verbatim/Views/Tokens.swift
-      - Verbatim/Views/Look.swift
       - Verbatim/Views/Brand.swift
     info:
       path: VerbatimMacWidgets/Info.plist
@@ -408,7 +407,6 @@ targets:
       - Verbatim/Export/ExportOptionsForm.swift
       - Verbatim/Export/ZipWriter.swift
       - Verbatim/Views/Tokens.swift
-      - Verbatim/Views/Look.swift
       # The refined look's rules and kit (DESIGN.md §13), shared with the Mac: the Palette setting, the Record card,
       # tiles, cards, kind badges, chips, icon squares, titles, reading text, the player bar, and the clock panel.
       - Verbatim/Views/RefinedRules.swift
@@ -584,7 +582,6 @@ targets:
       - path: VerbatimKeyboard
         excludes: ["Info.plist", "VerbatimKeyboard.entitlements"]
       - Verbatim/Views/Tokens.swift
-      - Verbatim/Views/Look.swift
       - Verbatim/Views/Brand.swift
       # Pure string rules: strikes out spoken corrections in the live words, and the notice after inserting.
       - Verbatim/Flow/SpokenCorrections.swift
@@ -640,7 +637,6 @@ targets:
       - path: VerbatimWidgets
         excludes: ["Info.plist", "VerbatimWidgets.entitlements"]
       - Verbatim/Views/Tokens.swift
-      - Verbatim/Views/Look.swift
       - Verbatim/Views/Brand.swift
       - VerbatimKeyboard/KeyboardBridge.swift
       - VerbatimKeyboard/BridgeTrust.swift
@@ -686,7 +682,6 @@ targets:
       - path: VerbatimShare
         excludes: ["Info.plist", "VerbatimShare.entitlements"]
       - Verbatim/Views/Tokens.swift
-      - Verbatim/Views/Look.swift
     info:
       path: VerbatimShare/Info.plist
       properties:
@@ -782,7 +777,6 @@ targets:
       - Verbatim/Model/WatchTransfer.swift
       - Verbatim/Model/HapticPolicy.swift
       - Verbatim/Views/Tokens.swift
-      - Verbatim/Views/Look.swift
       - Verbatim/Views/Brand.swift
     dependencies:
       # The complications and the Smart Stack card, in the watch app's PlugIns folder.
@@ -836,7 +830,6 @@ targets:
         excludes: ["Info.plist", "VerbatimWatchWidgets.entitlements"]
       - Verbatim/Model/WatchTransfer.swift
       - Verbatim/Views/Tokens.swift
-      - Verbatim/Views/Look.swift
       - Verbatim/Views/Brand.swift
     info:
       path: VerbatimWatchWidgets/Info.plist

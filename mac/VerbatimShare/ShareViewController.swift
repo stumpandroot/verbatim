@@ -218,7 +218,7 @@ struct ShareCardView: View {
 
     var body: some View {
         ZStack {
-            Ink.paper.ignoresSafeArea()
+            Refined.paper.ignoresSafeArea()
             card
                 .opacity(shown ? 1 : 0)
                 .offset(y: shown || reduceMotion ? 0 : 14)
@@ -234,8 +234,8 @@ struct ShareCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 // The in-app wordmark: the bars and lowercase "verbose." in the serif (DESIGN.md §4).
-                ShareBarsMark().fill(Ink.persimmon).frame(width: 14, height: 15)
-                Ink.wordmark(17).accessibilityLabel("Verbose")
+                ShareBarsMark().fill(Refined.persimmon).frame(width: 14, height: 15)
+                Refined.wordmark(17).accessibilityLabel("Verbose")
                 Spacer(minLength: 0)
                 ZStack {
                     Circle().fill(markFill)
@@ -250,25 +250,25 @@ struct ShareCardView: View {
             }
 
             Text(title)
-                .font(Ink.serif(26)).foregroundStyle(Ink.ink)
+                .font(Refined.serif(26)).foregroundStyle(Refined.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 12)
                 .accessibilityAddTraits(.isHeader)
 
             if let subject {
                 Text(subject)
-                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink)
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(Refined.ink)
                     .lineLimit(2).truncationMode(.middle)
                     .padding(.top, 8)
             }
 
             Text(detail)
-                .font(.system(size: 15)).foregroundStyle(Ink.dim)
+                .font(.system(size: 15)).foregroundStyle(Refined.dim)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
 
             if model.outcome == .working {
-                ProgressView().tint(Ink.ink).padding(.top, 16)
+                ProgressView().tint(Refined.ink).padding(.top, 16)
             } else {
                 Button(action: onDone) {
                     Text("Done")
@@ -283,7 +283,6 @@ struct ShareCardView: View {
         .padding(20)
         .frame(maxWidth: 360, alignment: .leading)
         .cardSurface(radius: Radius.tile)
-        .shadow(color: Ink.inkFixed.opacity(0.08), radius: 3, y: 1)
         .padding(.horizontal, 16)
         .accessibilityElement(children: .contain)
     }
@@ -314,30 +313,30 @@ struct ShareCardView: View {
         }
     }
 
-    /// Added is sage (an import); working is neutral; a failure is `Ink.danger`, never persimmon.
+    /// Added is sage (an import); working is neutral; a failure is `Refined.danger`, never persimmon.
     private var markFill: Color {
         switch model.outcome {
-        case .added, .link: return Ink.sage
-        case .working: return Ink.neutralChip
-        case .tiktok, .failed: return Ink.danger
+        case .added, .link: return Refined.sage
+        case .working: return Refined.neutral
+        case .tiktok, .failed: return Refined.danger
         }
     }
 
     private var markInk: Color {
         switch model.outcome {
-        case .added, .link: return Ink.inkFixed
-        case .working: return Ink.ink
-        case .tiktok, .failed: return Ink.readerFixed
+        case .added, .link: return Refined.inkFixed
+        case .working: return Refined.ink
+        case .tiktok, .failed: return Refined.paper
         }
     }
 }
 
-/// Ink fill, reader-white label (cream with an ink label in dark), 12 pt corners.
+/// The strong action: an ink fill with a paper label (paper on ink in light, the dark paper on cream in dark).
 private struct ShareButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(Ink.onInteractive)
-            .background(Ink.interactive.opacity(configuration.isPressed ? 0.85 : 1), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .foregroundStyle(Refined.paper)
+            .background(Refined.ink.opacity(configuration.isPressed ? 0.85 : 1), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }

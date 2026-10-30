@@ -24,14 +24,13 @@ func item(_ title: String, _ date: Date, _ duration: Double = 60, _ source: Widg
 // MARK: Recent recordings
 
 let items = (0..<8).map { item("Recording \($0)", now.addingTimeInterval(Double(-$0) * 3600)) }.shuffled()
-let snap = WidgetSnapshot.make(items: items, kept: 46, entries: [], look: "native", now: now, calendar: cal)
+let snap = WidgetSnapshot.make(items: items, kept: 46, entries: [], now: now, calendar: cal)
 check("keeps at most five recent rows", snap.recent.count == WidgetSnapshot.maxRecent, "\(snap.recent.count)")
 check("newest first", snap.recent.map(\.title) == (0..<5).map { "Recording \($0)" }, "\(snap.recent.map(\.title))")
 check("kept count carried", snap.kept == 46)
-check("look carried", snap.look == "native")
-check("a negative count reads as 0", WidgetSnapshot.make(items: [], kept: -3, entries: [], look: "verbose", now: now, calendar: cal).kept == 0)
+check("a negative count reads as 0", WidgetSnapshot.make(items: [], kept: -3, entries: [], now: now, calendar: cal).kept == 0)
 check("an infinite length reads as 0",
-      WidgetSnapshot.make(items: [item("x", now, .infinity)], kept: 1, entries: [], look: "verbose", now: now, calendar: cal).recent[0].duration == 0)
+      WidgetSnapshot.make(items: [item("x", now, .infinity)], kept: 1, entries: [], now: now, calendar: cal).recent[0].duration == 0)
 
 // MARK: Privacy: short titles, nothing else
 
@@ -44,7 +43,7 @@ check("a title is one line", WidgetSnapshot.shortTitle("First line\nSecond\tline
 check("spaces collapse", WidgetSnapshot.shortTitle("  Lots   of   space  ") == "Lots of space")
 check("an empty title reads Untitled", WidgetSnapshot.shortTitle(" \n ") == "Untitled")
 check("a short title stays as it is", WidgetSnapshot.shortTitle("App feature ideas") == "App feature ideas")
-let titled = WidgetSnapshot.make(items: [item(long, now)], kept: 1, entries: [], look: "verbose", now: now, calendar: cal)
+let titled = WidgetSnapshot.make(items: [item(long, now)], kept: 1, entries: [], now: now, calendar: cal)
 check("make cuts titles too", titled.recent[0].title == cut)
 let json = String(data: titled.encoded()!, encoding: .utf8)!
 check("the file holds no long text", !json.contains("secret"))
@@ -52,7 +51,7 @@ let keys = Set(["date", "duration", "id", "label", "source", "title"])
 if let obj = try? JSONSerialization.jsonObject(with: titled.encoded()!) as? [String: Any],
    let first = (obj["recent"] as? [[String: Any]])?.first {
     check("a row holds only title, date, length, label, source, and ID", Set(first.keys) == keys, "\(first.keys.sorted())")
-    check("the snapshot's top-level fields", Set(obj.keys) == ["kept", "look", "recent", "version", "week"], "\(obj.keys.sorted())")
+    check("the snapshot's top-level fields", Set(obj.keys) == ["kept", "recent", "version", "week"], "\(obj.keys.sorted())")
 } else {
     check("the snapshot is a JSON object", false)
 }
@@ -88,7 +87,7 @@ check("week starts on Sunday", cal.isDate(week.start, inSameDayAs: day(2026, 10,
 check("today's index", WidgetSnapshot.todayIndex(in: week, now: now, calendar: cal) == 4)
 let later = day(2026, 10, 26, 9)
 check("no today in a week that's over", WidgetSnapshot.todayIndex(in: week, now: later, calendar: cal) == nil)
-let ws = WidgetSnapshot.make(items: [], kept: 0, entries: entries, look: "verbose", now: now, calendar: cal)
+let ws = WidgetSnapshot.make(items: [], kept: 0, entries: entries, now: now, calendar: cal)
 check("the stored week shows while it lasts", ws.week(at: now, calendar: cal).words == 800)
 check("a week that's over reads as 0 until the app writes", ws.week(at: later, calendar: cal).words == 0)
 check("…with seven empty days", ws.week(at: later, calendar: cal).days == Array(repeating: 0, count: 7))
@@ -133,7 +132,7 @@ check("today's thoughts keep the last two, oldest first", today.latest.map(\.id)
 check("a transcribing thought has no words yet", today.latest.last?.text == "")
 let longPage = WidgetSnapshot.todayThoughts(start: pageStart, end: pageEnd, thoughts: [(t1, day(2026, 10, 22, 9), String(repeating: "word ", count: 40), false)])
 check("a long thought is cut to the title length", longPage.latest.first.map { $0.text.count <= WidgetSnapshot.maxTitle && $0.text.hasSuffix("…") } == true)
-var withToday = WidgetSnapshot.make(items: [], kept: 0, entries: [], look: "verbose", now: now, calendar: cal)
+var withToday = WidgetSnapshot.make(items: [], kept: 0, entries: [], now: now, calendar: cal)
 withToday.today = today
 check("today's thoughts show while the page lasts", withToday.thoughts(at: day(2026, 10, 22, 15))?.count == 3)
 check("and not once the next page has started", withToday.thoughts(at: day(2026, 10, 23, 1)) == nil)

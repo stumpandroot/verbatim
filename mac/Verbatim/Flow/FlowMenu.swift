@@ -90,13 +90,13 @@ final class FlowMenuPanel: NSPanel {
 
 /// The menu's colors: Verbatim's tokens, so it follows Dark mode and Increase Contrast like the app.
 private enum Paper {
-    static let card = Ink.card
-    static let line = Ink.hairline
-    static let rule = Ink.hairline
-    static let hover = Ink.wash
-    static let ink = Ink.ink
-    static let dim = Ink.dim
-    static let mute = Ink.mute
+    static let card = Refined.card
+    static let line = Refined.separator
+    static let rule = Refined.separator
+    static let hover = Refined.neutral
+    static let ink = Refined.ink
+    static let dim = Refined.dim
+    static let mute = Refined.mute
 }
 
 struct FlowMenuView: View {

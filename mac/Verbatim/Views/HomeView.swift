@@ -315,9 +315,9 @@ struct HomeView: View {
     /// what they do (`HomeTile.refinedHues`).
     static func tileFill(_ slot: Int) -> Color? {
         switch slot {
-        case 0: return Ink.panelButter
-        case 1: return Ink.panelSage
-        case 2: return Ink.panelPetal
+        case 0: return Refined.butter
+        case 1: return Refined.sage
+        case 2: return Refined.petal
         default: return nil
         }
     }

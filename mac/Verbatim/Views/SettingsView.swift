@@ -303,14 +303,14 @@ struct ThoughtsMenuSection: View {
         let _ = NavMarks.mark("menu-thoughts")
         let count = capture.app?.store.todaysThoughts().count ?? 0
         VStack(alignment: .leading, spacing: 2) {
-            Text("Thoughts").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Ink.mute).padding(.horizontal, 8).padding(.bottom, 2)
+            Text("Thoughts").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Refined.mute).padding(.horizontal, 8).padding(.bottom, 2)
                 .accessibilityAddTraits(.isHeader)
             row(capture.isRecording ? "Stop the thought" : "New thought", keys: Thoughts.hotkey, art: .iconThought) {
                 dismiss()
                 capture.toggle()
             }
             .uiTarget("menu-new-thought")
-            Text("Today: \(DayPages.count(count, "thought", "thoughts"))").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+            Text("Today: \(DayPages.count(count, "thought", "thoughts"))").font(.system(size: 12.5)).foregroundStyle(Refined.mute)
                 .padding(.horizontal, 8).padding(.vertical, 4)
                 .uiTarget("menu-today-count")
             row("Open today's page", keys: nil, art: nil) {
@@ -331,7 +331,7 @@ struct ThoughtsMenuSection: View {
             .uiTarget("menu-show-bubble")
         }
         .padding(6)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        .background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
     }
 
     private func row(_ title: String, keys: String?, art: BrandArt?, checked: Bool? = nil, action: @escaping () -> Void) -> some View {
@@ -339,15 +339,15 @@ struct ThoughtsMenuSection: View {
             if let checked {
                 Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).opacity(checked ? 1 : 0).frame(width: 14)
             } else if let art {
-                IconGlyph(art: art, size: 14, color: Ink.ink).frame(width: 14)
+                IconGlyph(art: art, size: 14, color: Refined.ink).frame(width: 14)
             } else {
                 Color.clear.frame(width: 14, height: 1)
             }
             Text(title).font(.system(size: 13, weight: .medium))
             Spacer(minLength: 8)
-            if let keys { Text(keys).font(.system(size: 12)).foregroundStyle(Ink.mute) }
+            if let keys { Text(keys).font(.system(size: 12)).foregroundStyle(Refined.mute) }
         }
-        .foregroundStyle(Ink.ink)
+        .foregroundStyle(Refined.ink)
         .padding(.horizontal, 8).padding(.vertical, 5)
         .contentShape(Rectangle())
         .hoverChip(radius: Radius.button)
@@ -367,9 +367,9 @@ struct MenuBarPanel: View {
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 BarsMark().frame(width: 16, height: 16)
-                Ink.wordmark(17).accessibilityLabel("Verbose")
+                Refined.wordmark(17).accessibilityLabel("Verbose")
                 Spacer()
-                HStack(spacing: 5) { Keycap(keys: "⌥⇧R", size: 10.5); Text("to record") }.font(.system(size: 11)).foregroundStyle(Ink.mute)
+                HStack(spacing: 5) { Keycap(keys: "⌥⇧R", size: 10.5); Text("to record") }.font(.system(size: 11)).foregroundStyle(Refined.mute)
             }
             ThoughtsMenuSection()
             if app.recorder.isRecording || app.capture.isCapturing {
@@ -378,17 +378,17 @@ struct MenuBarPanel: View {
             } else {
                 Button { NSApp.activate(ignoringOtherApps: true); app.requestRecord() } label: {
                     HStack(spacing: 10) { RecordButton(size: 26); Text("Record a voice note").font(.system(size: 13, weight: .medium)); Spacer() }
-                        .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
+                        .padding(10).background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).pressable()
                 // Right-click: the six ways to record, as on Home's Record (CaptureBar.swift).
                 .contextMenu { RecordKindMenuItems(activate: true) }
                 Button { NSApp.activate(ignoringOtherApps: true); app.pickApp() } label: {
                     HStack(spacing: 10) {
-                        ArtIcon(art: .iconVoice, size: 16).foregroundStyle(Ink.iris).frame(width: 26)
+                        ArtIcon(art: .iconVoice, size: 16).foregroundStyle(Refined.ink).frame(width: 26)
                         Text("Capture an app's audio").font(.system(size: 13, weight: .medium)); Spacer()
                     }
-                    .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
+                    .padding(10).background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).pressable()
             }
@@ -400,28 +400,28 @@ struct MenuBarPanel: View {
                             .background(style.tint, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                         VStack(alignment: .leading, spacing: 1) {
                             Text(last.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
-                            Text("Last transcript · \(HomeRecentStyle.length(last.duration))").font(.system(size: 11)).foregroundStyle(Ink.mute)
+                            Text("Last transcript · \(HomeRecentStyle.length(last.duration))").font(.system(size: 11)).foregroundStyle(Refined.mute)
                         }
                         Spacer()
                     }
-                    .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
+                    .padding(10).background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
             if let last = app.dictation.lastResult, !last.isEmpty {
                 Button { app.dictation.copyLast() } label: {
-                    HStack(spacing: 8) { ArtIcon(art: .iconCopy, size: 16).foregroundStyle(Ink.iris).frame(width: 26); Text("Copy last dictation").font(.system(size: 12.5, weight: .medium)); Spacer() }
-                        .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
+                    HStack(spacing: 8) { ArtIcon(art: .iconCopy, size: 16).foregroundStyle(Refined.ink).frame(width: 26); Text("Copy last dictation").font(.system(size: 12.5, weight: .medium)); Spacer() }
+                        .padding(10).background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
             HStack {
-                Button("Open Verbose") { NSApp.activate(ignoringOtherApps: true); app.go(.home) }.buttonStyle(.plain).foregroundStyle(Ink.iris).fontWeight(.medium)
+                Button("Open Verbose") { NSApp.activate(ignoringOtherApps: true); app.go(.home) }.buttonStyle(.plain).foregroundStyle(Refined.ink).fontWeight(.medium)
                 Spacer()
-                Button("Quit") { NSApp.terminate(nil) }.buttonStyle(.plain).foregroundStyle(Ink.mute)
+                Button("Quit") { NSApp.terminate(nil) }.buttonStyle(.plain).foregroundStyle(Refined.mute)
             }
             .font(.system(size: 12.5))
         }
-        .padding(12).frame(width: 320).background(Ink.paper)
+        .padding(12).frame(width: 320).background(Refined.paper)
     }
 }

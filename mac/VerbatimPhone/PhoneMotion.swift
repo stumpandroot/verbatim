@@ -3,7 +3,7 @@ import UIKit
 
 // Motion for the iPhone screens, matched to the approved web prototype (timings in `Motion`, Tokens.swift).
 // Rules from the design system: never animate keyboard-initiated or high-frequency actions; screens, tabs, and
-// rows arrive at once, with no rise-in, stagger, or tab entrance (DESIGN.md §7, §13.3.9); delight stays small
+// rows arrive at once, with no rise-in, stagger, or tab entrance (DESIGN.md §7); delight stays small
 // and rare. Everything here reads `\.limitMotion` (Reduce Motion or Settings › Limit animation): movement becomes
 // a short fade and nothing loops.
 

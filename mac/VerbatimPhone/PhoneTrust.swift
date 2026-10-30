@@ -112,12 +112,12 @@ struct PhoneProvenanceLine: View {
         VStack(alignment: .leading, spacing: 6) {
             Button { open.toggle() } label: {
                 HStack(spacing: 5) {
-                    IconGlyph(art: .iconPrivacy, size: 12, color: Ink.dim)
+                    IconGlyph(art: .iconPrivacy, size: 12, color: Refined.dim)
                     Text(transcript.dataPathBadge).font(.system(size: 12.5)).foregroundStyle(Refined.dim)
                     Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(Refined.mute)
                 }
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Ink.ink.opacity(0.06), in: Capsule())
+                .background(Refined.ink.opacity(0.06), in: Capsule())
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain)

@@ -59,7 +59,7 @@ struct VoiceBars: View {
     var height: CGFloat
     var barWidth: CGFloat = 2.5
     var gap: CGFloat = 2
-    var color: Color = Ink.persimmonFixed
+    var color: Color = Refined.persimmonFixed
 
     var body: some View {
         HStack(alignment: .center, spacing: gap) {
@@ -91,8 +91,8 @@ struct VoiceBars: View {
 /// animation (DESIGN.md §7).
 struct SurfaceSpinner: View {
     var size: CGFloat = 13
-    var color: Color = Ink.persimmonFixed
-    var track: Color = Ink.onBlackHair
+    var color: Color = Refined.persimmonFixed
+    var track: Color = Refined.onBlackHair
     var still = false
 
     var body: some View {
@@ -123,8 +123,8 @@ struct SurfaceSpinner: View {
 /// A keycap on a dark surface (the notch, the ink pills): mono 12 inside a hairline outline.
 struct DarkKeycap: View {
     var text: String
-    var color: Color = Ink.onBlack
-    var edge: Color = Ink.onBlackHair
+    var color: Color = Refined.onBlack
+    var edge: Color = Refined.onBlackHair
     var body: some View {
         HStack(spacing: 3) {
             Text(text).font(SurfaceFont.mono(12)).foregroundStyle(color)

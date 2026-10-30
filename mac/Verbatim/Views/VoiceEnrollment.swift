@@ -524,7 +524,7 @@ final class VoiceEnrollment: ObservableObject {
 /// The voice mark: three rings, the smallest filled. Drawn in a 120 × 80 box.
 struct VoiceRingsMark: View {
     var lineWidth: CGFloat = 1.6
-    var color: Color = Ink.inkFixed
+    var color: Color = Refined.inkFixed
 
     var body: some View {
         Canvas { ctx, size in
@@ -553,23 +553,23 @@ struct VoiceQualityPanel: View {
             if compact {
                 HStack(spacing: 14) {
                     VoiceRingsMark(lineWidth: 2.4).frame(width: 64, height: 44)
-                    Text(line).font(Ink.serif(20)).foregroundStyle(Ink.inkFixed)
+                    Text(line).font(Refined.serif(20)).foregroundStyle(Refined.inkFixed)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 18).padding(.vertical, 16)
             } else {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("How well it knows you").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                    Text("How well it knows you").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.inkFixed)
                     VoiceRingsMark().frame(width: 180, height: 120)
-                    Text(line).font(Ink.serif(26)).foregroundStyle(Ink.inkFixed)
+                    Text(line).font(Refined.serif(26)).foregroundStyle(Refined.inkFixed)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .background(Color(hex: Ink.sageHex), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .background(Color(hex: RefinedHex.sage.light), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("How well Verbose knows your voice: \(line)")
     }
@@ -597,13 +597,13 @@ struct VoicePassageCard: View {
 
     var body: some View {
         let (read, rest) = Self.split(model.passageTokens, wordsRead: model.wordsRead)
-        (Text(read).foregroundStyle(Ink.ink) + Text(read.isEmpty || rest.isEmpty ? rest : " " + rest).foregroundStyle(Ink.faint))
-            .font(Ink.serif(size))
+        (Text(read).foregroundStyle(Refined.ink) + Text(read.isEmpty || rest.isEmpty ? rest : " " + rest).foregroundStyle(Refined.faint))
+            .font(Refined.serif(size))
             .lineSpacing(size * 0.25)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, size > 22 ? 24 : 18).padding(.vertical, size > 22 ? 22 : 18)
-            .cardSurface(radius: Radius.tile, fill: Ink.reader)
+            .cardSurface(radius: Radius.tile, fill: Refined.card)
             .animation(limitMotion ? nil : Motion.touch, value: model.wordsRead)
             .id(model.passageIndex)
             .transition(.opacity)
@@ -625,13 +625,13 @@ struct VoiceProgress: View {
         VStack(alignment: centered ? .center : .leading, spacing: 6) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Ink.ink.opacity(0.10))
-                    Capsule().fill(Ink.persimmon).frame(width: geo.size.width * model.fraction)
+                    Capsule().fill(Refined.ink.opacity(0.10))
+                    Capsule().fill(Refined.persimmon).frame(width: geo.size.width * model.fraction)
                 }
             }
             .frame(height: 6)
             Text(model.isStarting ? "Starting the microphone…" : model.progressLabel)
-                .font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
+                .font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Refined.mute)
                 .lineLimit(1).minimumScaleFactor(0.8)
         }
         .accessibilityElement(children: .ignore)
@@ -648,12 +648,12 @@ struct VoiceRecordButton: View {
     var body: some View {
         Button { model.togglePause() } label: {
             ZStack {
-                Circle().fill(Ink.persimmon)
+                Circle().fill(Refined.persimmon)
                 if model.isPaused {
-                    IconGlyph(art: .iconPlay, size: size * 0.36, color: Ink.inkFixed)
+                    IconGlyph(art: .iconPlay, size: size * 0.36, color: Refined.inkFixed)
                         .offset(x: size * 0.03)
                 } else {
-                    RoundedRectangle(cornerRadius: size * 0.06, style: .continuous).fill(Ink.inkFixed)
+                    RoundedRectangle(cornerRadius: size * 0.06, style: .continuous).fill(Refined.inkFixed)
                         .frame(width: size * 0.26, height: size * 0.26)
                 }
             }

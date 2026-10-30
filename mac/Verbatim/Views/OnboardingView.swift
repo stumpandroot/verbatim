@@ -65,7 +65,7 @@ struct OnboardingView: View {
             }
             .padding(.top, 18)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
-            title(Ink.tagline)
+            title(Refined.tagline)
             para("Record, import, or dictate. Verbose turns it into text you can use, and it all stays on your Mac.")
             HStack(spacing: 12) {
                 pillar("Capture", "Record, import, a link", .capture, .persimmon)

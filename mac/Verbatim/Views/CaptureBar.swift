@@ -227,7 +227,7 @@ struct MicSourceMenu: View {
                 Text(current?.name ?? status).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
             }
-            .font(.system(size: 13)).foregroundStyle(Ink.dim)
+            .font(.system(size: 13)).foregroundStyle(Refined.dim)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         .help("Which microphone Verbose records from")
@@ -252,20 +252,20 @@ struct DictateControls: View {
         VStack(alignment: .leading, spacing: 10) {
             if app.dictation.accessibilityTrusted {
                 HStack(spacing: 10) {
-                    IconGlyph(art: .iconDictations, size: 20, color: Ink.ink)
+                    IconGlyph(art: .iconDictations, size: 20, color: Refined.ink)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(app.dictation.hotkey.title).font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.ink)
-                        Text(app.dictation.enabled ? "\(app.dictation.hotkey.shortTitle.prefix(1).uppercased() + app.dictation.hotkey.shortTitle.dropFirst()) in any app, or click \(DictationSurface.stored().clickHint). Settings › Dictation and keyboard has cleanup, styles, and snippets." : "Dictation is off. Turn it on in Settings › Dictation and keyboard.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                        Text(app.dictation.hotkey.title).font(.system(size: 15, weight: .bold)).foregroundStyle(Refined.ink)
+                        Text(app.dictation.enabled ? "\(app.dictation.hotkey.shortTitle.prefix(1).uppercased() + app.dictation.hotkey.shortTitle.dropFirst()) in any app, or click \(DictationSurface.stored().clickHint). Settings › Dictation and keyboard has cleanup, styles, and snippets." : "Dictation is off. Turn it on in Settings › Dictation and keyboard.").font(.system(size: 12.5)).foregroundStyle(Refined.dim)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             } else {
                 // The reason wraps (a popover sizes to one line otherwise and cuts it off), then one prominent button.
                 HStack(alignment: .top, spacing: 10) {
-                    IconGlyph(art: .iconAccessibility, size: 20, color: Ink.danger)
+                    IconGlyph(art: .iconAccessibility, size: 20, color: Refined.danger)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Needs Accessibility access").font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.ink)
-                        Text("Verbose needs it to hear the key and paste into other apps. It reads nothing from them.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                        Text("Needs Accessibility access").font(.system(size: 15, weight: .bold)).foregroundStyle(Refined.ink)
+                        Text("Verbose needs it to hear the key and paste into other apps. It reads nothing from them.").font(.system(size: 12.5)).foregroundStyle(Refined.dim)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -275,8 +275,8 @@ struct DictateControls: View {
             }
             if let last = app.dictation.lastResult, !last.isEmpty {
                 HStack(spacing: 8) {
-                    Text("Last: “\(last.prefix(70))\(last.count > 70 ? "…" : "")”").font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(1)
-                    Button("Copy") { app.dictation.copyLast() }.buttonStyle(.plain).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.ink).underline()
+                    Text("Last: “\(last.prefix(70))\(last.count > 70 ? "…" : "")”").font(.system(size: 12)).foregroundStyle(Refined.mute).lineLimit(1)
+                    Button("Copy") { app.dictation.copyLast() }.buttonStyle(.plain).font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.ink).underline()
                 }
             }
         }
@@ -292,8 +292,8 @@ struct RecordButton: View {
     var size: CGFloat
     var body: some View {
         ZStack {
-            Circle().fill(Ink.persimmon)
-            BrandGlyph(art: .capture, color: Ink.inkFixed, minLineWidth: 1.2).padding(size * 0.2)
+            Circle().fill(Refined.persimmon)
+            BrandGlyph(art: .capture, color: Refined.inkFixed, minLineWidth: 1.2).padding(size * 0.2)
         }
         .frame(width: size, height: size)
     }

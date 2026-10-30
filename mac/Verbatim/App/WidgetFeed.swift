@@ -4,14 +4,14 @@ import WidgetKit
 
 /// Keeps the widgets' snapshot (VerbatimWidgets/WidgetSnapshot.swift) current, on the Mac and iPhone: the five newest
 /// recordings and dictations (short titles, dates, lengths, and labels only), how many you've kept, this week's
-/// dictated words per day, today's Thoughts page (its count and last two thoughts), and the look. Written to the App Group container when the library, the Mac's Activity, or
-/// the look changes, and only when the snapshot differs from the file; then the widgets reload. The screenshot tour
+/// dictated words per day, and today's Thoughts page (its count and last two thoughts). Written to the App Group
+/// container when the library or the Mac's Activity changes, and only when the snapshot differs from the file; then
+/// the widgets reload. The screenshot tour
 /// and the bench never write it, so made-up recordings never reach your widgets.
 @MainActor
 final class WidgetFeed {
     static let shared = WidgetFeed()
     private var bag = Set<AnyCancellable>()
-    private var look = AppLook.current
     /// Counting this week's words reads dictations' text, so the snapshot is built off the main thread.
     private static let queue = DispatchQueue(label: "co.stumpandroot.verbatim.widget-feed", qos: .utility)
 
@@ -27,12 +27,7 @@ final class WidgetFeed {
         // This week on the Mac counts Activity's events, which outlive deleted dictations (Flow/Activity.swift).
         changes = changes.merge(with: ActivityLog.shared.$events.map { _ in () }).eraseToAnyPublisher()
         #endif
-        // Settings › Appearance or General › Look: the widgets switch with the app.
-        let lookChanges = NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-            .receive(on: RunLoop.main)
-            .filter { [weak self] _ in self.map { $0.look != AppLook.current } ?? false }
-            .map { _ in () }
-        changes.merge(with: lookChanges)
+        changes
             .debounce(for: .seconds(1.5), scheduler: RunLoop.main)
             .sink { [weak self, weak store] in
                 guard let self, let store else { return }
@@ -42,8 +37,6 @@ final class WidgetFeed {
     }
 
     private func publish(_ store: Store) {
-        look = AppLook.current
-        let lookRaw = look.rawValue
         let all = store.transcripts
         #if os(macOS)
         let events = ActivityLog.shared.events.map { (date: $0.date, words: $0.words) }
@@ -58,7 +51,7 @@ final class WidgetFeed {
             let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start ?? .distantPast
             let entries = HomeCounts.entries(fromDictations: live.filter { $0.createdAt >= weekStart }).map { (date: $0.date, words: $0.words) }
             #endif
-            var snapshot = WidgetSnapshot.make(items: Array(recent), kept: live.count, entries: entries, look: lookRaw)
+            var snapshot = WidgetSnapshot.make(items: Array(recent), kept: live.count, entries: entries)
             // Today's thoughts (the medium widget, and the count on the iPhone's Lock Screen widget): the page's last
             // two thoughts and its counts.
             let page = DayPages.pageInterval(DayPages.today(hour: hour), hour: hour)

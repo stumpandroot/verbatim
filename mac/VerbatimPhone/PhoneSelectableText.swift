@@ -47,7 +47,7 @@ struct PhoneSelectableText: UIViewRepresentable {
         let para = NSMutableParagraphStyle(); para.lineSpacing = 4
         v.attributedText = NSAttributedString(string: text, attributes: [
             .font: UIFont.preferredFont(forTextStyle: .body),
-            .foregroundColor: UIColor(Ink.ink),
+            .foregroundColor: UIColor(Refined.ink),
             .paragraphStyle: para,
         ])
     }

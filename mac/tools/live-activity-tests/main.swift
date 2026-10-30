@@ -43,36 +43,37 @@ func over(_ top: UInt32, _ alpha: Double, _ bottom: UInt32) -> UInt32 {
 func ratio(_ x: Double) -> String { String(format: "%.2f:1", x) }
 
 let tokens = source("Verbatim/Views/Tokens.swift")
-func hex(_ name: String) -> UInt32? {
-    guard let m = matches(name + #": UInt32 = 0x([0-9A-Fa-f]{6})"#, in: tokens).first else { return nil }
-    return UInt32(m[1], radix: 16)
-}
-func colorHex(_ name: String) -> UInt32? {
-    guard let m = matches("static let " + name + #" = Color\(hex: 0x([0-9A-Fa-f]{6})\)"#, in: tokens).first else { return nil }
-    return UInt32(m[1], radix: 16)
+/// A refined tone's light and dark values, from the table in Tokens.swift (`static let paper = Tone(0x…, 0x…)`).
+func tone(_ name: String) -> (light: UInt32, dark: UInt32)? {
+    guard let m = matches("static let " + name + #" = Tone\(0x([0-9A-Fa-f]{6}), 0x([0-9A-Fa-f]{6})"#, in: tokens).first,
+          let l = UInt32(m[1], radix: 16), let d = UInt32(m[2], radix: 16) else { return nil }
+    return (l, d)
 }
 
-if let paper = hex("paperHex"), let ink = hex("inkHex"), let persimmon = hex("persimmonHex"), let dark = hex("darkPaperHex"),
-   let muteOnPaper = colorHex("muteOnPaper"), let muteOnInk = colorHex("muteOnInk"),
-   let dimAlpha = matches(#"static let onBlackDim = Color\(hex: paperHex\)\.opacity\(([0-9.]+)\)"#, in: tokens).first.flatMap({ Double($0[1]) }),
-   let accentDark = hex("nativeAccentDarkHex"), let accentLight = hex("nativeAccentLightHex"),
-   let onAccentDark = hex("onAccentDarkHex"), let onAccentLight = hex("onAccentLightHex") {
+if let paperTone = tone("paper"), let inkTone = tone("ink"), let persimmonTone = tone("persimmon"), let muteTone = tone("mute"),
+   let onFillTone = tone("onFill"),
+   let dimAlpha = matches(#"static let onBlackDim = paperFixed\.opacity\(([0-9.]+)\)"#, in: tokens).first.flatMap({ Double($0[1]) }) {
+    let paper = paperTone.light, ink = inkTone.light, persimmon = persimmonTone.light, dark = paperTone.dark
+    // The fixed values the Live Activities use are the table's (Tokens.swift, "Fixed values").
+    check("the fixed values come from the table", tokens.contains("static let paperFixed = Color(hex: RefinedHex.paper.light)")
+          && tokens.contains("static let darkPaperFixed = Color(hex: RefinedHex.paper.dark)")
+          && tokens.contains("static let muteOnPaper = Color(hex: RefinedHex.mute.light)")
+          && tokens.contains("static let muteOnInk = Color(hex: RefinedHex.mute.dark)"))
     // W-08: the Lock Screen activities on paper (light) and on the dark paper (dark), ActivitySkin.swift.
     check("Lock Screen, light: ink on paper", contrast(ink, paper) >= 7, ratio(contrast(ink, paper)))
     let dimLight = over(ink, 0.8, paper)
     check("Lock Screen, light: the line under the title (ink at 80%) keeps 4.5:1", contrast(dimLight, paper) >= 4.5, ratio(contrast(dimLight, paper)))
-    check("Lock Screen, light: mute keeps 4.5:1", contrast(muteOnPaper, paper) >= 4.5, ratio(contrast(muteOnPaper, paper)))
-    check("Lock Screen, dark: the dark paper is the app's near-black green", dark == 0x18241F && tokens.contains("static let paper = dyn(paperHex, 0x18241F)"))
+    check("Lock Screen, light: mute keeps 4.5:1", contrast(muteTone.light, paper) >= 4.5, ratio(contrast(muteTone.light, paper)))
+    check("Lock Screen, dark: the dark paper is the app's near-black green", dark == 0x18241F)
     check("Lock Screen, dark: paper text on the dark paper", contrast(paper, dark) >= 7, ratio(contrast(paper, dark)))
     let dimDark = over(paper, dimAlpha, dark)
     check("Lock Screen, dark: the line under the title (onBlackDim) keeps 4.5:1", contrast(dimDark, dark) >= 4.5, ratio(contrast(dimDark, dark)))
-    check("Lock Screen, dark: mute keeps 4.5:1", contrast(muteOnInk, dark) >= 4.5, ratio(contrast(muteOnInk, dark)))
-    check("Stop: ink on persimmon is 4.45:1, so its word is semibold 14 or larger", contrast(ink, persimmon) >= 4.4, ratio(contrast(ink, persimmon)))
+    check("Lock Screen, dark: mute keeps 4.5:1", contrast(muteTone.dark, dark) >= 4.5, ratio(contrast(muteTone.dark, dark)))
+    check("Stop: ink on persimmon keeps 4.5:1", contrast(ink, persimmon) >= 4.5, ratio(contrast(ink, persimmon)))
     check("the persimmon Stop stands out from the dark paper", contrast(persimmon, dark) >= 3, ratio(contrast(persimmon, dark)))
-    // W-01: text on the Native accent (the keyboard's Start, Tap to talk, Done, and the widget's New Thought pill).
-    check("Native accent, dark: black text keeps 7:1", contrast(onAccentDark, accentDark) >= 7, ratio(contrast(onAccentDark, accentDark)))
-    check("Native accent, dark: white would fail 3:1, so it isn't used", contrast(0xFFFFFF, accentDark) < 3, ratio(contrast(0xFFFFFF, accentDark)))
-    check("Native accent, light: white text keeps 4.5:1", contrast(onAccentLight, accentLight) >= 4.5, ratio(contrast(onAccentLight, accentLight)))
+    // W-01: text on the persimmon fill (the keyboard's Start, Tap to talk, Done, and the widgets' New thought pill).
+    check("persimmon fill, light: its ink keeps 4.5:1", contrast(onFillTone.light, persimmonTone.light) >= 4.5, ratio(contrast(onFillTone.light, persimmonTone.light)))
+    check("persimmon fill, dark: its ink keeps 4.5:1", contrast(onFillTone.dark, persimmonTone.dark) >= 4.5, ratio(contrast(onFillTone.dark, persimmonTone.dark)))
 } else {
     check("Tokens.swift has the colors the Live Activities and the keyboard use", false)
 }
@@ -110,10 +111,10 @@ check("Mark stays on the voice note's Lock Screen and Island", recording.contain
 // MARK: W-08: Lock Screen follows light and dark
 
 for (name, s) in [("session", session), ("recording", recording)] {
-    check("the \(name) Lock Screen reads its appearance", s.contains("ActivityLockSurface") && !s.contains("activityBackgroundTint(Ink.paperFixed)"))
+    check("the \(name) Lock Screen reads its appearance", s.contains("ActivityLockSurface") && !s.contains("activityBackgroundTint(Refined.paperFixed)"))
 }
 let skin = source("VerbatimWidgets/ActivitySkin.swift")
-check("the skin uses the dark paper and paper text in dark", skin.contains("dark ? Ink.darkPaperFixed : Ink.paperFixed") && skin.contains("dark ? Ink.onBlack : Ink.inkFixed"))
+check("the skin uses the dark paper and paper text in dark", skin.contains("dark ? Refined.darkPaperFixed : Refined.paperFixed") && skin.contains("dark ? Refined.onBlack : Refined.inkFixed"))
 
 // MARK: W-03: label in name
 
@@ -173,14 +174,14 @@ for n in names {
     let rest = n.split(separator: " ").dropFirst()
     check("\"\(n)\" is sentence case", rest.allSatisfy { w in proper.contains(String(w)) || !(w.first?.isUppercase ?? false) })
 }
-check("Native draws Today's thoughts in sentence case too", !home.contains("\"Today's Thoughts\""))
+check("Today's thoughts is sentence case", !home.contains("\"Today's Thoughts\""))
 
 // MARK: W-05 and W-01: type sizes and the keyboard's accent text
 
 var small: [String] = []
 for f in widgetFiles {
     let s = source("VerbatimWidgets/" + f)
-    for (i, line) in s.components(separatedBy: "\n").enumerated() where !matches(#"Ink\.mono\(([0-9]|1[01])(\.[0-9]+)?[,)]"#, in: line).isEmpty {
+    for (i, line) in s.components(separatedBy: "\n").enumerated() where !matches(#"Refined\.mono\(([0-9]|1[01])(\.[0-9]+)?[,)]"#, in: line).isEmpty {
         small.append("\(f):\(i + 1)")
     }
 }
@@ -190,12 +191,12 @@ for (i, line) in keyboard.components(separatedBy: "\n").enumerated() where !matc
 }
 check("widgets and the keyboard never set mono under 12 pt", small.isEmpty, small.joined(separator: ", "))
 check("no faded ink on the Record panel", !home.contains("skin.onPanel.opacity(0.75)") && !home.contains("skin.onPanel.opacity(0.85)"))
-if let panel = home.range(of: "private struct VerboseRecordPanel") {
+if let panel = home.range(of: "private struct RecordPanel") {
     let body = String(home[panel.lowerBound...].prefix(1600))
     check("the small Record widget says what it records (a voice note), not a thought",
           body.contains("Text(\"Voice note\")") && !body.contains("Text(\"a thought\")"))
 } else {
-    check("the small Record widget's Verbose panel exists", false)
+    check("the small Record widget's panel exists", false)
 }
 // The one look (DESIGN.md §13): the keyboard's action, dictation, is the persimmon fill with ink on it (bold 16 or
 // larger, as ink on persimmon is 4.45:1), and the outline style takes the accent's text color.

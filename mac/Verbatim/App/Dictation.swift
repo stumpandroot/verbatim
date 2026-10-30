@@ -1512,7 +1512,7 @@ struct DictationHotkeyRows: View {
     @ObservedObject var dictation: DictationController
 
     var body: some View {
-        SettingsRow("dictate.shortcuts", detail: secureNote, detailColor: dictation.secureInputOn ? Ink.accentText : Ink.mute) {
+        SettingsRow("dictate.shortcuts", detail: secureNote, detailColor: dictation.secureInputOn ? Refined.accentText : Refined.mute) {
             HStack(spacing: 6) {
                 KeyChip(text: "⌃⌘V").help("Paste last dictation")
                 KeyChip(text: "⌃⌥P").help("New thought")

@@ -54,7 +54,7 @@ struct SessionLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.leading) {
                     if listening {
                         HStack(spacing: 7) {
-                            LevelBars(level: s.level, color: Ink.persimmon, count: 5).frame(width: 22, height: 18)
+                            LevelBars(level: s.level, color: Refined.persimmon, count: 5).frame(width: 22, height: 18)
                             Text(s.warming ? Ribbon.gettingReadyTitle : "Listening").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
                                 .lineLimit(1).fixedSize()
                         }
@@ -66,7 +66,7 @@ struct SessionLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     if listening, let start = s.takeStartedAt {
-                        TakeTimer(start: start).font(Ink.mono(14, weight: .medium)).foregroundStyle(.white)
+                        TakeTimer(start: start).font(Refined.mono(14, weight: .medium)).foregroundStyle(.white)
                             .frame(width: 56, alignment: .trailing).padding(.trailing, 4)
                     }
                 }
@@ -108,12 +108,12 @@ struct SessionLiveActivity: Widget {
                 CompactTrailing(state: s)
             } minimal: {
                 if listening {
-                    LevelBars(level: s.level, color: Ink.persimmon, count: 3).frame(width: 13, height: 13)
+                    LevelBars(level: s.level, color: Refined.persimmon, count: 3).frame(width: 13, height: 13)
                 } else {
-                    BarsMark(color: Ink.persimmon).frame(width: 16, height: 16)
+                    BarsMark(color: Refined.persimmon).frame(width: 16, height: 16)
                 }
             }
-            .keylineTint(Ink.persimmon)
+            .keylineTint(Refined.persimmon)
             .widgetURL(s.shown == .ended ? restartLink : nil)
         }
     }
@@ -128,13 +128,13 @@ private struct CompactLeading: View {
     var body: some View {
         switch state.shown {
         case .listening:
-            LevelBars(level: state.level, color: Ink.persimmon, count: 5).frame(width: 22, height: 16)
+            LevelBars(level: state.level, color: Refined.persimmon, count: 5).frame(width: 22, height: 16)
                 .accessibilityLabel("Listening")
         case .copied, .inserted:
-            Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Ink.persimmon)
+            Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Refined.persimmon)
                 .accessibilityLabel(state.shown == .copied ? "Copied" : "Inserted")
         default:
-            BarsMark(color: Ink.persimmon).frame(width: 16, height: 16)
+            BarsMark(color: Refined.persimmon).frame(width: 16, height: 16)
         }
     }
 }
@@ -147,7 +147,7 @@ private struct CompactTrailing: View {
         switch state.shown {
         case .listening:
             if let start = state.takeStartedAt {
-                TakeTimer(start: start).font(Ink.mono(12, weight: .medium)).foregroundStyle(.white).frame(width: 36, alignment: .trailing)
+                TakeTimer(start: start).font(Refined.mono(12, weight: .medium)).foregroundStyle(.white).frame(width: 36, alignment: .trailing)
             }
         case .copied, .inserted:
             Text(Ribbon.wordsLabel(state.words)).font(.system(size: 12)).monospacedDigit().foregroundStyle(.white.opacity(0.75))
@@ -159,10 +159,10 @@ private struct CompactTrailing: View {
             Text("Paused").font(.system(size: 12)).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
                 .accessibilityLabel("Paused for a call")
         case .ended:
-            Text("Restart").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.persimmon).lineLimit(1)
+            Text("Restart").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.persimmon).lineLimit(1)
                 .accessibilityLabel("Session ended. Restart")
         default:
-            Circle().fill(Ink.persimmon).frame(width: 8, height: 8)
+            Circle().fill(Refined.persimmon).frame(width: 8, height: 8)
                 .accessibilityLabel("Session on")
         }
     }
@@ -184,7 +184,7 @@ private struct RibbonLockScreen: View {
                 trailing
             }
             if state.shown == .listening {
-                LevelBars(level: state.level, color: Ink.persimmonFixed, count: 34).frame(height: 22)
+                LevelBars(level: state.level, color: Refined.persimmonFixed, count: 34).frame(height: 22)
                 Text(state.warming ? Ribbon.gettingReadyLine : Ribbon.lockLine(target: state.target, take: state.takes))
                     .font(.system(size: 13)).foregroundStyle(skin.dim).lineLimit(1).minimumScaleFactor(0.85)
             } else {
@@ -199,7 +199,7 @@ private struct RibbonLockScreen: View {
 
     @ViewBuilder private var trailing: some View {
         if state.shown == .listening, let start = state.takeStartedAt {
-            TakeTimer(start: start).font(Ink.mono(15, weight: .medium)).foregroundStyle(ink).frame(width: 60, alignment: .trailing)
+            TakeTimer(start: start).font(Refined.mono(15, weight: .medium)).foregroundStyle(ink).frame(width: 60, alignment: .trailing)
         } else if state.shown == .ready, let started = state.sessionStartedAt {
             Text(started, style: .relative).font(.system(size: 13)).monospacedDigit().foregroundStyle(skin.mute)
                 .multilineTextAlignment(.trailing).frame(maxWidth: 110, alignment: .trailing)
@@ -216,7 +216,7 @@ private struct IslandWords: View {
         TailWords(text: line, lines: 2, lineHeight: IslandWordsMetrics.lineHeight) { tail in
             let parts = Ribbon.splitWords(tail)
             Text("\(Text(parts.older).foregroundStyle(Color.white.opacity(0.5)))\(Text(parts.newest).foregroundStyle(Color.white))")
-                .font(Ink.serif(16))
+                .font(Refined.serif(16))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
@@ -251,7 +251,7 @@ private struct WritingSpinner: View {
         ZStack {
             Circle().stroke(Color.white.opacity(0.25), lineWidth: 2)
             Circle().trim(from: 0, to: 0.25)
-                .stroke(Ink.persimmon, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .stroke(Refined.persimmon, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
         .accessibilityElement(children: .ignore)
@@ -275,18 +275,18 @@ private struct PhaseGlyph: View {
     var body: some View {
         switch phase {
         case .listening:
-            BarsMark(color: onDark ? Ink.persimmon : Ink.persimmonFixed).accessibilityLabel("Listening")
+            BarsMark(color: onDark ? Refined.persimmon : Refined.persimmonFixed).accessibilityLabel("Listening")
         case .transcribing:
-            BrandGlyph(art: .iconTranscribing, color: onDark ? .white : Ink.inkFixed).accessibilityLabel("Writing")
+            BrandGlyph(art: .iconTranscribing, color: onDark ? .white : Refined.inkFixed).accessibilityLabel("Writing")
         case .copied, .inserted:
-            Image(systemName: "checkmark").resizable().scaledToFit().padding(2).foregroundStyle(onDark ? Ink.persimmon : Ink.inkFixed)
+            Image(systemName: "checkmark").resizable().scaledToFit().padding(2).foregroundStyle(onDark ? Refined.persimmon : Refined.inkFixed)
                 .accessibilityLabel(phase == .copied ? "Copied" : "Inserted")
         case .failed:
-            BrandGlyph(art: .iconAttention, color: onDark ? Ink.accentTextOnInk : Ink.accentTextOnPaper).accessibilityLabel("Didn't finish")
+            BrandGlyph(art: .iconAttention, color: onDark ? Refined.accentTextOnInk : Refined.accentTextOnPaper).accessibilityLabel("Didn't finish")
         case .ready, .ended:
-            BarsMark(color: Ink.persimmon)
+            BarsMark(color: Refined.persimmon)
         case .paused:
-            BarsMark(color: onDark ? Color.white.opacity(0.6) : Ink.inkFixed.opacity(0.6)).accessibilityLabel("Paused")
+            BarsMark(color: onDark ? Color.white.opacity(0.6) : Refined.inkFixed.opacity(0.6)).accessibilityLabel("Paused")
         }
     }
 }
@@ -368,13 +368,13 @@ private struct RibbonButton<I: AppIntent>: View {
         Button(intent: intent) {
             Text(title)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(primary || !onDark ? Ink.inkFixed : Color.white)
+                .foregroundStyle(primary || !onDark ? Refined.inkFixed : Color.white)
                 .lineLimit(1)
                 .frame(maxWidth: compact ? nil : .infinity)
                 .frame(minWidth: compact ? 72 : nil)
                 .padding(.horizontal, compact ? 12 : 0)
                 .padding(.vertical, 8)
-                .background(primary ? Ink.persimmonFixed : (onDark ? Color.white.opacity(0.12) : Ink.inkFixed.opacity(0.08)),
+                .background(primary ? Refined.persimmonFixed : (onDark ? Color.white.opacity(0.12) : Refined.inkFixed.opacity(0.08)),
                             in: Capsule())
                 .contentShape(Capsule())
         }

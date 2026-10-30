@@ -21,7 +21,7 @@ struct StartSessionControl: ControlWidget {
             ControlWidgetToggle("Verbose", isOn: isOn, action: SetSessionIntent()) { on in
                 Label(on ? "Session on" : "Session off", image: "bars")
             }
-            .tint(Ink.persimmon)
+            .tint(Refined.persimmon)
         }
         .displayName("Verbose session")
         .description("Turns the microphone on for dictation in any app, or off.")
@@ -74,7 +74,7 @@ struct RecordVoiceNoteControl: ControlWidget {
             ControlWidgetButton(action: RecordVoiceNoteIntent()) {
                 Label("Record", image: "record")
             }
-            .tint(Ink.persimmon)
+            .tint(Refined.persimmon)
         }
         .displayName("Record voice note")
         .description("Starts a Verbose voice note, in place when iOS allows it.")
@@ -92,7 +92,7 @@ struct DictateControl: ControlWidget {
             ControlWidgetButton(action: StartKeyboardSessionIntent()) {
                 Label("Dictate", image: "dictate")
             }
-            .tint(Ink.persimmon)
+            .tint(Refined.persimmon)
         }
         .displayName("Dictate")
         .description("Starts a Verbose dictation session, so you can dictate in any app.")
@@ -111,7 +111,7 @@ struct NewThoughtControl: ControlWidget {
             ControlWidgetButton(action: NewThoughtIntent()) {
                 Label("New thought", image: "thought")
             }
-            .tint(Ink.persimmon)
+            .tint(Refined.persimmon)
         }
         .displayName("New thought")
         .description("Starts a thought that lands on today's Thoughts page. Press it again to stop.")

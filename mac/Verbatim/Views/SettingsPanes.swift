@@ -688,9 +688,9 @@ struct SupportSettingsPane: View {
                     Text("\(Text("verbose").foregroundStyle(Refined.ink))\(Text(".").foregroundStyle(Refined.accentText))")
                         .font(.system(size: 28, design: .serif))
                 }
-                Text(Ink.tagline).font(.system(size: 17, design: .serif)).foregroundStyle(Refined.dim)
+                Text(Refined.tagline).font(.system(size: 17, design: .serif)).foregroundStyle(Refined.dim)
             }
-            .accessibilityElement(children: .ignore).accessibilityLabel("Verbose. \(Ink.tagline)")
+            .accessibilityElement(children: .ignore).accessibilityLabel("Verbose. \(Refined.tagline)")
             SettingsGroup {
                 SettingsRow("about.version", detail: "Verbose \(AppVersion.label)") {
                     // What each build added (WhatsNewPane.swift). Sentence case, as in the sidebar (DESIGN.md §2, §8).

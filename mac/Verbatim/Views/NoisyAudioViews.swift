@@ -55,7 +55,7 @@ enum UnclearStyle {
         let map = PlaybackSync.timingIndex(s)
         for (i, r) in ranges.enumerated() where i < map.count {
             guard let w = map[i], low.contains(w), let ar = Range<AttributedString.Index>(r, in: a) else { continue }
-            a[ar].underlineStyle = Text.LineStyle(pattern: .dot, color: Ink.mute)
+            a[ar].underlineStyle = Text.LineStyle(pattern: .dot, color: Refined.mute)
         }
         return a
     }

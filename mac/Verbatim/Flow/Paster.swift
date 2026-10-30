@@ -469,7 +469,7 @@ struct PasteSettingsRows: View {
             ForEach(apps, id: \.self) { id in
                 HStack {
                     Text(Self.name(for: id))
-                    Text(id).font(.system(size: 11, design: .monospaced)).foregroundStyle(Ink.mute).lineLimit(1)
+                    Text(id).font(.system(size: 11, design: .monospaced)).foregroundStyle(Refined.mute).lineLimit(1)
                     Spacer()
                     Button { typeApps = apps.filter { $0 != id }.joined(separator: "\n") } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.plain).help("Paste in this app again")
@@ -478,7 +478,7 @@ struct PasteSettingsRows: View {
             LabeledContent("Type instead of paste in") { Button("Add App…") { choose() }.buttonStyle(.settingsPill) }
         }
         Text("For apps that block ⌘V or paste the wrong thing. Typing leaves your clipboard alone but is slower, and if you press a key while it types, it stops rather than starting over.")
-            .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            .font(.system(size: 12)).foregroundStyle(Refined.mute)
     }
 
     private static func name(for id: String) -> String {

@@ -16,6 +16,6 @@ struct StillImage: View {
     /// The longest side to decode, in pixels: about three times the widest it's drawn (a full-width still).
     var maxPixel = 1200
     var body: some View {
-        ThumbImage(file: file, maxPixel: maxPixel) { Rectangle().fill(Ink.track) }
+        ThumbImage(file: file, maxPixel: maxPixel) { Rectangle().fill(Refined.track) }
     }
 }

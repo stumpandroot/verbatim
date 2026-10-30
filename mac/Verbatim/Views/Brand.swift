@@ -355,7 +355,7 @@ extension BrandArt {
 /// Draws a BrandArt scaled to fit, keeping its stroke weight proportional (with a legibility floor).
 struct BrandGlyph: View {
     var art: BrandArt
-    var color: Color = Ink.ink
+    var color: Color = Refined.ink
     var minLineWidth: CGFloat = 1.1
 
     var body: some View {
@@ -391,7 +391,7 @@ struct BrandGlyph: View {
 struct IconGlyph: View {
     var art: BrandArt
     var size: CGFloat = 20
-    var color: Color = Ink.ink
+    var color: Color = Refined.ink
     var body: some View {
         BrandGlyph(art: art, color: color, minLineWidth: 1.2).frame(width: size, height: size)
     }
@@ -433,7 +433,7 @@ struct Keycap: View {
     var keys: String
     var size: CGFloat = 11
     var body: some View {
-        Text(keys).font(Ink.mono(size))
+        Text(keys).font(Refined.mono(size))
             .padding(.horizontal, size * 0.5).padding(.vertical, size * 0.3)
             .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(ForegroundStyle().opacity(0.75), lineWidth: 1))
             .fixedSize()
@@ -452,7 +452,7 @@ struct Keycap: View {
 struct IconPlate: View {
     var art: BrandArt
     var size: CGFloat = 120
-    var color: Color = Ink.ink
+    var color: Color = Refined.ink
     var body: some View {
         ZStack {
             Circle().inset(by: size * 0.042)
@@ -529,7 +529,7 @@ extension BrandArt {
 
 /// The bars mark, flat, in one color. One color per mark; never pink or sage.
 struct BarsMark: View {
-    var color: Color = Ink.persimmon
+    var color: Color = Refined.persimmon
     var body: some View { BrandGlyph(art: .markBars, color: color).aspectRatio(76.0 / 80.0, contentMode: .fit).accessibilityLabel("Verbose") }
 }
 
@@ -548,7 +548,7 @@ struct Diamond: Shape {
 /// means a real level (DESIGN.md §7), so the rings don't pulse on a loop.
 struct SignalRings: View {
     var active = true
-    var color: Color = Ink.persimmon
+    var color: Color = Refined.persimmon
     var body: some View {
         GeometryReader { g in
             let d = min(g.size.width, g.size.height)

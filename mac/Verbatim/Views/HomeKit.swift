@@ -165,28 +165,28 @@ struct HomeRecentStyle {
 
     init(_ t: Transcript) {
         if t.isDictation {
-            tint = Ink.butterTint; onTint = Ink.butterText; art = .iconDictations; chip = "Dictation"; source = "Dictation"
+            tint = Refined.butterTint; onTint = Refined.ink; art = .iconDictations; chip = "Dictation"; source = "Dictation"
         } else if LibrarySource.isLink(t) {
             let platform = Platform.of(t)
-            tint = Ink.sageTint; onTint = Ink.sageText; art = .iconLinks
+            tint = Refined.sageTint; onTint = Refined.sageText; art = .iconLinks
             chip = t.kind?.label ?? (platform.map { Platform.video.contains($0) } == true ? "Video" : (platform == Platform.applePodcasts || platform == Platform.spotify ? "Podcast" : "Link"))
             source = (platform == nil || platform == Platform.otherWeb) ? "Link" : platform!
         } else {
             switch t.source {
             case .app:
-                tint = Ink.petalTint; onTint = Ink.ink; art = .iconVoice; chip = t.kind?.label ?? "App audio"
+                tint = Refined.petalTint; onTint = Refined.ink; art = .iconVoice; chip = t.kind?.label ?? "App audio"
                 source = t.sourceLabel.isEmpty ? "App audio" : t.sourceLabel
             case .file:
-                tint = Ink.sageTint; onTint = Ink.sageText; art = .document
+                tint = Refined.sageTint; onTint = Refined.sageText; art = .document
                 chip = t.kind?.label ?? (LibrarySource.isVideoFile(t) ? "Video" : "File")
                 source = LibrarySource.isVideoFile(t) ? "Video file" : "Audio file"
             default:
-                tint = Ink.persimmonTint; onTint = Ink.accentText; art = .capture; chip = t.kind?.label ?? "Voice note"; source = "Voice note"
+                tint = Refined.persimmonTint; onTint = Refined.accentText; art = .capture; chip = t.kind?.label ?? "Voice note"; source = "Voice note"
             }
         }
     }
 
-    /// One piece of the meta line; `failed` pieces show in `Ink.danger`.
+    /// One piece of the meta line; `failed` pieces show in `Refined.danger`.
     struct MetaPart: Equatable { var text: String; var failed = false }
 
     /// "Voice note · 7:50 · Today". `compact` leaves out "Voice note" (iPhone).

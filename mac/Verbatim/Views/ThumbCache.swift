@@ -30,13 +30,13 @@ struct ThumbImage<Missing: View>: View {
         let image = loaded ?? ThumbCache.cached(file, maxPixel: maxPixel)
         ZStack {
             if let image {
-                Rectangle().fill(Ink.track)
+                Rectangle().fill(Refined.track)
                     .overlay { Self.picture(image).resizable().aspectRatio(contentMode: .fill) }
                     .clipped()
             } else if failed {
                 missing()
             } else {
-                Rectangle().fill(Ink.track)
+                Rectangle().fill(Refined.track)
             }
         }
         .task(id: file) {

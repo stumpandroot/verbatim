@@ -54,7 +54,7 @@ struct PhoneOnboarding: View {
             }
             .padding(.top, 22)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
-            title(Ink.tagline)
+            title(Refined.tagline)
             para("Record a thought, an interview, or a call, or paste a link to a video or podcast. Verbose writes it down on this iPhone. Everything stays on this iPhone unless you turn on iCloud sync.")
             BrandGlyph(art: .diagramCapture, color: Refined.ink, minLineWidth: 1.2)
                 .frame(width: 170, height: 220).frame(maxWidth: .infinity).padding(.top, 50)

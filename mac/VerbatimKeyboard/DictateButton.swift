@@ -10,8 +10,7 @@ import Foundation
 ///   makes the keyboard 16 pt taller (its top bar grows from 46 to 62 pt).
 /// - Position: left, center, or right, so the button sits under one thumb. The menu button takes the opposite
 ///   corner. Home's Tap to talk and Listening's Done move with it, so the thumb lands in the same place.
-/// - Style: Filled is butter with grain and a hard shadow; Outline is card white with an ink ring, and keeps the
-///   hard shadow so it still reads as the main action.
+/// - Style: Filled is persimmon with ink; Outline is the card with the accent's ring and the accent's glyphs.
 ///
 /// Every combination keeps the VoiceOver label "Start dictation" and a hit area of at least 46 pt.
 struct DictateButton: Equatable {

@@ -18,7 +18,7 @@ struct ExportOptionRows: View {
     var body: some View {
         if format == .json {
             Text("JSON includes everything: segments with word timings, speakers, moments, the summary, and details. These options don't change it.")
-                .font(.footnote).foregroundStyle(Ink.mute)
+                .font(.footnote).foregroundStyle(Refined.mute)
         } else {
             if showsText {
                 Picker("Text", selection: $options.source) { ForEach(ExportOptions.Source.allCases) { Text($0.label).tag($0) } }
@@ -27,7 +27,7 @@ struct ExportOptionRows: View {
                     Toggle("Note when Apple Intelligence cleaned it", isOn: $options.aiNote)
                 }
                 Toggle(isOn: $options.summary) {
-                    HStack(spacing: 6) { Text("Summary"); Text("AI").font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(Ink.mute) }
+                    HStack(spacing: 6) { Text("Summary"); Text("AI").font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(Refined.mute) }
                 }
                 .disabled(!summaryAvailable)
             }
@@ -73,11 +73,11 @@ struct ExportOptionRows: View {
     private var offsetRow: some View {
         LabeledContent("Start at") {
             TextField("00:00:00", text: $offsetText)
-                .font(Ink.mono(13)).multilineTextAlignment(.trailing)
+                .font(Refined.mono(13)).multilineTextAlignment(.trailing)
                 #if os(iOS)
                 .keyboardType(.numbersAndPunctuation)
                 #endif
-                .foregroundStyle(offsetInvalid ? Ink.accentText : Ink.ink)
+                .foregroundStyle(offsetInvalid ? Refined.accentText : Refined.ink)
                 .frame(maxWidth: 110)
                 .onAppear { offsetText = Timecode.offsetText(options.timecodeOffset) }
                 .onChange(of: offsetText) { _, v in

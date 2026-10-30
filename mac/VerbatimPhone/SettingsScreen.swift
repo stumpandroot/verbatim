@@ -529,10 +529,10 @@ struct SettingsScreen: View {
         VStack(spacing: 6) {
             HStack(spacing: 8) {
                 BarsMark(color: Refined.persimmon).frame(width: 17, height: 18)
-                Ink.wordmark(22, color: Refined.ink)
+                Refined.wordmark(22, color: Refined.ink)
             }
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
-            Text(Ink.tagline).font(.system(.callout, design: .serif)).foregroundStyle(Refined.dim).padding(.bottom, 6)
+            Text(Refined.tagline).font(.system(.callout, design: .serif)).foregroundStyle(Refined.dim).padding(.bottom, 6)
             // The version opens What's new.
             Button { open(.whatsNew) } label: {
                 VStack(spacing: 2) {

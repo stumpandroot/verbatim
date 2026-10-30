@@ -216,7 +216,7 @@ struct LiveCaptionsView: View {
                 // Older lines in `mute` (the line before) and `dim`: never lighter than 4.5:1 on paper.
                 CaptionLinesView(feed: feed, size: size.mac,
                                  older: [(size.mac * 0.77, Refined.dim), (size.mac * 0.7, Refined.mute)],
-                                 showSpeakers: controller.showsSpeakers, spacing: 6, currentLimit: 220, refined: true)
+                                 showSpeakers: controller.showsSpeakers, spacing: 6, currentLimit: 220)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -352,12 +352,12 @@ struct LiveCaptionsMenuRow: View {
     var body: some View {
         Button { app.toggleLiveCaptions() } label: {
             HStack(spacing: 10) {
-                IconGlyph(art: .iconCaptions, size: 18, color: Ink.ink).frame(width: 26)
+                IconGlyph(art: .iconCaptions, size: 18, color: Refined.ink).frame(width: 26)
                 Text(captions.isOpen ? "Close live captions" : "Live captions").font(.system(size: 13, weight: .medium))
                 Spacer()
-                Text("⌥⌘C").font(.system(size: 11)).foregroundStyle(Ink.mute)
+                Text("⌥⌘C").font(.system(size: 11)).foregroundStyle(Refined.mute)
             }
-            .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
+            .padding(10).background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

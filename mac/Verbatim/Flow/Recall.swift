@@ -381,15 +381,15 @@ struct RecallPanelView: View {
         let list = model.visible
         VStack(spacing: 0) {
             header
-            Rectangle().fill(Ink.hairline).frame(height: 1)
+            Rectangle().fill(Refined.separator).frame(height: 1)
             if list.isEmpty { empty } else { rows(list) }
-            Rectangle().fill(Ink.hairline).frame(height: 1)
+            Rectangle().fill(Refined.separator).frame(height: 1)
             footer
         }
         .frame(width: RecallPanelController.size.width, height: RecallPanelController.size.height)
-        .background(Ink.paper)
+        .background(Refined.paper)
         .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.outlineStrong.opacity(0.6)))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Refined.separator))
         .opacity(model.shown ? 1 : 0)
         .offset(y: model.shown || limitMotion ? 0 : -8)
         .animation(limitMotion ? .easeOut(duration: 0.15) : .spring(duration: 0.24, bounce: 0), value: model.shown)
@@ -400,15 +400,15 @@ struct RecallPanelView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass").font(.system(size: 14, weight: .medium)).foregroundStyle(Ink.mute)
+            Image(systemName: "magnifyingglass").font(.system(size: 14, weight: .medium)).foregroundStyle(Refined.mute)
                 .accessibilityHidden(true)
             TextField("Search your dictations", text: $model.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15))
-                .foregroundStyle(Ink.ink)
+                .foregroundStyle(Refined.ink)
                 .focused($searchFocused)
                 .accessibilityLabel("Search your dictations")
-            Text("Recent dictations").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
+            Text("Recent dictations").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
                 .lineLimit(1).fixedSize()
         }
         .padding(.horizontal, 16).frame(height: 52)
@@ -439,9 +439,9 @@ struct RecallPanelView: View {
     private var empty: some View {
         VStack(spacing: 6) {
             Text(model.items.isEmpty ? "No dictations yet" : "No dictations match")
-                .font(Ink.serif(20)).foregroundStyle(Ink.ink)
+                .font(Refined.serif(20)).foregroundStyle(Refined.ink)
             Text(model.items.isEmpty ? "Your dictations show up here, newest first." : "Search looks at your last \(Recall.pool) dictations, their apps, and websites.")
-                .font(.system(size: 12.5)).foregroundStyle(Ink.mute).multilineTextAlignment(.center)
+                .font(.system(size: 12.5)).foregroundStyle(Refined.mute).multilineTextAlignment(.center)
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -461,11 +461,11 @@ struct RecallPanelView: View {
 
     private func hint(_ key: String, _ label: String) -> some View {
         HStack(spacing: 5) {
-            Text(key).font(Ink.mono(10.5, weight: .medium)).foregroundStyle(Ink.dim)
+            Text(key).font(Refined.mono(10.5, weight: .medium)).foregroundStyle(Refined.dim)
                 .padding(.horizontal, 5).padding(.vertical, 1)
-                .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Ink.card))
-                .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(Ink.hairline))
-            Text(label).font(.system(size: 11)).foregroundStyle(Ink.mute)
+                .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Refined.card))
+                .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(Refined.separator))
+            Text(label).font(.system(size: 11)).foregroundStyle(Refined.mute)
         }
         .lineLimit(1).fixedSize()
     }
@@ -484,21 +484,21 @@ private struct RecallRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Text(Recall.keyLabel(index) ?? "")
-                .font(Ink.mono(12, weight: .medium))
-                .foregroundStyle(selected ? Ink.accentText : Ink.mute)
+                .font(Refined.mono(12, weight: .medium))
+                .foregroundStyle(selected ? Refined.accentText : Refined.mute)
                 .frame(width: 22, height: 22)
-                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Ink.card))
-                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Ink.hairline))
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Refined.card))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Refined.separator))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(Recall.when(item.date)).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.mute)
+                    Text(Recall.when(item.date)).font(.system(size: 11)).monospacedDigit().foregroundStyle(Refined.mute)
                     if !item.source.isEmpty {
-                        Text(item.source).font(.system(size: 11.5)).foregroundStyle(Ink.mute).lineLimit(1)
+                        Text(item.source).font(.system(size: 11.5)).foregroundStyle(Refined.mute).lineLimit(1)
                     }
                 }
                 Text(Recall.preview(item.text))
-                    .font(.system(size: 13.5)).foregroundStyle(Ink.ink)
+                    .font(.system(size: 13.5)).foregroundStyle(Refined.ink)
                     .lineLimit(2).truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -509,7 +509,7 @@ private struct RecallRow: View {
                 .accessibilityHidden(!selected)
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(selected ? Ink.wash : Color.clear))
+        .background(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(selected ? Refined.neutral : Color.clear))
         .contentShape(Rectangle())
         .onHover { if $0 { onHover() } }
         .onTapGesture(perform: onCopy)
@@ -526,10 +526,10 @@ private struct RecallPasteButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Ink.onInteractive)
+            .foregroundStyle(Refined.paper)
             .lineLimit(1).fixedSize()
             .padding(.horizontal, 12).frame(height: 26)
-            .background(Ink.interactive, in: Capsule())
+            .background(Refined.ink, in: Capsule())
             .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.75 : 1)
     }
@@ -598,9 +598,9 @@ private struct RecallHUDView: View {
             Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
             Text(text).font(.system(size: 13, weight: .semibold))
         }
-        .foregroundStyle(Ink.readerFixed)
+        .foregroundStyle(Refined.cardFixed)
         .padding(.horizontal, 14).padding(.vertical, 8)
-        .background(Capsule().fill(Ink.inkFixed))
+        .background(Capsule().fill(Refined.inkFixed))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -614,11 +614,11 @@ struct DictationsMenuRow: View {
     var body: some View {
         Button { app.dictation.openHistory() } label: {
             HStack(spacing: 10) {
-                IconGlyph(art: .iconDictations, size: 18, color: Ink.ink).frame(width: 26)
+                IconGlyph(art: .iconDictations, size: 18, color: Refined.ink).frame(width: 26)
                 Text("Dictations…").font(.system(size: 13, weight: .medium))
                 Spacer()
             }
-            .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
+            .padding(10).background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Dictations")
@@ -637,7 +637,7 @@ struct RecallShortcutRow: View {
     var body: some View {
         SettingsRow("dictate.recall",
                     detail: hotkey.unavailable && shortcut != RecallShortcut.off.rawValue ? "Another app already uses \(RecallShortcut.current.title). Pick another shortcut." : nil,
-                    detailColor: hotkey.unavailable ? Ink.accentText : Ink.mute) {
+                    detailColor: hotkey.unavailable ? Refined.accentText : Refined.mute) {
             Picker("Recent dictations", selection: $shortcut) {
                 ForEach(RecallShortcut.allCases) { Text($0.title).tag($0.rawValue) }
             }

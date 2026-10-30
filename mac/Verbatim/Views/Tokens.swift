@@ -7,285 +7,13 @@ import UIKit
 typealias PColor = UIColor
 #endif
 
-// Shared by the Mac and iPhone apps: palette, type roles, motion. Mac-only controls are in Controls.swift.
+// Shared by the Mac and iPhone apps and their extensions: the palette, type roles, radii, and motion. Mac-only
+// controls are in Controls.swift.
 
-/// The palette: Verbatim brand, "The Idea Archive" (BRAND_GUIDE.md, October 2026).
-/// Paper surfaces, ink structure, persimmon focal moments; pink, butter, and sage for feature cards and notes.
-/// Every token has a light and a dark value and follows the system (or Settings › Appearance). Dark mode is a
-/// near-black green, not an inversion. Under Increase Contrast, secondary text and rules move toward ink.
-///
-/// The older token names (iris, coral, lime…) stay as aliases so every screen moved to the new palette at once;
-/// new code uses the brand names in the second block.
-enum Ink {
-    // Canonical brand palette
-    static let paperHex: UInt32 = 0xF5F0E6, inkHex: UInt32 = 0x26352E, persimmonHex: UInt32 = 0xFA6B47
-    static let petalHex: UInt32 = 0xEFB6C8, butterHex: UInt32 = 0xF4C76B, sageHex: UInt32 = 0xAFC398, readerHex: UInt32 = 0xFFFDF9
+// MARK: - The palette
 
-    // Surfaces
-    static let paper = dyn(paperHex, 0x18241F)                 // app background
-    static let reader = dyn(readerHex, 0x1D2B25)               // transcript reading sheet
-    static let card = dyn(readerHex, 0x202F28)                 // neutral cards and rows
-    static let cardHover = dyn(0xFBF8F1, 0x253630)
-    static let side = dyn(0xEFE9DD, 0x1C2A24)
-    static let bar = dyn(0xF1EBDF, 0x1E2C26)
-    static let raised = dyn(0xFAF6EE, 0x202F28)
-
-    // Text (contrast-checked on paper and reader white)
-    static let ink = dyn(inkHex, 0xF5F0E6)                       // primary, 11.9:1
-    static let dim = dynC(0x545E56, 0xD4CDC0, inkHex, 0xF5F0E6)  // secondary, 5.9:1
-    static let mute = dynC(0x606962, 0xA1A29A, 0x3E4A43, 0xD4CDC0) // metadata and timestamps, 5.0:1
-    static let faint = dynC(0x8E938A, 0x6F7A72, 0x606962, 0xA1A29A) // decorative only, never body text
-
-    // Brand accents
-    static let persimmon = dyn(persimmonHex, 0xF27A57)
-    /// Persimmon for small text and glyphs on paper (5.1:1); the bright persimmon is for fills and large marks.
-    static let accentText = dyn(0xB23F24, 0xFF8A6B)
-    static let petal = dyn(petalHex, 0xC98EA2)
-    static let butter = dyn(butterHex, 0xD4AB55)
-    static let sage = dyn(sageHex, 0x93A87C)
-    static let sageText = dyn(0x4F6440, 0xB9CDA3)
-    static let persimmonTint = dyn(0xFDE4DA, 0x3A2A22)
-    static let petalTint = dyn(0xFAE6EC, 0x33282D)
-    static let butterTint = dyn(0xFCF0D2, 0x332E20)
-    static let sageTint = dyn(0xE9EFE0, 0x26322A)
-    /// A switch that's on: deep sage on paper, a lighter sage on dark, so the white knob always shows.
-    static let switchOn = dyn(0x4F6440, 0x6E8A58)
-    /// Errors and destructive actions (DESIGN.md §1): always with an icon and a word, never persimmon.
-    static let danger = dyn(0xB23F24, 0xFF8A6B)
-    /// Butter's text color: small text and glyphs on butter tint (6.4:1 on #FCF0D2).
-    static let butterText = dyn(0x6B5320, 0xE5C77F)
-    /// The Record panel's fill: persimmon nudged lighter (#FB7350), so ink text on it reaches 4.7:1 at any size.
-    /// `persimmon` (#FA6B47) stays the brand and app-icon color.
-    static let recordFill = dyn(0xFB7350, 0xF27A57)
-    /// Color panels in the website style (DESIGN.md §5.5): the brand fills in light, a little deeper in dark only, so a
-    /// panel never glows on the near-black green. Ink text (`inkFixed`) on all four in both modes. Mac surfaces built
-    /// with the web-style kit (WebStyle.swift) use these; the plain brand tokens stay for everything else.
-    static let panelRecord = dyn(0xFB7350, 0xE2694B)
-    static let panelButter = dyn(butterHex, 0xDDB563)
-    static let panelSage = dyn(sageHex, 0x9DB088)
-    static let panelPetal = dyn(petalHex, 0xD9A3B5)
-    /// The hard offset shadow under outlined cards and highlighted rows (website style): ink in light, near black in dark.
-    static let hard = dyn(inkHex, 0x0C1310)
-    /// Filter chips at rest (website style): a soft wash, no border. Selected chips are `ink` with `paper` text.
-    static let chip = dyn(0xE6DFD1, 0x22312A)
-    static let chipHover = dyn(0xDAD4C7, 0x2E3B34)
-    /// A switch that's on in the iPhone's website style: ink on paper, the lighter sage on dark so the white knob
-    /// always shows. (`switchOn` is the deep sage the Mac uses.)
-    static let switchOnInk = dyn(inkHex, 0x6E8A58)
-    /// Status text for something kept (a video kept from a link): sage mixed into ink, text-safe on paper and card.
-    static let keptText = dynC(0x5D6E58, 0xD2D6C0, 0x3E4A3A, 0xE3E6D6)
-    /// Neutral chips and tags (kinds, tags, speakers, projects, counts): ink at 6% behind `dim` text.
-    static let neutralChip = make { dark, _ in
-        dark ? PColor(hex: 0xF5F0E6).withAlphaComponent(0.08) : PColor(hex: inkHex).withAlphaComponent(0.06)
-    }
-    /// Always-ink and always-reader-white, for surfaces that stay dark or light in both modes (HUD pill, toasts,
-    /// text on brand color fills).
-    static let inkFixed = Color(hex: inkHex)
-    static let readerFixed = Color(hex: readerHex)
-    static let paperFixed = Color(hex: paperHex)
-    /// Dark mode's paper, fixed: the Lock Screen's Live Activities in dark (DESIGN.md §13.7), with `onBlack` text.
-    static let darkPaperHex: UInt32 = 0x18241F
-    static let darkPaperFixed = Color(hex: darkPaperHex)
-    static let persimmonFixed = Color(hex: persimmonHex)
-    /// Fixed text colors for surfaces that keep one look in both modes (the dictation bar's paper and ink tabs, the
-    /// keyboard's lock screen): deep persimmon and mute on paper; light persimmon and light mute on ink.
-    static let accentTextOnPaper = Color(hex: 0xB23F24)
-    static let accentTextOnInk = Color(hex: 0xFF8A6B)
-    static let muteOnPaper = Color(hex: 0x606962)
-    static let muteOnInk = Color(hex: 0xA1A29A)
-    /// The notch style (DESIGN.md §12): Apple's black, so the shape reads as the notch, with paper type, persimmon
-    /// voice marks, and errors in the light persimmon (5.9:1 on black). The same in light and dark mode.
-    static let notchBlack = Color(hex: 0x000000)
-    static let onBlack = Color(hex: paperHex)
-    static let onBlackDim = Color(hex: paperHex).opacity(0.62)
-    static let onBlackHair = Color(hex: paperHex).opacity(0.16)
-    static let dangerOnBlack = Color(hex: 0xFF8A6B)
-    /// The floating button's labeled pill: the brand butter in both modes (butter means Dictate), ink on it.
-    static let butterFixed = Color(hex: butterHex)
-
-    /// Reliable primary controls: ink fill with a reader-white label (cream with an ink label in dark).
-    static let interactive = dyn(inkHex, 0xE9E3D6)
-    static let onInteractive = dyn(readerHex, 0x18241F)
-
-    // Structure
-    static let hairline = make { dark, hc in
-        return dark ? PColor(hex: 0xF5F0E6).withAlphaComponent(hc ? 0.3 : 0.12) : PColor(hex: inkHex).withAlphaComponent(hc ? 0.4 : 0.14)
-    }
-    static let outlineStrong = make { dark, _ in
-        dark ? PColor(hex: 0xF5F0E6).withAlphaComponent(0.36) : PColor(hex: inkHex).withAlphaComponent(0.36)
-    }
-    static let track = dyn(0xE8E2D6, 0x2A3A33)                  // segmented tracks, progress rails
-    /// Placeholders while a link loads: the title bar, and the striped thumbnail's two stripes.
-    static let placeholder = dyn(0xEEE7DA, 0x26352E)
-    static let stripeA = dyn(0xE9E1D2, 0x24332C)
-    static let stripeB = dyn(0xE2D9C8, 0x2A3A33)
-    static let wash = dyn(0xEFE9DD, 0x22312A)                   // selected rows on paper
-    static let notes = dyn(0xF1EBDF, 0x1C2A24)                  // notes panel
-    /// Saved passage: butter behind ink text, readable in both modes.
-    static let saved = make { dark, _ in
-        dark ? PColor(hex: 0xD4AB55).withAlphaComponent(0.26) : PColor(hex: butterHex).withAlphaComponent(0.5)
-    }
-    /// The playing passage: a quiet sage wash (distinct from saved butter and search persimmon).
-    static let playing = make { dark, _ in
-        dark ? PColor(hex: 0x93A87C).withAlphaComponent(0.2) : PColor(hex: sageHex).withAlphaComponent(0.32)
-    }
-    /// Search matches: persimmon tint.
-    static let match = make { dark, _ in
-        dark ? PColor(hex: 0xF27A57).withAlphaComponent(0.3) : PColor(hex: persimmonHex).withAlphaComponent(0.24)
-    }
-    /// Hover and selected-row tint (accentSubtle).
-    static let accentSubtle = make { dark, _ in
-        dark ? PColor(hex: 0xF27A57).withAlphaComponent(0.14) : PColor(hex: persimmonHex).withAlphaComponent(0.11)
-    }
-
-    // Legacy names, mapped onto the brand (kept so existing screens compile and move together).
-    static let iris = interactive
-    static let coral = persimmon
-    static let lime = butter
-
-    #if os(iOS)
-    /// Ink as a UIColor, for UIKit surfaces (the keyboard's globe key).
-    static let inkUI = UIColor { tc in UIColor(hex: tc.userInterfaceStyle == .dark ? 0xF5F0E6 : inkHex) }
-    #endif
-
-    static func dyn(_ light: UInt32, _ dark: UInt32) -> Color {
-        make { isDark, _ in isDark ? PColor(hex: dark) : PColor(hex: light) }
-    }
-    /// Like `dyn`, with stronger values when Increase Contrast is on.
-    static func dynC(_ light: UInt32, _ dark: UInt32, _ hcLight: UInt32, _ hcDark: UInt32) -> Color {
-        make { isDark, hc in isDark ? PColor(hex: hc ? hcDark : dark) : PColor(hex: hc ? hcLight : light) }
-    }
-    /// A color resolved per appearance (dark?) and contrast setting (increased?), on Mac and iPhone.
-    static func make(_ f: @escaping (Bool, Bool) -> PColor) -> Color {
-        #if os(macOS)
-        // Increase Contrast is read once per change (ContrastSetting), not on every resolve.
-        return Color(nsColor: NSColor(name: nil) { a in f(a.isDark, ContrastSetting.increased) })
-        #elseif os(watchOS)
-        // The Apple Watch app is always dark (DESIGN.md §20), and watchOS has no trait collection to resolve against.
-        return Color(uiColor: f(true, false))
-        #else
-        return Color(uiColor: UIColor { tc in f(tc.userInterfaceStyle == .dark, tc.accessibilityContrast == .high) })
-        #endif
-    }
-}
-
-/// Type roles (BRAND_GUIDE §04). Instrument Serif, Instrument Sans, and IBM Plex Mono aren't bundled (license
-/// review pending), so the system stands in: New York for the display serif, SF Pro for sans, SF Mono for data.
-extension Ink {
-    /// Editorial serif: Home headline, section titles, document titles. Never transcript body text.
-    static func serif(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .serif)
-    }
-    /// Monospaced data: timestamps, durations, dates, indexes. Tabular digits.
-    static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .monospaced).monospacedDigit()
-    }
-    /// The wordmark (DESIGN.md §4): lowercase "verbose" in the serif with a persimmon period. The period is a mark,
-    /// so it uses the text-safe persimmon (`accentText`, 5.1:1 on paper); the bright fill measures 2.5:1 on paper.
-    static func wordmark(_ size: CGFloat, color: Color = Ink.ink) -> Text {
-        Text("\(Text("verbose").foregroundStyle(color))\(Text(".").foregroundStyle(accentText))").font(serif(size))
-    }
-    /// The tagline (DESIGN.md §4), set in the serif on About and the first onboarding screen.
-    static let tagline = "Go ahead. Be verbose."
-}
-
-// MARK: - Native look
-
-/// The Native look's one brand color (DESIGN.md §13), set as the tint at the root. Light is persimmon deepened until
-/// white on it and it on white both reach 4.5:1 for small text (#D5431F; the mockup's #E04E2A measures 4.0:1). Dark
-/// is #FF6B47 (6.0:1 on #1C1C1E). The record disc keeps the brand persimmon (`persimmonFixed`): it carries no text.
-extension Ink {
-    static let nativeAccentLightHex: UInt32 = 0xD5431F, nativeAccentDarkHex: UInt32 = 0xFF6B47
-    static let nativeAccent = dyn(nativeAccentLightHex, nativeAccentDarkHex)
-}
-
-// MARK: - Premium Native
-
-/// Premium Native on both devices (DESIGN.md §13.2 for the Mac, §13.3 for iPhone; mockup "premium", section 01): a
-/// warm off-white page (black in dark) with a soft persimmon glow, and gradient cards in the warm brand colors, never
-/// purple. One name per value: lists the devices share have one name, and a device's own tuning carries its name.
-/// Gradient stops run top to bottom.
-///   - iPhone: `persimmon`, `ink`, `sage`, and `rose`. White text measures 4.5:1 or better from a third of the way
-///     down, and 3:1 at the top under the cards' 10% highlight, where only big numbers sit
-///     (mac/tools/test-premium-phone.sh reads these lists).
-///   - Mac: `macPersimmon`, `ink`, and `macSage` (rose stays on iPhone). Stop positions and where white text may sit
-///     are in Views/PremiumRules.swift, and mac/tools/test-premium.sh checks white text against these values. The
-///     light stops sit a little deeper than the mockup's so small white text reaches 4.5:1 where it sits.
-///   - Widgets (both devices) use the iPhone's four gradients.
-enum PremiumInk {
-    /// The page (iPhone) and window (Mac) in light; the iPhone's page in dark.
-    static let paperLightHex: UInt32 = 0xF6F3F1, paperDarkHex: UInt32 = 0x0B0B0C
-    /// The Mac window in dark: near black, a step lighter than the iPhone's page.
-    static let windowDarkHex: UInt32 = 0x121213
-    /// Small accent text (links, "Cleaned", moment times) on the Mac's warm window and the selection tint: the accent
-    /// itself measures 4.1:1 on #F6F3F1, so light text deepens to #BA3618 (5.2:1); dark keeps `Ink.nativeAccentDarkHex`.
-    static let accentTextLightHex: UInt32 = 0xBA3618
-    static let persimmonLight: [UInt32] = [0xE2602F, 0xC3401C, 0x9E2E14]
-    static let persimmonDark: [UInt32] = [0xD9592C, 0xB63A1A, 0x8C2812]
-    static let inkLight: [UInt32] = [0x4A6356, 0x2C3E36, 0x1D2A24]
-    static let inkDark: [UInt32] = [0x3E564A, 0x24342D, 0x17211C]
-    static let sageLight: [UInt32] = [0x6F8A5E, 0x4A6544]
-    static let sageDark: [UInt32] = [0x66805A, 0x3F573A]
-    static let roseLight: [UInt32] = [0xCB6070, 0x9C3A54]
-    static let roseDark: [UInt32] = [0xBD5868, 0x873249]
-    static let macPersimmonLight: [UInt32] = [0xEC6A3D, 0xCC4520, 0xB3351A]
-    static let macPersimmonDark: [UInt32] = [0xE8683B, 0xC8401F, 0x9C2D15]
-    static let macSageLight: [UInt32] = [0x80996C, 0x5E7C56]
-    static let macSageDark: [UInt32] = [0x7D976A, 0x4F6A49]
-    /// The record button's disc, which carries no text: highlight, brand persimmon, shade.
-    static let disc: [UInt32] = [0xFF9C7C, 0xFA6B47, 0xE0502D]
-    /// Text on the accent: white on #D5431F (4.5:1), black on #FF6B47 in dark (7.2:1).
-    static let onAccentLightHex: UInt32 = 0xFFFFFF, onAccentDarkHex: UInt32 = 0x000000
-
-    static let onAccent = Ink.make { d, _ in PColor(hex: d ? onAccentDarkHex : onAccentLightHex) }
-    /// The accent at 11% (18% in dark): tile symbols' circles, the Note tag, a highlighted line, the Mac's selection tint.
-    static let accentSoft = Ink.make { d, _ in PColor(hex: d ? Ink.nativeAccentDarkHex : Ink.nativeAccentLightHex).withAlphaComponent(d ? 0.18 : 0.11) }
-    /// The ink-green week card's text on a white day dot.
-    static let onWhiteInk = Color(hex: 0x2C3E36)
-    static let discColors = disc.map { Color(hex: $0) }
-    #if !os(macOS)
-    // The iPhone's page, cards, and glow. The Mac's window, cards, and glow are in Views/PremiumLook.swift.
-    static let paper = Ink.make { d, _ in PColor(hex: d ? paperDarkHex : paperLightHex) }
-    static let card = Ink.make { d, _ in PColor(hex: d ? 0x1C1C1E : 0xFFFFFF) }
-    static let glow = Ink.make { d, _ in PColor(hex: d ? Ink.nativeAccentDarkHex : Ink.persimmonHex).withAlphaComponent(d ? 0.16 : 0.17) }
-    #endif
-
-    /// A gradient's stops as colors that follow light and dark.
-    static func stops(_ light: [UInt32], _ dark: [UInt32]) -> [Color] {
-        zip(light, dark).map { l, d in Ink.make { isDark, _ in PColor(hex: isDark ? d : l) } }
-    }
-}
-
-// MARK: - Apple Watch
-
-/// The Apple Watch app and its complications (DESIGN.md §20; mockup "Library features", section 4). Always dark: the
-/// page is the app's dark paper, text is paper, and persimmon means record, the one fill on a screen (ink on it,
-/// 4.7:1). Fixed values, because the watch has no light mode.
-enum WatchInk {
-    /// The page: Ink.paper's dark value.
-    static let page = Color(hex: 0x18241F)
-    /// The Smart Stack card and the complications' plate: Ink.card's dark value.
-    static let card = Color(hex: 0x202F28)
-    static let text = Color(hex: Ink.paperHex)
-    /// Secondary text, 62% paper (6.2:1 on the page).
-    static let dim = Color(hex: Ink.paperHex).opacity(0.62)
-    /// Outlined buttons (New thought, Mark) and the Sent ring.
-    static let hair = Color(hex: Ink.paperHex).opacity(0.22)
-    /// A pressed outlined button.
-    static let pressed = Color(hex: Ink.paperHex).opacity(0.16)
-    /// Record, Stop, the recording dot, and the voice bars: the Record panel's fill (`recordFill`'s light value), so ink
-    /// text on it reaches 4.7:1 at any size.
-    static let record = Color(hex: 0xFB7350)
-    static let onRecord = Color(hex: Ink.inkHex)
-    /// The "Marked 4:12" toast: paper with ink text.
-    static let toast = Color(hex: Ink.paperHex)
-    static let onToast = Color(hex: Ink.inkHex)
-}
-
-// MARK: - The look (refined)
-
-// The one look that replaces Verbose style and Native (DESIGN.md §13; approved mockup "Verbose Refined Look", October
-// 28, 2026). Apple draws the chrome; these values draw the content. Every value has a light and a dark value, and an
+// Verbose's one look (DESIGN.md §13; approved mockup "Verbose Refined Look", October 28, 2026). Apple draws the
+// chrome; these values draw the content. Every value has a light and a dark value, and an
 // Increase Contrast value where the plain one is too faint. The table is plain Swift between the two markers, so
 // mac/tools/test-refined.sh lifts it out and checks every text pair the kit draws against 4.5:1 on Linux.
 //
@@ -405,10 +133,10 @@ enum RefinedHex {
 /// `RefinedRules`.
 enum Refined {
     static func color(_ t: RefinedHex.Tone) -> Color {
-        Ink.make { dark, hc in PColor(hex: t.value(dark: dark, increased: hc)) }
+        make { dark, hc in PColor(hex: t.value(dark: dark, increased: hc)) }
     }
     static func color(_ w: RefinedHex.Wash) -> Color {
-        Ink.make { dark, hc in
+        make { dark, hc in
             PColor(hex: w.base.value(dark: dark, increased: hc)).withAlphaComponent(CGFloat(w.alpha(dark: dark, increased: hc)))
         }
     }
@@ -459,6 +187,95 @@ enum Refined {
     #endif
 }
 
+
+/// How a token resolves: per appearance (dark?) and contrast setting (increased?), on the Mac, iPhone, and Apple Watch.
+extension Refined {
+    static func make(_ f: @escaping (Bool, Bool) -> PColor) -> Color {
+        #if os(macOS)
+        // Increase Contrast is read once per change (ContrastSetting), not on every resolve.
+        return Color(nsColor: NSColor(name: nil) { a in f(a.isDark, ContrastSetting.increased) })
+        #elseif os(watchOS)
+        // The Apple Watch app is always dark (DESIGN.md §20), and watchOS has no trait collection to resolve against.
+        return Color(uiColor: f(true, false))
+        #else
+        return Color(uiColor: UIColor { tc in f(tc.userInterfaceStyle == .dark, tc.accessibilityContrast == .high) })
+        #endif
+    }
+}
+
+// MARK: - Fixed values
+
+/// Values that stay the same in light and dark, built from the table: the ink on a kind color's fill, surfaces that
+/// are always black (the notch, the Ribbon, the Dynamic Island), and the Lock Screen's Live Activity, which follows the
+/// Lock Screen rather than the app.
+extension Refined {
+    static let inkFixed = Color(hex: RefinedHex.ink.light)
+    static let paperFixed = Color(hex: RefinedHex.paper.light)
+    static let cardFixed = Color(hex: RefinedHex.card.light)
+    static let darkPaperFixed = Color(hex: RefinedHex.paper.dark)
+    static let persimmonFixed = Color(hex: RefinedHex.persimmon.light)
+    static let butterFixed = Color(hex: RefinedHex.butter.light)
+    /// Accent and quiet text on the fixed paper and on the fixed dark paper.
+    static let accentTextOnPaper = Color(hex: RefinedHex.accentText.light)
+    static let accentTextOnInk = Color(hex: RefinedHex.accentText.dark)
+    static let muteOnPaper = Color(hex: RefinedHex.mute.light)
+    static let muteOnInk = Color(hex: RefinedHex.mute.dark)
+    /// Black surfaces and what sits on them: paper text, 62% paper for secondary text (6.2:1 on the dark paper), and a
+    /// 16% paper hairline.
+    static let black = Color(hex: 0x000000)
+    static let onBlack = paperFixed
+    static let onBlackDim = paperFixed.opacity(0.62)
+    static let onBlackHair = paperFixed.opacity(0.16)
+    static let dangerOnBlack = Color(hex: RefinedHex.danger.dark)
+}
+
+// MARK: - Type roles
+
+/// Type roles (DESIGN.md §13): New York for the display serif, SF Pro for everything else, with monospaced digits for
+/// times and counts. (The Mac's Ribbon, notch, and floating button keep SF Mono: `SurfaceFont`.)
+extension Refined {
+    /// Editorial serif: titles, the Home headline, document titles. Never transcript body text.
+    static func serif(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight, design: .serif)
+    }
+    /// Data: timestamps, durations, dates, counts. SF Pro with tabular digits, so a running time doesn't jitter.
+    static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight).monospacedDigit()
+    }
+    /// The wordmark (DESIGN.md §4): lowercase "verbose" in the serif with a persimmon period. The period is a mark,
+    /// so it uses the text-safe persimmon (`accentText`); the bright fill is too faint on paper.
+    static func wordmark(_ size: CGFloat, color: Color = Refined.ink) -> Text {
+        Text("\(Text("verbose").foregroundStyle(color))\(Text(".").foregroundStyle(accentText))").font(serif(size))
+    }
+    /// The tagline (DESIGN.md §4), set in the serif on About and the first onboarding screen.
+    static let tagline = "Go ahead. Be verbose."
+}
+
+// MARK: - Apple Watch
+
+/// The Apple Watch app and its complications (DESIGN.md §20). Always dark: the page is the dark paper, text is paper,
+/// and persimmon means record, the one fill on a screen (the fill's ink on it). Fixed values, because the watch has no
+/// light mode.
+enum WatchColor {
+    /// The page: the dark paper.
+    static let page = Refined.darkPaperFixed
+    /// The Smart Stack card and the complications' plate: the dark card.
+    static let card = Color(hex: RefinedHex.card.dark)
+    static let text = Refined.paperFixed
+    /// Secondary text, 62% paper (6.2:1 on the page).
+    static let dim = Refined.paperFixed.opacity(0.62)
+    /// Outlined buttons (New thought, Mark) and the Sent ring.
+    static let hair = Refined.paperFixed.opacity(0.22)
+    /// A pressed outlined button.
+    static let pressed = Refined.paperFixed.opacity(0.16)
+    /// Record, Stop, the recording dot, and the voice bars: the persimmon fill, with the fill's ink on it.
+    static let record = Refined.persimmonFixed
+    static let onRecord = Refined.inkFixed
+    /// The "Marked 4:12" toast: paper with ink text.
+    static let toast = Refined.paperFixed
+    static let onToast = Refined.inkFixed
+}
+
 extension View {
     /// The neutral card surface (DESIGN.md §13): a fill (the card by default) in a continuous rounded rectangle, with no
     /// outline; a separator edge under Increase Contrast, where an off-white card on paper is about 1.1:1.
@@ -498,10 +315,7 @@ enum Radius {
 enum Motion {
     /// Hover tints on small, frequent controls (chips, sidebar rows): quick, so they never trail the pointer.
     static let touch = Animation.easeOut(duration: 0.18)
-    /// Cards: tilt, lift, edge light, and release. A 300 ms critically damped spring, so it retargets smoothly
-    /// as the pointer moves and when a press is let go mid-flight.
-    static let card = Animation.smooth(duration: 0.3)
-    /// The press itself lands fast; the release uses `card`.
+    /// A press lands fast.
     static let press = Animation.easeOut(duration: 0.1)
     static let settle = Animation.smooth(duration: 0.3)
     /// Screen changes: 300 ms, minimal movement.

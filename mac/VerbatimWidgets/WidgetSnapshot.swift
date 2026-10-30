@@ -57,9 +57,6 @@ struct WidgetSnapshot: Codable, Equatable {
     static let maxRecent = 5
 
     var version = WidgetSnapshot.currentVersion
-    /// The app's look (`AppLook.rawValue`): "verbose" or "native". iPhone widgets read the App Group's live value;
-    /// the Mac's is only here, because the Mac app keeps its look in its own defaults.
-    var look: String
     /// Newest first, at most `maxRecent`.
     var recent: [Item]
     /// Every recording and dictation in the library (not in Recently deleted).
@@ -71,7 +68,7 @@ struct WidgetSnapshot: Codable, Equatable {
     // MARK: Building
 
     /// A snapshot from the app's numbers. `items` in any order; `entries` are each dictation's date and words.
-    static func make(items: [Item], kept: Int, entries: [(date: Date, words: Int)], look: String,
+    static func make(items: [Item], kept: Int, entries: [(date: Date, words: Int)],
                      now: Date = Date(), calendar: Calendar = .current) -> WidgetSnapshot {
         let recent = items.sorted { $0.date > $1.date }.prefix(maxRecent).map { item -> Item in
             var i = item
@@ -80,7 +77,7 @@ struct WidgetSnapshot: Codable, Equatable {
             i.duration = item.duration.isFinite ? max(0, item.duration) : 0
             return i
         }
-        return WidgetSnapshot(look: look, recent: Array(recent), kept: max(0, kept),
+        return WidgetSnapshot(recent: Array(recent), kept: max(0, kept),
                               week: week(entries: entries, now: now, calendar: calendar))
     }
 

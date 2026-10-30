@@ -18,17 +18,17 @@ enum LiveWordsSetting {
 /// Views that use these also read the setting with @AppStorage, so they redraw when it changes.
 private enum RibbonInk {
     private static var dark: Bool { UserDefaults.standard.string(forKey: RibbonStyle.key) == RibbonStyle.ink.rawValue }
-    private static let inkHex = Ink.inkHex, paperHex = Ink.paperHex
+    private static let inkHex = RefinedHex.ink.light, paperHex = RefinedHex.paper.light
     static var tab: Color { Color(hex: dark ? inkHex : paperHex) }
     static var edge: Color { dark ? Color(hex: paperHex).opacity(0.16) : Color(hex: inkHex).opacity(0.18) }
     static var text: Color { Color(hex: dark ? paperHex : inkHex) }
     static var raised: Color { (dark ? Color(hex: paperHex) : Color(hex: inkHex)).opacity(dark ? 0.12 : 0.08) }
     static var track: Color { (dark ? Color(hex: paperHex) : Color(hex: inkHex)).opacity(dark ? 0.16 : 0.12) }
-    static let persimmon = Ink.persimmonFixed
+    static let persimmon = Refined.persimmonFixed
     /// Accent for text: deep persimmon on paper (4.9:1), light persimmon on ink (butter means Dictate).
-    static var persimmonText: Color { dark ? Ink.accentTextOnInk : Ink.accentTextOnPaper }
-    static let paper = Ink.paperFixed
-    static var muted: Color { dark ? Ink.muteOnInk : Ink.muteOnPaper }
+    static var persimmonText: Color { dark ? Refined.accentTextOnInk : Refined.accentTextOnPaper }
+    static let paper = Refined.paperFixed
+    static var muted: Color { dark ? Refined.muteOnInk : Refined.muteOnPaper }
 }
 
 /// The voice mark at whatever size a state needs.
@@ -48,7 +48,7 @@ private struct RibbonMeter: View {
 struct RibbonRings: View {
     var levels: [Double]
     var size: CGFloat
-    var color: Color = Ink.persimmonFixed
+    var color: Color = Refined.persimmonFixed
     var body: some View {
         let base: [CGFloat] = [0.5, 0.36, 0.22]
         ZStack(alignment: .bottom) {
@@ -439,7 +439,7 @@ struct RibbonBars: View {
     var levels: [Double]
     var thickness: CGFloat
     var length: CGFloat
-    var color: Color = Ink.persimmonFixed
+    var color: Color = Refined.persimmonFixed
 
     var body: some View {
         if edge == .bottom {
@@ -471,7 +471,7 @@ struct SweepBar: View {
         let vertical = edge == .bottom
         ZStack(alignment: vertical ? .top : .leading) {
             Capsule().fill(RibbonInk.track)
-            Capsule().fill(Ink.persimmonFixed)
+            Capsule().fill(Refined.persimmonFixed)
                 .frame(width: vertical ? 6 : 14, height: vertical ? 10 : 6)
                 .offset(x: vertical ? 0 : (forward ? 24 : 0), y: vertical ? (forward ? 18 : 0) : 0)
         }

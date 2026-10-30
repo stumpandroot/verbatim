@@ -1,7 +1,5 @@
 import SwiftUI
 
-// brand: web style
-//
 // Thoughts' drawings (mockup "Thoughts", section 09): the Thoughts icon with a wave that follows the mic while a thought
 // records, the empty-day illustration that plays once, and Ways in, the top of the iPhone's Settings › Thoughts.
 // Shared by the Mac and the iPhone (SwiftUI only).

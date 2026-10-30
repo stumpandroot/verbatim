@@ -232,23 +232,23 @@ struct ThoughtBubbleView: View {
         let s = ThoughtBubble.disc
         let recording = capture.isRecording || voiceNote
         return ZStack {
-            Circle().fill(recording ? Ink.persimmonFixed : Ink.inkFixed)
+            Circle().fill(recording ? Refined.persimmonFixed : Refined.inkFixed)
             if voiceNote {
-                RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Ink.inkFixed).frame(width: s * 0.3, height: s * 0.3)
+                RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Refined.inkFixed).frame(width: s * 0.3, height: s * 0.3)
             } else {
                 switch capture.phase {
                 case .recording:
-                    ThoughtMicLevel(live: capture.recorder.live, color: Ink.inkFixed).frame(width: s * 0.55, height: s * 0.55)
+                    ThoughtMicLevel(live: capture.recorder.live, color: Refined.inkFixed).frame(width: s * 0.55, height: s * 0.55)
                 case .saved:
-                    BrandGlyph(art: .webCheck, color: Ink.paperFixed, minLineWidth: 1.8).frame(width: s * 0.4, height: s * 0.4)
+                    BrandGlyph(art: .webCheck, color: Refined.paperFixed, minLineWidth: 1.8).frame(width: s * 0.4, height: s * 0.4)
                 case .idle:
-                    ThoughtGlyph(color: Ink.paperFixed, lineWidth: 1.4).frame(width: s * 0.55, height: s * 0.55)
+                    ThoughtGlyph(color: Refined.paperFixed, lineWidth: 1.4).frame(width: s * 0.55, height: s * 0.55)
                 }
             }
         }
         .frame(width: s, height: s)
-        .overlay(Circle().strokeBorder(recording ? Ink.inkFixed : Ink.paperFixed.opacity(0.9), lineWidth: 1.5).padding(-1.5))
-        .background(Circle().fill(Ink.inkFixed).offset(x: 3, y: 4))
+        .overlay(Circle().strokeBorder(recording ? Refined.inkFixed : Refined.paperFixed.opacity(0.9), lineWidth: 1.5).padding(-1.5))
+        .background(Circle().fill(Refined.inkFixed).offset(x: 3, y: 4))
     }
 
     /// Beside the disc: the hint on hover, the recording card, the saved line, or a notice.

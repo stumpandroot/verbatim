@@ -126,28 +126,28 @@ private struct SurfaceThumb: View {
     var surface: DictationSurface
     var body: some View {
         ZStack {
-            Ink.stripeA
-            DesktopHills().fill(Ink.stripeB).padding(.top, 30)
-            VStack(spacing: 0) { Ink.raised.frame(height: 9); Spacer(minLength: 0) }
+            Refined.field
+            DesktopHills().fill(Refined.rail).padding(.top, 30)
+            VStack(spacing: 0) { Refined.card.frame(height: 9); Spacer(minLength: 0) }
             switch surface {
             case .ribbon:
                 VStack {
                     Spacer()
                     HStack(spacing: 2) { VoiceBars(levels: [0.6, 0.4, 0.9], height: 10, barWidth: 3, gap: 2) }
                         .padding(.horizontal, 9).frame(height: 18)
-                        .background(UnevenRoundedRectangle(topLeadingRadius: 7, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 7, style: .continuous).fill(Ink.paperFixed))
-                        .overlay(UnevenRoundedRectangle(topLeadingRadius: 7, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 7, style: .continuous).strokeBorder(Ink.inkFixed.opacity(0.18), lineWidth: 0.75))
+                        .background(UnevenRoundedRectangle(topLeadingRadius: 7, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 7, style: .continuous).fill(Refined.paperFixed))
+                        .overlay(UnevenRoundedRectangle(topLeadingRadius: 7, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 7, style: .continuous).strokeBorder(Refined.inkFixed.opacity(0.18), lineWidth: 0.75))
                 }
             case .notch:
                 VStack {
                     HStack {
-                        RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Ink.butterFixed).frame(width: 8, height: 8)
+                        RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.butterFixed).frame(width: 8, height: 8)
                         Spacer()
                         VoiceBars(levels: VoiceBars.still(5), height: 8, barWidth: 1.5, gap: 1.5)
                     }
                     .padding(.horizontal, 7)
                     .frame(width: 92, height: 14)
-                    .background(NotchShape(radius: 6, flare: 3).fill(Ink.notchBlack))
+                    .background(NotchShape(radius: 6, flare: 3).fill(Refined.black))
                     Spacer()
                 }
             }
