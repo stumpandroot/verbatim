@@ -451,6 +451,8 @@ enum PhoneUITest {
                 await templatesTour(app, prefix: prefix, suffix: "-native", checks: false)
                 await brainDumpTour(app, prefix: prefix, suffix: "-native", checks: false)
                 await askTour(app, prefix: prefix, suffix: "-native", checks: false)
+                // The screens step 6 moved onto the refined kit, in Native too (light only): one design in both looks.
+                if prefix == "p" { await sharedScreensNative(app) }
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
                     await show("\(prefix)05-transcript-native")
@@ -664,6 +666,56 @@ enum PhoneUITest {
     /// under each, the live recording in the accessory, and the recorder sheet with its red stop. The system menu itself
     /// can't be opened without a finger, so its contents are checked through `RecordAsMenu`. Light only; Run
     /// automatically and the tab are put back afterward.
+    /// The screens and sheets on the refined kit since step 6, in Native with `-native` names, to compare with their
+    /// Verbose shots (DESIGN.md §13): the link card, What's playing, Live captions, Add from Library, the export sheet,
+    /// the Cleaned tab, and the welcome tour's steps around Pick a look.
+    private static func sharedScreensNative(_ app: PhoneState) async {
+        app.tab = .home
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        let card = LinkImport(id: UUID(), url: "https://www.youtube.com/watch?v=Q7r2mDn4x1k", site: "YouTube")
+        card.title = "How we light interviews in small rooms"; card.duration = 3852
+        card.phase = .downloading; card.progress = 0.42
+        app.linkCardImport = card
+        await show("p03b-link-card-native")
+        app.linkCardImport = nil
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        app.showPlayingSheet = true
+        await show("p03c-whats-playing-native")
+        app.showPlayingSheet = false
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        app.requestCaptions()
+        await show("p02b-live-captions-native")
+        app.stopCaptions(save: false)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
+            app.tab = .library
+            app.addFromLibrary = project.id
+            await show("p04e-add-from-library-native")
+            app.addFromLibrary = nil
+            try? await Task.sleep(nanoseconds: 600_000_000)
+        }
+        if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
+            app.exportRequest = PhoneExportRequest(ids: [rich.id])
+            await show("p05c-export-native")
+            app.exportRequest = nil
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            app.tab = .home
+            app.homePath.append(DocumentRoute(id: rich.id))
+            await show("p06-document-native")
+            app.homePath = NavigationPath()
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        for (i, name) in [(0, "p10-onboarding-native"), (2, "p11-onboarding-native"), (3, "p12-onboarding-native")] {
+            onboardingStep = i
+            app.showOnboarding = true
+            await show(name)
+            app.showOnboarding = false
+            try? await Task.sleep(nanoseconds: 700_000_000)
+        }
+        onboardingStep = 0
+        app.tab = .home
+    }
+
     private static func recordAccessoryTour(_ app: PhoneState, suffix: String) async {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") record accessory\(suffix): \(name)") }
         let tray = RecordTray.shared
