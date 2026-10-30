@@ -218,14 +218,6 @@ struct HomeScreen: View {
         .accessibilityIdentifier("home.week")
     }
 
-    /// "42s", "18m", "2h 14m" (the You page's numbers).
-    static func savedLabel(_ s: Double) -> String {
-        if s < 60 { return "\(Int(s.rounded()))s" }
-        let m = Int((s / 60).rounded())
-        if m < 60 { return "\(m)m" }
-        return m % 60 == 0 ? "\(m / 60)h" : "\(m / 60)h \(m % 60)m"
-    }
-
     // MARK: Recent
 
     /// The serif "Recent" with See all, then the three newest in a card. Large: each with its kind's badge and a meta
@@ -381,11 +373,6 @@ struct RowActions: View {
         Divider()
         Button(role: .destructive) { app.delete([transcript.id]) } label: { Label("Delete", systemImage: "trash") }
     }
-}
-
-/// Press: scale 0.97 over 320 ms (a brief dim when motion is limited).
-struct PressScale: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { SoftPress().makeBody(configuration: configuration) }
 }
 
 struct LinkSheet: View {

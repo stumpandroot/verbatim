@@ -94,11 +94,6 @@ extension Store {
     /// The newest live transcript (the menu bar panel's last recording).
     var newestLive: Transcript? { memo("newest-live") { live.first } }
 
-    /// The newest live dictation (Home's Last dictation).
-    var lastDictation: Transcript? {
-        memo("last-dictation") { transcripts.lazy.filter { $0.deletedAt == nil && $0.source == .dictation }.max { $0.createdAt < $1.createdAt } }
-    }
-
     /// Whether the library has a journal entry (a live recording of the Journal kind): By day's Journal shows then, or
     /// when Record as shows Journal entry (`RecordAsRows.showsJournal`).
     var hasJournalEntries: Bool { memo("has-journal") { transcripts.contains { $0.deletedAt == nil && $0.kind == .journal && !$0.isDictation } } }

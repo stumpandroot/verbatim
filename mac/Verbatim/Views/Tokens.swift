@@ -311,7 +311,7 @@ enum Radius {
 }
 
 /// Motion (BRAND_GUIDE §10): quick ease-outs, no springy bounce in productivity controls.
-/// `snap`, `bounce`, and `hero` remain as names but no longer overshoot.
+/// `snap` remains as a name but no longer overshoots.
 enum Motion {
     /// Hover tints on small, frequent controls (chips, sidebar rows): quick, so they never trail the pointer.
     static let touch = Animation.easeOut(duration: 0.18)
@@ -321,14 +321,6 @@ enum Motion {
     /// Screen changes: 300 ms, minimal movement.
     static let nav = Animation.smooth(duration: 0.3)
     static let snap = Animation.smooth(duration: 0.24)
-    static let bounce = Animation.smooth(duration: 0.3)
-    static let hero = Animation.smooth(duration: 0.36)
-
-    // Presses on iPhone (tuned in the web prototype, October 2026). Screens and rows have no entrance (§7).
-    /// The prototype's ease, cubic-bezier(.22, .7, .2, 1): a quick start that settles slowly.
-    static func gentle(_ duration: Double) -> Animation { .timingCurve(0.22, 0.7, 0.2, 1, duration: duration) }
-    /// Press: scale 0.97 in and out.
-    static let pressSoft = gentle(0.32)
     /// What replaces movement when motion is limited: a short crossfade.
     static let fade = Animation.easeOut(duration: 0.2)
 }

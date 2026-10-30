@@ -50,8 +50,6 @@ struct ReleaseItem: Decodable, Hashable, Sendable, ExpressibleByStringLiteral {
         let found = platformNames.compactMap(ReleasePlatform.init(rawValue:))
         return found.isEmpty ? [.iphone, .mac] : found
     }
-    /// The line and its detail, for VoiceOver and copying.
-    var fullText: String { detail.map { "\(text) \($0)" } ?? text }
 
     init(platforms: [ReleasePlatform], text: String, detail: String? = nil) {
         self.platformNames = platforms.map(\.rawValue)

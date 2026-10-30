@@ -101,38 +101,6 @@ struct PhoneNetworkEventRow: View {
     }
 }
 
-// MARK: - Provenance
-
-/// Under the title: the data path chip ("Local audio · local text"). Tap it for the details: "Team call.m4a · Parakeet
-/// v3 · English · Oct 22, 2026 at 2:02 AM". The engine and exact time stay off the reading surface until you ask.
-struct PhoneProvenanceLine: View {
-    var transcript: Transcript
-    @State private var open = false
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button { open.toggle() } label: {
-                HStack(spacing: 5) {
-                    IconGlyph(art: .iconPrivacy, size: 12, color: Refined.dim)
-                    Text(transcript.dataPathBadge).font(.system(size: 12.5)).foregroundStyle(Refined.dim)
-                    Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(Refined.mute)
-                }
-                .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Refined.ink.opacity(0.06), in: Capsule())
-                .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Data path: \(transcript.dataPathBadge)")
-            .accessibilityValue(open ? "Details shown" : "")
-            .accessibilityHint(open ? "Hides the details." : "Shows the source, engine, and time.")
-            if open {
-                Text(transcript.provenanceLine).font(.system(size: 13)).foregroundStyle(Refined.mute)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.top, 2)
-    }
-}
-
 // MARK: - Local Only: Allow this download
 
 struct PhoneAllowDownloadButton: View {

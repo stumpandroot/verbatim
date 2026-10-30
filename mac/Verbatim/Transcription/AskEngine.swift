@@ -43,8 +43,6 @@ actor AskIndex {
 
     static var folder: URL { AskStorage.indexFolder(in: Paths.local) }
 
-    func setEmbedding(_ on: Bool) { embed = on }
-
     // MARK: Keeping up with the library
 
     /// Brings the index up to date with these recordings: new and changed ones get passages and vectors, deleted ones

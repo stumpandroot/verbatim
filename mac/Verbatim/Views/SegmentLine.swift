@@ -298,7 +298,6 @@ struct TranscriptLines: View {
 /// multitrack sheet colors its tracks in the same order, so a speaker keeps one color from the sheet to the transcript.
 enum SpeakerRotation {
     static let fills: [Color] = [Refined.persimmon, Refined.petal, Refined.sage, Refined.butter]
-    static let tints: [Color] = [Refined.persimmonTint, Refined.petalTint, Refined.sageTint, Refined.butterTint]
 
     /// The speaker's place in the order of first appearance in `segments`, or nil when they never talk. Stops at
     /// their first line, so speakers who talk early are found at once.

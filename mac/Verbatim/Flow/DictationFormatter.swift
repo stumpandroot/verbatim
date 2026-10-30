@@ -122,9 +122,6 @@ enum DictationFormatter {
         return format(text, o)
     }
 
-    /// Messages shorter than this keep their paragraphs as spoken (explicit "new paragraph" still works).
-    static let shortMessageWords = 40
-
     static func format(_ text: String, _ o: Options) -> String {
         let t = text.replacingOccurrences(of: "\r\n", with: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return text }

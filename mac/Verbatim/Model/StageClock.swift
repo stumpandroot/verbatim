@@ -50,17 +50,3 @@ struct LiveStage<Content: View>: View {
 
     var body: some View { content(clock.applied(to: transcript)) }
 }
-
-/// The same for an optional transcript (a screen whose transcript may not have arrived yet).
-struct LiveStageOptional<Content: View>: View {
-    @ObservedObject private var clock = StageClock.shared
-    private let transcript: Transcript?
-    private let content: (Transcript?) -> Content
-
-    init(_ transcript: Transcript?, @ViewBuilder content: @escaping (Transcript?) -> Content) {
-        self.transcript = transcript
-        self.content = content
-    }
-
-    var body: some View { content(transcript.map(clock.applied(to:))) }
-}

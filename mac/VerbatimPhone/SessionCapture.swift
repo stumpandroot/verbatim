@@ -66,7 +66,6 @@ final class SessionCapture: @unchecked Sendable {
     var level: Float { lock.lock(); defer { lock.unlock() }; return lastLevel }
     /// Seconds in the current dictation.
     var takeSeconds: TimeInterval { lock.lock(); defer { lock.unlock() }; return Double(take?.count ?? 0) / Self.sampleRate }
-    var isTaking: Bool { lock.lock(); defer { lock.unlock() }; return take != nil }
 
     /// Called on the main queue when the capture can't keep running, with the reason to show.
     var onFailure: ((String) -> Void)?

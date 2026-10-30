@@ -468,29 +468,3 @@ struct VideoTileIcon: View {
         }
     }
 }
-
-/// A count badge: a neutral pill (counts never borrow an action hue). `pops` going up plays a short landing pop
-/// with no bounce; with motion limited the number just changes.
-struct CountPill: View {
-    var text: String
-    var pops: Int
-    @Environment(\.limitMotion) private var limitMotion
-    @State private var scale: CGFloat = 1
-    var body: some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold)).monospacedDigit()
-            .foregroundStyle(Refined.dim)
-            .padding(.horizontal, 5)
-            .frame(minWidth: 18, minHeight: 18)
-            .background(Refined.neutral, in: Capsule())
-            .scaleEffect(scale)
-            .onChange(of: pops) { _, _ in pop() }
-    }
-
-    private func pop() {
-        guard !limitMotion else { return }
-        var t = Transaction(); t.disablesAnimations = true
-        withTransaction(t) { scale = 1.3 }
-        DispatchQueue.main.async { withAnimation(.smooth(duration: 0.3)) { scale = 1 } }
-    }
-}

@@ -18,11 +18,6 @@ enum ContactNames {
         return s != .notDetermined && s != .denied && s != .restricted
     }
 
-    static var isDenied: Bool {
-        let s = CNContactStore.authorizationStatus(for: .contacts)
-        return s == .denied || s == .restricted
-    }
-
     /// Asks for Contacts access (the system shows its prompt once).
     static func requestAccess() async -> Bool {
         if isAllowed { return true }

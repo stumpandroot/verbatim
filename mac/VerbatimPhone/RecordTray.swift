@@ -31,7 +31,6 @@ final class RecordTray: ObservableObject {
     enum Source: Equatable {
         case card
         case floating(PhoneState.Tab)
-        var isFloating: Bool { if case .floating = self { return true } else { return false } }
     }
 
     @Published private(set) var isOpen = false

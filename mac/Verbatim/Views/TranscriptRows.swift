@@ -1,24 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// Static waveform thumbnail from the stored envelope. A Shape, so it costs nothing after layout.
-struct WaveformThumb: Shape {
-    var values: [Float]
-    func path(in r: CGRect) -> Path {
-        var p = Path()
-        guard !values.isEmpty else { return p }
-        let n = values.count
-        let step = r.width / CGFloat(n)
-        let bw = max(1.5, step * 0.55)
-        for (i, v) in values.enumerated() {
-            let h = max(2, CGFloat(v) * r.height)
-            let x = r.minX + CGFloat(i) * step + (step - bw) / 2
-            p.addRoundedRect(in: CGRect(x: x, y: r.midY - h / 2, width: bw, height: h), cornerSize: CGSize(width: bw / 2, height: bw / 2))
-        }
-        return p
-    }
-}
-
 /// Keep video (links) and Keep audio, or Show in Finder once kept.
 struct KeepMenuItems: View {
     @EnvironmentObject var app: AppState

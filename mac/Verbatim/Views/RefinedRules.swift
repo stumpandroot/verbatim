@@ -70,10 +70,6 @@ enum RefinedRules {
     static func rings(_ palette: AppPalette) -> RefinedHex.Wash { palette == .full ? RefinedHex.ringFull : RefinedHex.ringSoft }
     static func readyChip(_ palette: AppPalette) -> RefinedHex.Wash { palette == .full ? RefinedHex.chipFull : RefinedHex.chipSoft }
 
-    /// Which surfaces follow the palette. Kind badges, speaker and kind chips, and icon squares are small and keep
-    /// the Full fills in both palettes, as in the mockup.
-    static let paletteSurfaces = ["Record card", "tiles", "recorder clock panel"]
-
     // MARK: Badges, chips, and squares
 
     /// The Full fill for a hue (kind badges, chips, icon squares). Neutral is the icon square's quiet fill.

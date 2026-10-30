@@ -7,27 +7,7 @@ import UIKit
 // and rare. Everything here reads `\.limitMotion` (Reduce Motion or Settings › Limit animation): movement becomes
 // a short fade and nothing loops.
 
-enum PhoneMotion {
-    /// The screenshot tour (VERBATIM_UITEST=1) wants settled screens, so ambient loops stay off there.
-    static let on = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] != "1"
-}
-
 // MARK: - Controls
-
-/// Press: scale 0.97 in and out over 320 ms. With motion limited, a brief dim instead.
-struct SoftPress: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { Pressable(configuration: configuration) }
-    private struct Pressable: View {
-        let configuration: ButtonStyleConfiguration
-        @Environment(\.limitMotion) private var limitMotion
-        var body: some View {
-            configuration.label
-                .scaleEffect(configuration.isPressed && !limitMotion ? 0.97 : 1)
-                .opacity(configuration.isPressed && limitMotion ? 0.7 : 1)
-                .animation(limitMotion ? Motion.fade : Motion.pressSoft, value: configuration.isPressed)
-        }
-    }
-}
 
 // MARK: - Haptics
 

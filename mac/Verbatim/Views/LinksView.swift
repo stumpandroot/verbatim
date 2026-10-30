@@ -31,18 +31,6 @@ enum StageFraction {
     }
 }
 
-/// A video still saved in Paths.thumbs.
-struct FrameImage: View {
-    var file: String
-    var body: some View {
-        // The rectangle sets the size; the still fills it and is clipped, so it never pushes the layout.
-        Rectangle().fill(Refined.track)
-            .overlay { ThumbImage(file: file, maxPixel: 900) { Rectangle().fill(Refined.track) } }
-            .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-    }
-}
-
 struct Thumbnail: View {
     var info: LinkInfo
     var body: some View {

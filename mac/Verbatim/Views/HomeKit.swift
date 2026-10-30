@@ -8,16 +8,12 @@ import UIKit
 
 // Home, shared by the Mac (HomeView) and iPhone (HomeScreen) apps: the greeting and counts (pure, self-tested), This
 // week's numbers and bars, the Recent rows' styles, the refined Home's tile colors and kinds (DESIGN.md §6, §13), the
-// journal's week dots, the brand icons that draw themselves on (the Mac sidebar), and Edit Home's probe for the
-// self-tests. Home's own drawing is the refined kit
+// journal's week dots, and Edit Home's probe for the self-tests. Home's own drawing is the refined kit
 // (RefinedKit.swift); its Record meter and the hover and touch listening retired with the old Home.
 //
-// Motion (DESIGN.md §7): springs never bounce. With Reduce Motion or Limit animation everything is still, and the
-// screenshot tour (VERBATIM_UITEST=1) keeps it still so captures repeat.
+// Motion (DESIGN.md §7): springs never bounce. With Reduce Motion or Limit animation everything is still.
 
 enum HomeMotion {
-    /// Off in the screenshot tour, so Home captures are the same every run.
-    static let enabled = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] != "1"
     /// The copied dictation row's label morph: a quick crossfade and slide.
     static let morph = Animation.easeOut(duration: 0.18)
 }
@@ -224,13 +220,6 @@ struct HomeRecentStyle {
 /// A dictation on Home: time and where it went, and the words as pasted.
 enum HomeDictationText {
     static func pasted(_ t: Transcript) -> String { t.flow?.pasted ?? t.text }
-    /// "10:16 AM · Keyboard", sentence case.
-    static func overline(_ t: Transcript, place: String?, now: Date = Date(), calendar: Calendar = .current) -> String {
-        let d = t.createdAt
-        let when = calendar.isDate(d, inSameDayAs: now) ? Formats.style(date: .none, time: .short).string(from: d) : HomeRecentStyle.day(d, now: now, calendar: calendar)
-        guard let place, !place.isEmpty else { return when }
-        return "\(when) · \(place)"
-    }
     static func body(_ t: Transcript) -> String {
         if t.status == .failed { return t.error ?? "Transcription failed" }
         let text = pasted(t).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -308,68 +297,6 @@ enum HomeSelfTest {
         check("home: tiles are colored by what they do, three at most",
               HomeTile.refinedHues([.newThought, .journal, .dictate, .importMedia]) == [.neutral, .neutral, .butter, .sage]
               && HomeTile.refinedHues([.dictate, .importMedia, .whatsPlaying, .appAudio]) == [.butter, .sage, .petal, .neutral])
-    }
-}
-
-// MARK: - Drawing helpers
-
-/// One element of a BrandArt, fitted to the view like BrandGlyph, so it can be trimmed (drawn on).
-struct BrandArtShape: Shape {
-    var box: CGRect
-    var elements: [BrandArt.Element]
-    func path(in rect: CGRect) -> Path {
-        let space = ArtSpace(box: box, size: rect.size)
-        return Path(BrandArt.cgPath(elements)).applying(space.transform).offsetBy(dx: rect.minX, dy: rect.minY)
-    }
-}
-
-/// A brand icon or diagram that arrives fully drawn and draws its strokes on again (1.1 s by default, ease-out, all
-/// strokes at once) each time `replay` changes: hover on the tiles, the Record panel, and the sidebar. It used to draw
-/// on at every appearance too, so Home's icons finished 1.3 s after each visit; a screen never makes you wait.
-/// Fills, dashed construction lines, and the Understand diagram's hatch fade in with the line. Never loops. Still,
-/// fully drawn, with motion limited.
-struct DrawOnGlyph: View {
-    var art: BrandArt
-    var color: Color
-    var lineWidth: CGFloat
-    var replay: Int = 0
-    /// Seconds to draw. Hover replays on the tiles, the Record panel, and the sidebar use 0.55.
-    var duration: Double = 1.1
-    @Environment(\.limitMotion) private var limitMotion
-    @State private var progress: CGFloat = 1
-
-    var body: some View {
-        let p: CGFloat = (limitMotion || !HomeMotion.enabled) ? 1 : progress
-        let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
-        ZStack {
-            ForEach(Array(art.strokes.enumerated()), id: \.offset) { _, element in
-                BrandArtShape(box: art.box, elements: [element]).trim(from: 0, to: p).stroke(color, style: style)
-            }
-            if !art.fills.isEmpty {
-                BrandArtShape(box: art.box, elements: art.fills).fill(color).opacity(Double(p))
-            }
-            if !art.clipped.isEmpty {
-                BrandGlyph(art: BrandArt(box: art.box, strokeWidth: art.strokeWidth, clipped: art.clipped, clip: art.clip, clippedWidth: art.clippedWidth),
-                           color: color, minLineWidth: lineWidth * 0.75)
-                    .opacity(Double(p))
-            }
-            if !art.dashes.isEmpty {
-                BrandGlyph(art: BrandArt(box: art.box, strokeWidth: art.strokeWidth, dashes: art.dashes), color: color, minLineWidth: lineWidth)
-                    .opacity(Double(p))
-            }
-        }
-        .onChange(of: replay) { _, _ in play() }
-        .accessibilityHidden(true)
-    }
-
-    private func play() {
-        guard HomeMotion.enabled, !limitMotion else { progress = 1; return }
-        var reset = Transaction()
-        reset.disablesAnimations = true
-        withTransaction(reset) { progress = 0 }
-        DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: duration)) { progress = 1 }
-        }
     }
 }
 
