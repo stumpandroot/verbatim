@@ -63,8 +63,11 @@ struct TranscriptScreen: View {
 
     private static let scrollSpace = "transcript-scroll"
 
+    /// Each transcript screen on view, by its token, and the look it was built in. Keyed by screen rather than look, so
+    /// a transcript leaving late can't take a newer one's look with it (build 241).
+    private static var shownScreens: [UUID: AppLook] = [:]
     /// The looks a transcript is on screen in (the self-test checks each look draws this one layout, once).
-    static var onScreen = Set<AppLook>()
+    static var onScreen: Set<AppLook> { Set(shownScreens.values) }
 
     /// The player bar shows under every tab but Cleaned, for a recording with audio.
     private func hasPlayer(_ t: Transcript) -> Bool { t.audioFileName != nil && t.status == .ready && mode != .document }
@@ -251,8 +254,8 @@ struct TranscriptScreen: View {
             }
         }
         // Reading: Record's accessory turns off with the tab bar (RecordAccessory.swift).
-        .onAppear { app.readingScreens.insert(readingToken); Self.onScreen.insert(look) }
-        .onDisappear { app.readingScreens.remove(readingToken); Self.onScreen.remove(look) }
+        .onAppear { app.readingScreens.insert(readingToken); Self.shownScreens[readingToken] = look }
+        .onDisappear { app.readingScreens.remove(readingToken); Self.shownScreens[readingToken] = nil }
     }
 
     /// Shares the recording's audio file, after it downloads from iCloud when it lives on the other device.
