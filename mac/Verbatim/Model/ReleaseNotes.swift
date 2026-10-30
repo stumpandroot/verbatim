@@ -219,9 +219,17 @@ enum ReleaseNotes {
         return notes
     }()
 
-    /// This app's build number (CFBundleVersion), when it's a number.
+    /// This app's build number (CFBundleVersion), when it's a number. The public TestFlight track's "250.1" counts as
+    /// 250, whose notes it carries.
     static var currentBuild: Int? {
-        (Bundle.main.infoDictionary?["CFBundleVersion"] as? String).flatMap { Int($0) }
+        (Bundle.main.infoDictionary?["CFBundleVersion"] as? String).flatMap(buildNumber)
+    }
+
+    /// "250" and "250.1" are 250; anything else is nil.
+    static func buildNumber(_ s: String) -> Int? {
+        let parts = s.trimmingCharacters(in: .whitespaces).split(separator: ".", omittingEmptySubsequences: false)
+        guard (1...3).contains(parts.count), parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isASCII) && $0.allSatisfy(\.isNumber) }) else { return nil }
+        return Int(parts[0])
     }
 
     /// The rules CI and the Linux test hold the file to, as sentences; empty when it's fine. Mirrors

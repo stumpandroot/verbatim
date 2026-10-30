@@ -3,7 +3,7 @@
 
   set --text FILE --build N [--bundle-id co.stumpandroot.verbatim.ios] [--timeout 1200] [--interval 30]
       CI, after the TestFlight upload (.github/workflows/build-swift.yml): waits until App Store Connect has processed
-      build N of the app (CFBundleVersion N), then creates or updates its en-US beta build localization with FILE's
+      build N of the app (CFBundleVersion N, or N.1 for the public track), then creates or updates its en-US beta build localization with FILE's
       text (release_notes.py notes --format testflight). The key comes from the environment: ASC_KEY_ID,
       ASC_ISSUER_ID, and ASC_KEY_PATH (a .p8 file). Exits 1 with a reason on any problem; the workflow step turns that
       into a warning, so a slow or failing App Store Connect never fails the build.
@@ -18,6 +18,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -31,6 +32,11 @@ BUNDLE_ID = "co.stumpandroot.verbatim.ios"
 LOCALE = "en-US"
 # What to Test takes 4,000 characters.
 LIMIT = 4000
+
+
+def valid_build(build):
+    """A build number App Store Connect takes: "250", or "250.1" for the public TestFlight track."""
+    return bool(re.fullmatch(r"\d+(\.\d+){0,2}", str(build)))
 
 
 class Problem(Exception):
@@ -203,7 +209,7 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("set", help="set a TestFlight build's What to Test")
     s.add_argument("--text", required=True, help="a file with the text (release_notes.py notes --format testflight)")
-    s.add_argument("--build", required=True, type=int, help="the build number (CFBundleVersion)")
+    s.add_argument("--build", required=True, help="the build number (CFBundleVersion), such as 250 or 250.1")
     s.add_argument("--bundle-id", default=BUNDLE_ID)
     s.add_argument("--timeout", type=int, default=1200, help="seconds to wait for processing (default: 20 minutes)")
     s.add_argument("--interval", type=int, default=30, help="seconds between checks (default: 30)")
@@ -218,7 +224,7 @@ def main(argv=None):
         with open(a.text, encoding="utf-8") as f:
             text = f.read().strip()
         if not text:
-            print("No release notes for build %d, so What to Test stays as it is." % a.build)
+            print("No release notes for build %s, so What to Test stays as it is." % a.build)
             return 0
         if len(text) > LIMIT:
             raise Problem("the text is %d characters; What to Test takes %d" % (len(text), LIMIT))
@@ -227,14 +233,16 @@ def main(argv=None):
         key_path = os.environ.get("ASC_KEY_PATH", "")
         if not key_id or not issuer or not os.path.isfile(key_path):
             raise Problem("ASC_KEY_ID, ASC_ISSUER_ID, and ASC_KEY_PATH must be set")
+        if not valid_build(a.build):
+            raise Problem("%r isn't a build number" % a.build)
         api = Client(key_id, issuer, key_path)
         app_id = find_app(api, a.bundle_id)
         build_id = wait_for_build(api, app_id, a.build, a.timeout, a.interval)
         how = set_what_to_test(api, build_id, text)
-        print("What to Test for build %d %s (%d characters)" % (a.build, how, len(text)))
+        print("What to Test for build %s %s (%d characters)" % (a.build, how, len(text)))
         return 0
     except (Problem, OSError) as e:
-        print("What to Test for build %d wasn't set: %s" % (a.build, e), file=sys.stderr)
+        print("What to Test for build %s wasn't set: %s" % (a.build, e), file=sys.stderr)
         return 1
 
 

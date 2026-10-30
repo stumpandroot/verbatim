@@ -1036,10 +1036,19 @@ jobs:
   # TestFlight, on its own runner after the iPhone self-test passes. It builds the third-party code first, and the
   # App Store Connect key exists only in the archive-and-upload step. Every build of main whose iPhone app changed
   # (the changes job) uploads; a build that skips the iPhone tour skips this too. It uses none of the tour's files.
+  # Two tracks, one after the other. internal: build N, with YouTube on the iPhone, for your App Store Connect team
+  # only. public: build N.1, the App Store build without YOUTUBE_ON_DEVICE, shared with friends through the external
+  # group's public link after Beta App Review (testflight_share.py, mac/APP_STORE.md "Public TestFlight link"). Internal
+  # goes first so the build numbers rise in upload order (N, N.1, N+1, N+1.1).
   testflight:
-    name: TestFlight (iPhone)
+    name: TestFlight (iPhone, ${{ matrix.track }})
     needs: [changes, phone]
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.phone == 'true' && needs.phone.result == 'success'
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        track: [internal, public]
     runs-on: macos-26
     environment: release
     # A TestFlight problem never fails the build.
@@ -1051,6 +1060,9 @@ jobs:
         working-directory: mac
     env:
       HAS_ASC: ${{ secrets.ASC_KEY_ID != '' && secrets.ASC_KEY_P8 != '' }}
+      # The build's CFBundleVersion and the iPhone target's conditions for this track.
+      BUILD_NO: ${{ matrix.track == 'public' && format('{0}.1', github.run_number) || github.run_number }}
+      PHONE_CONDITIONS: ${{ matrix.track == 'public' && 'APP_STORE' || 'APP_STORE YOUTUBE_ON_DEVICE' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: env.HAS_ASC == 'true'
@@ -1155,10 +1167,14 @@ jobs:
             echo "::notice::Archiving with the IOS_DEV_CERTIFICATE development certificate"
           fi
           # The App Store build (mac/APP_STORE.md): the AppStore configuration sets VERBATIM_APP_STORE=YES, so
-          # TestFlight gets what App Review sees, with one exception: these internal-testing builds also fetch
-          # YouTube on the iPhone (YOUTUBE_ON_DEVICE). Guideline 5.2.3 makes that a rejection risk, so never submit
-          # one of these builds for App Review or external testing; archive one without it (mac/APP_STORE.md).
-          echo "::notice::TestFlight build ${GITHUB_RUN_NUMBER} fetches YouTube on the iPhone. Internal testing only; don't submit it for review."
+          # TestFlight gets what App Review sees, with one exception: the internal track's builds also fetch YouTube
+          # on the iPhone (YOUTUBE_ON_DEVICE). Guideline 5.2.3 makes that a rejection risk, so never submit an
+          # internal build for App Review or external testing. The public track's N.1 builds leave it out.
+          if [ "${{ matrix.track }}" = internal ]; then
+            echo "::notice::TestFlight build ${BUILD_NO} fetches YouTube on the iPhone. Internal testing only; don't submit it for review."
+          else
+            echo "::notice::TestFlight build ${BUILD_NO} is the App Store build, for the public link."
+          fi
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -1178,8 +1194,8 @@ jobs:
             rm -rf "$ARCHIVE" "$RUNNER_TEMP/phone-export"
             if ! xcodebuild -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" -configuration AppStore -destination 'generic/platform=iOS' \
                 -archivePath "$ARCHIVE" -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
-                "VERBATIM_PHONE_CONDITIONS_YES=APP_STORE YOUTUBE_ON_DEVICE" \
-                DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+                "VERBATIM_PHONE_CONDITIONS_YES=$PHONE_CONDITIONS" \
+                DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="$BUILD_NO" \
                 "${SIGN[@]}" archive > "$RUNNER_TEMP/phone-archive.log" 2>&1; then
               echo "::$level::iPhone archive failed"
               if grep -q "maximum number of certificates" "$RUNNER_TEMP/phone-archive.log"; then echo "::$level::$LIMIT_HINT"; fi
@@ -1222,12 +1238,12 @@ jobs:
               VERBOSE_WATCH=NO bash tools/generate-project.sh
               bash tools/package-resolved.sh install
               ship error || exit 1
-              echo "::warning::TestFlight build ${GITHUB_RUN_NUMBER} was uploaded without the Apple Watch app, which failed to archive, sign, or upload with it. See mac/APP_STORE.md, \"Apple Watch\"."
+              echo "::warning::TestFlight build ${BUILD_NO} was uploaded without the Apple Watch app, which failed to archive, sign, or upload with it. See mac/APP_STORE.md, \"Apple Watch\"."
             fi
           else
             ship error || exit 1
           fi
-          echo "::notice::iPhone build ${GITHUB_RUN_NUMBER} uploaded to TestFlight"
+          echo "::notice::iPhone build ${BUILD_NO} uploaded to TestFlight"
 
       # What to Test (mac/ReleaseNotes/README.md): this build's release notes as plain text, iPhone first, then Apple
       # Watch, then "Also on Mac" (release_notes.py notes --format testflight), set as the build's en-US What to Test
@@ -1258,11 +1274,41 @@ jobs:
           (umask 077; printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH")
           unset ASC_KEY_P8
           if ! python3 ReleaseNotes/testflight_what_to_test.py set --text "$RUNNER_TEMP/what-to-test.txt" \
-              --build "$GITHUB_RUN_NUMBER" --bundle-id co.stumpandroot.verbatim.ios --timeout 1200 --interval 30 2> "$RUNNER_TEMP/what-to-test.err"; then
+              --build "$BUILD_NO" --bundle-id co.stumpandroot.verbatim.ios --timeout 1200 --interval 30 2> "$RUNNER_TEMP/what-to-test.err"; then
             while IFS= read -r l; do echo "::warning::$l"; done < "$RUNNER_TEMP/what-to-test.err"
-            echo "::warning::TestFlight build ${GITHUB_RUN_NUMBER} keeps its What to Test. Paste the text above in App Store Connect › TestFlight if you want it there."
+            echo "::warning::TestFlight build ${BUILD_NO} keeps its What to Test. Paste the text above in App Store Connect › TestFlight if you want it there."
             exit 1
           fi
+
+      # The public link (testflight_share.py): only the public track, whose build has no YouTube on the iPhone. Adds the
+      # build to the Friends group, fills in the beta description and feedback address the first time, and submits it
+      # for Beta App Review. The review contact's phone is the one field only you can fill in; without it, the step
+      # warns and says so. Waits for processing itself, in case the What to Test step gave up early.
+      - name: Share the public build through the TestFlight link
+        if: matrix.track == 'public' && env.HAS_ASC == 'true' && steps.upload.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 25
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set +x
+          set -o pipefail
+          export ASC_KEY_ID="$(printf '%s' "$ASC_KEY_ID" | tr -d '[:space:]')"
+          export ASC_ISSUER_ID="$(printf '%s' "$ASC_ISSUER_ID" | tr -d '[:space:]')"
+          export ASC_KEY_PATH="$RUNNER_TEMP/AuthKey_share.p8"
+          trap 'rm -f "$ASC_KEY_PATH"' EXIT
+          (umask 077; printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH")
+          unset ASC_KEY_P8
+          if ! python3 ReleaseNotes/testflight_share.py share --build "$BUILD_NO" --group Friends \
+              --feedback-email hello@stumpandroot.co --timeout 1200 --interval 30 2> "$RUNNER_TEMP/share.err" | tee "$RUNNER_TEMP/share.out"; then
+            while IFS= read -r l; do echo "::warning::$l"; done < "$RUNNER_TEMP/share.err"
+            exit 1
+          fi
+          link=$(sed -n 's/^Public link: //p' "$RUNNER_TEMP/share.out")
+          [ -n "$link" ] && echo "::notice::TestFlight public link: $link"
+          true
 
       - name: Remove the App Store Connect key and the development certificate
         if: always()
@@ -1281,13 +1327,13 @@ jobs:
           D="$RUNNER_TEMP/VerbatimPhone.xcarchive/dSYMs"
           [ -d "$D" ] || { echo "No archive, so no dSYMs to keep"; exit 0; }
           mkdir -p "$RUNNER_TEMP/dsyms"
-          (cd "$D" && zip -qry "$RUNNER_TEMP/dsyms/VerbatimPhone-${GITHUB_RUN_NUMBER}-dSYMs.zip" .)
+          (cd "$D" && zip -qry "$RUNNER_TEMP/dsyms/VerbatimPhone-${BUILD_NO}-dSYMs.zip" .)
           for f in "$D"/*.dSYM; do dwarfdump --uuid "$f"; done
       - name: Upload the iPhone dSYMs
         if: always() && env.HAS_ASC == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: phone-dsyms-${{ github.run_number }}
+          name: phone-dsyms-${{ github.run_number }}-${{ matrix.track }}
           path: ${{ runner.temp }}/dsyms/
           retention-days: 30
           if-no-files-found: ignore

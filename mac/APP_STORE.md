@@ -21,10 +21,30 @@ xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Debu
 
 ## TestFlight builds from CI
 
-The TestFlight upload in `.github/workflows/build-swift.yml` (main builds only, for internal testers) archives the AppStore configuration with one exception: it also defines `YOUTUBE_ON_DEVICE`, by passing `VERBATIM_PHONE_CONDITIONS_YES="APP_STORE YOUTUBE_ON_DEVICE"`, so YouTube links transcribe on the iPhone. Apple doesn't review builds for internal testers.
+The TestFlight job in `.github/workflows/build-swift.yml` (main builds only) runs two tracks, one after the other:
 
-- Don't add these builds to an external testing group or submit them for App Review. Guideline 5.2.3 makes YouTube downloads a rejection risk.
-- To submit, archive the **VerbatimPhone App Store** scheme as described above, without the override, and upload that build.
+| Track | Build number | YouTube on the iPhone | Who gets it |
+|---|---|---|---|
+| internal | N (the run number) | Yes: `VERBATIM_PHONE_CONDITIONS_YES="APP_STORE YOUTUBE_ON_DEVICE"` | Your App Store Connect team. Apple doesn't review these builds. |
+| public | N.1 | No: `VERBATIM_PHONE_CONDITIONS_YES="APP_STORE"`. YouTube links go to the Mac (`LinkFetchError.needsMac`) | Anyone with the public link, after Beta App Review |
+
+- Don't add an internal build to an external testing group or submit it for App Review. Guideline 5.2.3 makes YouTube downloads a rejection risk.
+- Internal goes first so build numbers rise in upload order: N, N.1, N+1, N+1.1. Both carry build N's release notes; the apps read N.1 as N (`ReleaseNotes.buildNumber`).
+- To submit to the App Store, archive the **VerbatimPhone App Store** scheme as described above, without the override, and upload that build.
+
+### Public TestFlight link
+
+The public track's last step, "Share the public build through the TestFlight link," runs `ReleaseNotes/testflight_share.py share` with the same App Store Connect key as the upload. It:
+
+1. Waits until App Store Connect has processed build N.1.
+2. Finds the external group **Friends**, or makes it with its public link on.
+3. Fills in the beta description and the feedback address (hello@stumpandroot.co) when they're empty.
+4. Adds the build to the group and submits it for Beta App Review.
+5. Prints the public link as a notice on the run.
+
+Before the first submission, fill in the review contact's name, phone, and email in App Store Connect › TestFlight › Test Information. Only you can fill in the phone. Until then, the step adds the build to the group, skips the submission, and warns with the missing fields.
+
+Testers can install a build only after Beta App Review approves it. The first review takes the longest; Apple may approve later builds of the same version without a full review. The step never fails the build.
 
 ### TestFlight signing
 

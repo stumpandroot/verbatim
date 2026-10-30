@@ -206,5 +206,8 @@ check("rules: a platform prefix in an object fails", itemBad(#"{"platforms": ["m
 check("rules: an em dash or exclamation point fails", itemBad(#"{"platforms": ["mac"], "text": "A \#u{2014} b."}"#) && itemBad(#"{"platforms": ["mac"], "text": "A.", "detail": "Wow!"}"#))
 check("rules: no period fails", itemBad(#"{"platforms": ["mac"], "text": "A"}"#))
 
+check("build number: 250 and the public track's 250.1 are 250", ReleaseNotes.buildNumber("250") == 250 && ReleaseNotes.buildNumber("250.1") == 250)
+check("build number: anything else is nil", [ "", "250.", ".1", "250.x", "1.2.3.4", "beta" ].allSatisfy { ReleaseNotes.buildNumber($0) == nil })
+
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

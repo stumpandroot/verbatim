@@ -94,6 +94,9 @@ The step never fails the build. When App Store Connect is slow or refuses the ca
 text it tried to set, and you can paste that text in App Store Connect › TestFlight. When the text runs over 4,000
 characters, the details go first, then the Mac's lines from the end, with "And more." in their place.
 
+The public track's build (N.1, mac/APP_STORE.md "Public TestFlight link") gets the same What to Test, then
+`testflight_share.py` adds it to the Friends group and submits it for Beta App Review.
+
 ## After a build ships
 
 In a follow-up commit, set the `"next"` entry's `build` to that run's number, its `date` to the build's date, and its
