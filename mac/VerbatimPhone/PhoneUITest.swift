@@ -229,6 +229,10 @@ enum PhoneUITest {
                     app.addFromLibrary = nil
                     try? await Task.sleep(nanoseconds: 600_000_000)
                 }
+                // Transcripts open from the Library tab: the tours before this one can leave Thoughts selected (build 240).
+                app.tab = .library
+                app.libraryPath = NavigationPath()
+                try? await Task.sleep(nanoseconds: 500_000_000)
                 if let walk = app.store.live.first(where: { $0.title == "Errands and a long walk" }) {
                     UserDefaults.standard.set(true, forKey: Transcript.mainSpeakerOnlyKey)
                     app.libraryPath.append(walk.id)

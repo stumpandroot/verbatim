@@ -6,38 +6,10 @@
       "items": [
         {
           "platforms": [
-            "mac"
-          ],
-          "text": "Home has the new look: a persimmon Record card, colored tiles, Recent, and This week.",
-          "detail": "Click the Record card for a voice note, or right-click it for more ways to record. While you record, it becomes the recording, with Mark moment, Pause, and Stop and transcribe."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "Palette offers full color or soft tints for the Record card and tiles.",
-          "detail": "Soft trades the persimmon Record card and bright tiles for light tints of the same colors. Find it in Settings › Appearance on iPhone and Settings › Personalization and preferences on the Mac."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "The Library is one table with colored kinds, quick filters, and sortable columns.",
-          "detail": "Click a row to select it and double-click to open it, in both looks. The Table and List choice is gone, so every Library is the table."
-        },
-        {
-          "platforms": [
             "iphone"
           ],
           "text": "Transcripts have the new look: serif text, colored speaker chips, and a glass player.",
           "detail": "The line playing has a sage wash, and marked lines have a small bookmark. Summary is a tab beside Original and Cleaned, and the player's speed menu has Mark this moment and Follow playback."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "Transcripts read in a centered serif column with speaker chips and a glass player.",
-          "detail": "Original, Cleaned, Summary, and a template's result are tabs at the top. Share and More hold Copy, Export, Run a template, and the rest, and moments and details sit in the side column."
         },
         {
           "platforms": [
@@ -52,20 +24,6 @@
           ],
           "text": "Minimized, a recording shows its time with Pause and Stop above the tab bar.",
           "detail": "In Native it's in the tab bar, in the same design. Tap it to bring the recorder back."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "While you record, the toolbar shows the time with a Stop button.",
-          "detail": "In Native, Record sits beside Back and Forward, so it stays in the toolbar in a narrow window with the inspector open."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "The menu bar, meeting panel, bubble, and Live captions have the new look.",
-          "detail": "The menu bar panel and the meeting panel show the recording as a small persimmon card, and the meeting banner uses the new cards and buttons."
         },
         {
           "platforms": [
@@ -102,6 +60,56 @@
           ],
           "text": "The You page has the new look, with your week's bars and where you dictate in cards.",
           "detail": "Click your name to change it. Websites still count by domain only."
+        }
+      ]
+    },
+    {
+      "build": "241",
+      "date": "2026-10-28",
+      "version": "1.0 beta",
+      "title": "Mac only: a new look for Home, the Library, transcripts, and recording",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Home has the new look: a persimmon Record card, colored tiles, Recent, and This week.",
+          "detail": "Click the Record card for a voice note, or right-click it for more ways to record. While you record, it becomes the recording, with Mark moment, Pause, and Stop and transcribe."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Palette offers full color or soft tints for the Record card and tiles.",
+          "detail": "Soft trades the persimmon Record card and bright tiles for light tints of the same colors. Find it in Settings › Appearance on iPhone and Settings › Personalization and preferences on the Mac."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The Library is one table with colored kinds, quick filters, and sortable columns.",
+          "detail": "Click a row to select it and double-click to open it, in both looks. The Table and List choice is gone, so every Library is the table."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Transcripts read in a centered serif column with speaker chips and a glass player.",
+          "detail": "Original, Cleaned, Summary, and a template's result are tabs at the top. Share and More hold Copy, Export, Run a template, and the rest, and moments and details sit in the side column."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "While you record, the toolbar shows the time with a Stop button.",
+          "detail": "In Native, Record sits beside Back and Forward, so it stays in the toolbar in a narrow window with the inspector open."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The menu bar, meeting panel, bubble, and Live captions have the new look.",
+          "detail": "The menu bar panel and the meeting panel show the recording as a small persimmon card, and the meeting banner uses the new cards and buttons."
         }
       ]
     },
