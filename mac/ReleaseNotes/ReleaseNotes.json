@@ -1,8 +1,10 @@
 {
   "notes": [
     {
-      "build": "next",
-      "title": "A new look, and fewer places to look",
+      "build": "248",
+      "date": "2026-10-30",
+      "version": "1.0 beta",
+      "title": "iPhone only: one look on every screen, and recording with AirPods",
       "items": [
         {
           "platforms": [
