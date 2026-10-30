@@ -1,7 +1,9 @@
 {
   "notes": [
     {
-      "build": "next",
+      "build": "252",
+      "date": "2026-10-30",
+      "version": "1.0 beta",
       "title": "A welcome tour that shows the way in",
       "items": [
         {

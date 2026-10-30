@@ -84,18 +84,21 @@ def missing_review_contact(api, app_id):
 
 
 def add_and_submit(api, group_id, build_id):
-    """Adds the build to the group and submits it for Beta App Review. Returns "submitted" or "already submitted"."""
+    """Adds the build to the group and submits it for Beta App Review. Returns what happened, as a phrase."""
     api.call("POST", "/v1/betaGroups/%s/relationships/builds" % group_id,
              body={"data": [{"type": "builds", "id": build_id}]})
     try:
         api.call("POST", "/v1/betaAppReviewSubmissions", body={"data": {
             "type": "betaAppReviewSubmissions",
             "relationships": {"build": {"data": {"type": "builds", "id": build_id}}}}})
-        return "submitted"
+        return "submitted it for Beta App Review"
     except Problem as e:
         # A build that's in review or approved already answers 409.
         if "HTTP 409" in str(e):
-            return "already submitted"
+            return "it was already submitted for Beta App Review"
+        # Apple reviews one build per version at a time; this one waits until that review ends.
+        if "HTTP 422" in str(e) and "in review" in str(e):
+            return "didn't submit it, because another build is in Beta App Review. Submit this one once that review ends"
         raise
 
 
@@ -103,6 +106,9 @@ def share(api, bundle_id, build, group, feedback_email, timeout, interval, **wai
     app_id = find_app(api, bundle_id)
     build_id = wait_for_build(api, app_id, build, timeout, interval, **wait)
     group_id, link = find_or_make_group(api, app_id, group)
+    # The link first, so a later step that fails doesn't hide it.
+    if link:
+        print("Public link: %s" % link)
     filled = fill_test_information(api, app_id, feedback_email)
     if filled:
         print("Filled in TestFlight's Test Information: %s" % ", ".join(filled))
@@ -110,21 +116,17 @@ def share(api, bundle_id, build, group, feedback_email, timeout, interval, **wai
     if missing:
         # Adding the build still works; the submission would fail without a contact, so say what's needed instead.
         api.call("POST", "/v1/betaGroups/%s/relationships/builds" % group_id, body={"data": [{"type": "builds", "id": build_id}]})
-        if link:
-            print("Public link: %s" % link)
         raise Problem("build %s is in %s but wasn't sent for Beta App Review: fill in the review contact's %s in App Store "
                       "Connect › TestFlight › Test Information, once" % (build, group, ", ".join(missing)))
     how = add_and_submit(api, group_id, build_id)
-    print("Build %s added to %s and %s for Beta App Review" % (build, group, how))
-    if link:
-        print("Public link: %s" % link)
+    print("Added build %s to %s and %s" % (build, group, how))
     return link
 
 
 class FakeAPI:
     """App Store Connect as share-check needs it: one app, one processed build, and whatever the test sets up."""
-    def __init__(self, group=None, locs=None, contact=None, submitted=False):
-        self.calls, self.group, self.locs, self.contact, self.submitted = [], group, locs or [], contact or {}, submitted
+    def __init__(self, group=None, locs=None, contact=None, submitted=False, busy=False):
+        self.calls, self.group, self.locs, self.contact, self.submitted, self.busy = [], group, locs or [], contact or {}, submitted, busy
 
     def call(self, method, path, query=None, body=None):
         self.calls.append((method, path))
@@ -151,6 +153,8 @@ class FakeAPI:
         if path == "/v1/betaAppReviewSubmissions":
             if self.submitted:
                 raise Problem("POST /v1/betaAppReviewSubmissions: HTTP 409 already submitted")
+            if self.busy:
+                raise Problem("POST /v1/betaAppReviewSubmissions: HTTP 422 Another build is in review.")
             return {"data": {"id": "S1"}}
         raise AssertionError("unexpected call %s %s" % (method, path))
 
@@ -192,6 +196,10 @@ def share_check():
     except Problem as e:
         assert "phone" in str(e) and "Test Information" in str(e), e
     assert ("POST", "/v1/betaAppReviewSubmissions") not in api.calls
+
+    # Another build of this version is in review: the build joins the group, the run passes, and the link prints.
+    api = FakeAPI(group=g, locs=[loc], contact=full, busy=True)
+    assert run(api) == "https://testflight.apple.com/join/TEST"
 
     # The build numbers this takes.
     assert valid_build("250") and valid_build("250.1") and not valid_build("250.x") and not valid_build("")

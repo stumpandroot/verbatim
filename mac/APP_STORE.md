@@ -37,10 +37,11 @@ The TestFlight job in `.github/workflows/build-swift.yml` (main builds only) run
 The public track's last step, "Share the public build through the TestFlight link," runs `ReleaseNotes/testflight_share.py share` with the same App Store Connect key as the upload. It:
 
 1. Waits until App Store Connect has processed build N.1.
-2. Finds the external group **Friends**, or makes it with its public link on.
+2. Finds the external group **Friends**, or makes it with its public link on, and prints the link as a notice on the run.
 3. Fills in the beta description and the feedback address (hello@stumpandroot.co) when they're empty.
 4. Adds the build to the group and submits it for Beta App Review.
-5. Prints the public link as a notice on the run.
+
+Apple reviews one build per version at a time. When another build is still in review, the step adds this one to the group without submitting it and says so in a notice. Submit it in App Store Connect once that review ends, or let the next build submit itself.
 
 Before the first submission, fill in the review contact's name, phone, and email in App Store Connect › TestFlight › Test Information. Only you can fill in the phone. Until then, the step adds the build to the group, skips the submission, and warns with the missing fields.
 

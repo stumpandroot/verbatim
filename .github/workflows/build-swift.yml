@@ -1301,14 +1301,18 @@ jobs:
           trap 'rm -f "$ASC_KEY_PATH"' EXIT
           (umask 077; printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH")
           unset ASC_KEY_P8
-          if ! python3 ReleaseNotes/testflight_share.py share --build "$BUILD_NO" --group Friends \
-              --feedback-email hello@stumpandroot.co --timeout 1200 --interval 30 2> "$RUNNER_TEMP/share.err" | tee "$RUNNER_TEMP/share.out"; then
+          ok=true
+          python3 ReleaseNotes/testflight_share.py share --build "$BUILD_NO" --group Friends \
+              --feedback-email hello@stumpandroot.co --timeout 1200 --interval 30 2> "$RUNNER_TEMP/share.err" | tee "$RUNNER_TEMP/share.out" || ok=false
+          # The link shows on the run's summary whether or not the submission worked.
+          link=$(sed -n 's/^Public link: //p' "$RUNNER_TEMP/share.out")
+          [ -n "$link" ] && echo "::notice::TestFlight public link: $link"
+          added=$(sed -n 's/^Added build /Added build /p' "$RUNNER_TEMP/share.out")
+          [ -n "$added" ] && echo "::notice::$added"
+          if [ "$ok" != true ]; then
             while IFS= read -r l; do echo "::warning::$l"; done < "$RUNNER_TEMP/share.err"
             exit 1
           fi
-          link=$(sed -n 's/^Public link: //p' "$RUNNER_TEMP/share.out")
-          [ -n "$link" ] && echo "::notice::TestFlight public link: $link"
-          true
 
       - name: Remove the App Store Connect key and the development certificate
         if: always()
