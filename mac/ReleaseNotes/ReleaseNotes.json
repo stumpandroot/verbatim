@@ -129,6 +129,13 @@
           ],
           "text": "A minimized recording stays in view on transcripts and Audio only recordings.",
           "detail": "On iOS 26 the tab bar stays to carry it. With nothing recording, the tab bar still steps aside while you read."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "While you record, the toolbar's timer and Stop stay on transcripts too.",
+          "detail": "The same goes for capturing an app's audio."
         }
       ]
     },

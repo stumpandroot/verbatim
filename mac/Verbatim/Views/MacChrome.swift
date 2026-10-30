@@ -220,8 +220,9 @@ private struct ToolbarInspectorButton: View {
     }
 }
 
-/// Back and Forward on every screen, then Record everywhere but a transcript. Every screen draws its own serif title
-/// on the page (DESIGN.md §13).
+/// Back and Forward on every screen, then Record everywhere but a transcript. While you record or capture an app's
+/// audio, Record's place is the timer and Stop on every screen, transcripts included (`ToolbarRecordButton.shows`).
+/// Every screen draws its own serif title on the page (DESIGN.md §13).
 private struct ToolbarLeadingItem: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var nav: WindowNav
@@ -243,7 +244,7 @@ private struct ToolbarLeadingItem: View {
                 .disabled(!trail.canGoForward)
                 .help("Forward (⌘])")
                 .accessibilityLabel("Forward")
-            if screen.transcriptID == nil {
+            if ToolbarRecordButton.shows(onTranscript: screen.transcriptID != nil, busy: ToolbarRecordButton.busy(app)) {
                 ToolbarRecordButton().padding(.leading, 6)
             }
         }
@@ -259,8 +260,15 @@ private struct ToolbarLeadingItem: View {
 struct ToolbarRecordButton: View {
     @EnvironmentObject var app: AppState
 
+    /// A recording or an app's audio capture is running: the button is the timer and Stop.
+    @MainActor static func busy(_ app: AppState) -> Bool { app.recorder.isRecording || app.capture.isCapturing }
+
+    /// Whether the toolbar has this item on a screen: Record everywhere but a transcript; while you record or capture,
+    /// the timer and Stop on every screen, transcripts included, so you can always stop from the toolbar.
+    static func shows(onTranscript: Bool, busy: Bool) -> Bool { busy || !onTranscript }
+
     var body: some View {
-        let busy = app.recorder.isRecording || app.capture.isCapturing
+        let busy = Self.busy(app)
         HStack(spacing: 2) {
             if busy {
                 ToolbarRecordingStatus(onCard: false)

@@ -951,6 +951,12 @@ enum UITest {
         check("\(tag): Record's menu lists Dictate, Live captions, and Import, then the six ways to record",
               ToolbarRecordMenu.extras == ["Dictate", "Live Captions", "Import…"] && RecordChoice.all.count == 8
               && windowFrames["tb-record-menu"]?() != nil)
+        // Record stays off a transcript at rest; while you record or capture an app's audio, the timer and Stop are on
+        // every screen, transcripts included (review fix 2).
+        typealias TR = ToolbarRecordButton
+        check("\(tag): Record is off a transcript at rest, and the timer and Stop are on every screen while you record or capture",
+              TR.shows(onTranscript: false, busy: false) && !TR.shows(onTranscript: true, busy: false)
+              && TR.shows(onTranscript: true, busy: true) && TR.shows(onTranscript: false, busy: true))
         await step("\(tag): the toolbar's Record asks for the mic or records", window, target: "tb-record",
                    check: { app.showMicSheet || app.recorder.isRecording })
         if app.showMicSheet {
@@ -959,6 +965,14 @@ enum UITest {
             // While recording, Record's place is the live timer capsule (the refined look's, DESIGN.md §6.10).
             try? await Task.sleep(nanoseconds: 700_000_000)
             check("\(tag): while recording, the toolbar shows the live timer capsule", frames["toolbar-recording"] != nil)
+            if let open = app.store.live.first {
+                app.go(.transcript(open.id))
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                check("\(tag): while recording, a transcript's toolbar keeps the timer and Stop",
+                      app.screen.transcriptID != nil && windowFrames["tb-record"]?() != nil)
+                app.go(.library)
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
             _ = app.recorder.stop()
         }
         try? await Task.sleep(nanoseconds: 600_000_000)
