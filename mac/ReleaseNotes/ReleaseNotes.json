@@ -41,25 +41,10 @@
         },
         {
           "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "In Appearance, the look is one row with a menu.",
           "detail": "On the Mac it's a pop-up in Personalization. Picking a look still switches at once."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "The Settings window has the new look: a colored square beside each pane and its title.",
-          "detail": "Rows sit on cards with switches in persimmon and the system's buttons and menus. The version and What's new stay at the foot of the sidebar, and search works as before."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "The You page has the new look, with your week's bars and where you dictate in cards.",
-          "detail": "Click your name to change it. Websites still count by domain only."
         },
         {
           "platforms": [
@@ -77,15 +62,13 @@
         },
         {
           "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Home's tiles have quiet line patterns, and the record disc sits centered in its rings."
         },
         {
           "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Clean up in Recent is a smaller text button beside the recording's title."
         },
@@ -123,6 +106,47 @@
           ],
           "text": "Thoughts, By day, Templates, Ask, Dictations, and Dictionary have the new look.",
           "detail": "So do Plan my day, Send to Reminders, Recently Deleted, What's new, Edit Home, onboarding, the Cleaned tab, and the Export and Add from Library sheets."
+        }
+      ]
+    },
+    {
+      "build": "243",
+      "date": "2026-10-29",
+      "version": "1.0 beta",
+      "title": "Mac only: Settings and the You page in the new look, and Home polish",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "In Appearance, the look is one row with a menu.",
+          "detail": "On the Mac it's a pop-up in Personalization. Picking a look still switches at once."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The Settings window has the new look: a colored square beside each pane and its title.",
+          "detail": "Rows sit on cards with switches in persimmon and the system's buttons and menus. The version and What's new stay at the foot of the sidebar, and search works as before."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The You page has the new look, with your week's bars and where you dictate in cards.",
+          "detail": "Click your name to change it. Websites still count by domain only."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Home's tiles have quiet line patterns, and the record disc sits centered in its rings."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Clean up in Recent is a smaller text button beside the recording's title."
         }
       ]
     },
