@@ -110,6 +110,8 @@ def share(api, bundle_id, build, group, feedback_email, timeout, interval, **wai
     if missing:
         # Adding the build still works; the submission would fail without a contact, so say what's needed instead.
         api.call("POST", "/v1/betaGroups/%s/relationships/builds" % group_id, body={"data": [{"type": "builds", "id": build_id}]})
+        if link:
+            print("Public link: %s" % link)
         raise Problem("build %s is in %s but wasn't sent for Beta App Review: fill in the review contact's %s in App Store "
                       "Connect › TestFlight › Test Information, once" % (build, group, ", ".join(missing)))
     how = add_and_submit(api, group_id, build_id)

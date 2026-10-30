@@ -2,7 +2,7 @@
   "notes": [
     {
       "build": "next",
-      "title": "A welcome tour that shows the way in, and a TestFlight link for friends",
+      "title": "A welcome tour that shows the way in",
       "items": [
         {
           "platforms": [
@@ -17,7 +17,15 @@
           ],
           "text": "The welcome tour shows the ways to record and how to add the Verbose keyboard.",
           "detail": "Open Settings takes you to Verbose's page in the Settings app, where Keyboards is. Everyone sees the new tour once."
-        },
+        }
+      ]
+    },
+    {
+      "build": "251",
+      "date": "2026-10-30",
+      "version": "1.0 beta",
+      "title": "A TestFlight link for friends",
+      "items": [
         {
           "platforms": [
             "iphone"
