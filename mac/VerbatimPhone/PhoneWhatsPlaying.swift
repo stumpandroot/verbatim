@@ -7,7 +7,7 @@ import ReplayKit
 /// (PhoneInbox.swift). Nothing is downloaded from those apps.
 ///
 /// iOS starts a broadcast only from its own picker. The system picker sits behind the Start button, and Start
-/// forwards the tap to the picker's button.
+/// forwards the tap to the picker's button. On the refined kit (DESIGN.md §13) in both look settings.
 struct WhatsPlayingSheet: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss
@@ -17,21 +17,13 @@ struct WhatsPlayingSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 8) {
-                        Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
-                        Overline(text: "App audio", color: Ink.dim)
-                        DottedRule().frame(height: 1)
-                    }
-                    .accessibilityHidden(true)
-
-                    Text("Transcribe what's playing")
-                        .lookSerif(30).foregroundStyle(.lookInk)
+                    LargeSerifTitle(title: "Transcribe what's playing", eyebrow: "App audio")
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 14)
+                        .accessibilityElement(children: .combine)
                         .accessibilityAddTraits(.isHeader)
 
                     Text("Start, then open TikTok or any app and play videos. Verbose records the sound they play, not your microphone or screen, and transcribes it when you stop.")
-                        .font(.system(size: 16)).foregroundStyle(.lookDim)
+                        .refinedFont(.body).foregroundStyle(Refined.dim)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
 
@@ -39,13 +31,13 @@ struct WhatsPlayingSheet: View {
 
                     Button { picker.start() } label: {
                         HStack(spacing: 10) {
-                            Circle().fill(.lookRecord).frame(width: 12, height: 12)
-                            Text("Start").font(.system(size: 17, weight: .semibold))
+                            Circle().fill(Refined.recordRed).frame(width: 12, height: 12)
+                            Text("Start")
                         }
-                        .frame(maxWidth: .infinity, minHeight: 54)
+                        .frame(maxWidth: .infinity, minHeight: 46)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(PlayingStartStyle())
+                    .buttonStyle(RefinedActionStyle(kind: .strong))
                     .background(
                         // The system picker, behind the button. It does the starting; the button forwards to it.
                         BroadcastPicker(handle: picker)
@@ -58,13 +50,13 @@ struct WhatsPlayingSheet: View {
                     .accessibilityHint("Opens the screen broadcast picker with Verbose chosen. Only app sound is kept.")
 
                     Text("You can also start it from Control Center: press and hold Screen Recording, then choose Verbose.")
-                        .font(.system(size: 13.5)).foregroundStyle(.lookMute)
+                        .refinedFont(.meta).foregroundStyle(Refined.mute)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 14)
                 }
                 .padding(20)
             }
-            .phonePage()
+            .background(Refined.paper.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
@@ -81,7 +73,7 @@ struct WhatsPlayingSheet: View {
         }
     }
 
-    /// Three short steps on a reader-white card.
+    /// Three short steps on a card.
     private var steps: some View {
         VStack(alignment: .leading, spacing: 12) {
             step("1", "Tap Start, then Start Broadcast.")
@@ -90,25 +82,15 @@ struct WhatsPlayingSheet: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: Radius.tile)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
     }
 
     private func step(_ n: String, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(n).lookMono(12, weight: .medium).foregroundStyle(.lookMute).frame(width: 14, alignment: .leading)
-            Text(text).font(.system(size: 15)).foregroundStyle(.lookInk).fixedSize(horizontal: false, vertical: true)
+            Text(n).refinedFont(.meta, weight: .semibold).monospacedDigit().foregroundStyle(Refined.accentText).frame(width: 14, alignment: .leading)
+            Text(text).refinedFont(.body).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// The Start button: ink fill with a reader-white label (cream with an ink label in dark), on an opaque surface.
-private struct PlayingStartStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(Ink.onInteractive)
-            .background(Ink.interactive.opacity(configuration.isPressed ? 0.86 : 1), in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 

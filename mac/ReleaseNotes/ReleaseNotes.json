@@ -52,6 +52,13 @@
           ],
           "text": "Dictations, Dictionary, Queue, Recently Deleted, and onboarding have the new look.",
           "detail": "So do Edit Home, the Cleaned tab's toolbar, the link card, and the Export, Add from Library, multitrack, and microphone sheets."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Thoughts, By day, Templates, Ask, Dictations, and Dictionary have the new look.",
+          "detail": "So do Plan my day, Send to Reminders, Recently Deleted, What's new, Edit Home, onboarding, the Cleaned tab, and the Export and Add from Library sheets."
         }
       ]
     },

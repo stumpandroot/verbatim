@@ -760,20 +760,6 @@ struct SignalRings: View {
     }
 }
 
-/// A compact, task-related empty-state picture: a brand icon on a soft tinted disc.
-struct EmptyStateArt: View {
-    var art: BrandArt = .document
-    var tint: Color = Ink.butterTint
-    var body: some View {
-        ZStack {
-            Circle().fill(tint)
-            BrandGlyph(art: art, color: Ink.ink, minLineWidth: 1.4).padding(13)
-        }
-        .frame(width: 56, height: 56)
-        .accessibilityHidden(true)
-    }
-}
-
 // MARK: - Drawing helpers
 
 /// Maps a design-space box onto a canvas, aspect fit and centered (as BrandGlyph does).

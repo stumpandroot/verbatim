@@ -1,21 +1,6 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Materials
-
-/// A sheet-level tactile button: card fill, hairline, compresses on press.
-struct TactileButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(.lookInk)
-            .background(configuration.isPressed ? Ink.wash : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(.lookHairline))
-            .shadow(color: Ink.inkFixed.opacity(configuration.isPressed ? 0 : 0.05), radius: 3, y: 1)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.easeOut(duration: configuration.isPressed ? 0.06 : 0.14), value: configuration.isPressed)
-    }
-}
-
 // MARK: - Share sheet
 
 struct ShareSheet: UIViewControllerRepresentable {

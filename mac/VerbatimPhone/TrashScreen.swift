@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// Library › Recently Deleted on the iPhone, on the refined kit (DESIGN.md §13) in both look settings: the serif title
+/// with the count, the deleted recordings on a card with the days each has left, swipe right to restore and left to
+/// delete now, and Restore all or Empty in the bar's menu.
 struct TrashScreen: View {
     @EnvironmentObject var app: PhoneState
     @State private var confirmEmpty = false
@@ -7,22 +10,37 @@ struct TrashScreen: View {
         // `store.trash` filters and sorts every transcript; read it once per render.
         let trash = app.store.trash
         List {
+            RefinedListTitle(title: "Recently Deleted", count: trash.isEmpty ? nil : "\(trash.count)")
             if trash.isEmpty {
-                Text("Nothing here.").foregroundStyle(.lookMute).listRowBackground(Color.clear)
-            }
-            ForEach(trash) { t in
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(t.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
-                    Text(daysLeft(t)).font(.system(size: 13)).foregroundStyle(.lookMute)
+                Section {
+                    RefinedEmptyState(art: .iconDeleted, title: "Nothing here",
+                                      message: "Recordings you delete stay here for 30 days, then go for good.")
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
                 }
-                .listRowBackground(Ink.card)
-                .swipeActions(edge: .leading) { Button { app.restore(t.id) } label: { Label("Restore", systemImage: "arrow.uturn.backward") }.tint(Ink.sageText) }
-                .swipeActions(edge: .trailing) { Button(role: .destructive) { app.purge(t.id) } label: { Label("Delete now", systemImage: "trash") } }
             }
+            Section {
+                ForEach(trash) { t in
+                    HStack(spacing: 12) {
+                        KindBadge(kind: t.kind)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(2)
+                            Text(daysLeft(t)).refinedFont(.meta).foregroundStyle(Refined.mute)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    .accessibilityElement(children: .combine)
+                    .swipeActions(edge: .leading) {
+                        Button { app.restore(t.id) } label: { Label("Restore", systemImage: "arrow.uturn.backward") }   // brand: system surface (swipe action)
+                            .tint(Refined.sageText)
+                    }
+                    .swipeActions(edge: .trailing) { Button(role: .destructive) { app.purge(t.id) } label: { Label("Delete now", systemImage: "trash") } }
+                }
+            }
+            .listRowBackground(Refined.card)
+            .listRowSeparatorTint(Refined.separator)
         }
-        .scrollContentBackground(.hidden)
-        .phonePage()
-        .navigationTitle("Recently Deleted")
+        .refinedListPage("Recently Deleted")
         .toolbar {
             if !trash.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {

@@ -1,14 +1,13 @@
 import SwiftUI
 
 /// Add from Library on iPhone: a searchable list of transcripts not in Recently Deleted and not already in the project,
-/// built like the Library (its soft type and platform chips, mono day headers, and flat rows with a leading check),
-/// tap to select, and an Add button. A transcript is in one project at a
+/// built like the Library on the refined kit (DESIGN.md §13, both look settings): the kit's type and platform chips,
+/// serif day titles, and each day's rows in a card with a leading check; tap to select, and an Add button. A transcript is in one project at a
 /// time, so one from another project says where it moves from, and adding asks first.
 struct PhoneAddFromLibrarySheet: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.limitMotion) private var limitMotion
-    @Environment(\.look) private var look
     var project: UUID
     @State private var query = ""
     @State private var filter = LibraryFilter.saved(LibraryFilter.addSheetKey)
@@ -33,17 +32,21 @@ struct PhoneAddFromLibrarySheet: View {
                 Section {
                     if shown.isEmpty {
                         Text(query.isEmpty ? "Everything in your library is already in \(projectName)." : "Nothing matches “\(query)”.")
-                            .font(.system(size: 15)).foregroundStyle(.lookDim)
+                            .refinedFont(.body).foregroundStyle(Refined.dim)
+                            .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     }
                     ForEach(Self.days(shown), id: \.day) { group in
-                        PhoneDayHeader(text: PhoneDayHeader.label(group.day))
+                        SerifSectionTitle(PhoneDayHeader.label(group.day))
+                            .padding(.top, 18).padding(.bottom, 8)
                             .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        ForEach(group.items) { t in
+                        ForEach(Array(group.items.enumerated()), id: \.element.id) { i, t in
                             row(t)
+                                .overlay(alignment: .top) { if i > 0 { PaperDivider(leading: 92) } }
                                 .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-                                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                                .listRowBackground(PaperRowBackground(first: i == 0, last: i == group.items.count - 1))
+                                .listRowSeparator(.hidden)
                         }
                     }
                 }
@@ -51,9 +54,9 @@ struct PhoneAddFromLibrarySheet: View {
             .listStyle(.plain)
             .environment(\.defaultMinListRowHeight, 1)
             .scrollContentBackground(.hidden)
-            .phonePage()
+            .background(Refined.paper.ignoresSafeArea())
             .animation(limitMotion ? Motion.fade : Motion.settle, value: shown.map(\.id))
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: look.isNative ? "Search your library" : "Find the line you need")
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search your library")
             .navigationTitle("Add to \(projectName)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -73,7 +76,7 @@ struct PhoneAddFromLibrarySheet: View {
                 Text("A transcript is in one project at a time. Adding moves it out of the project it's in.")
             }
         }
-        .tint(Ink.ink)
+        .tint(Refined.accentText)
     }
 
     /// The Library's chips: All and each type the candidates have, then platforms for Videos and Links.
@@ -81,29 +84,22 @@ struct PhoneAddFromLibrarySheet: View {
         let sources = filter.sourceCounts(candidates, searching: searching).filter { $0.0 != .all }.map(\.0)
         let platforms = filter.platformCounts(candidates, searching: searching)
         return VStack(alignment: .leading, spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    PhoneChip(label: "All", selected: filter == .all) { setFilter(.all) }
-                    ForEach(sources) { s in
-                        PhoneChip(label: s.label, selected: filter.source == s, dot: LibraryScreen.dot(s)) {
-                            setFilter(filter.source == s ? .all : LibraryFilter(source: s))
-                        }
+            RefinedChipRow(label: "Filter", margin: 20) {
+                RefinedChip(title: "All", selected: filter == .all) { setFilter(.all) }
+                ForEach(sources) { s in
+                    RefinedChip(title: s.label, selected: filter.source == s) {
+                        setFilter(filter.source == s ? .all : LibraryFilter(source: s))
                     }
                 }
-                .padding(.horizontal, 20)
             }
             if filter.source.hasPlatforms, !platforms.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(platforms, id: \.0) { p, n in
-                            PhoneChip(label: p, selected: filter.platform == p, count: n) {
-                                setFilter(LibraryFilter(source: filter.source, platform: filter.platform == p ? nil : p))
-                            }
+                RefinedChipRow(label: "Platform", margin: 20) {
+                    ForEach(platforms, id: \.0) { p, n in
+                        RefinedChip(title: "\(p) · \(n)", selected: filter.platform == p) {
+                            setFilter(LibraryFilter(source: filter.source, platform: filter.platform == p ? nil : p))
                         }
                     }
-                    .padding(.horizontal, 20)
                 }
-                .accessibilityElement(children: .contain).accessibilityLabel("Platform")
             }
         }
     }
@@ -134,16 +130,17 @@ struct PhoneAddFromLibrarySheet: View {
             if on { selection.remove(t.id) } else { selection.insert(t.id) }
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22)).foregroundStyle(on ? Ink.ink : Ink.mute)
-                    .accessibilityHidden(true)
-                PhoneFlatRow(transcript: t, serif: false, meta: meta) {
-                    if t.duration > 0 { Text(HomeRecentStyle.length(t.duration)).font(Ink.mono(12)).foregroundStyle(.lookDim) }
+                RefinedCheckbox(on: on, size: 22)
+                    .frame(width: 44, height: 44)
+                PaperRow(kind: t.refinedKind, title: PhoneRowTitle.title(t, withTime: false), meta: meta, badge: 32, pinned: false) {
+                    if t.duration > 0 { RowLength(text: HomeRecentStyle.length(t.duration)) }
                 }
             }
+            .padding(.leading, 4)
+            .background(on ? Refined.persimmonTint : Color.clear)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(RefinedRowPress())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(on ? .isSelected : [])
     }

@@ -264,6 +264,45 @@ struct RefinedSheet<Content: View, Footer: View>: View {
 }
 #endif
 
+// MARK: - List pages (iPhone)
+
+#if os(iOS)
+/// An iPhone screen built on a system List (Dictionary, Snippets, Recently Deleted, Import): the paper behind it, the
+/// list's own background hidden, the kit's separators, and the name inline in the bar while the serif title sits on
+/// the page (`RefinedListTitle`). Give each section `.listRowBackground(Refined.card)` so its rows sit on cards.
+struct RefinedListPage: ViewModifier {
+    var title: String
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(.hidden)
+            .background(Refined.paper.ignoresSafeArea())
+            .environment(\.defaultMinListRowHeight, CGFloat(RefinedRules.minTapTarget))
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
+    }
+}
+
+extension View {
+    func refinedListPage(_ title: String) -> some View { modifier(RefinedListPage(title: title)) }
+}
+
+/// The large serif title (and an optional line under it) as a List's first section, on the paper with no card.
+struct RefinedListTitle: View {
+    var title: String
+    var count: String? = nil
+    var lede: String? = nil
+    var body: some View {
+        Section {
+            RefinedPageHeader(title: title, count: count, lede: lede)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                .listRowSeparator(.hidden)
+        }
+    }
+}
+#endif
+
 // MARK: - Ways to record
 
 // Record as's rows on both apps (the iPhone's tray, Edit Record As on both): each way's glyph and its kind's color.

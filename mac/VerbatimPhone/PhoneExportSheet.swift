@@ -9,7 +9,7 @@ struct PhoneExportRequest: Identifiable {
 
 /// The iPhone export sheet: the Mac sheet's options as a list (format first; SRT and VTT show subtitle settings), a
 /// preview of the actual output, then Copy and Share. Changes are saved for the next export; Copy text on the
-/// transcript keeps its own defaults (the tab you're on).
+/// transcript keeps its own defaults (the tab you're on). On the refined kit (DESIGN.md §13) in both look settings.
 struct PhoneExportSheet: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss
@@ -30,29 +30,29 @@ struct PhoneExportSheet: View {
                         ForEach(ExportFormat.allCases) { Text($0.short).tag($0) }
                     }
                 } footer: {
-                    Text(format.note)
+                    Text(format.note).foregroundStyle(Refined.mute)
                 }
-                .listRowBackground(Ink.card)
+                .listRowBackground(Refined.card)
                 Section("Options") {
                     ExportOptionRows(options: $options, format: format,
                                      speakersAvailable: ts.contains { $0.speakers.count >= 2 },
                                      summaryAvailable: ts.contains { Exporter.summary($0) != nil })
                 }
-                .listRowBackground(Ink.card)
-                .tint(PhoneInk.switchOn)
+                .listRowBackground(Refined.card)
+                .refinedSwitchTint()
                 Section {
                     Text(preview.isEmpty ? "Nothing to export yet." : preview)
-                        .lookMono(11.5).foregroundStyle(.lookInk).lineSpacing(3)
+                        .font(.system(size: 12)).foregroundStyle(Refined.ink).lineSpacing(3)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityLabel("Preview")
                 } header: {
                     Text(previewTitle(ts))
                 }
-                .listRowBackground(Ink.reader)
+                .listRowBackground(Refined.field)
             }
             .scrollContentBackground(.hidden)
-            .phonePage()
+            .background(Refined.paper.ignoresSafeArea())
             .navigationTitle(ts.count > 1 ? "Export \(ts.count) transcripts" : "Export")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -60,21 +60,20 @@ struct PhoneExportSheet: View {
             }
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 10) {
-                    Button { copy(ts) } label: { Text("Copy").frame(maxWidth: .infinity).frame(height: 46) }
-                        .buttonStyle(.bordered).tint(Ink.ink)
-                    Button { share(ts) } label: { Label("Share…", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity).frame(height: 46) }
-                        .buttonStyle(.borderedProminent).tint(Ink.interactive).foregroundStyle(Ink.onInteractive)
+                    Button { copy(ts) } label: { Text("Copy").frame(maxWidth: .infinity) }
+                        .buttonStyle(RefinedActionStyle(kind: .quiet))
+                    Button { share(ts) } label: { Text("Share").frame(maxWidth: .infinity) }
+                        .buttonStyle(RefinedActionStyle(kind: .strong))
                 }
-                .font(.system(size: 16, weight: .semibold))
                 .disabled(ts.isEmpty)
                 .padding(.horizontal, 20).padding(.vertical, 10)
-                // Opaque paper with a hairline on top: the Copy and Share labels never sit on a blur (DESIGN.md §5.1).
-                .background(Ink.paper)
-                .overlay(alignment: .top) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+                // Opaque paper with a separator on top: the Copy and Share labels never sit on a blur (DESIGN.md §13).
+                .background(Refined.paper)
+                .overlay(alignment: .top) { Rectangle().fill(Refined.separator).frame(height: 1) }
             }
         }
-        // Values and Cancel in ink; the Options switches take the app's switch color (above).
-        .tint(Ink.ink)
+        // Values and Cancel in the accent; the Options switches take the kit's switch tint (above).
+        .tint(Refined.accentText)
         .onAppear(perform: refresh)
         .onChange(of: options) { _, o in o.save(); refresh() }
         .onChange(of: format) { _, f in ExportOptions.savedFormat = f; refresh() }

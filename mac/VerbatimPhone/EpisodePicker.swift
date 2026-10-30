@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// A podcast show or feed's latest episodes (up to 20): title, date, and length. Tapping one adds it as a link.
-/// Shown inside the link sheet for a show link, or as its own sheet when a pasted link turned out to be a feed.
+/// Shown inside the link sheet for a show link, or as its own sheet when a pasted link turned out to be a feed. On the
+/// refined kit (DESIGN.md §13) in both look settings.
 struct EpisodePicker: View {
     let link: URL
     /// Already loaded (a feed found while fetching), or nil to load it here.
@@ -27,18 +28,22 @@ struct EpisodePicker: View {
                     Text(show.title ?? "Latest episodes")
                 } footer: {
                     Text(show.episodes.count == 1 ? "The latest episode." : "The latest \(show.episodes.count) episodes. Tap one to transcribe it.")
+                        .foregroundStyle(Refined.mute)
                 }
+                .listRowBackground(Refined.card)
             } else if let failure {
-                Text(failure).font(.system(size: 15)).foregroundStyle(.lookDim)
+                Text(failure).refinedFont(.body).foregroundStyle(Refined.dim)
+                    .listRowBackground(Refined.card)
             } else {
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text("Finding episodes…").font(.system(size: 15)).foregroundStyle(.lookDim)
+                    Text("Finding episodes…").refinedFont(.body).foregroundStyle(Refined.dim)
                 }
+                .listRowBackground(Refined.card)
             }
         }
         .scrollContentBackground(.hidden)
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
         .navigationTitle("Choose an episode")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -56,12 +61,12 @@ struct EpisodePicker: View {
     private func row(_ ep: PodcastEpisode) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(ep.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(2)
+                Text(ep.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(2)
                 let meta = [ep.date.map { Self.dateFormat.string(from: $0) }, ep.duration.map(Self.length)].compactMap { $0 }
-                if !meta.isEmpty { Text(meta.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(.lookMute) }
+                if !meta.isEmpty { Text(meta.joined(separator: " · ")).refinedFont(.meta).foregroundStyle(Refined.mute) }
             }
             Spacer(minLength: 0)
-            Image(systemName: "plus.circle").font(.system(size: 18)).foregroundStyle(Ink.sageText).accessibilityHidden(true)
+            Image(systemName: "plus.circle").font(.system(size: 18)).foregroundStyle(Refined.accentText).accessibilityHidden(true)
         }
         .contentShape(Rectangle())
     }

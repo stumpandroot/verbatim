@@ -270,90 +270,6 @@ struct PhonePanelArt: View {
     }
 }
 
-// MARK: - Scroll edge
-
-extension View {
-    /// The top scroll edge under a floating toolbar (review P-11). Verbose style leaves the bar's background off, so
-    /// text scrolled up would sit crisply behind the Back button and the toolbar's glass: paper fills the bar's area
-    /// and fades out over 12 pt below it. Native keeps the system's soft scroll edge effect.
-    func phoneTopFade() -> some View { modifier(PhoneTopFade()) }
-}
-
-private struct PhoneTopFade: ViewModifier {
-    @Environment(\.look) private var look
-    func body(content: Content) -> some View {
-        if look.isNative {
-            if #available(iOS 26, *) { content.scrollEdgeEffectStyle(.soft, for: .top) } else { content }
-        } else {
-            content.overlay(alignment: .top) {
-                GeometryReader { g in
-                    VStack(spacing: 0) {
-                        Ink.paper.frame(height: g.safeAreaInsets.top)
-                        LinearGradient(colors: [Ink.paper, Ink.paper.opacity(0)], startPoint: .top, endPoint: .bottom)
-                            .frame(height: 12)
-                    }
-                    .ignoresSafeArea(edges: .top)
-                }
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            }
-        }
-    }
-}
-
-// MARK: - Grouped lists
-
-extension View {
-    /// A List of grouped rows (Edit Home, Tab bar). Native: the system's inset grouped style. Verbose style: a plain list
-    /// inset 16 pt, whose rows draw their own card with the token radius (`PhoneListRowCard`), since inset grouped
-    /// sections round at the system's 20 pt or more (DESIGN.md §5.3, review P-19). Section titles there are rows
-    /// (`PhoneListHeading`), never pinned headers, so no title sits on a material.
-    func phoneGroupedList() -> some View { modifier(PhoneGroupedList()) }
-}
-
-private struct PhoneGroupedList: ViewModifier {
-    @Environment(\.look) private var look
-    func body(content: Content) -> some View {
-        if look.isNative {
-            content.listStyle(.insetGrouped)
-        } else {
-            content.listStyle(.plain).padding(.horizontal, 16)
-        }
-    }
-}
-
-/// A grouped row's background: Native's card, or in Verbose style the card fill with `Radius.tile` on the group's
-/// first row's top corners and its last row's bottom corners.
-struct PhoneListRowCard: View {
-    var first = false
-    var last = false
-    @Environment(\.look) private var look
-    var body: some View {
-        if look.isNative {
-            NativeInk.card
-        } else {
-            UnevenRoundedRectangle(topLeadingRadius: first ? Radius.tile : 0, bottomLeadingRadius: last ? Radius.tile : 0,
-                                   bottomTrailingRadius: last ? Radius.tile : 0, topTrailingRadius: first ? Radius.tile : 0,
-                                   style: .continuous)
-                .fill(Ink.card)
-        }
-    }
-}
-
-/// Verbose style's group title as a list row: mono 12 in `mute` on the paper, like Settings' group labels.
-struct PhoneListHeading: View {
-    var text: String
-    var body: some View {
-        Text(text).font(Ink.mono(12)).foregroundStyle(Ink.mute)
-            .padding(.top, 18).padding(.bottom, 2)
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 4, trailing: 4))
-            .moveDisabled(true)
-            .accessibilityAddTraits(.isHeader)
-    }
-}
-
 // MARK: - Type
 
 /// The website's eyebrow: a small outlined diamond and a mono label ("Friday, October 23", "Meeting · Thu Oct 22").
@@ -466,62 +382,6 @@ struct PhoneDayHeader: View {
 }
 
 // MARK: - Controls
-
-/// A soft filter chip: a rounded rectangle on the wash, ink with paper text when selected. Not a capsule. An optional
-/// color dot names the source it filters by.
-struct PhoneChip: View {
-    var label: String
-    var selected: Bool
-    var dot: Color? = nil
-    var count: Int? = nil
-    var action: () -> Void
-    @ScaledMetric(relativeTo: .subheadline) private var size: CGFloat = 13
-    @ScaledMetric(relativeTo: .subheadline) private var height: CGFloat = 32
-    @Environment(\.look) private var look
-
-    var body: some View {
-        if look.isNative { native } else { verbose }
-    }
-
-    /// Native (Premium): a 34 pt capsule, gray at rest and the label color with the page's color for text when
-    /// selected. No color dot: hue no longer names a source.
-    private var native: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Text(label)
-                if let count { Text("\(count)").monospacedDigit().opacity(0.7) }
-            }
-            .font(.system(size: size + 2, weight: selected ? .semibold : .regular))
-            .lineLimit(1)
-            .foregroundStyle(selected ? NativeInk.paper : NativeInk.label)
-            .padding(.horizontal, 14).frame(minHeight: height + 2)
-            .background(selected ? NativeInk.label : NativeInk.fill, in: Capsule())
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(count.map { "\(label), \($0)" } ?? label)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
-    private var verbose: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                if let dot { Circle().fill(dot).frame(width: 8, height: 8).accessibilityHidden(true) }
-                Text(label)
-                if let count { Text("\(count)").monospacedDigit().opacity(0.7) }
-            }
-            .font(.system(size: size, weight: .semibold))
-            .lineLimit(1)
-            .foregroundStyle(selected ? PhoneInk.chipOnText : Ink.ink)
-            .padding(.horizontal, 12).frame(minHeight: height)
-            .background(selected ? PhoneInk.chipOn : PhoneInk.wash, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(count.map { "\(label), \($0)" } ?? label)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-}
 
 /// The website's two-part switch (Original / Cleaned): a wash capsule track with the chosen part in ink.
 struct PhoneSegmented<T: Hashable>: View {
@@ -643,49 +503,6 @@ private extension View {
 
 // MARK: - Rows
 
-/// How a row's round mark looks: the source's panel color with its brand icon in ink, as on Home. Links are paper
-/// with an ink outline (the Live captions treatment is the tile, not the row; links read as "kept from the web").
-struct PhoneKindDot: View {
-    var transcript: Transcript
-    var size: CGFloat = 36
-    @Environment(\.look) private var look
-
-    var body: some View {
-        if look.isNative {
-            // Native: the kind's SF Symbol, tinted; no circle.
-            Image(systemName: NativeSymbol.kind(transcript))   // brand: native
-                .font(.system(size: size * 0.5))
-                .foregroundStyle(NativeInk.accent)
-                .frame(width: size * 0.75, height: size * 0.75)
-                .accessibilityHidden(true)
-        } else {
-            verbose
-        }
-    }
-
-    private var verbose: some View {
-        let style = Self.style(transcript)
-        return BrandGlyph(art: style.art, color: style.onFill, minLineWidth: 1.3)
-            .padding(size * 0.25)
-            .frame(width: size, height: size)
-            .background(Circle().fill(style.fill))
-            .overlay { if style.outline { Circle().strokeBorder(Ink.ink, lineWidth: 1.5) } }
-            .accessibilityHidden(true)
-    }
-
-    struct Style { var fill: Color; var onFill: Color; var art: BrandArt; var outline = false }
-
-    static func style(_ t: Transcript) -> Style {
-        if t.isDictation { return Style(fill: PhoneInk.butter, onFill: Ink.inkFixed, art: .iconDictations) }
-        if LibrarySource.isLink(t) { return Style(fill: Ink.card, onFill: Ink.ink, art: .iconLinks, outline: true) }
-        switch t.source {
-        case .app: return Style(fill: PhoneInk.petal, onFill: Ink.inkFixed, art: .iconVoice)
-        case .file: return Style(fill: PhoneInk.sage, onFill: Ink.inkFixed, art: .document)
-        default: return Style(fill: PhoneInk.record, onFill: Ink.inkFixed, art: .capture)
-        }
-    }
-}
-
 /// The title a recording's row shows. A thought still transcribing or one that failed can have no title, and some
 /// recordings keep a placeholder ("Thought", "Voice memo"); those rows show what it is and when instead: "Thought ·
 /// 2:09 AM", "Voice note · 4:12 PM". A row never shows an empty title line. `withTime` is off where the row already
@@ -703,70 +520,6 @@ enum PhoneRowTitle {
         else { what = trimmed }
         guard withTime else { return what }
         return "\(what) · \(Formats.style(date: .none, time: .short).string(from: t.createdAt))"
-    }
-}
-
-/// One recording as a flat row on the paper (Library, Home): the round source mark, the title (serif in Library,
-/// semibold sans on Home), a meta line, and on the right the state as a plain word and the length in mono. A
-/// hairline below; no card.
-struct PhoneFlatRow<Trailing: View>: View {
-    var transcript: Transcript
-    var serif = true
-    var meta: String
-    @ViewBuilder var trailing: () -> Trailing
-    @ScaledMetric(relativeTo: .body) private var titleSize: CGFloat = 19
-    @ScaledMetric(relativeTo: .body) private var sansSize: CGFloat = 15.5
-    @ScaledMetric(relativeTo: .footnote) private var metaSize: CGFloat = 13
-    @ScaledMetric(relativeTo: .body) private var dot: CGFloat = 36
-    @Environment(\.look) private var look
-
-    var body: some View {
-        if look.isNative { native } else { verbose }
-    }
-
-    /// Native: a standard list row (the container draws the card and separators): the tinted symbol, the title, the
-    /// meta line in secondary, and the trailing state.
-    private var native: some View {
-        HStack(spacing: 12) {
-            PhoneKindDot(transcript: transcript, size: min(dot, 48))
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
-                    if transcript.pinned {
-                        Image(systemName: "pin.fill").font(.caption2).foregroundStyle(NativeInk.secondary).accessibilityLabel("Pinned")   // brand: native
-                    }
-                    Text(PhoneRowTitle.title(transcript)).font(.body).foregroundStyle(NativeInk.label).lineLimit(1)
-                }
-                Text(meta).font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(1)
-            }
-            Spacer(minLength: 6)
-            trailing()
-        }
-        .padding(.vertical, 8)
-        .frame(minHeight: 56)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-    }
-
-    private var verbose: some View {
-        HStack(spacing: 12) {
-            PhoneKindDot(transcript: transcript, size: min(dot, 48))
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
-                    if transcript.pinned { IconGlyph(art: .iconPin, size: 12, color: Ink.mute).accessibilityLabel("Pinned") }
-                    Text(PhoneRowTitle.title(transcript))
-                        .font(serif ? Ink.serif(titleSize) : .system(size: sansSize, weight: .semibold))
-                        .foregroundStyle(.lookInk).lineLimit(1)
-                }
-                Text(meta).font(.system(size: metaSize)).foregroundStyle(.lookMute).lineLimit(1)
-            }
-            Spacer(minLength: 6)
-            trailing()
-        }
-        .padding(.vertical, 10).padding(.horizontal, 2)
-        .frame(minHeight: 64)
-        .overlay(alignment: .bottom) { Rectangle().fill(.lookHairline).frame(height: 1) }
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
     }
 }
 

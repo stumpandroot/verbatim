@@ -2,11 +2,10 @@ import SwiftUI
 
 /// What's new (the version at the foot of Settings, search, and Home's note): every build's
 /// notes, newest first, from the bundled ReleaseNotes.json (Verbatim/Model/ReleaseNotes.swift), grouped under version
-/// headers ("Version 1.0 beta"): the newest version open, older ones closed until tapped. Verbose style: the compact
-/// serif title, then one card per build with a mono eyebrow ("Build 203 · Oct 25"), its title in the serif, and its
-/// items under serif platform labels. Native: the large title and an inset grouped section per build, the build as
-/// its header and system footnote labels over each platform. Either way the items for this iPhone lead (iPhone, then
-/// Apple Watch), the Mac's fold under one "Also on Mac" row, and a line with a detail opens it in place, without
+/// headers ("Version 1.0 beta"): the newest version open, older ones closed until tapped. On the refined kit (DESIGN.md
+/// §13) in both look settings: the large serif title, then one card per build with the build and date in the meta
+/// style ("Build 203 · Oct 25"), its title in the section serif, and its items under semibold platform labels. The
+/// items for this iPhone lead (iPhone, then Apple Watch), the Mac's fold under one "Also on Mac" row, and a line with a detail opens it in place, without
 /// movement (`ReleaseNotes.summary`).
 struct WhatsNewScreen: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
@@ -17,8 +16,6 @@ struct WhatsNewScreen: View {
     /// Lines whose detail is open, by `lineKey`.
     @State private var detailsOpen: Set<String> = []
     @ScaledMetric(relativeTo: .body) private var itemSize: CGFloat = 15
-    @ScaledMetric(relativeTo: .headline) private var labelSize: CGFloat = 17
-    @Environment(\.look) private var look
     @AppStorage(ReleaseNotes.lastSeenKey) private var lastSeen = 0
     /// How many What's new screens are on screen, for the UI tour's checks. A count rather than a flag, so a screen
     /// that appears before the one it replaces has gone can't leave it stuck.
@@ -31,42 +28,38 @@ struct WhatsNewScreen: View {
         ScrollViewReader { proxy in
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if !look.isNative {
-                    PhoneCompactTitle(title: "What's new").padding(.top, 2)
-                }
+                LargeSerifTitle(title: "What's new")
+                    .padding(.top, 8)
+                    .accessibilityAddTraits(.isHeader)
                 if notes.isEmpty {
                     Text("The release notes aren't in this build.")
-                        .font(.system(size: 15)).foregroundStyle(.lookMute)
+                        .refinedFont(.body).foregroundStyle(Refined.mute)
                         .padding(.top, 18)
                 }
                 ForEach(Array(ReleaseNotes.byVersion(notes).enumerated()), id: \.element.id) { i, version in
                     let open = (i == 0) != toggled.contains(version.id)
                     versionHeader(version, open: open)
-                        .padding(.top, i == 0 ? (look.isNative ? 8 : 14) : 22)
+                        .padding(.top, i == 0 ? 14 : 22)
                     if open {
                         ForEach(Array(version.notes.enumerated()), id: \.element.id) { j, note in
-                            Group {
-                                if look.isNative { nativeSection(note) } else { verboseCard(note) }
-                            }
-                            .padding(.top, j == 0 ? (look.isNative ? 6 : 8) : (look.isNative ? 26 : 14))
+                            card(note)
+                                .padding(.top, j == 0 ? 8 : 14)
                         }
                     }
                 }
             }
-            .padding(.horizontal, look.isNative ? 16 : 20).padding(.bottom, 32)
+            .padding(.horizontal, 20).padding(.bottom, 32)
         }
         .onReceive(NotificationCenter.default.publisher(for: ReleaseNotes.showForTest)) { n in
             showForTest(n.object as? String, proxy: proxy)
         }
         }
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
         .navigationTitle("What's new")
-        .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // Verbose style puts the serif title on the paper.
-            if !look.isNative {
-                ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
-            }
+            // The serif title sits on the paper.
+            ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
         }
         .onAppear {
             Self.onScreen += 1
@@ -83,15 +76,12 @@ struct WhatsNewScreen: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookMute)
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.mute)
                     .rotationEffect(.degrees(open ? 90 : 0))
                     .frame(width: 14)
-                Group {
-                    if look.isNative { Text(version.heading).font(.title3.weight(.semibold)) } else { Text(version.heading).lookSerif(24) }
-                }
-                .foregroundStyle(.lookInk)
+                Text(version.heading).refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
                 Text("\(version.notes.count) build\(version.notes.count == 1 ? "" : "s")")
-                    .font(.system(size: 13)).foregroundStyle(.lookMute)
+                    .refinedFont(.meta).foregroundStyle(Refined.mute)
                 Spacer(minLength: 0)
             }
             .frame(minHeight: 44)
@@ -104,40 +94,25 @@ struct WhatsNewScreen: View {
         .accessibilityAddTraits([.isButton, .isHeader])
     }
 
-    /// Verbose style: a card with a hairline edge, the eyebrow, the serif title, and the items.
-    private func verboseCard(_ note: ReleaseNote) -> some View {
+    /// A build's card: the build and date, the title in the section serif, and the items.
+    private func card(_ note: ReleaseNote) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            PhoneEyebrow(text: note.heading)
+            Text(note.heading).refinedFont(.meta).foregroundStyle(Refined.mute)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(note.spokenHeading)
-            Text(note.title).lookSerif(22).foregroundStyle(.lookInk)
+            Text(note.title).refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-            items(note, size: 15)
+            items(note)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.lookCard, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.record, style: .continuous).strokeBorder(.lookHairline))
-    }
-
-    /// Native: an inset grouped section headed by the build, the title in semibold, then the items.
-    private func nativeSection(_ note: ReleaseNote) -> some View {
-        NativeGroup(header: note.heading) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(note.title).font(.headline).foregroundStyle(.lookInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-                items(note, size: 15)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
     }
 
     /// The items for this iPhone first (iPhone, then Apple Watch, each under its label), and the Mac's folded under
     /// "Also on Mac", closed until tapped. Nothing here animates: a detail or the fold opens in place.
-    private func items(_ note: ReleaseNote, size: CGFloat) -> some View {
+    private func items(_ note: ReleaseNote) -> some View {
         let sum = ReleaseNotes.summary(note.items, for: .phone)
         let alsoOpen = alsoOpened.contains(note.id)
         return VStack(alignment: .leading, spacing: 6) {
@@ -160,16 +135,10 @@ struct WhatsNewScreen: View {
         .transaction { $0.animation = nil }
     }
 
-    /// A platform's label: the serif in Verbose style, a system footnote header in Native. A header for VoiceOver.
+    /// A platform's label, in semibold ink. A header for VoiceOver.
     private func platformLabel(_ title: String) -> some View {
-        Group {
-            if look.isNative {
-                Text(title).font(.footnote.weight(.semibold)).foregroundStyle(.lookMute)
-            } else {
-                Text(title).lookSerif(labelSize).foregroundStyle(.lookInk)
-            }
-        }
-        .fixedSize(horizontal: false, vertical: true)
+        Text(title).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.ink)
+            .fixedSize(horizontal: false, vertical: true)
         .accessibilityAddTraits(.isHeader)
     }
 
@@ -186,8 +155,8 @@ struct WhatsNewScreen: View {
                 Text("\(count)").font(.system(size: itemSize - 1)).monospacedDigit()
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(.lookDim)
-            .frame(minHeight: 36)
+            .foregroundStyle(Refined.accentText)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -215,13 +184,13 @@ struct WhatsNewScreen: View {
                     if open { detailsOpen.remove(key) } else { detailsOpen.insert(key) }
                 } label: {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•").foregroundStyle(.lookMute).accessibilityHidden(true)
-                        Text(item.text).foregroundStyle(.lookInk)
+                        Text("•").foregroundStyle(Refined.mute).accessibilityHidden(true)
+                        Text(item.text).foregroundStyle(Refined.ink)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 4)
                         Image(systemName: "chevron.right")
                             .font(.system(size: max(11, itemSize - 4), weight: .semibold))
-                            .foregroundStyle(look.isNative ? NativeInk.accent : Ink.mute)
+                            .foregroundStyle(Refined.accentText)
                             .rotationEffect(.degrees(open ? 90 : 0))
                             .accessibilityHidden(true)
                     }
@@ -234,7 +203,7 @@ struct WhatsNewScreen: View {
                 .accessibilityHint(open ? "Shows less" : "Shows more")
                 .accessibilityAddTraits(.isButton)
                 if open {
-                    Text(detail).font(.system(size: itemSize - 1)).foregroundStyle(.lookDim)
+                    Text(detail).font(.system(size: itemSize - 1)).foregroundStyle(Refined.dim)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, 16)
                 }
@@ -242,8 +211,8 @@ struct WhatsNewScreen: View {
             .id(key)
         } else {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("•").foregroundStyle(.lookMute).accessibilityHidden(true)
-                Text(item.text).foregroundStyle(.lookInk)
+                Text("•").foregroundStyle(Refined.mute).accessibilityHidden(true)
+                Text(item.text).foregroundStyle(Refined.ink)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .font(.system(size: itemSize))
@@ -297,11 +266,11 @@ struct WhatsNewBanner: View {
                     open()
                 } label: {
                     HStack(spacing: 12) {
-                        LookIcon(art: .iconNotes, symbol: "sparkles", size: 22, color: Ink.ink, nativeColor: NativeInk.accent)
+                        IconSquare(art: .iconNotes, hue: .butter)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("What's new in build \(number)")
-                                .font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookInk)
-                            Text(note.title).font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(2)
+                                .refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                            Text(note.title).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(2)
                         }
                         Spacer(minLength: 4)
                     }
@@ -311,7 +280,7 @@ struct WhatsNewBanner: View {
                 .buttonStyle(.plain)
                 .accessibilityHint("Opens What's new")
                 Button { lastSeen = max(lastSeen, number) } label: {
-                    Image(systemName: "xmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookMute)
+                    Image(systemName: "xmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.mute)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
@@ -320,23 +289,9 @@ struct WhatsNewBanner: View {
                 .accessibilityHint("Hides this note")
                 .padding(.trailing, 4)
             }
-            .modifier(BannerSurface())
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
             .padding(.top, top)
             .transition(.opacity)
-        }
-    }
-
-    /// Verbose style: card white with a hairline and the row radius. Native: a grouped card.
-    private struct BannerSurface: ViewModifier {
-        @Environment(\.look) private var look
-        func body(content: Content) -> some View {
-            if look.isNative {
-                content.background(NativeInk.card, in: RoundedRectangle(cornerRadius: NativeMetrics.groupRadius, style: .continuous))
-            } else {
-                content
-                    .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.record, style: .continuous).strokeBorder(Ink.hairline))
-            }
         }
     }
 }

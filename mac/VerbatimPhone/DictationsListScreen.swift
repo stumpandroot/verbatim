@@ -5,14 +5,14 @@ import UIKit
 /// With Dictations in the tab bar, the list is that tab's root too.
 struct DictationsRoute: Hashable {}
 
-/// Every dictation, newest first, in the website style: "Dictations · 128 kept", a lede, mono day headers, and flat
-/// rows (the app's initial on a neutral square, the app and time, the words, the cleanup level when one was set, and
-/// "not pasted" in the accent when the words didn't land). Tap a row, or its round button, to copy the words; the
-/// button turns into a check for 1.6 seconds. A butter panel at the end (butter means Dictate) explains the keyboard.
+/// Every dictation, newest first, on the refined kit (DESIGN.md §13) in both look settings: the large serif title with
+/// "128 kept", a lede, serif day titles, and each day's dictations in a card (the app's initial on a neutral square, the
+/// app and time, the words, the cleanup level when one was set, and "not pasted" in the accent when the words didn't
+/// land). Tap a row, or its round button, to copy the words; the button turns into a check for 1.6 seconds. A butter
+/// card at the end (butter means Dictate) explains the keyboard.
 struct DictationsListScreen: View {
     @EnvironmentObject var app: PhoneState
     @State private var search = ""
-    @ScaledMetric(relativeTo: .body) private var ledeSize: CGFloat = 14
 
     private var items: [Transcript] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
@@ -30,50 +30,54 @@ struct DictationsListScreen: View {
         let order = days.keys.sorted(by: >)
         List {
             VStack(alignment: .leading, spacing: 6) {
-                PhoneCompactTitle(title: "Dictations", count: "\(keptCount) kept")
+                LargeSerifTitle(title: "Dictations", count: "\(keptCount) kept")
+                    .accessibilityElement(children: .combine)
                 Text("Everything you dictated with the Verbose keyboard, with the audio.")
-                    .font(.system(size: ledeSize)).foregroundStyle(.lookDim).lineSpacing(3)
+                    .refinedFont(.body).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            .padding(.top, 8)
+            .modifier(DictationPageRow())
             if items.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    if search.isEmpty { IconPlate(art: .iconDictations, size: 96) } else { EmptyStateArt(art: .search, tint: Ink.butterTint) }
-                    Text(search.isEmpty ? "No dictations yet." : "Nothing matches “\(search)”.").font(.system(size: 15)).foregroundStyle(.lookDim)
-                }
-                .padding(.top, 16)
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                RefinedEmptyState(art: .iconDictations, hue: .butter,
+                                  title: search.isEmpty ? "No dictations yet" : "No matches",
+                                  message: search.isEmpty ? "Switch to the Verbose keyboard in any app and tap the mic. What you say lands here too."
+                                                          : "Nothing matches \u{201C}\(search)\u{201D}.")
+                    .padding(.top, 16)
+                    .modifier(DictationPageRow())
             }
             ForEach(order, id: \.self) { day in
-                PhoneDayHeader(text: PhoneDayHeader.label(day))
-                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                ForEach(days[day] ?? []) { t in
+                SerifSectionTitle(PhoneDayHeader.label(day))
+                    .padding(.top, 22).padding(.bottom, 8)
+                    .modifier(DictationPageRow())
+                let list = days[day] ?? []
+                ForEach(Array(list.enumerated()), id: \.element.id) { i, t in
                     PhoneDictationRow(transcript: t)
+                        .overlay(alignment: .top) { if i > 0 { PaperDivider(leading: 44) } }
                         .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        .listRowBackground(PaperRowBackground(first: i == 0, last: i == list.count - 1))
+                        .listRowSeparator(.hidden)
                         .contextMenu {
-                            Button { open(t.id) } label: { Label("Open transcript", systemImage: "arrow.right") }
+                            Button { open(t.id) } label: { Label("Open transcript", systemImage: "arrow.right") }   // brand: system surface (menu)
                             RowActions(transcript: t)
                         }
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
                         }
                         .swipeActions(edge: .leading) {
-                            Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Ink.sageText)   // brand: system surface (swipe action)
+                            Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: t.pinned ? "pin.slash" : "pin") }   // brand: system surface (swipe action)
+                                .tint(Refined.accentText)
                         }
                 }
             }
-            keyboardPanel
-                .padding(.top, 16).padding(.bottom, 24)
-                .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            keyboardCard
+                .padding(.top, 22).padding(.bottom, 24)
+                .modifier(DictationPageRow())
         }
         .listStyle(.plain)
         .environment(\.defaultMinListRowHeight, 1)
         .scrollContentBackground(.hidden)
-        .phonePage()
+        .background(Refined.paper.ignoresSafeArea())
         .navigationTitle("Dictations")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
@@ -83,89 +87,90 @@ struct DictationsListScreen: View {
     /// Opens the transcript on whichever stack this list is on.
     private func open(_ id: UUID) { app.pushHere(id) }
 
-    /// The keyboard, explained: butter (Dictate) with grain and the lines drawing. Opens the keyboard's settings.
-    private var keyboardPanel: some View {
-        let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
-        return Button {
+    /// The keyboard, explained: a butter card (Dictate) with the keyboard's icon square. Opens the keyboard's settings.
+    private var keyboardCard: some View {
+        Button {
             SettingsPage.open("keyboard")
             app.tab = .settings
         } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                PhoneEyebrow(text: "Keyboard", color: Ink.inkFixed)
-                (Text("Dictate into ") + Text("any app.").italic())
-                    .lookSerif(21).foregroundStyle(.lookOnPanel)
-                Text("Hold the globe key to switch to the Verbose keyboard, then tap the mic.")
-                    .font(.system(size: 13.5)).foregroundStyle(.lookOnPanel).lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.trailing, 70)
+            HStack(alignment: .top, spacing: 14) {
+                IconSquare(art: .iconDictations, hue: .butter)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Dictate into any app").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                    Text("Hold the globe key to switch to the Verbose keyboard, then tap the mic.")
+                        .refinedFont(.hint).foregroundStyle(Refined.dim)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.faint)
+                    .padding(.top, 4)
             }
-            .padding(.horizontal, 16).padding(.vertical, 14)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                PhonePanelFill(color: PhoneInk.butter, shape: shape)
-                    .overlay(alignment: .topTrailing) {
-                        PhonePanelArt(kind: .lines).frame(width: 150, height: 100).offset(x: 20, y: -6)
-                    }
-                    .clipShape(shape)
-            }
-            .contentShape(shape)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+            .contentShape(Rectangle())
         }
-        .buttonStyle(PhoneCardPress())
+        .buttonStyle(RefinedPress())
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens the keyboard's settings.")
     }
 }
 
-/// One dictation: the app's initial on a neutral square, the app and time in a sans meta line, the words, and the
-/// cleanup level when one was set. Tapping anywhere copies the words; the round button turns into a check for 1.6
-/// seconds.
+/// A row of the page outside the cards: the page's margins, no background, no separator.
+private struct DictationPageRow: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+    }
+}
+
+/// One dictation, a row in its day's card: the app's initial on a neutral square, the app and time in the meta style,
+/// the words, and the cleanup level when one was set. Tapping anywhere copies the words; the round button turns into
+/// a check for 1.6 seconds.
 struct PhoneDictationRow: View {
     var transcript: Transcript
     @State private var copied = false
     @State private var copies = 0
     @Environment(\.limitMotion) private var limitMotion
-    @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 15.5
-    @ScaledMetric(relativeTo: .caption) private var small: CGFloat = 12.5
 
     var body: some View {
         Button { copy() } label: {
             HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 7) {
-                        Text(Self.initial(app)).font(.system(size: 11, weight: .semibold)).foregroundStyle(.lookDim)
-                            .frame(width: 18, height: 18)
-                            .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                            .accessibilityHidden(true)
-                        Text("\(app) · \(Formats.style(date: .none, time: .short).string(from: transcript.createdAt))")
-                            .font(.system(size: small)).monospacedDigit().foregroundStyle(.lookMute).lineLimit(1)
-                    }
+                Text(Self.initial(app)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.ink)
+                    .frame(width: 22, height: 22)
+                    .background(Refined.neutralSquare, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(app) · \(Formats.style(date: .none, time: .short).string(from: transcript.createdAt))")
+                        .refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1)
                     Text(HomeDictationText.body(transcript))
-                        .font(.system(size: textSize)).foregroundStyle(transcript.status == .failed ? Ink.danger : Ink.ink)
-                        .lineSpacing(4).lineLimit(8)
+                        .refinedFont(.body).foregroundStyle(transcript.status == .failed ? Refined.accentText : Refined.ink)
+                        .lineLimit(8)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
-                    if Self.statusLine(level: level, notPasted: notPasted) != nil { status.font(.system(size: small)) }
+                    if Self.statusLine(level: level, notPasted: notPasted) != nil { status.refinedFont(.meta) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 ZStack {
-                    Circle().fill(copied ? Ink.ink : Color.clear)
-                    Circle().strokeBorder(Ink.ink, lineWidth: 1.3)
+                    Circle().fill(copied ? Refined.persimmonTint : Refined.neutral)
                     if copied {
-                        Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Ink.paper)
+                        Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Refined.accentText)
                             .transition(.opacity)
                     } else {
-                        IconGlyph(art: .iconCopy, size: 15, color: Ink.ink).transition(.opacity)
+                        IconGlyph(art: .iconCopy, size: 15, color: Refined.ink).transition(.opacity)
                     }
                 }
                 .frame(width: 36, height: 36)
+                .frame(width: 44, height: 44)
                 .animation(limitMotion ? Motion.fade : .easeOut(duration: 0.18), value: copied)
                 .accessibilityHidden(true)
             }
-            .padding(.vertical, 14).padding(.horizontal, 2)
-            .overlay(alignment: .bottom) { Rectangle().fill(.lookHairline).frame(height: 1) }
+            .padding(.vertical, 10).padding(.leading, 14).padding(.trailing, 6)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(RefinedRowPress())
         .sensoryFeedback(trigger: copies) { _, _ in Haptics.feedback(.copied) }
         .accessibilityElement(children: .combine)
         .accessibilityValue(copied ? "Copied" : "")
@@ -184,10 +189,10 @@ struct PhoneDictationRow: View {
     /// land. Nothing when neither applies; every row here is a dictation, so it never says so.
     @ViewBuilder private var status: some View {
         HStack(spacing: 0) {
-            if let level { Text(level).foregroundStyle(.lookMute) }
+            if let level { Text(level).foregroundStyle(Refined.mute) }
             if notPasted {
-                if level != nil { Text(" · ").foregroundStyle(.lookMute) }
-                Text("not pasted").fontWeight(.semibold).foregroundStyle(.lookAccentText)
+                if level != nil { Text(" · ").foregroundStyle(Refined.mute) }
+                Text("not pasted").fontWeight(.semibold).foregroundStyle(Refined.accentText)
             }
         }
     }
