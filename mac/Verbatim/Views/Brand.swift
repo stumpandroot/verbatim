@@ -851,8 +851,8 @@ struct AIGeneratedNote: View {
         } icon: {
             ArtIcon(art: .iconAI, size: 13)
         }
-        .font(.system(size: 12))
-        .foregroundStyle(Ink.mute)
+        .font(.caption)
+        .foregroundStyle(Refined.mute)
         .accessibilityElement(children: .combine)
     }
 }

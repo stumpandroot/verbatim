@@ -26,20 +26,12 @@ struct AddFromLibrarySheet: View {
         let chosen = candidates.filter { selection.contains($0.id) }
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Add to \(projectName)").font(Ink.serif(28)).foregroundStyle(Ink.ink).lineLimit(1)
+                Text("Add to \(projectName)").refinedFont(.sectionTitle).foregroundStyle(Refined.ink).lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 12)
-                Eyebrow(text: selection.isEmpty ? "From your library" : "\(selection.count) selected")
+                Text(selection.isEmpty ? "From your library" : "\(selection.count) selected").refinedFont(.meta).foregroundStyle(Refined.mute)
             }
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(Ink.mute)
-                TextField("Search titles, tags, and text", text: $query).textFieldStyle(.plain).font(.system(size: 14))
-                if !query.isEmpty {
-                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(Ink.mute)
-                        .help("Clear the search")
-                }
-            }
-            .padding(.horizontal, 12).frame(height: 36)
-            .cardSurface(radius: Radius.button)
+            RefinedSearchField(text: $query, prompt: "Search titles, tags, and text")
             LibraryFilterBar(filter: $filter, items: candidates, searching: searching, wraps: true) { filter.save(LibraryFilter.addSheetKey) }
             kindChips(typed)
             list(shown)
@@ -48,18 +40,20 @@ struct AddFromLibrarySheet: View {
                 Button(!ids.isEmpty && ids.isSubset(of: selection) ? "Deselect all" : "Select all") {
                     if ids.isSubset(of: selection) { selection.subtract(ids) } else { selection.formUnion(ids) }
                 }
-                .buttonStyle(.plain).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink).disabled(shown.isEmpty)
+                .buttonStyle(.plain).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText).disabled(shown.isEmpty)
                 Spacer()
-                Button("Cancel") { dismiss() }.buttonStyle(PillButtonStyle(kind: .line, size: .regular)).keyboardShortcut(.cancelAction)
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(chosen.isEmpty ? "Add to \(projectName)" : "Add \(chosen.count) to \(projectName)") { add(chosen) }
-                    .buttonStyle(PillButtonStyle(kind: .dark, size: .regular))
+                    .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction).disabled(chosen.isEmpty)
                     .uiTarget("add-from-library-add")
             }
+            .controlSize(.large)
         }
         .padding(24)
         .frame(width: 720, height: 620)
-        .background(Ink.paper)
+        .background(Refined.paper)
+        .tint(Refined.accentText)
         .confirmationDialog(moveTitle(chosen), isPresented: $confirmMove) {
             Button("Move and add") { commit(chosen) }
             Button("Cancel", role: .cancel) { }
@@ -72,45 +66,40 @@ struct AddFromLibrarySheet: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 if shown.isEmpty {
-                    Text(query.isEmpty ? "Everything in your library is already in \(projectName)." : "Nothing found for “\(query)”.")
-                        .font(.system(size: 14)).foregroundStyle(Ink.mute)
+                    Text(query.isEmpty ? "Everything in your library is already in \(projectName)." : "Nothing found for \u{201C}\(query)\u{201D}.")
+                        .refinedFont(.body).foregroundStyle(Refined.mute)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(16)
                 }
                 ForEach(Array(shown.enumerated()), id: \.element.id) { i, t in
-                    if i > 0 { Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, 46) }
+                    if i > 0 { PaperDivider(leading: 48, trailing: 14) }
                     row(t)
                 }
             }
         }
-        .cardSurface(radius: Radius.row)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         .animation(limitMotion ? Motion.fade : Motion.settle, value: shown.map(\.id))
     }
 
     private func row(_ t: Transcript) -> some View {
         let on = selection.contains(t.id)
-        return Button { if on { selection.remove(t.id) } else { selection.insert(t.id) } } label: {
+        return PaperRowButton(selected: on, action: { if on { selection.remove(t.id) } else { selection.insert(t.id) } }) {
             HStack(spacing: 12) {
-                Image(systemName: on ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 17)).foregroundStyle(on ? Ink.ink : Ink.mute).frame(width: 22)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(t.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
-                    Text(Self.meta(t)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute).lineLimit(1)
+                RefinedCheckbox(on: on, size: 20).frame(width: 22)
+                KindBadge(kind: t.kind, size: 8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                    Text(Self.meta(t)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 if let other = t.projectId, let name = app.store.projects.first(where: { $0.id == other })?.name {
-                    Text("Moves from \(name)").font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.dim)
+                    Text("Moves from \(name)").refinedFont(.chip, weight: .medium).foregroundStyle(Refined.dim)
                         .padding(.horizontal, 8).frame(height: 22)
-                        .background(Ink.ink.opacity(0.06), in: Capsule())
+                        .background(Refined.neutral, in: Capsule())
                 }
             }
-            .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(on ? Ink.ink.opacity(0.05) : Color.clear)
-            .contentShape(Rectangle())
+            .padding(.horizontal, 14).padding(.vertical, 8)
         }
-        .buttonStyle(.plain)
         .accessibilityLabel("\(t.title), \(LibraryFilter.describe(t))")
-        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     /// The Library's kinds that have something here, as chips; a second click clears one.
@@ -120,7 +109,7 @@ struct AddFromLibrarySheet: View {
         if !kinds.isEmpty {
             FlowRow(spacing: 8, lineSpacing: 8) {
                 ForEach(kinds, id: \.self) { k in
-                    FilterChip(title: k.plural, count: counts[k] ?? 0, selected: kind == k) { kind = kind == k ? nil : k }
+                    RefinedChip(title: "\(k.plural) \u{00B7} \(counts[k] ?? 0)", selected: kind == k) { kind = kind == k ? nil : k }
                 }
             }
             .accessibilityElement(children: .contain).accessibilityLabel("Kind")

@@ -2,19 +2,17 @@ import SwiftUI
 import AppKit
 import os
 
-// brand: web style
-//
 // Link pieces other screens use: the stage progress bar, video stills, and link thumbnails. The Links screen and its
 // rows became the Library's Links filter in the consolidation (October 28, 2026).
 
-/// A thin progress bar (6 pt, the Record color on a hairline track) for a transcription in progress.
+/// A thin progress bar (6 pt, persimmon on the track) for a transcription in progress.
 struct StageProgressBar: View {
     var value: Double
     var body: some View {
         GeometryReader { g in
             ZStack(alignment: .leading) {
-                Capsule().fill(Ink.hairline)
-                Capsule().fill(Ink.recordFill).frame(width: max(6, g.size.width * min(1, max(0, value))))
+                Capsule().fill(Refined.track)
+                Capsule().fill(Refined.persimmon).frame(width: max(6, g.size.width * min(1, max(0, value))))
             }
         }
         .frame(height: 6)
@@ -38,26 +36,26 @@ struct FrameImage: View {
     var file: String
     var body: some View {
         // The rectangle sets the size; the still fills it and is clipped, so it never pushes the layout.
-        Rectangle().fill(Ink.track)
-            .overlay { ThumbImage(file: file, maxPixel: 900) { Rectangle().fill(Ink.track) } }
+        Rectangle().fill(Refined.track)
+            .overlay { ThumbImage(file: file, maxPixel: 900) { Rectangle().fill(Refined.track) } }
             .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
 struct Thumbnail: View {
     var info: LinkInfo
     var body: some View {
-        RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.track)
+        RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Refined.track)
             .overlay {
                 if let f = info.thumbnailFile {
-                    ThumbImage(file: f, maxPixel: 200) { IconGlyph(art: .iconPlay, size: 22, color: Ink.mute) }
+                    ThumbImage(file: f, maxPixel: 200) { IconGlyph(art: .iconPlay, size: 22, color: Refined.mute) }
                 } else {
-                    IconGlyph(art: .iconPlay, size: 22, color: Ink.mute)
+                    IconGlyph(art: .iconPlay, size: 22, color: Refined.mute)
                 }
             }
-        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Refined.separator))
     }
 }
 

@@ -213,23 +213,6 @@ extension PhoneState {
     }
 }
 
-extension RecordChoice {
-    /// The fine-line glyph (the Mac menus' custom symbols are made from the same ones).
-    var art: BrandArt {
-        switch self {
-        case .voiceNote: return .iconMic
-        case .kind(.meeting): return .iconSpeakers
-        case .kind(.interview): return .iconQuote
-        case .kind(.journal): return .iconNotes
-        case .kind(.talk): return .iconVoice
-        case .kind(.brainDump): return .iconBrainDump
-        case .kind(.audio): return .iconAudio
-        case .kind: return .iconMic
-        case .thought: return .iconThought
-        }
-    }
-}
-
 // MARK: - The press on Record
 
 extension View {
@@ -498,18 +481,6 @@ private extension View {
             .accessibilityAddTraits(.isModal)
             .accessibilityLabel("Record as")
             .accessibilityAction(.escape) { RecordTray.shared.close() }
-    }
-}
-
-extension RecordChoice {
-    /// The kind's color on its icon square (DESIGN.md §13's kinds): a voice note persimmon, a thought butter, and each
-    /// kind its own.
-    var refinedHue: RefinedHue {
-        switch self {
-        case .voiceNote: return RefinedRules.kindHue(nil)
-        case .kind(let k): return k.refinedHue
-        case .thought: return RecordingKind.idea.refinedHue
-        }
     }
 }
 

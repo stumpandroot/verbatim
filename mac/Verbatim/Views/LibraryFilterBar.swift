@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The Library's instant filters, shared by the Library (Mac and iPhone) and the Add from Library sheet: a row of type
-/// chips (All, Voice notes, Videos, …) with counts, and for Videos and Links a second row of platforms. Types with no
-/// transcripts are hidden. Selected chips are ink with paper text; nothing sits on glass.
+/// The instant type filters of the Add from Library sheet: a row of type chips (All, Voice notes, Videos, …) with
+/// counts, and for Videos and Links a second row of platforms, on the refined kit (`RefinedChip`). Types with no
+/// transcripts are hidden.
 struct LibraryFilterBar: View {
     @Binding var filter: LibraryFilter
     /// The transcripts the counts cover (already narrowed by project, kind, and search).
@@ -55,45 +55,15 @@ struct LibraryFilterBar: View {
         }
     }
 
-    #if os(macOS)
     private static let spacing: CGFloat = 8
-    /// Website style on Mac (DESIGN.md §11): soft rounded chips, each type with its source's color as a dot (links an
-    /// ink ring). Platforms have no dot.
     private func chip(_ label: String, _ n: Int, on: Bool, small: Bool = false, source: LibrarySource? = nil, target: String, action: @escaping () -> Void) -> some View {
-        FilterChip(title: label, count: n, dot: Self.dot(source), ring: source == .links, selected: on, small: small, action: action)
+        RefinedChip(title: "\(label) \u{00B7} \(n)", selected: on, action: action)
+            .accessibilityLabel(label)
+            .accessibilityValue("\(n)")
+            #if os(macOS)
             .uiTarget(target)
+            #endif
     }
-
-    static func dot(_ s: LibrarySource?) -> Color? {
-        switch s {
-        case .voiceMemos?: return Ink.panelRecord
-        case .videos?, .audioFiles?: return Ink.panelSage
-        case .appAudio?: return Ink.panelPetal
-        case .dictations?: return Ink.panelButter
-        default: return nil
-        }
-    }
-    #else
-    private static let spacing: CGFloat = 6
-    private func chip(_ label: String, _ n: Int, on: Bool, small: Bool = false, source: LibrarySource? = nil, target: String, action: @escaping () -> Void) -> some View {
-        let size: CGFloat = small ? 13 : 14, height: CGFloat = small ? 30 : 32, pad: CGFloat = small ? 12 : 14
-        return Button(action: action) {
-            HStack(spacing: 6) {
-                Text(label)
-                Text("\(n)").font(.system(size: size - 1)).monospacedDigit().opacity(0.75)
-            }
-            .font(.system(size: size, weight: small ? .medium : .semibold))
-            .foregroundStyle(on ? Ink.onInteractive : Ink.ink)
-            .padding(.horizontal, pad).frame(minHeight: height)
-            .background(on ? Ink.interactive : Ink.card, in: Capsule())
-            .overlay(Capsule().strokeBorder(on ? Color.clear : Ink.hairline))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(label), \(n)")
-        .accessibilityAddTraits(on ? .isSelected : [])
-    }
-    #endif
 }
 
 /// ⌥⌘ and the type's place in the list (All is 1).

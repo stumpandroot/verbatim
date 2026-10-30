@@ -7,9 +7,10 @@ struct ExportRequest: Identifiable, Equatable {
     var ids: [UUID]
 }
 
-/// The export sheet (approved mockup, October 2026): options on the left with the format at the top, a live preview
-/// of the actual output on the right, then Cancel, Copy, and Export…. SRT and VTT swap the options for subtitle
-/// settings. Every change is saved, so Copy elsewhere (⌘⇧C, the Copy button) uses the same options.
+/// The export sheet (approved mockup, October 2026), on the refined kit (DESIGN.md §13): options on the left with the
+/// format at the top, a live preview of the actual output on the right, then Cancel, Copy, and Export…. SRT and VTT
+/// swap the options for subtitle settings. Every change is saved, so Copy elsewhere (⌘⇧C, the Copy button) uses the
+/// same options.
 struct ExportSheet: View {
     @EnvironmentObject var app: AppState
     @Environment(\.dismiss) private var dismiss
@@ -27,14 +28,14 @@ struct ExportSheet: View {
         let ts = transcripts
         HStack(spacing: 0) {
             controls(ts).frame(width: 430)
-            Rectangle().fill(Ink.ink.opacity(0.10)).frame(width: 1)
+            Rectangle().fill(Refined.separator).frame(width: 1)
             previewPane(ts)
         }
         // Never taller than the window it hangs from, less 80 pt, so Cancel and Export stay on screen; the options
         // scroll instead (review M-28).
         .frame(width: 980, height: ExportSheet.height(window: app.mainWindow?.contentLayoutRect.height))
-        .background(Ink.paper)
-        .tint(Ink.switchOn)
+        .background(Refined.paper)
+        .tint(Refined.accentText)
         .onAppear { offsetText = Timecode.offsetText(options.timecodeOffset); refresh() }
         .onChange(of: options) { _, o in o.save(); refresh() }
         .onChange(of: format) { _, f in ExportOptions.savedFormat = f; refresh() }
@@ -50,9 +51,9 @@ struct ExportSheet: View {
     private func controls(_ ts: [Transcript]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Export").font(Ink.serif(30)).foregroundStyle(Ink.ink)
+                Text("Export").refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 12)
-                Text(tag(ts)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
+                Text(tag(ts)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
             }
             FormatControl(selection: $format)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -62,17 +63,18 @@ struct ExportSheet: View {
                 ScrollView { optionsCard(ts) }
             }
             if let note = footnote {
-                Text(note).font(.system(size: 12)).foregroundStyle(Ink.mute).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+                Text(note).refinedFont(.meta).foregroundStyle(Refined.mute).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
             HStack(spacing: 8) {
                 Spacer(minLength: 0)
-                Button("Cancel") { dismiss() }.buttonStyle(PillButtonStyle(kind: .line, size: .regular)).keyboardShortcut(.cancelAction)
-                Button("Copy") { copy(ts) }.buttonStyle(PillButtonStyle(kind: .line, size: .regular)).disabled(ts.isEmpty)
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Copy") { copy(ts) }.disabled(ts.isEmpty)
                     .keyboardShortcut("c", modifiers: [.command, .shift])
-                Button(ExportSheet.exportTitle(count: ts.count, batch: batch)) { export(ts) }.buttonStyle(PillButtonStyle(kind: .dark, size: .regular))
+                Button(ExportSheet.exportTitle(count: ts.count, batch: batch)) { export(ts) }.buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction).disabled(ts.isEmpty || offsetInvalid)
             }
+            .controlSize(.large)
         }
         .padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 18)
     }
@@ -83,7 +85,7 @@ struct ExportSheet: View {
         return max(420, min(660, window - 80))
     }
 
-    /// "Export…", or "Export 3 files…" for a batch: the whole label always fits its pill.
+    /// "Export…", or "Export 3 files…" for a batch: the whole label always fits its button.
     static func exportTitle(count: Int, batch: Bool) -> String {
         batch ? "Export \(count) \(count == 1 ? "file" : "files")…" : "Export…"
     }
@@ -119,7 +121,7 @@ struct ExportSheet: View {
             switch format {
             case .json:
                 Text("JSON includes everything: segments with word timings, speakers, moments, the summary, and details. The options don't change it.")
-                    .font(.system(size: 13)).foregroundStyle(Ink.dim).lineSpacing(2)
+                    .refinedFont(.body).foregroundStyle(Refined.dim).lineSpacing(2)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(14)
             case .srt, .vtt:
                 row("Speaker names", divider: true) { menu(ExportOptions.SpeakerMode.allCases, $options.speakerMode, \.captionLabel) }.disabled(!multi)
@@ -160,9 +162,8 @@ struct ExportSheet: View {
                 row("“Transcribed with Verbose” footer", divider: false) { toggle($options.provenance) }
             }
         }
-        .font(.system(size: 13.5))
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+        .refinedFont(.rowTitle)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
     }
 
     // MARK: Rows and controls
@@ -170,19 +171,19 @@ struct ExportSheet: View {
     private func row<C: View>(_ label: String, badge: String? = nil, detail: String? = nil, divider: Bool, @ViewBuilder control: () -> C) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Text(label).foregroundStyle(Ink.ink).lineLimit(1)
-                if let badge { Text(badge).font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(Ink.mute) }
-                if let detail { Text(detail).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.mute) }
+                Text(label).foregroundStyle(Refined.ink).lineLimit(1)
+                if let badge { Text(badge).font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(Refined.mute) }
+                if let detail { Text(detail).font(.system(size: 11)).monospacedDigit().foregroundStyle(Refined.mute) }
                 Spacer(minLength: 10)
                 control()
             }
             .padding(.horizontal, 14).frame(minHeight: 42)
-            if divider { Rectangle().fill(Ink.ink.opacity(0.07)).frame(height: 1) }
+            if divider { PaperDivider(leading: 14, trailing: 14) }
         }
     }
 
     private func toggle(_ b: Binding<Bool>) -> some View {
-        Toggle("", isOn: b).toggleStyle(.switch).labelsHidden().controlSize(.small)
+        Toggle("", isOn: b).toggleStyle(.switch).labelsHidden().controlSize(.small).refinedSwitchTint()
     }
 
     private func menu<T: Hashable & Identifiable>(_ all: [T], _ b: Binding<T>, _ label: KeyPath<T, String>) -> some View {
@@ -210,23 +211,23 @@ struct ExportSheet: View {
             Text(s)
             Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
         }
-        .foregroundStyle(Ink.dim)
+        .foregroundStyle(Refined.dim)
     }
 
     private func stepper<V: Strideable & Comparable>(_ b: Binding<V>, _ range: ClosedRange<V>, _ step: V.Stride, _ text: @escaping (V) -> String) -> some View {
         HStack(spacing: 8) {
-            Text(text(b.wrappedValue)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.dim).frame(minWidth: 44, alignment: .trailing)
+            Text(text(b.wrappedValue)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Refined.dim).frame(minWidth: 44, alignment: .trailing)
             Stepper("", value: b, in: range, step: step).labelsHidden().controlSize(.small)
         }
     }
 
     private var offsetField: some View {
         TextField("00:00:00", text: $offsetText)
-            .textFieldStyle(.plain).font(Ink.mono(12.5)).multilineTextAlignment(.trailing)
-            .foregroundStyle(offsetInvalid ? Ink.accentText : Ink.ink)
+            .textFieldStyle(.plain).font(.system(size: 12.5)).monospacedDigit().multilineTextAlignment(.trailing)
+            .foregroundStyle(offsetInvalid ? Refined.accentText : Refined.ink)
             .padding(.horizontal, 8).frame(width: 104, height: 24)
-            .background(Ink.paper, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(offsetInvalid ? Ink.accentText : Ink.hairline))
+            .refinedFieldBox()
+            .overlay { if offsetInvalid { RoundedRectangle(cornerRadius: RefinedPlatform.radius(.field), style: .continuous).strokeBorder(Refined.accentText) } }
             .help("Added to every time: hours, minutes, and seconds, such as 01:00:00")
             .onChange(of: offsetText) { _, v in
                 if let s = Timecode.parseOffset(v) { offsetInvalid = false; options.timecodeOffset = s } else { offsetInvalid = true }
@@ -238,14 +239,14 @@ struct ExportSheet: View {
     private func previewPane(_ ts: [Transcript]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             // The file's name as it will be saved, never uppercased (names are case-sensitive).
-            Text(previewTitle(ts)).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1).truncationMode(.middle)
+            Text(previewTitle(ts)).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1).truncationMode(.middle)
             if ts.isEmpty {
-                Text("Nothing to export yet. Transcripts still in progress are left out.").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                Text("Nothing to export yet. Transcripts still in progress are left out.").refinedFont(.body).foregroundStyle(Refined.mute)
                 Spacer()
             } else {
                 ScrollView {
                     Text(preview)
-                        .font(Ink.mono(12.5)).lineSpacing(7).foregroundStyle(Ink.ink)
+                        .font(.system(size: 13)).lineSpacing(6).foregroundStyle(Refined.ink)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
@@ -253,7 +254,7 @@ struct ExportSheet: View {
         }
         .padding(.horizontal, 28).padding(.vertical, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Ink.reader)
+        .background(Refined.card)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Preview")
     }
@@ -293,21 +294,12 @@ struct ExportSheet: View {
     }
 }
 
-/// The six formats in the shared view switch (DESIGN.md §11.15), as the transcript's modes and You's Week | Month;
-/// Native draws the system segmented control. Each format's note is its tooltip.
+/// The six formats in the kit's segmented control, sized to their titles. Each format's note is its tooltip.
 struct FormatControl: View {
     @Binding var selection: ExportFormat
     var body: some View {
-        SegmentedCapsule(label: "Format", options: ExportFormat.allCases, selection: $selection, title: { $0.short },
-                         small: true, help: { $0.note }, target: { "export-format-\($0.rawValue)" })
-    }
-}
-
-/// The sheet's bottom buttons, equal widths: regular pills (DESIGN.md §11.5), dark for the main one and line for the
-/// rest; Native draws its own faces.
-struct SheetButtonStyle: ButtonStyle {
-    var primary = false
-    func makeBody(configuration: Configuration) -> some View {
-        PillButtonStyle(kind: primary ? .dark : .line, size: .regular, fullWidth: true).makeBody(configuration: configuration)
+        RefinedSegmented(label: "Format", options: ExportFormat.allCases.map { ($0, $0.short) }, selection: $selection)
+            .fixedSize()
+            .help(selection.note)
     }
 }

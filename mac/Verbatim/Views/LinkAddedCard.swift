@@ -94,10 +94,8 @@ struct LinkCardOverlay: View {
         }
         .frame(width: folded ? metrics.tile : nil, height: folded ? metrics.tile : nil)
         // Sage: a link is an import (persimmon means Record).
-        .background(folded ? Ink.sage : Ink.card, in: shape)
-        .overlay(shape.strokeBorder(Ink.hairline).opacity(folded ? 0 : 1))
+        .background(folded ? Refined.sage : Refined.card, in: shape)
         .clipShape(shape)
-        .shadow(color: Ink.inkFixed.opacity(folded ? 0.1 : 0.12), radius: folded ? 3 : 4, y: 1)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Link added")
         .accessibilityAddTraits(.isModal)
@@ -105,7 +103,7 @@ struct LinkCardOverlay: View {
 
     @ViewBuilder private func scrim(in size: CGSize) -> some View {
         let r = scrimRect ?? CGRect(origin: .zero, size: size)
-        Ink.inkFixed.opacity(0.18)
+        Refined.onFill.opacity(0.18)
             .frame(width: r.width, height: r.height)
             .offset(x: r.minX, y: r.minY)
             .opacity(stage == .shown && !finishing ? 1 : 0)
@@ -230,12 +228,12 @@ struct LinkAddedCard: View {
             status
             if case .failed(let reason) = imp.phase {
                 Text(reason)
-                    .font(.system(size: 13.5)).foregroundStyle(Ink.dim)
+                    .refinedFont(.body).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            // Pills that say what happens to the download (review M-19): a line pill stops it, the dark pill closes the
-            // card and keeps it going.
+            // Buttons that say what happens to the download (review M-19): the quiet one stops it, the strong one closes
+            // the card and keeps it going.
             HStack(spacing: 8) {
                 Button(action: onCancel) { label(Self.cancelTitle(imp.phase)) }
                     .buttonStyle(LinkCardButtonStyle(dark: false))
@@ -283,10 +281,10 @@ struct LinkAddedCard: View {
     // MARK: Thumbnail
 
     private var thumbnail: some View {
-        let shape = RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: RefinedPlatform.radius(.square) + 4, style: .continuous)
         return ZStack {
             StripedPaper()
-            BrandGlyph(art: .diagramCapture, color: Ink.ink, minLineWidth: 1)
+            BrandGlyph(art: .diagramCapture, color: Refined.ink, minLineWidth: 1)
                 .frame(width: metrics.glyph, height: metrics.glyph)
             if let url = imp.thumbnailURL {
                 AsyncImage(url: url, transaction: Transaction(animation: Motion.fade)) { phase in
@@ -306,18 +304,18 @@ struct LinkAddedCard: View {
             if let site = imp.site, !site.isEmpty {
                 Text(site)
                     .font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
-                    .foregroundStyle(Color(hex: Ink.paperHex))
+                    .foregroundStyle(Refined.lift)
                     .padding(.horizontal, 7).padding(.vertical, 3)
-                    .background(Ink.inkFixed, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    .background(Refined.onFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                     .padding(10)
             }
         }
         .overlay(alignment: .bottomTrailing) {
             if let d = imp.duration, d > 0 {
                 Text(Self.clock(d))
-                    .font(Ink.mono(11)).foregroundStyle(Color(hex: Ink.paperHex))
+                    .font(.system(size: 11, weight: .semibold)).monospacedDigit().foregroundStyle(Refined.lift)
                     .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Ink.inkFixed.opacity(0.82), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    .background(Refined.onFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                     .padding(10)
                     .transition(.opacity)
             }
@@ -336,7 +334,7 @@ struct LinkAddedCard: View {
     @ViewBuilder private var title: some View {
         if let t = imp.title, !t.isEmpty {
             Text(t)
-                .font(Ink.serif(metrics.titleSize)).foregroundStyle(Ink.ink)
+                .font(.system(size: metrics.titleSize, design: .serif)).foregroundStyle(Refined.ink)
                 .lineLimit(3).lineSpacing(0)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -352,15 +350,15 @@ struct LinkAddedCard: View {
 
     private var status: some View {
         HStack(spacing: 10) {
-            // Plain sentence-case status, never an uppercase tracked label; the percent in mono.
+            // Plain sentence-case status, never an uppercase tracked label; the percent in tabular digits.
             Text(phaseText)
                 .font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
-                .foregroundStyle(failed ? Ink.danger : Ink.dim)
+                .foregroundStyle(failed ? Refined.ink : Refined.dim)
                 .fixedSize()
             if !failed {
                 ProgressRail(value: fraction)
                 Text(percentText)
-                    .font(Ink.mono(12)).monospacedDigit().foregroundStyle(Ink.dim)
+                    .font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Refined.dim)
                     .frame(minWidth: 38, alignment: .trailing)
             } else {
                 Spacer(minLength: 0)
@@ -390,15 +388,15 @@ struct LinkAddedCard: View {
     private var percentText: String { "\(Int((fraction * 100).rounded()))%" }
 }
 
-/// The card's two buttons as pills on the Mac and the iPhone, like every Verbose button (DESIGN.md §11.5): a line pill
-/// (1.5 pt ink outline) and a dark pill (ink fill, paper text).
+/// The card's two buttons on the Mac and the iPhone, the kit's actions (DESIGN.md §13): quiet (the neutral wash with
+/// ink text) and strong (ink with paper text).
 struct LinkCardButtonStyle: ButtonStyle {
     var dark: Bool
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(dark ? Ink.paper : Ink.ink)
+            .foregroundStyle(dark ? Refined.paper : Refined.ink)
             .background {
-                if dark { Capsule().fill(Ink.ink) } else { Capsule().strokeBorder(Ink.ink, lineWidth: 1.5) }
+                if dark { Capsule().fill(Refined.ink) } else { Capsule().fill(Refined.neutral) }
             }
             .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.8 : 1)
@@ -406,15 +404,15 @@ struct LinkCardButtonStyle: ButtonStyle {
     }
 }
 
-/// A 4 pt sage bar on a faint ink rail (links are imports).
+/// A 4 pt sage bar on the track (links are imports).
 struct ProgressRail: View {
     var value: Double
     var body: some View {
-        Capsule().fill(Ink.ink.opacity(0.1))
+        Capsule().fill(Refined.track)
             .frame(height: 4)
             .overlay(alignment: .leading) {
                 GeometryReader { g in
-                    Capsule().fill(Ink.sageText).frame(width: g.size.width * value)
+                    Capsule().fill(Refined.sageText).frame(width: g.size.width * value)
                 }
             }
             .animation(.linear(duration: 0.16), value: value)
@@ -426,14 +424,14 @@ struct ProgressRail: View {
 /// below show that the link is loading).
 struct ShimmerBar: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Ink.placeholder)
+        RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Refined.track)
     }
 }
 
 /// The thumbnail's stand-in: diagonal paper stripes, 10 pt each way.
 struct StripedPaper: View {
-    private static let a = Ink.stripeA
-    private static let b = Ink.stripeB
+    private static let a = Refined.field
+    private static let b = Refined.track
     var body: some View {
         Canvas { ctx, size in
             ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Self.a))
@@ -455,7 +453,7 @@ struct StripedPaper: View {
 
 /// The folded tile's icon: a fine-line video frame with a filled play triangle, in ink (24-unit grid).
 struct VideoTileIcon: View {
-    var color: Color = Ink.inkFixed
+    var color: Color = Refined.onFill
     var body: some View {
         Canvas { ctx, size in
             let s = min(size.width, size.height) / 24
@@ -481,10 +479,10 @@ struct CountPill: View {
     var body: some View {
         Text(text)
             .font(.system(size: 11, weight: .semibold)).monospacedDigit()
-            .foregroundStyle(Ink.dim)
+            .foregroundStyle(Refined.dim)
             .padding(.horizontal, 5)
             .frame(minWidth: 18, minHeight: 18)
-            .background(Ink.neutralChip, in: Capsule())
+            .background(Refined.neutral, in: Capsule())
             .scaleEffect(scale)
             .onChange(of: pops) { _, _ in pop() }
     }

@@ -45,6 +45,13 @@
           ],
           "text": "Templates, Ask, By day, and today's page have the new look.",
           "detail": "Cards on paper, serif titles, the kit's chips, and the persimmon tint on what you select. Plans tick off with the accent, and Send to Reminders is a sheet."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Dictations, Dictionary, Queue, Recently Deleted, and onboarding have the new look.",
+          "detail": "So do Edit Home, the Cleaned tab's toolbar, the link card, and the Export, Add from Library, multitrack, and microphone sheets."
         }
       ]
     },

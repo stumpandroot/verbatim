@@ -3158,7 +3158,8 @@ extension UITest {
         check("\(name): speaker colors follow who talks first (M-30)",
               SpeakerRotation.firstAppearance("S2", in: segs) == 0 && SpeakerRotation.firstAppearance("S1", in: segs) == 1
               && SpeakerRotation.firstAppearance("S3", in: segs) == nil)
-        check("\(name): the multitrack sheet uses the transcript's rotation (M-30)", MultitrackSheet.marks == SpeakerRotation.fills)
+        check("\(name): the multitrack sheet uses the transcript's speaker rotation (M-30)",
+              (0..<4).map { RefinedRules.speakerHue($0) } == [RefinedHue.persimmon, .petal, .sage, .butter])
         check("\(name): the Export sheet fits the window and names a batch (M-28)",
               ExportSheet.height(window: 620) == 540 && ExportSheet.height(window: nil) == 660 && ExportSheet.height(window: 300) == 420
               && ExportSheet.exportTitle(count: 3, batch: true) == "Export 3 files…" && ExportSheet.exportTitle(count: 1, batch: false) == "Export…")
