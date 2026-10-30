@@ -189,6 +189,108 @@ enum RefinedRules {
         }
     }
 
+    // MARK: The Record card's drawing
+
+    /// Where the Record card's rings and record disc sit. The rings are three circles on one vertical axis (radii
+    /// 120, 90, and 60 in a 300-unit square, centered at y 150, 180, and 210); the disc sits at the center of the
+    /// innermost one, so the two are placed together from one point: the disc's center, inset from the card's
+    /// trailing edge and from its bottom (or its middle, in the slim Compact row). The rings grow out of that point,
+    /// so the disc stays centered at every card size, with Dynamic Type, and in both palettes.
+    struct RecordArt: Equatable, Sendable {
+        /// The rings' square side.
+        var side: Double
+        /// The disc's diameter.
+        var disc: Double
+        /// The disc's center from the card's trailing edge.
+        var trailing: Double
+        /// The disc's center from the card's bottom edge; nil centers it vertically (Compact).
+        var bottom: Double?
+        /// The text's horizontal padding, for the room the text leaves the disc.
+        var padding: Double
+
+        /// The innermost ring's center in the rings' square, as fractions of its side (150/300, 210/300).
+        static let innerCenter = (x: 0.5, y: 0.7)
+
+        /// The disc's center on a card of this size.
+        func discCenter(width: Double, height: Double) -> (x: Double, y: Double) {
+            (width - trailing, bottom.map { height - $0 } ?? height / 2)
+        }
+
+        /// The rings' square on a card of this size: its top-left corner, so its innermost circle centers on the disc.
+        func ringOrigin(width: Double, height: Double) -> (x: Double, y: Double) {
+            let c = discCenter(width: width, height: height)
+            return (c.x - side * Self.innerCenter.x, c.y - side * Self.innerCenter.y)
+        }
+
+        /// The width the text keeps clear at its trailing edge, past its own padding, so it never runs under the disc.
+        var textReserve: Double { trailing + disc / 2 - padding }
+    }
+
+    /// iPhone: the mockup's 210 pt rings and 56 pt disc, the disc's center 59 pt from the trailing edge and 35 from the
+    /// bottom (on the 168 pt card that's the mockup's rings at right −46, top −14, and its disc at right 31, top 105).
+    /// Mac: 260 pt rings around the disc where the mockup puts it (22 pt in from the trailing edge, 18 from the
+    /// bottom). Compact: 140 pt rings around a 40 pt disc, centered in the slim row.
+    static func recordArt(mac: Bool, compact: Bool) -> RecordArt {
+        switch (mac, compact) {
+        case (false, false): return RecordArt(side: 210, disc: 56, trailing: 59, bottom: 35, padding: 18)
+        case (true, false): return RecordArt(side: 260, disc: 56, trailing: 50, bottom: 46, padding: 22)
+        case (false, true): return RecordArt(side: 140, disc: 40, trailing: 36, bottom: nil, padding: 16)
+        case (true, true): return RecordArt(side: 140, disc: 40, trailing: 40, bottom: nil, padding: 20)
+        }
+    }
+
+    // MARK: Tile patterns
+
+    /// A Home tile's quiet line pattern in its top-right corner (mockup: Home), by what the tile does.
+    enum TilePattern: String, CaseIterable, Sendable {
+        /// Dictate: stacked sine lines.
+        case waves
+        /// Import: stacked down-pointing chevrons.
+        case chevrons
+        /// What's playing and App audio: offset circles sharing one side.
+        case offsetCircles
+        /// New thought: short lines.
+        case shortLines
+        /// Live captions: caption lines of different lengths, centered in pairs.
+        case captionLines
+        /// Dictionary: an open book's page lines either side of its spine.
+        case pageLines
+        /// Journal: a page with its corner curling.
+        case pageCurl
+        /// Brain dump: checklist ticks with their lines.
+        case checklist
+        /// Projects: a folder with its tab, and one behind it.
+        case folderTab
+        /// Today's page: thought bubbles rising.
+        case bubbles
+        /// Dictations: one wave over ruled lines.
+        case dictationLines
+    }
+
+    /// The pattern for a tile, by `HomeTile`'s raw value. Every tile in the catalog has one; an unknown tile has none.
+    static func tilePattern(forTile raw: String) -> TilePattern? {
+        switch raw {
+        case "dictate": return .waves
+        case "import": return .chevrons
+        case "whatsPlaying", "appAudio": return .offsetCircles
+        case "newThought": return .shortLines
+        case "captions": return .captionLines
+        case "dictionary": return .pageLines
+        case "journal": return .pageCurl
+        case "brainDump": return .checklist
+        case "projects": return .folderTab
+        case "thoughtPad": return .bubbles
+        case "dictations": return .dictationLines
+        default: return nil
+        }
+    }
+
+    /// The pattern's ink: 13% on a Full fill, 9% on a Soft tint and on the off-white tile. Hidden under Increase
+    /// Contrast.
+    static func tilePatternInk(_ hue: RefinedHue, palette: AppPalette) -> RefinedHex.Wash {
+        hue != .neutral && palette == .full ? RefinedHex.patternFull : RefinedHex.patternSoft
+    }
+
     /// An icon square's side and the glyph inside it.
     static func squareSize(mac: Bool) -> (side: Double, glyph: Double) { mac ? (22, 16) : (30, 18) }
 
