@@ -225,6 +225,7 @@ One look replaces both Verbose style and Native on the Mac and iPhone (approved 
 | `field` | `#EBE5D9` | `#24332C` | | Search fields |
 | `track` | `#E8E2D6` | `#2A3A33` | | A segmented control's track |
 | `rail` | `#E0D9CB` | `#33433B` | | The Mac player's rail |
+| `side` | `#ECE6DA` | `#1C2A24` | | The Mac window's sidebar |
 | `ink` | `#26352E` | `#F5F0E6` | | Text |
 | `dim` | `#545E56` | `#D4CDC0` | `#26352E`, `#F5F0E6` | Secondary text, player times |
 | `mute` | `#606962` | `#A1A29A` | `#3E4A43`, `#D4CDC0` | Metadata, dates, counts |

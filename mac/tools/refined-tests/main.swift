@@ -60,6 +60,11 @@ for (sname, s) in surfaces {
     pair("mute on \(sname)", H.mute, .tone(s))
 }
 pair("accent text on paper", H.accentText, .tone(H.paper))
+// The Mac's sidebar: its labels, counts, headers, and the accent glyphs on the side gray, and a selected row's tint.
+for (n, t) in [("ink", H.ink), ("dim", H.dim), ("mute", H.mute), ("accent text", H.accentText)] {
+    pair("\(n) on the sidebar (side)", t, .tone(H.side))
+}
+pair("mute counts on the sidebar's selected row (persimmon tint)", H.mute, .tone(H.persimmonTint))
 pair("accent text on the card", H.accentText, .tone(H.card))
 pair("accent text on a selected chip or row (persimmon tint)", H.accentText, .tone(H.persimmonTint))
 pair("ink on a selected chip or row (persimmon tint)", H.ink, .tone(H.persimmonTint))
@@ -115,7 +120,7 @@ check("Increase Contrast darkens secondary text", H.dim.hcLight == H.ink.light &
 check("Increase Contrast strengthens separators", H.separator.hcLight > H.separator.light && H.separator.hcDark > H.separator.dark)
 check("Increase Contrast makes the player bar solid", H.glassFallback.hcLight == 1 && H.glassFallback.hcDark == 1)
 check("every tone has a dark value that differs from its light one, except the fixed ink and white",
-      [H.paper, H.card, H.field, H.track, H.rail, H.ink, H.dim, H.mute, H.faint, H.accentText, H.sageText, H.persimmon, H.butter,
+      [H.paper, H.card, H.field, H.track, H.rail, H.side, H.ink, H.dim, H.mute, H.faint, H.accentText, H.sageText, H.persimmon, H.butter,
        H.sage, H.petal, H.persimmonTint, H.butterTint, H.sageTint, H.petalTint, H.neutralSquare, H.played, H.waveRest, H.macSwitch]
         .allSatisfy { $0.light != $0.dark })
 
@@ -230,7 +235,7 @@ func read(_ path: String) -> String {
 }
 let views = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "."
 let mac = CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : ".."
-let kitFiles = ["RefinedKit.swift", "RefinedPlayback.swift"]
+let kitFiles = ["RefinedKit.swift", "RefinedPlayback.swift", "RefinedPages.swift"]
 for f in kitFiles {
     let s = read("\(views)/\(f)")
     check("\(f) has no color literals", s.range(of: #"0x[0-9A-Fa-f]{6}|Color\((red|\.sRGB|hex)"#, options: .regularExpression) == nil)
@@ -242,7 +247,8 @@ for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "K
           "LargeSerifTitle", "ReadingText", "GlassPlayerBar", "RecorderClockPanel", "PaperRow", "WeekCard", "RecordingCard",
           "RefinedActionStyle", "RefinedChip", "RefinedSearchField", "IconSquareRow", "PaperTable", "PaperRowBackground",
           "RefinedSegmented", "KindPickerChip", "RefinedTagChips", "RefinedCircleButton", "TurnTime", "MomentChip", "AudioPlayerCard",
-          "RecordingTimerCapsule", "MiniRecordingBar", "RecorderControl"] {
+          "RecordingTimerCapsule", "MiniRecordingBar", "RecorderControl", "RefinedPageHeader", "RefinedEmptyState",
+          "PaperRowButton", "PaperGroup", "RefinedStatus"] {
     check("the kit has \(c) with a preview", kit.contains("struct \(c)") && kit.contains("\(c)_Previews"))
 }
 check("the kit reads the palette from where Settings stores it", kit.contains("AppPalette.key, store: AppLook.store"))

@@ -474,7 +474,7 @@ private struct JournalLine: View {
                 .padding(.horizontal, 9).frame(height: 22)
                 .overlay(Capsule().strokeBorder(native ? PremiumInk.separator : Ink.ink, lineWidth: native ? 1 : 1.5))
                 .contentShape(Capsule())
-                .tapArea { NativeNav.shared.play(t, app: app) }
+                .tapArea { WindowNav.shared.play(t, app: app) }
                 .accessibilityLabel("Play, \(HomeRecentStyle.length(t.duration))")
                 .accessibilityAddTraits(.isButton)
                 .padding(.leading, 8 + (native ? 64 : 44) + 16).padding(.bottom, 12)

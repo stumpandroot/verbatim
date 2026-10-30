@@ -7,8 +7,8 @@ import UIKit
 // Recording on iPhone starts in the recorder sheet (RecorderSheet.swift). Minimize, a swipe down, or VoiceOver's escape
 // gesture minimizes it: the sheet goes away, and the recording carries on in `PhoneState.recorder`, which lives as long
 // as the app. The minimized recorder (`MiniRecordingBar`, the refined kit; one design in both looks) shows it on every
-// tab, with Pause or Resume and Stop: on a card above the tab bar in Verbose style, in the tab bar's bottom accessory in
-// Native (RecordAccessory.swift). Tapping it brings the sheet back. Minimizing never stops, pauses, or discards
+// tab, with Pause or Resume and Stop, in the tab bar's bottom accessory (RecordAccessory.swift; before iOS 26, an
+// opaque bar above the tab bar). Tapping it brings the sheet back. Minimizing never stops, pauses, or discards
 // anything: it only changes what's on screen.
 
 /// The minimized recorder's rules, as pure functions so the self-test can check them without a microphone.
@@ -195,26 +195,18 @@ final class RecordingLiveText: ObservableObject {
 
 // MARK: - The minimized recorder
 
-/// Places the minimized recorder just above the tab bar on a tab's content in Verbose style: the kit's bar on an opaque
-/// card with a hairline (it sits over scrolling content), never glass behind its text. A safe-area inset, so lists and
-/// scroll views end above it instead of under it. In Native the tab bar's accessory carries it (RecordAccessory.swift),
-/// and before iOS 26 an opaque bar above the tab bar does.
+/// Before iOS 26, where the tab bar has no bottom accessory: Record (or the live recording) in an opaque bar above the
+/// tab bar on a tab's content (`RecordBar`), in both look settings. A safe-area inset, so lists and scroll views end
+/// above it instead of under it. Off while you read a transcript, and on Home's own screen while its Record card is
+/// there. From iOS 26 the tab bar's accessory carries it (RecordAccessory.swift) and this adds nothing.
 struct MiniRecorderInset: ViewModifier {
     @EnvironmentObject var app: PhoneState
     var tab: PhoneState.Tab
-    @Environment(\.limitMotion) private var limitMotion
     @Environment(\.look) private var look
     @ObservedObject private var layouts = HomeLayoutStore.shared
 
-    private var showing: Bool {
-        RecorderPresentation.showsBar(recording: app.recorder.isRecording || app.previewRecording, saving: app.savingRecording)
-    }
-
-    /// Native before iOS 26: Record (or the live recording) in an opaque bar on every tab, where iOS 26 has the tab
-    /// bar's bottom accessory (RecordAccessory.swift). Off while you read a transcript, and on Home's own screen while
-    /// its Record card is there.
-    private var nativeBar: Bool {
-        look.isNative && !NativeRecordPlacement.systemAccessory && app.readingTranscripts == 0
+    private var showsBar: Bool {
+        !RecordPlacement.systemAccessory && app.readingTranscripts == 0
             && !HomeSpacing.hidesRecordAccessory(tab: tab, homeAtRoot: app.homePath.isEmpty, recording: app.recordingActive,
                                                  layout: layouts.layout(look.homeLook))
     }
@@ -222,22 +214,8 @@ struct MiniRecorderInset: ViewModifier {
     func body(content: Content) -> some View {
         content
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if look.isNative {
-                    if nativeBar { NativeRecordBar() }   // brand: native
-                } else if showing {
-                    let shape = RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous)
-                    PhoneMiniRecorder()
-                        .frame(height: 56)
-                        .background(Refined.card, in: shape)
-                        .overlay(shape.strokeBorder(Refined.separator, lineWidth: 1))
-                        .padding(.horizontal, 12)
-                        .padding(.top, 6)
-                        .padding(.bottom, 8)
-                        .accessibilityIdentifier("recorder.mini")
-                        .transition(limitMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-                }
+                if showsBar { RecordBar().accessibilityIdentifier("recorder.bar") }
             }
-            .animation(limitMotion ? Motion.fade : Motion.settle, value: showing)
     }
 }
 

@@ -384,6 +384,8 @@ enum PhoneUITest {
                 SettingsPage.open("root")
                 try? await Task.sleep(nanoseconds: 800_000_000)
             }
+            // Record in the tab bar's accessory, in the first look too (one design in both, DESIGN.md §16).
+            await recordAccessoryTour(app, suffix: "")
             // Edit Home in the first look (Verbose style on a fresh simulator), from Home's button.
             await editHomeTour(app, look: AppLook.current, suffix: "")
             // The tab bar (Settings › Tab bar) and Home's Today's thoughts and Journal, in the first look.
@@ -407,7 +409,7 @@ enum PhoneUITest {
                 if prefix == "p" {
                     homeLayoutCheck(.native)
                     lookCheck("Home in Native draws the Record card, and Record's accessory steps aside on Home",
-                              HomeProbe.sections[.record] != nil && (NativeRecordAccessory.onScreen == 0 || !NativeRecordPlacement.systemAccessory))
+                              HomeProbe.sections[.record] != nil && (RecordAccessory.onScreen == 0 || !RecordPlacement.systemAccessory))
                 }
                 // The rest of Home in Native: the same refined Home (light only, to keep the tour short).
                 if prefix == "p" {
@@ -417,7 +419,7 @@ enum PhoneUITest {
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
                 await whatsNewTour(app, prefix: prefix, suffix: "-native")
-                if prefix == "p" { await nativeRecordAsTour(app) }
+                if prefix == "p" { await recordAccessoryTour(app, suffix: "-native") }
                 // The record flow: the full-screen recorder with two marked moments (a stand-in recording; no
                 // microphone in the simulator), then the Saved sheet for a seeded recording (nothing is changed).
                 app.previewRecording = true
@@ -657,13 +659,13 @@ enum PhoneUITest {
         try? await Task.sleep(nanoseconds: 700_000_000)
     }
 
-    /// Record as in the Native look (RecordAccessory.swift; mockup "Verbose Native Redesign", sections 1, 4, and 5):
-    /// Record in the tab bar's bottom accessory on every tab, a tap as the plain voice note, the system menu's six ways
-    /// with the line under each, the live recording in the accessory, and the recorder sheet with its red stop. The
-    /// system menu itself can't be opened without a finger, so its contents are checked through `NativeRecordMenu`.
-    /// Light only; Run automatically and the tab are put back afterward.
-    private static func nativeRecordAsTour(_ app: PhoneState) async {
-        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") record as-native: \(name)") }
+    /// Record in the tab bar (RecordAccessory.swift; DESIGN.md §16), one design in both look settings: Record in the
+    /// tab bar's bottom accessory on every tab, a tap as the plain voice note, the system menu's ways with the line
+    /// under each, the live recording in the accessory, and the recorder sheet with its red stop. The system menu itself
+    /// can't be opened without a finger, so its contents are checked through `RecordAsMenu`. Light only; Run
+    /// automatically and the tab are put back afterward.
+    private static func recordAccessoryTour(_ app: PhoneState, suffix: String) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") record accessory\(suffix): \(name)") }
         let tray = RecordTray.shared
         let saved = TemplateSettingsModel.shared.settings
         var shown = AutoRunSettings()
@@ -674,20 +676,20 @@ enum PhoneUITest {
         app.tab = .home
         app.homePath = NavigationPath()
         try? await Task.sleep(nanoseconds: 700_000_000)
-        await show("p01t-record-accessory-native")
+        await show("p01t-record-accessory\(suffix)")
 
         // On every tab in the bar but Home, where the Record card stands in for it.
         var missing: [String] = []
         for t in app.tabBar.tabs where t != .home {
             app.tab = t
             try? await Task.sleep(nanoseconds: 700_000_000)
-            if NativeRecordAccessory.onScreen == 0 || !NativeRecordAccessory.showsRecord { missing.append(t.rawValue) }
+            if RecordAccessory.onScreen == 0 || !RecordAccessory.showsRecord { missing.append(t.rawValue) }
         }
         check("Record is in the tab bar's accessory on every tab but Home\(missing.isEmpty ? "" : " (missing on \(missing.joined(separator: ", ")))")", missing.isEmpty)
         app.tab = .home
         try? await Task.sleep(nanoseconds: 700_000_000)
-        if NativeRecordPlacement.systemAccessory {
-            check("on Home, the Record card takes the accessory's place", NativeRecordAccessory.onScreen == 0 && HomeProbe.sections[.record] != nil)
+        if RecordPlacement.systemAccessory {
+            check("on Home, the Record card takes the accessory's place", RecordAccessory.onScreen == 0 && HomeProbe.sections[.record] != nil)
         }
         check("no floating record disc is left on any tab", RecordTray.shared.floatingFrames.isEmpty)
         app.tab = .home
@@ -699,25 +701,25 @@ enum PhoneUITest {
         tray.override = nil
         check("the menu lists Voice note, Meeting, Interview, Journal entry, Talk, Thought, Brain dump, and Audio only",
               RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought", "Brain dump", "Audio only"])
-        check("Native symbols: Voice note mic, Audio only waveform, Brain dump the head",
+        check("menu symbols: Voice note mic, Audio only waveform, Brain dump the head",
               RecordChoice.voiceNote.nativeSymbol == "mic" && RecordChoice.kind(.audio).nativeSymbol == "waveform" && RecordChoice.kind(.brainDump).nativeSymbol == "brain.head.profile")
         check("Voice note's line says Verbose picks the kind",
-              NativeRecordMenu.hint(.voiceNote, settings: shown, templates: app.store.allTemplates) == "Verbose picks the kind")
+              RecordAsMenu.hint(.voiceNote, settings: shown, templates: app.store.allTemplates) == "Verbose picks the kind")
         check("a kind with a template says what runs",
-              NativeRecordMenu.hint(.kind(.meeting), settings: shown, templates: app.store.allTemplates) == "Runs Meeting notes when it finishes")
+              RecordAsMenu.hint(.kind(.meeting), settings: shown, templates: app.store.allTemplates) == "Runs Meeting notes when it finishes")
         check("a kind without one says what it does",
-              NativeRecordMenu.hint(.kind(.journal), settings: shown, templates: app.store.allTemplates) == RecordChoice.kind(.journal).fallbackHint)
+              RecordAsMenu.hint(.kind(.journal), settings: shown, templates: app.store.allTemplates) == RecordChoice.kind(.journal).fallbackHint)
 
         // The live recording in the accessory, then the recorder sheet for a Meeting.
         app.previewRecording = true
         app.recordKind = .meeting
         app.recorder.live.setElapsed(134)
         try? await Task.sleep(nanoseconds: 700_000_000)
-        await show("p01v-record-accessory-live-native")
-        check("while recording, the accessory is the live recording", NativeRecordAccessory.onScreen > 0 && !NativeRecordAccessory.showsRecord)
+        await show("p01v-record-accessory-live\(suffix)")
+        check("while recording, the accessory is the live recording", RecordAccessory.onScreen > 0 && !RecordAccessory.showsRecord)
         app.openRecorder()
-        await show("p02k-record-meeting-native")
-        check("the recorder is a sheet with a grabber, the same as Verbose style's", RecorderSheet.visible)
+        await show("p02k-record-meeting\(suffix)")
+        check("the recorder is a sheet with a grabber", RecorderSheet.visible)
         check("the recorder shows the picked kind", app.recordingChoice == .kind(.meeting))
         check("the recorder's stop is system red", RecorderSheet.stopColor.map { sameColor($0, .systemRed) } ?? false)
         app.minimizeRecorder()
@@ -1653,12 +1655,12 @@ enum PhoneUITest {
         try? await Task.sleep(nanoseconds: 800_000_000)
         app.tab = .home
         try? await Task.sleep(nanoseconds: 600_000_000)
-        if look.isNative {
-            // With the Record card hidden, Record's accessory comes back on Home.
+        if RecordPlacement.systemAccessory {
+            // With the Record card hidden, Record's accessory comes back on Home (both looks, DESIGN.md §16).
             store.update(hl) { $0.setVisible(.record, false) }
             try? await Task.sleep(nanoseconds: 900_000_000)
             check("Record comes back in the tab bar's accessory on Home while the Record card is hidden",
-                  NativeRecordAccessory.onScreen > 0 && HomeProbe.sections[.record] == nil)
+                  RecordAccessory.onScreen > 0 && HomeProbe.sections[.record] == nil)
             store.reset(hl)
             try? await Task.sleep(nanoseconds: 700_000_000)
         }

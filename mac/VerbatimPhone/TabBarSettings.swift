@@ -2,16 +2,15 @@ import SwiftUI
 
 /// Settings › Personalization and preferences › Tab bar (and Edit Home's Tab bar…): a live preview of the bar, then
 /// every tab you can add. Check up to three; drag the checked ones to reorder. Home stays first and Settings last.
-/// Changes reach the bar at once and are kept on this iPhone (PhoneTabBar.swift). Both looks, each in its own clothes.
+/// Changes reach the bar at once and are kept on this iPhone (PhoneTabBar.swift). On the refined kit (DESIGN.md §13)
+/// in both look settings: the large serif title, the preview with Record above the tabs, and the rows in cards.
 struct TabBarSettingsScreen: View {
     @EnvironmentObject var app: PhoneState
     /// Done, when presented as a sheet (from Edit Home). Nil when pushed from Settings.
     var onDone: (() -> Void)? = nil
     @ObservedObject private var store = PhoneTabBarStore.shared
     @ObservedObject private var recordAs = RecordAsStore.shared
-    @Environment(\.look) private var look
     @Environment(\.limitMotion) private var limitMotion
-    @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 34
     /// Whether the picker is on screen, for the self-test.
     static var visible = false
 
@@ -29,42 +28,37 @@ struct TabBarSettingsScreen: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
+            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
             Section {
-                if !look.isNative { PhoneListHeading(text: inBar(bar)) }
+                heading(inBar(bar))
                 fixedRow(.home)
                 ForEach(bar.middle, id: \.self) { t in row(t, picked: true, room: true) }
                     .onMove { from, to in animate { app.setTabBar(PhoneTabBar.move(bar.middle, fromOffsets: from, toOffset: to)) } }
                 fixedRow(.settings)
-            } header: {
-                if look.isNative { Text(inBar(bar)) }
             }
             .listSectionSeparator(.hidden)
             if !more.isEmpty {
                 Section {
-                    if !look.isNative { PhoneListHeading(text: "More tabs") }
+                    heading("More tabs")
                     ForEach(Array(more.enumerated()), id: \.element) { i, t in
                         row(t, picked: false, room: bar.middle.count < PhoneTabBar.maxMiddle, first: i == 0, last: i == more.count - 1)
                     }
-                    if !look.isNative, bar.middle.count >= PhoneTabBar.maxMiddle {
-                        Text(Self.fullNote).font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    if bar.middle.count >= PhoneTabBar.maxMiddle {
+                        Text(Self.fullNote).refinedFont(.meta).foregroundStyle(Refined.mute)
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 0, trailing: 4))
+                            .listRowInsets(EdgeInsets(top: 6, leading: 34, bottom: 0, trailing: 34))
                     }
-                } header: {
-                    if look.isNative { Text("More tabs") }
-                } footer: {
-                    if look.isNative, bar.middle.count >= PhoneTabBar.maxMiddle { Text(Self.fullNote) }
                 }
                 .listSectionSeparator(.hidden)
             }
         }
+        .listStyle(.plain)
         .environment(\.editMode, .constant(.active))
-        .phoneGroupedList()
+        .environment(\.defaultMinListRowHeight, 1)
         .scrollContentBackground(.hidden)
-        .phonePage()
-        .navigationTitle(look.isNative ? "Tab bar" : "")
-        .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
+        .background(Refined.paper.ignoresSafeArea())
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let onDone {
                 ToolbarItem(placement: .cancellationAction) {
@@ -87,18 +81,23 @@ struct TabBarSettingsScreen: View {
 
     // MARK: Pieces
 
-    @ViewBuilder private var intro: some View {
+    private var intro: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if !look.isNative {
-                PhoneEyebrow(text: "Personalization")
-                (Text("Tab ") + Text("bar").italic()).lookSerif(titleSize).foregroundStyle(.lookInk)
-                    .accessibilityAddTraits(.isHeader)
-            }
+            LargeSerifTitle(title: "Tab bar")
             Text("Home stays first and Settings last. Choose up to three tabs to go between them, and drag to reorder.")
-                .font(.system(size: 15)).foregroundStyle(.lookDim)
+                .refinedFont(.body).foregroundStyle(Refined.dim)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, 4)
+        .padding(.top, 4).padding(.bottom, 6)
+    }
+
+    /// A group's label over its card, in the meta style.
+    private func heading(_ text: String) -> some View {
+        Text(text).refinedFont(.meta).foregroundStyle(Refined.mute)
+            .accessibilityAddTraits(.isHeader)
+            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 14, leading: 34, bottom: 6, trailing: 34))
+            .moveDisabled(true)
     }
 
     private func inBar(_ bar: PhoneTabBar) -> String { "In the bar · \(bar.middle.count) of \(PhoneTabBar.maxMiddle)" }
@@ -108,115 +107,98 @@ struct TabBarSettingsScreen: View {
     /// Home or Settings: always in the bar, in place, with no checkbox.
     private func fixedRow(_ t: PhoneTab) -> some View {
         HStack(spacing: 12) {
-            PhoneTabGlyph(tab: t, size: 22).foregroundStyle(.lookMute).frame(width: 32)
+            PhoneTabGlyph(tab: t, size: 22).foregroundStyle(Refined.mute).frame(width: 32)
             VStack(alignment: .leading, spacing: 2) {
-                Text(t.title).font(look.isNative ? .body : .system(size: 16)).foregroundStyle(.lookInk).opacity(0.65)
-                Text(t.detail).font(.system(size: 13)).foregroundStyle(.lookMute)
+                Text(t.title).refinedFont(.body).foregroundStyle(Refined.dim)
+                Text(t.detail).refinedFont(.meta).foregroundStyle(Refined.mute)
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 3)
-        .listRowBackground(PhoneListRowCard(first: t == .home, last: t == .settings))
+        .padding(.vertical, 6)
+        .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+        .listRowInsets(EdgeInsets(top: 0, leading: 34, bottom: 0, trailing: 34))
+        .listRowBackground(PaperRowBackground(first: t == .home, last: t == .settings))
         .listRowSeparator(t == .settings ? .hidden : .automatic, edges: .bottom)
-        .listRowSeparatorTint(look.isNative ? nil : Ink.hairline)
+        .listRowSeparatorTint(Refined.separator)
         .moveDisabled(true)
         .accessibilityElement(children: .combine)
         .accessibilityValue(t == .home ? "Always first" : "Always last")
     }
 
-    /// A tab you can add: the check (or the empty circle), the tab's icon, its name, and what it opens. Tap to check or
+    /// A tab you can add: the check (or the plus), the tab's icon, its name, and what it opens. Tap to check or
     /// uncheck it.
     private func row(_ t: PhoneTab, picked: Bool, room: Bool, first: Bool = false, last: Bool = false) -> some View {
         Button {
             animate { app.setTabBar(PhoneTabBar.toggle(t, in: store.bar.middle)) }
         } label: {
             HStack(spacing: 12) {
-                check(picked)
-                PhoneTabGlyph(tab: t, size: 22).foregroundStyle(.lookInk).frame(width: 28)
+                Image(systemName: picked ? "checkmark.circle.fill" : "plus.circle")
+                    .font(.system(size: 22))
+                    .foregroundStyle(picked ? Refined.accentText : Refined.faint)
+                    .frame(width: 28, height: 28)
+                PhoneTabGlyph(tab: t, size: 22).foregroundStyle(Refined.ink).frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(t.title).font(look.isNative ? .body : .system(size: 16)).foregroundStyle(.lookInk)
-                    Text(t.detail).font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(2)
+                    Text(t.title).refinedFont(.body).foregroundStyle(Refined.ink)
+                    Text(t.detail).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(2)
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.vertical, 3)
+            .padding(.vertical, 6)
+            .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
             .opacity(picked || room ? 1 : 0.45)
             .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
         .disabled(!picked && !room)
-        .listRowBackground(PhoneListRowCard(first: first, last: last))
+        .listRowInsets(EdgeInsets(top: 0, leading: 34, bottom: 0, trailing: 34))
+        .listRowBackground(PaperRowBackground(first: first, last: last))
         .listRowSeparator(last ? .hidden : .automatic, edges: .bottom)
-        .listRowSeparatorTint(look.isNative ? nil : Ink.hairline)
+        .listRowSeparatorTint(Refined.separator)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(picked ? [.isButton, .isSelected] : .isButton)
         .accessibilityValue(picked ? "In the tab bar" : "Not in the tab bar")
         .accessibilityHint(picked ? "Takes it out of the tab bar." : room ? "Adds it to the tab bar." : "Uncheck a tab first.")
         .accessibilityIdentifier("tabbar.\(t.rawValue)")
     }
-
-    @ViewBuilder private func check(_ on: Bool) -> some View {
-        Group {
-            if look.isNative {
-                Image(systemName: on ? "checkmark.circle.fill" : "circle")   // brand: native
-                    .foregroundStyle(on ? NativeInk.accent : NativeInk.tertiary)
-            } else {
-                Image(systemName: on ? "checkmark.circle.fill" : "plus.circle")
-                    .foregroundStyle(Ink.ink)
-            }
-        }
-        .font(.system(size: 22))
-        .frame(width: 28, height: 28)
-    }
 }
 
-/// A tab's icon at any size: the BrandArt glyph in Verbose style, the SF Symbol in Native. Takes the foreground style.
+/// A tab's fine-line glyph at any size, as the tab bar draws it. Takes the foreground style.
 struct PhoneTabGlyph: View {
     var tab: PhoneTab
     var size: CGFloat
-    @Environment(\.look) private var look
 
     var body: some View {
-        Group {
-            if look.isNative {
-                Image(systemName: tab.symbol).font(.system(size: size * 0.8))   // brand: native
-            } else {
-                ArtIcon(art: tab.art, size: size, lineWidth: 1.5)
-            }
-        }
-        .frame(width: size, height: size)
-        .accessibilityHidden(true)
+        ArtIcon(art: tab.art, size: size, lineWidth: 1.5)
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 
-/// The live preview: the bar as it is now, each tab's icon over its name, Home lit as selected. Verbose style: an
-/// outlined card capsule; Native: a soft card capsule (a drawing of the system's glass bar, so no material here).
+/// The live preview: Record as the tab bar's accessory draws it, then the bar as it is now, each tab's glyph over its
+/// name, Home lit in the accent. A drawing of the system's glass bar on the card, so no material here.
 struct TabBarPreview: View {
     var bar: PhoneTabBar
-    @Environment(\.look) private var look
     /// For the self-test: the tabs the preview drew, left to right.
     static var shown: [PhoneTab] = []
 
     var body: some View {
         VStack(spacing: 6) {
-            // Native: Record in the tab bar's bottom accessory, above the tabs (RecordAccessory.swift).
-            if look.isNative {
-                HStack(spacing: 10) {
-                    NativeRecordDisc(size: 22)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("Record").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.label)
-                        Text("Voice note").font(.system(size: 11)).foregroundStyle(NativeInk.secondary)
-                    }
-                    Spacer(minLength: 0)
+            // Record in the tab bar's bottom accessory, above the tabs (RecordAccessory.swift).
+            HStack(spacing: 10) {
+                AccessoryRecordDisc(size: 22)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Record").font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.ink)
+                    Text("Voice note").font(.system(size: 11)).foregroundStyle(Refined.dim)
                 }
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(Capsule().fill(NativeInk.card))
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Capsule().fill(Refined.card))
             tabs
         }
         .animation(nil, value: bar)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Preview: \(bar.tabs.map(\.title).joined(separator: ", "))\(look.isNative ? ", with Record above the tabs" : "")")
+        .accessibilityLabel("Preview: \(bar.tabs.map(\.title).joined(separator: ", ")), with Record above the tabs")
         .onAppear { Self.shown = bar.tabs }
         .onChange(of: bar) { _, b in Self.shown = b.tabs }
     }
@@ -229,17 +211,11 @@ struct TabBarPreview: View {
                     PhoneTabGlyph(tab: t, size: 22)
                     Text(t.title).font(.system(size: 10, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
                 }
-                .foregroundStyle(on ? (look.isNative ? NativeInk.accent : Ink.ink) : (look.isNative ? NativeInk.secondary : Ink.mute))
+                .foregroundStyle(on ? Refined.accentText : Refined.dim)
                 .frame(maxWidth: .infinity)
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 9)
-        .background {
-            if look.isNative {
-                Capsule().fill(NativeInk.card)
-            } else {
-                Capsule().fill(Ink.card).overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5))
-            }
-        }
+        .background(Capsule().fill(Refined.card))
     }
 }

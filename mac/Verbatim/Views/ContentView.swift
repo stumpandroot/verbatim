@@ -4,31 +4,28 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @EnvironmentObject var app: AppState
     @Environment(\.openSettings) private var openSettings
-    @State private var sidebarOpen = true
     @State private var newProjectName = ""
     @ObservedObject private var rename = RenameCenter.shared
     @Environment(\.limitMotion) private var limitMotion
-    @Environment(\.look) private var look
-    /// The Native sidebar's visibility (NavigationSplitView); Verbose style uses `sidebarOpen`.
+    /// The sidebar's visibility (NavigationSplitView).
     @State private var columns: NavigationSplitViewVisibility = .all
-    /// The Native window's shared state (toolbar, inspector, Library selection). Held without observing it: only the
-    /// views that show a part of it re-render when it changes.
-    @State private var nativeNav = NativeNav.shared
+    /// The window's shared state (toolbar, inspector, Library selection). Held without observing it: only the views
+    /// that show a part of it re-render when it changes.
+    @State private var windowNav = WindowNav.shared
 
     var body: some View {
         if UITest.enabled { Log.note("UITEST render screen=\(screenKey) nav=\(app.navCount)") }
         LookSwitch.mark("main")
         // Only the main content rebuilds when the look changes (LookRebuild); the sheets below stay open.
-        return main.environmentObject(nativeNav).lookRebuild()
+        return main.environmentObject(windowNav).lookRebuild()
         // The "link added" card, in this view's coordinate space so its tile can fly from the content into the
         // sidebar's Queue item (anchored by the sidebar; no flight when the sidebar is hidden).
         .overlayPreferenceValue(QueueItemAnchor.self) { anchor in
             GeometryReader { g in
                 if let id = app.linkCardID, let imp = app.linkImports[id] {
-                    let side: CGFloat = look == .native ? 0 : (sidebarOpen ? 244 : 0)
                     LinkCardOverlay(imp: imp, metrics: .mac,
                                     target: anchor.map { g[$0] }.map { CGPoint(x: $0.midX, y: $0.midY) },
-                                    scrimRect: CGRect(x: side, y: 0, width: max(0, g.size.width - side), height: g.size.height),
+                                    scrimRect: CGRect(x: 0, y: 0, width: g.size.width, height: g.size.height),
                                     onCancel: { app.cancelLinkCard(id) },
                                     onRetry: { app.retryLinkCard(id) },
                                     onLanded: { app.linkCardLanded(id) },
@@ -37,10 +34,10 @@ struct ContentView: View {
                 }
             }
         }
-        .background(Ink.paper)
+        .background(Refined.paper)
         .background(WindowReader { w in if app.mainWindow !== w { app.mainWindow = w } })
-        // Search or ask (⌘K): the panel over the window (Views/AskViews.swift). Verbose style's one search field is the
-        // sidebar's, which opens it; Native keeps the toolbar's search field, and Return there asks.
+        // Search or ask (⌘K): the panel over the window (Views/AskViews.swift). The toolbar's search field is the
+        // window's one search field; Return there asks.
         .overlay { AskPanelLayer() }
         .onChange(of: app.search) { _, v in if !v.isEmpty, app.screen != .library { app.go(.library) } }
         .sheet(isPresented: $app.showMicSheet) { MicSheet() }
@@ -76,73 +73,35 @@ struct ContentView: View {
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
         .onAppear { LaunchClock.rootAppeared(); UITest.run(app: app); app.installLinkPasteMonitor(); NavTrail.shared.installMonitor(app) }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }
-        .lookTint(look)   // switches and checkboxes in brand sage (Verbose style) or the persimmon accent (Native)
+        // The chrome takes the accent (DESIGN.md §13): toolbar buttons, menus, and selection. Mac switches take
+        // `macSwitch` where they're drawn (`refinedSwitchTint()`).
+        .tint(Refined.accentText)
         .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app).lookRoot() }
     }
 
-    /// The sidebar and the screen: Verbose style's paper sidebar beside the screen, or Native's NavigationSplitView
-    /// with the standard sidebar (Settings lives in the app menu there, ⌘,), its one toolbar, and its inspector
-    /// (NativeChrome.swift).
-    @ViewBuilder private var main: some View {
-        if look == .native {
-            NativeWindow(nav: nativeNav, columns: $columns) { nativeDetail }
-                .searchable(text: $app.search, placement: .toolbar, prompt: "Search or ask")
-                .onSubmit(of: .search) { AskNav.shared.open(mode: .ask, query: app.search, askNow: true) }
-        } else {
-            HStack(spacing: 0) {
-                if sidebarOpen {
-                    Sidebar().frame(width: 244).transition(.asymmetric(insertion: limitMotion ? .opacity : .move(edge: .leading).combined(with: .opacity), removal: .identity))
-                }
-                detail
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
-                    Button { withAnimation(Motion.settle) { sidebarOpen.toggle() } } label: { Image(systemName: "sidebar.left") }
-                        .help("Hide or show the sidebar")
-                }
-                // While you record or capture an app's audio: the live timer capsule, as Native's toolbar shows it in
-                // Record's place (RecordingStatus.swift).
-                if app.recorder.isRecording || app.capture.isCapturing {
-                    ToolbarItem(id: "verbose.recording", placement: .primaryAction) { ToolbarRecordingStatus(onCard: true) }
-                }
-            }
-        }
+    /// The window (MacChrome.swift): the split view with the refined sidebar, one toolbar with Back and Forward, Record,
+    /// the screen's items, and the search field, and one inspector, in both look settings.
+    private var main: some View {
+        MacWindow(nav: windowNav, columns: $columns) { detail }
+            .searchable(text: $app.search, placement: .toolbar, prompt: "Search or ask")
+            .onSubmit(of: .search) { AskNav.shared.open(mode: .ask, query: app.search, askNow: true) }
     }
 
-    /// Native's screen: swapped in place, with no transition or animation, as Mail and Notes do. The id gives each
-    /// screen (and each transcript) its own identity, so its `onAppear` times the change. The system's window
-    /// background sits behind every screen; Record lives in the toolbar (NativeChrome.swift), so nothing floats over
-    /// the content.
-    private var nativeDetail: some View {
-        ZStack {
-            NativeInk.window.ignoresSafeArea()
-            screenView
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .onAppear {
-                    LookSwitch.mark("screen-appear")
-                    app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt, window: app.mainWindow) }
-                }
-                .screenRootMarker(screenKey)
-                .id(screenKey)
-        }
-        .overlay(alignment: .bottom) { ToastView() }
-    }
-
-    /// Verbose style's screen. One screen is in the window at a time: a navigation swaps the screen in a transaction with
-    /// no animation, so the outgoing screen leaves the hierarchy in the same update the new one arrives. (Build 215 and
+    /// The screen. One screen is in the window at a time: a navigation swaps the screen in a transaction with no
+    /// animation, so the outgoing screen leaves the hierarchy in the same update the new one arrives. (Build 215 and
     /// earlier faded the new screen in over the old on `navCount`: with an animated transaction, SwiftUI keeps a removed
     /// view until the animation ends, even with an `.identity` removal, so both screens showed for 120 to 150 ms and the
     /// outgoing one re-rendered with the navigation's publish.) Each screen draws its own paper, so it is opaque from its
     /// first frame. Opening or leaving a transcript still slides it 12 pt (`ScreenEntrance`); sidebar moves are instant,
     /// as switching tabs is a frequent action (motion rules: never animate those), and Limit Motion is instant for all.
+    /// Record lives in the toolbar (MacChrome.swift), so nothing floats over the content.
     private var detail: some View {
         ZStack {
-            Ink.paper
-            // Pin each screen to the space it has. Without this a wide screen pushes the whole row
-            // outward and the sidebar slides off the left edge.
+            Refined.paper.ignoresSafeArea()
+            // Pin each screen to the space it has, so a wide screen never pushes the window's columns.
             GeometryReader { g in
                 screenView.frame(width: g.size.width, height: g.size.height)
-                    .background(Ink.paper)
+                    .background(Refined.paper)
                     .modifier(ScreenEntrance(x: entranceOffset))
                     // Each screen change is timed from the click to here: a "Navigate" signpost always, and a
                     // UITEST TIMING line in the self-test.

@@ -416,6 +416,8 @@ targets:
       - Verbatim/Views/RefinedRules.swift
       - Verbatim/Views/RefinedKit.swift
       - Verbatim/Views/RefinedPlayback.swift
+      # The page parts the remaining screens share: headers, empty states, row buttons, groups, statuses, checkboxes.
+      - Verbatim/Views/RefinedPages.swift
       - Verbatim/Views/Brand.swift
       - Verbatim/Views/ThumbCache.swift
       - Verbatim/Views/HomeKit.swift

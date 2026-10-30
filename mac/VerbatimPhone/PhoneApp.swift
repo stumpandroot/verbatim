@@ -27,17 +27,19 @@ struct VerbatimPhoneApp: App {
         WindowGroup {
             PhoneRoot()
                 .environmentObject(app)
-                .phoneLookRoot()     // the tint: ink, or the Native accent
+                .phoneLookRoot()     // the tint outside the tabs (onboarding's cover sets its own)
                 .limitMotionRoot()   // Reduce Motion or Settings › Limit animation → \.limitMotion everywhere
                 .lookRoot()          // Settings › Appearance › Look → \.look everywhere (and in the keyboard)
         }
     }
 }
 
-/// The tabs in the system tab bar (Liquid Glass on iOS 26): Home, up to three you pick (Library and Thoughts unless you
-/// change them in Settings › Personalization and preferences › Tab bar), and Settings. Paper underneath. The recorder
-/// is a sheet in both looks (RecorderSheet.swift); minimized, the recording rides on a card above the tab bar in Verbose
-/// style (MiniRecorder.swift) and in the tab bar's bottom accessory in Native (RecordAccessory.swift).
+/// The tabs in the system tab bar (Liquid Glass on iOS 26, standard before; DESIGN.md §13 and §16), one design in both
+/// look settings: Home, up to three you pick (Library and Thoughts unless you change them in Settings › Personalization
+/// and preferences › Tab bar), and Settings, each with its fine-line glyph, the selected tab in the accent. Paper
+/// underneath. Record sits in the tab bar's bottom accessory on every tab but Home's own screen while its Record card
+/// is there, and the recording rides in it once minimized (RecordAccessory.swift); the recorder is a sheet
+/// (RecorderSheet.swift).
 struct PhoneRoot: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.scenePhase) private var scenePhase
@@ -46,7 +48,7 @@ struct PhoneRoot: View {
     @ObservedObject private var rename = RenameCenter.shared
     /// The tabs in the bar (PhoneTabBar.swift); the TabView follows a change at once.
     @ObservedObject private var tabBar = PhoneTabBarStore.shared
-    /// Home's layouts: Native's Record accessory steps aside on Home while its Record card is there.
+    /// Home's layouts: Record's accessory steps aside on Home while its Record card is there.
     @ObservedObject private var layouts = HomeLayoutStore.shared
     @Environment(\.look) private var look
     /// The look each tab you've left was last drawn in. A look switch rebuilds only the tab on screen; the others keep
@@ -58,13 +60,8 @@ struct PhoneRoot: View {
         tab == app.tab ? look : (tabLooks[tab] ?? look)
     }
 
-    /// A tab's icon: the brand line icon in Verbose style, its SF Symbol in Native.
-    private func tabIcon(_ art: BrandArt, _ key: String, _ symbol: String) -> Image {
-        look.isNative ? Image(systemName: symbol) : Image(uiImage: art.templateImage(size: 26, key: key))   // brand: native
-    }
-
-    /// Each tab's icon: its BrandArt glyph in Verbose style, its SF Symbol in Native (PhoneTabs.swift).
-    private func tabIcon(_ t: PhoneState.Tab) -> Image { tabIcon(t.art, "tab-\(t.rawValue)", t.symbol) }
+    /// Each tab's icon: its fine-line glyph as a template image, so the tab bar tints it (the accent when selected).
+    private func tabIcon(_ t: PhoneState.Tab) -> Image { Image(uiImage: t.art.templateImage(size: 26, key: "tab-\(t.rawValue)")) }
 
     /// The tabs in the bar, left to right, each drawn in its own look (`builtLook`) except Settings.
     private var tabs: some View {
@@ -78,12 +75,15 @@ struct PhoneRoot: View {
                     .tag(t)
             }
         }
-        // Native: Record in the tab bar's bottom accessory, and a tab bar that shrinks on scroll down (iOS 26;
-        // RecordAccessory.swift). On in both looks, so the tab view keeps its identity when the look changes. Off while
-        // you read a transcript, and on Home's own screen while its Record card is there (HomeSections.swift).
-        .nativeTabChrome(native: look.isNative, hidden: app.readingTranscripts > 0
+        // Record in the tab bar's bottom accessory, and a tab bar that shrinks on scroll down (iOS 26;
+        // RecordAccessory.swift). Off while you read a transcript, and on Home's own screen while its Record card is
+        // there (HomeSections.swift).
+        .recordTabChrome(hidden: app.readingTranscripts > 0
                          || HomeSpacing.hidesRecordAccessory(tab: app.tab, homeAtRoot: app.homePath.isEmpty,
                                                              recording: app.recordingActive, layout: layouts.layout(look.homeLook)))
+        // The selected tab, and the chrome's buttons, take the accent (DESIGN.md §13). iPhone switches keep the
+        // system's green (`refinedSwitchTint()`).
+        .tint(Refined.accentText)
         // The tab you leave keeps the look it was drawn in; the one you open follows the current look.
         .onChange(of: app.tab) { old, new in
             tabLooks[old] = look
@@ -127,7 +127,7 @@ struct PhoneRoot: View {
 
     @ViewBuilder private var loadingCover: some View {
         if !app.store.isLoaded {
-            LibraryLoadingView().background(look.isNative ? NativeInk.paper : Ink.paper).ignoresSafeArea()
+            LibraryLoadingView().background(Refined.paper).ignoresSafeArea()
         }
     }
 
@@ -138,7 +138,7 @@ struct PhoneRoot: View {
         .sheet(isPresented: $app.showRecorder) {
             RecorderSheet().environmentObject(app)
         }
-        // Native: Record as's Import, from Photos, files, or a link (RecordAccessory.swift).
+        // Record as's Import, from Photos, files, or a link (RecordAccessory.swift).
         .confirmationDialog("Import", isPresented: $app.showImportChoices, titleVisibility: .hidden) {
             Button("Choose from Photos") { app.showPhotoPicker = true }
             Button("Choose files…") { app.showImporter = true }
@@ -211,7 +211,7 @@ struct PhoneRoot: View {
         .sheet(isPresented: $app.showRecordAsEditor) { PhoneRecordAsEditor() }
         .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet().environmentObject(app) }
         .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }
-        // Native: Saved to Library, after Stop (SavedSheet.swift).
+        // Saved to Library, after Stop in Native (SavedSheet.swift).
         .sheet(item: $app.savedRecording) { s in NativeSavedSheet(saved: s).environmentObject(app) }
         // A pasted link that turned out to be a whole show or feed: pick the episode.
         .sheet(item: $app.episodeChoice) { choice in
@@ -235,9 +235,9 @@ struct PhoneRoot: View {
         }
         .overlay(alignment: .top) {
             if let t = app.toast {
-                Text(t).font(.system(size: 14, weight: .medium)).foregroundStyle(Ink.readerFixed)
+                Text(t).refinedFont(.hint, weight: .medium).foregroundStyle(Refined.paper)
                     .padding(.horizontal, 16).padding(.vertical, 10)
-                    .background(Ink.inkFixed, in: Capsule())
+                    .background(Refined.ink, in: Capsule())
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .accessibilityAddTraits(.updatesFrequently)
@@ -267,10 +267,11 @@ enum LookKeep {
 }
 
 private extension View {
-    /// A tab's stack in its own look: the look, its tint, and a fresh identity when the look changes.
+    /// A tab's stack in its own look: the look, the accent tint, and a fresh identity when the look changes (Home and
+    /// Edit Home keep a layout per look until the look switch goes).
     func tabLook(_ look: AppLook) -> some View {
         environment(\.look, look)
-            .tint(look.isNative ? nil : Ink.ink)   // Native: the system accent (blue), switches green
+            .tint(Refined.accentText)
             .id(look)
     }
 }

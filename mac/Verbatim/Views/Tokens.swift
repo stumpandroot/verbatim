@@ -349,6 +349,9 @@ enum RefinedHex {
     static let track = Tone(0xE8E2D6, 0x2A3A33)
     /// The Mac player's scrub rail and an off switch on the Mac.
     static let rail = Tone(0xE0D9CB, 0x33433B)
+    /// The Mac window's sidebar: a paper gray beside the page (mockup: every Mac board), with a persimmon tint on the
+    /// selected row.
+    static let side = Tone(0xECE6DA, 0x1C2A24)
 
     // Text
     static let ink = Tone(0x26352E, 0xF5F0E6)
@@ -425,6 +428,7 @@ enum Refined {
     static let field = color(RefinedHex.field)
     static let track = color(RefinedHex.track)
     static let rail = color(RefinedHex.rail)
+    static let side = color(RefinedHex.side)
     static let ink = color(RefinedHex.ink)
     static let dim = color(RefinedHex.dim)
     static let mute = color(RefinedHex.mute)

@@ -7,9 +7,8 @@ import AppKit
 /// Kind (its colored chip), People or source, Date, and Length, with alternating rows and the selected row in the
 /// persimmon tint. Every column sorts. A click selects (⌘-click adds, Shift-click a range), a double-click or Return
 /// opens, Space plays, the arrow keys move, and right-click has the row's menu (or the selection's). Rows drag onto a
-/// project in the sidebar. With more than one selected, a bar at the foot moves, exports, or deletes them. In Native
-/// the inspector previews the selection, and search is the toolbar's system field; Verbose style puts the field on the
-/// page. Back and the sidebar bring the Library back scrolled where you left it, with the row you opened selected
+/// project in the sidebar. With more than one selected, a bar at the foot moves, exports, or deletes them. The window's
+/// inspector previews the selection, and search is the toolbar's system field (MacChrome.swift). Back and the sidebar bring the Library back scrolled where you left it, with the row you opened selected
 /// (App/NavTrail.swift). A lazy table: a library of hundreds builds only the rows on screen.
 struct LibraryView: View {
     @EnvironmentObject var app: AppState
@@ -45,8 +44,6 @@ struct LibraryView: View {
         let order = rows.map(\.id)
         if UITest.enabled { Self.shownOrder = order }
         return VStack(spacing: 0) {
-            // Verbose style's window has no search field of its own; Native's is the toolbar's.
-            if look != .native { searchBar }
             GeometryReader { geo in
                 let margin = geo.size.width < 760 ? 24 : Self.margin
                 let width = min(Self.maxContent, max(320, geo.size.width - 2 * margin))
@@ -54,7 +51,7 @@ struct LibraryView: View {
                     ScrollView {
                         page(lists: lists, rows: rows, order: order, width: width)
                             .frame(width: width, alignment: .leading)
-                            .padding(.horizontal, margin).padding(.top, look == .native ? 18 : 6)
+                            .padding(.horizontal, margin).padding(.top, 18)
                             .padding(.bottom, selection.count > 1 ? 90 : 40)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             // Back and the sidebar bring the Library back where you left it (App/NavTrail.swift).
@@ -87,18 +84,18 @@ struct LibraryView: View {
         .overlay(alignment: .bottom) {
             if selection.count > 1 { actionBar(order: order).padding(.bottom, 18) }
         }
-        .onChange(of: app.projectFilter) { _, _ in selection = []; anchor = nil; NativeNav.shared.librarySelection = nil }
+        .onChange(of: app.projectFilter) { _, _ in selection = []; anchor = nil; WindowNav.shared.librarySelection = nil }
         .onChange(of: selection) { _, s in
             ScreenPlaces.shared.tableSelection = s
             // One row chosen: the inspector previews it, and Back comes back to it.
-            if s.count == 1, let id = s.first, NativeNav.shared.librarySelection != id { NativeNav.shared.librarySelection = id }
+            if s.count == 1, let id = s.first, WindowNav.shared.librarySelection != id { WindowNav.shared.librarySelection = id }
         }
         .onAppear {
             LookSwitch.mark("library-appear")
             KeptMedia.shared.refresh()
             Self.onScreen.insert(look)
             // Back and the sidebar bring the selection back with the Library.
-            if let s = NativeNav.shared.librarySelection ?? ScreenPlaces.shared.selectedRow(app.projectFilter), !selection.contains(s) {
+            if let s = WindowNav.shared.librarySelection ?? ScreenPlaces.shared.selectedRow(app.projectFilter), !selection.contains(s) {
                 selection = [s]; anchor = s
             }
         }
@@ -160,19 +157,6 @@ struct LibraryView: View {
     }
 
     private var projectName: String? { app.projectFilter.flatMap { app.store.projectsByID[$0]?.name } }
-
-    /// Search or ask on the page (Verbose style): the mockup's field at the top right. Return asks.
-    private var searchBar: some View {
-        HStack {
-            Spacer(minLength: 0)
-            RefinedSearchField(text: $app.search, prompt: "Search or ask", shortcut: "⌘K") {
-                AskNav.shared.open(mode: .ask, query: app.search, askNow: true)
-            }
-            .frame(width: 240)
-            .help("Search titles and every transcript's words. Return asks about them.")
-        }
-        .padding(.horizontal, 16).frame(height: 52)
-    }
 
     // MARK: Chips and sort
 
@@ -367,7 +351,7 @@ struct LibraryView: View {
         } else if flags.contains(.command) {
             if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
             anchor = id
-        } else if NativeNav.shared.isDoubleClick(on: id) {
+        } else if WindowNav.shared.isDoubleClick(on: id) {
             app.go(.transcript(id))
         } else {
             selection = [id]; anchor = id
@@ -395,7 +379,7 @@ struct LibraryView: View {
 
     private func playSelected() -> Bool {
         guard let t = single, t.audioFileName != nil, t.status == .ready else { return false }
-        NativeNav.shared.play(t, app: app); return true
+        WindowNav.shared.play(t, app: app); return true
     }
 
     /// Right-click: the row's menu, or the selection's when the row is part of a selection of more than one.
@@ -618,7 +602,7 @@ private struct LibraryTableRow: View {
 
     private func play(_ t: Transcript) {
         guard t.audioFileName != nil, t.status == .ready else { app.go(.transcript(t.id)); return }
-        NativeNav.shared.play(t, app: app)
+        WindowNav.shared.play(t, app: app)
     }
 }
 
@@ -748,7 +732,7 @@ struct PassageLine: View {
 /// as the transcript's inspector lists its parts; Apple draws the inspector.
 struct LibraryPreview: View {
     @EnvironmentObject var app: AppState
-    @ObservedObject var nav: NativeNav
+    @ObservedObject var nav: WindowNav
 
     var body: some View {
         let _ = LookSwitch.mark("library-preview")

@@ -227,7 +227,7 @@ struct HomeJournalMac: View {
                 // Play sits beside the entry's button, not inside it (macOS 26 click safety).
                 HStack(spacing: 12) {
                     if let t = latest, t.audioFileName != nil, t.status == .ready {
-                        Button { NativeNav.shared.play(t, app: app) } label: {
+                        Button { WindowNav.shared.play(t, app: app) } label: {
                             HStack(spacing: 6) {
                                 IconGlyph(art: .iconPlay, size: 11, color: Refined.ink)
                                 Text(HomeRecentStyle.length(t.duration)).monospacedDigit()

@@ -4,11 +4,9 @@ import AppKit
 /// A transcript in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", MacTranscript), one layout in both
 /// look settings: a centered 640 pt reading column on paper with the title in the serif, a meta line led by the kind's
 /// chip (and the project's), then each turn as the speaker's chip and the time over the serif reading text, and the
-/// glass player bar floating at the foot of the column. The bar above holds Back, the centered segmented control
-/// (Original, Cleaned, Summary, Review once something was corrected, and a template's result), Share, and More: the
-/// window's toolbar in Native, the page's own bar in Verbose style, where the window has no toolbar items of its own.
-/// The side column (Moments, Speakers, Export, Details) is Native's inspector, and a column beside the text in Verbose
-/// style. Keys: Space plays, ← and → move 5 seconds, B marks a moment, ⇧⌘C copies the tab, ⌥⇧⌘C copies for AI, and
+/// glass player bar floating at the foot of the column. The window's toolbar holds Back and Forward, the centered
+/// segmented control (Original, Cleaned, Summary, Review once something was corrected, and a template's result), Share,
+/// and More, and the side column (Moments, Speakers, Export, Details) is the window's inspector (MacChrome.swift). Keys: Space plays, ← and → move 5 seconds, B marks a moment, ⇧⌘C copies the tab, ⌥⇧⌘C copies for AI, and
 /// ⌘+ and ⌘− change the text size.
 struct TranscriptView: View {
     /// True while any text field or text view in the key window is being edited.
@@ -16,8 +14,6 @@ struct TranscriptView: View {
 
     @EnvironmentObject var app: AppState
     var id: UUID
-    /// Verbose style's side column: nil follows the inspector setting (and the window's width); set once you toggle it.
-    @State private var sidePref: Bool? = nil
     @State private var selectedSegment: UUID? = nil
     @State private var followed: UUID? = nil
     @State private var pendingSeek: Double? = nil
@@ -33,8 +29,8 @@ struct TranscriptView: View {
     @FocusState private var titleFocused: Bool
     @Environment(\.look) private var look
     /// The tab, text size, Follow, engine words, Select text, the selected passage, and the running action, shared
-    /// with Native's toolbar and inspector (NativeChrome.swift) and with the page's bar in Verbose style.
-    @EnvironmentObject private var nav: NativeNav
+    /// with the window's toolbar and inspector (MacChrome.swift).
+    @EnvironmentObject private var nav: WindowNav
 
     /// Raw values stay stable: UI tests, Home, and Fix all post them in `.verbatimShowMode`.
     enum Mode: String, CaseIterable {
@@ -77,15 +73,8 @@ struct TranscriptView: View {
 
     var body: some View {
         LookSwitch.mark("transcript")
-        // One sheet and one set of alerts for the screen. Native runs actions from the window's toolbar, which shows
-        // the same sheet (NativeChrome.swift).
+        // Actions run from the window's toolbar, which shows their sheet and Summarize's alert (MacChrome.swift).
         return screenBody
-            .sheet(item: look == .native ? .constant(nil) : $nav.runningAction) { a in
-                if let t = transcript { TranscriptActionSheet(action: a, transcript: t).environmentObject(app) }
-            }
-            .alert("Summaries need Apple Intelligence", isPresented: Binding(get: { look != .native && nav.summaryUnavailable != nil }, set: { if !$0 { nav.summaryUnavailable = nil } })) {
-                Button("OK", role: .cancel) {}
-            } message: { Text(nav.summaryUnavailable ?? "") }
             // Transcribe again with Whisper Turbo, from More (either look): what it does, the download when the model
             // isn't here, and that your edits stay with the words you can switch back to.
             .alert(TurboRerun.title + "?", isPresented: Binding(get: { app.turboAsk == id }, set: { if !$0, app.turboAsk == id { app.turboAsk = nil } })) {
@@ -96,39 +85,16 @@ struct TranscriptView: View {
 
     @ViewBuilder private var screenBody: some View {
         if let t = transcript {
-            GeometryReader { g in
-                // Verbose style's side column: beside the text when the window is wide, over it as a drawer when not.
-                let narrow = g.size.width < Self.column + 64 + 300
-                let sideOpen = look != .native && (sidePref ?? (nav.inspector && !narrow))
-                VStack(spacing: 0) {
-                    if look != .native { pageBar(t, sideOpen: sideOpen, narrow: narrow) }
-                    HStack(spacing: 0) {
-                        column(t)
-                        if sideOpen && !narrow {
-                            Rectangle().fill(Refined.separator).frame(width: 1).accessibilityHidden(true)
-                            TranscriptSide(transcript: t, nav: nav).frame(width: 300)
-                        }
-                    }
-                }
-                .overlay(alignment: .trailing) {
-                    if sideOpen && narrow {
-                        HStack(spacing: 0) {
-                            Rectangle().fill(Refined.separator).frame(width: 1)
-                            TranscriptSide(transcript: t, nav: nav)
-                        }
-                        .frame(width: 320)
-                        .padding(.top, look == .native ? 0 : 52)
-                    }
-                }
-            }
+            // The side column (Moments, Speakers, Export, Details) is the window's inspector (MacChrome.swift).
+            column(t)
             .background(Refined.paper)
             .background {
                 // Shortcuts live here once.
                 ZStack {
                     Button("") { ExportMenu.copy(t, copyVersion, app: app) }.keyboardShortcut("c", modifiers: [.command, .shift])
                     Button("") { CopyForAI.copy(t, app: app) }.keyboardShortcut("c", modifiers: [.command, .option, .shift])
-                    Button("") { nav.textSize = NativeNav.textSizes.clamp(nav.textSize + 1) }.keyboardShortcut("=", modifiers: .command)
-                    Button("") { nav.textSize = NativeNav.textSizes.clamp(nav.textSize - 1) }.keyboardShortcut("-", modifiers: .command)
+                    Button("") { nav.textSize = WindowNav.textSizes.clamp(nav.textSize + 1) }.keyboardShortcut("=", modifiers: .command)
+                    Button("") { nav.textSize = WindowNav.textSizes.clamp(nav.textSize - 1) }.keyboardShortcut("-", modifiers: .command)
                 }
                 .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
             }
@@ -173,53 +139,6 @@ struct TranscriptView: View {
         }
     }
 
-    // MARK: The page's bar (Verbose style)
-
-    /// Back, the centered segmented control, Share, More, and the side column's button, 52 pt tall (mockup
-    /// MacTranscript's toolbar). Native draws the same in the window's toolbar.
-    private func pageBar(_ t: Transcript, sideOpen: Bool, narrow: Bool) -> some View {
-        HStack(spacing: 6) {
-            RefinedCircleButton(symbol: "chevron.left", label: "Back to \(NavTrail.shared.backName(app))") { NavTrail.shared.back(app) }
-                .help("Back to \(NavTrail.shared.backName(app)) (⌘[)")
-                .uiTarget("transcript-back")
-            Spacer(minLength: 12)
-            Menu { TranscriptShareItems(transcript: t, nav: nav) } label: { barGlyph(Image(systemName: "square.and.arrow.up")) }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .disabled(t.status != .ready)
-                .help("Copy, or export as text, Markdown, Word, subtitles, or JSON")
-                .accessibilityLabel("Share")
-                .uiTarget("transcript-share")
-            Menu { TranscriptMoreItems(transcript: t, nav: nav) } label: { barGlyph(Image(systemName: "ellipsis")) }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .help("Mark a moment, record more, run a template or an action, summarize, review the fixes, or change the text size")
-                .accessibilityLabel("More")
-                .uiTarget("transcript-more")
-            Button {
-                sidePref = !sideOpen
-                if !narrow { nav.inspector = !sideOpen }
-            } label: {
-                barGlyph(IconGlyph(art: .iconNotes, size: 16, color: sideOpen ? Refined.accentText : Refined.ink))
-            }
-            .buttonStyle(RefinedPress())
-            .help(sideOpen ? "Hide moments, speakers, and details" : "Show moments, speakers, and details")
-            .accessibilityLabel("Moments and details")
-            .accessibilityValue(sideOpen ? "Shown" : "Hidden")
-            .uiTarget("transcript-side")
-        }
-        .overlay {
-            if t.status == .ready, !t.showsAudioDetail {
-                RefinedSegmented(options: Self.tabs(t, current: nav.mode, templates: app.store.allTemplates), selection: $nav.mode)
-                    .fixedSize()
-            }
-        }
-        .padding(.horizontal, 16).frame(height: 52)
-    }
-
-    private func barGlyph<V: View>(_ v: V) -> some View {
-        v.font(.system(size: 15, weight: .medium)).foregroundStyle(Refined.ink)
-            .frame(width: 30, height: 30).contentShape(Rectangle())
-    }
-
     // MARK: The reading column
 
     private func column(_ t: Transcript) -> some View {
@@ -231,7 +150,7 @@ struct TranscriptView: View {
                     content(t).padding(.top, 18)
                 }
                 .frame(maxWidth: Self.column, alignment: .leading)
-                .padding(.horizontal, 32).padding(.top, look == .native ? 14 : 18)
+                .padding(.horizontal, 32).padding(.top, 14)
                 .padding(.bottom, hasPlayer ? 104 : 40)
                 .frame(maxWidth: .infinity, alignment: .center)
             }

@@ -180,7 +180,8 @@ struct SidebarReorderDrop: DropDelegate {
 
 // MARK: - Customize sheet
 
-/// Every main item with a show/hide switch and a drag handle, plus Restore default order.
+/// Every main item with a show/hide switch and a drag handle, plus Restore default order: a sheet on paper with the
+/// rows in a card (the refined look, DESIGN.md §13).
 struct CustomizeSidebarSheet: View {
     @ObservedObject private var layout = SidebarLayout.shared
     @Environment(\.dismiss) private var dismiss
@@ -188,12 +189,11 @@ struct CustomizeSidebarSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Sidebar").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
-                Text("Customize sidebar").font(Ink.serif(32)).foregroundStyle(Ink.ink)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Customize sidebar").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
                 Text("Drag to change the order, and switch off what you don't use. Settings always stays at the bottom.")
-                    .font(.system(size: 13)).foregroundStyle(Ink.dim)
+                    .refinedFont(.body).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }
             List {
@@ -201,38 +201,39 @@ struct CustomizeSidebarSheet: View {
                     row(id)
                 }
                 .onMove { from, to in
-                    withAnimation(limitMotion ? nil : .spring(duration: 0.3, bounce: 0)) { layout.move(fromOffsets: from, toOffset: to) }
+                    withAnimation(limitMotion ? nil : .smooth(duration: 0.3)) { layout.move(fromOffsets: from, toOffset: to) }
                 }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .frame(height: CGFloat(layout.order.count) * 40 + 8)
-            .cardSurface(radius: Radius.tile)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
             HStack {
                 Button("Restore default order") {
-                    withAnimation(limitMotion ? nil : .spring(duration: 0.3, bounce: 0)) { layout.restoreDefault() }
+                    withAnimation(limitMotion ? nil : .smooth(duration: 0.3)) { layout.restoreDefault() }
                 }
-                .buttonStyle(.pillLine())
                 .disabled(layout.isDefault)
                 Spacer()
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.pillDark())
+                    .buttonStyle(.borderedProminent)
             }
+            .controlSize(.large)
         }
         .padding(28)
         .frame(width: 440)
-        .background(Ink.paper)
-        .tint(Ink.switchOn)
+        .background(Refined.paper)
+        .tint(Refined.accentText)
     }
 
     private func row(_ id: SidebarItemID) -> some View {
         let i = layout.index(id)
+        let hidden = layout.hidden.contains(id)
         return HStack(spacing: 12) {
-            Image(systemName: "line.3.horizontal").font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.mute)
+            Image(systemName: "line.3.horizontal").font(.system(size: 12, weight: .medium)).foregroundStyle(Refined.faint)
                 .accessibilityHidden(true)
-            IconGlyph(art: id.art, size: 17, color: layout.hidden.contains(id) ? Ink.faint : Ink.ink)
-            Text(id.title).font(.system(size: 13.5)).foregroundStyle(layout.hidden.contains(id) ? Ink.mute : Ink.ink)
+            IconGlyph(art: id.art, size: 16, color: hidden ? Refined.faint : Refined.accentText)
+            Text(id.title).refinedFont(.rowTitle).foregroundStyle(hidden ? Refined.mute : Refined.ink)
             Spacer(minLength: 8)
             // Keyboard: Tab to these, Space to press.
             Button { layout.nudge(id, by: -1) } label: { Image(systemName: "chevron.up") }
@@ -243,10 +244,11 @@ struct CustomizeSidebarSheet: View {
                 .help("Move down").accessibilityLabel("Move \(id.title) down")
             Toggle("Show \(id.title)", isOn: Binding(get: { !layout.hidden.contains(id) }, set: { layout.setHidden(id, !$0) }))
                 .toggleStyle(.switch).labelsHidden().controlSize(.small)
-                .disabled(!layout.hidden.contains(id) && !layout.canHide(id))
+                .refinedSwitchTint()
+                .disabled(!hidden && !layout.canHide(id))
         }
         .frame(height: 32)
         .listRowBackground(Color.clear)
-        .listRowSeparatorTint(Ink.hairline)
+        .listRowSeparatorTint(Refined.separator)
     }
 }

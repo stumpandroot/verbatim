@@ -22,8 +22,22 @@
           "platforms": [
             "iphone"
           ],
-          "text": "Minimized, a recording shows its time with Pause and Stop above the tab bar.",
-          "detail": "In Native it's in the tab bar, in the same design. Tap it to bring the recorder back."
+          "text": "Minimized, a recording shows its time with Pause and Stop in the tab bar.",
+          "detail": "It rides in the tab bar's accessory in both look settings. Tap it to bring the recorder back."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The sidebar and toolbar have the new look, with Settings at the foot of the sidebar.",
+          "detail": "The sidebar is a paper gray with each place's glyph in persimmon. Back, Forward, Record, and Search or ask sit in the toolbar in both look settings."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "The tab bar has the new look, with Record above it on every tab but Home.",
+          "detail": "Record sits in the tab bar's accessory in both look settings. Tap for a voice note, or touch and hold for Record as."
         }
       ]
     },

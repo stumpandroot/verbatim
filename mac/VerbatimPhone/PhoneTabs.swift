@@ -10,7 +10,7 @@ import SwiftUI
 struct LibraryRoute: Hashable { var request: String? = nil }
 
 extension PhoneTab {
-    /// The tab's line icon in Verbose style: BrandArt, as the other tabs use. Journal is the Mac sidebar's journal glyph.
+    /// The tab's fine-line glyph in the tab bar (both look settings). Journal is the Mac sidebar's journal glyph.
     var art: BrandArt {
         switch self {
         case .home: return .iconHome
@@ -23,20 +23,6 @@ extension PhoneTab {
         }
     }
 
-    // brand: native begin
-    /// The tab's SF Symbol in Native.
-    var symbol: String {
-        switch self {
-        case .home: return "house"
-        case .library: return "books.vertical"
-        case .thoughts: return "lightbulb"
-        case .journal: return "book"
-        case .dictations: return "text.bubble"
-        case .projects: return "folder"
-        case .settings: return "gearshape"
-        }
-    }
-    // brand: native end
 }
 
 extension PhoneState {
@@ -166,27 +152,48 @@ extension View {
 
 // MARK: - Projects tab
 
-/// The Projects tab: each project with how many recordings it holds, and New project. A project opens the Library on
-/// it, inside this tab.
+/// The Projects tab (refined kit, DESIGN.md §13): the large serif "Projects" with the count, then each project in a card
+/// with its folder square and how many recordings it holds, and New project in the navigation bar. A project opens the
+/// Library on it, inside this tab. With none, one card says what projects are and offers New project.
 struct ProjectsScreen: View {
     @EnvironmentObject var app: PhoneState
-    @Environment(\.look) private var look
     @State private var newProject = false
     @State private var projectName = ""
     /// For the self-test: whether the Projects tab's root is on screen.
     static var visible = false
 
     var body: some View {
-        Group {
-            if look.isNative { list.listStyle(.insetGrouped) } else { list.listStyle(.plain) }
+        let counts = app.store.memo("phone.project-counts") { () -> [UUID: Int] in
+            var counts: [UUID: Int] = [:]
+            for t in app.store.live where !t.isDictation { if let p = t.projectId { counts[p, default: 0] += 1 } }
+            return counts
         }
-        .environment(\.defaultMinListRowHeight, 1)
-        .scrollContentBackground(.hidden)
-        .phonePage()
-        .navigationTitle("Projects")
-        .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
+        let projects = app.store.projects
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                LargeSerifTitle(title: "Projects", count: HomeCounts.countLabel(projects.count, "project", "projects"))
+                    .accessibilityElement(children: .combine)
+                if projects.isEmpty {
+                    RefinedEmptyState(art: .iconProject, hue: .sage, title: "No projects yet",
+                                      message: "Projects group recordings. Make one here, or from a recording's menu.",
+                                      action: "New project") { newProject = true }
+                } else {
+                    PaperList(projects, id: \.id, inset: 56) { p in
+                        NavigationLink(value: LibraryRoute(request: "project:\(p.id.uuidString)")) {
+                            IconSquareRow(art: .iconProject, hue: .sage, title: p.name,
+                                          value: HomeCounts.countLabel(counts[p.id] ?? 0, "recording", "recordings"))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Opens the project in your library.")
+                    }
+                }
+            }
+            .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
+        }
+        .background(Refined.paper.ignoresSafeArea())
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !look.isNative { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { newProject = true } label: { Image(systemName: "plus") }.accessibilityLabel("New project")
             }
@@ -202,46 +209,5 @@ struct ProjectsScreen: View {
         }
         .onAppear { Self.visible = true }
         .onDisappear { Self.visible = false }
-    }
-
-    private var list: some View {
-        let counts = app.store.memo("phone.project-counts") { () -> [UUID: Int] in
-            var counts: [UUID: Int] = [:]
-            for t in app.store.live where !t.isDictation { if let p = t.projectId { counts[p, default: 0] += 1 } }
-            return counts
-        }
-        let projects = app.store.projects
-        return List {
-            if !look.isNative {
-                PhoneCompactTitle(title: "Projects", count: "\(projects.count)")
-                    .padding(.top, 4)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 8, trailing: 20))
-                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
-            }
-            if projects.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    if !look.isNative { IconPlate(art: .iconProject, size: 96) }
-                    Text("Projects group recordings. Make one here, or from a recording's menu.")
-                        .font(.system(size: 15)).foregroundStyle(.lookDim)
-                }
-                .padding(.top, 12)
-                .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-            }
-            ForEach(projects) { p in
-                NavigationLink(value: LibraryRoute(request: "project:\(p.id.uuidString)")) {
-                    HStack(spacing: 12) {
-                        if !look.isNative { IconGlyph(art: .iconProject, size: 18, color: Ink.ink) }
-                        Text(p.name).font(.system(size: 17, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
-                        Spacer(minLength: 8)
-                        Text(HomeCounts.countLabel(counts[p.id] ?? 0, "recording", "recordings")).font(.system(size: 14)).foregroundStyle(.lookMute)
-                    }
-                    .frame(minHeight: 48)
-                }
-                .accessibilityHint("Opens the project in your library.")
-                .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-                .listRowBackground(look.isNative ? NativeInk.card : Color.clear)
-            }
-        }
     }
 }

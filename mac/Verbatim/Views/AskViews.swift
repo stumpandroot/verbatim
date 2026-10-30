@@ -112,34 +112,7 @@ enum AskOpen {
         AskPlayer.shared.stop()
         AskNav.shared.close()
         app.focusSegment = s.segmentId
-        if let t = app.store.transcript(s.transcriptId) { NativeNav.shared.play(t, app: app) } else { app.go(.transcript(s.transcriptId)) }
-    }
-}
-
-// MARK: - The sidebar's field
-
-/// Verbose style's sidebar field, "Search or ask" with its ⌘K keycap: a click opens the panel.
-struct AskSidebarField: View {
-    @State private var hover = false
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.mute)
-            Text("Search or ask").font(.system(size: 13)).foregroundStyle(Ink.mute)
-            Spacer(minLength: 4)
-            Keycap(keys: "⌘K", size: 12).foregroundStyle(Ink.mute)
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 32)
-        .background(hover ? Ink.cardHover : Ink.card, in: Capsule())
-        .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5))
-        .contentShape(Capsule())
-        .onHover { hover = $0 }
-        .tapArea { AskNav.shared.open() }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Search or ask")
-        .accessibilityHint("Opens the search and ask panel. Keyboard shortcut Command K.")
-        .accessibilityAddTraits(.isButton)
-        .uiTarget("side-ask-field")
+        if let t = app.store.transcript(s.transcriptId) { WindowNav.shared.play(t, app: app) } else { app.go(.transcript(s.transcriptId)) }
     }
 }
 
