@@ -46,6 +46,8 @@ enum RecordingInputRules {
     /// Nil only when nothing is listed at all.
     static func choose(available: [RecordingInput], current: String?, chosen: String?) -> RecordingInput? {
         if let chosen, let c = available.first(where: { $0.uid == chosen }) { return c }
+        // "iPhone microphone" picked in the menu before the first recording, when iOS hadn't listed it yet.
+        if chosen == builtInPlaceholder, let b = available.first(where: { $0.kind == .builtIn }) { return b }
         if let current, let c = available.first(where: { $0.uid == current }), c.isAccessory { return c }
         for kind in accessoryOrder {
             if let c = available.first(where: { $0.kind == kind }) { return c }
@@ -149,6 +151,44 @@ enum RecordingInputRules {
         if let pinned, let p = available.first(where: { $0.uid == pinned }) { return p }
         return choose(available: available, current: nil, chosen: nil)
     }
+
+    // MARK: Waiting for AirPods
+
+    /// The Bluetooth headset a recording that's starting should wait for, or nil. On the first recording iOS lists
+    /// AirPods' microphone only a moment after the session turns into a recording session, so the rules saw only the
+    /// iPhone microphone and pinned it (build 248: the chip said AirPods, the recording came from the iPhone). When
+    /// the pick isn't an accessory, you didn't choose the iPhone microphone, and a headset on the output isn't listed
+    /// as an input yet, the recording starts without a pinned input and moves to the headset when iOS lists it.
+    static func awaited(picked: RecordingInput?, available: [RecordingInput], bluetoothOutputs: [RecordingInput], chosen: String?) -> RecordingInput? {
+        if picked?.isAccessory == true { return nil }
+        if let chosen, chosen == builtInPlaceholder || available.contains(where: { $0.uid == chosen && $0.kind == .builtIn }) { return nil }
+        let waiting = bluetoothOutputs.filter { arrived($0, in: available) == nil }
+        if let chosen, let c = waiting.first(where: { $0.uid == chosen }) { return c }
+        return waiting.first
+    }
+
+    /// The input that is the awaited headset, once iOS lists it: the same UID, or the same kind and name (AirPods'
+    /// output and input have different UIDs, and the high-quality link can relist them under another).
+    static func arrived(_ awaited: RecordingInput, in available: [RecordingInput]) -> RecordingInput? {
+        available.first(where: { $0.uid == awaited.uid && $0.kind == awaited.kind })
+            ?? available.first(where: { $0.kind == awaited.kind && $0.name == awaited.name })
+    }
+
+    /// Whether a running recording whose input just dropped out of the list waits for it instead of moving to the
+    /// best input left: a Bluetooth headset in the recording's first seconds (AirPods relisting as they come up on
+    /// their link), or one still on the output. AirPods taken out of your ears leave the output too, so after the
+    /// first seconds the recording moves at once.
+    static func waits(for lost: RecordingInput?, secondsIn: Double, bluetoothOutputs: [RecordingInput]) -> Bool {
+        guard let lost, lost.kind == .bluetooth else { return false }
+        return secondsIn < startWindow || bluetoothOutputs.contains { $0.name == lost.name }
+    }
+
+    /// The first seconds of a recording, when a headset that drops out is waited for.
+    static let startWindow: Double = 5
+
+    /// When a waiting recording looks for the headset again, in seconds; at the last, it settles on the best input
+    /// left (the iPhone microphone) with that input's mode.
+    static let awaitChecks: [Double] = [0.5, 1.5, 2.5, 4]
 }
 
 /// The recording-input rules, checked by the Linux tests (`mac/tools/test-recording-input.sh`) and by the iPhone's
@@ -224,5 +264,34 @@ enum RecordingInputChecks {
               && R.replan(moving: builtIn, soundOnly: true, highQualityAvailable: false, current: R.plan(for: airPods, soundOnly: true, highQualityAvailable: false)) == nil)
         check("route change: a move with no plan in force sets one up",
               R.replan(moving: builtIn, soundOnly: false, highQualityAvailable: true, current: nil) == .init(mode: .spokenAudio, highQuality: false))
+
+        // The first recording: iOS lists AirPods' microphone only after the session starts recording.
+        let firstList = [builtIn]
+        let firstPick = R.choose(available: firstList, current: nil, chosen: nil)
+        check("first recording: AirPods on the output but not listed yet are waited for, not the iPhone microphone pinned",
+              firstPick == builtIn && R.awaited(picked: firstPick, available: firstList, bluetoothOutputs: [output], chosen: nil) == output)
+        check("first recording: the waiting recording plans for AirPods (high-quality link in the default mode)",
+              R.plan(for: R.awaited(picked: firstPick, available: firstList, bluetoothOutputs: [output], chosen: nil), soundOnly: false, highQualityAvailable: true)
+              == .init(mode: .standard, highQuality: true))
+        check("first recording: nothing is waited for once AirPods are listed, or with no headset on the output",
+              R.awaited(picked: airPods, available: both, bluetoothOutputs: [output], chosen: nil) == nil
+              && R.awaited(picked: builtIn, available: both, bluetoothOutputs: [output], chosen: nil) == nil
+              && R.awaited(picked: builtIn, available: firstList, bluetoothOutputs: [], chosen: nil) == nil)
+        check("first recording: the iPhone microphone you chose is never traded for AirPods",
+              R.awaited(picked: builtIn, available: firstList, bluetoothOutputs: [output], chosen: R.builtInPlaceholder) == nil
+              && R.awaited(picked: builtIn, available: firstList, bluetoothOutputs: [output], chosen: builtIn.uid) == nil
+              && R.choose(available: both, current: nil, chosen: R.builtInPlaceholder) == builtIn)
+        check("first recording: AirPods you chose before they were listed are the ones waited for",
+              R.awaited(picked: builtIn, available: firstList, bluetoothOutputs: [output], chosen: output.uid) == output)
+        check("first recording: AirPods count as arrived by name when their input has another UID",
+              R.arrived(output, in: both) == airPods && R.arrived(output, in: firstList) == nil
+              && R.arrived(output, in: [RecordingInput(uid: "z", name: "AirPods Pro", kind: .wired)]) == nil)
+        check("route change: AirPods dropping out in the first seconds, or while still on the output, are waited for",
+              R.waits(for: airPods, secondsIn: 1, bluetoothOutputs: [])
+              && R.waits(for: airPods, secondsIn: 60, bluetoothOutputs: [output]))
+        check("route change: AirPods taken out later, or a wired input gone, move the recording at once",
+              !R.waits(for: airPods, secondsIn: 60, bluetoothOutputs: [])
+              && !R.waits(for: wired, secondsIn: 1, bluetoothOutputs: [output]) && !R.waits(for: nil, secondsIn: 1, bluetoothOutputs: [output]))
+        check("waiting: the last look is within a few seconds", (R.awaitChecks.last ?? 0) <= R.startWindow && R.awaitChecks == R.awaitChecks.sorted())
     }
 }

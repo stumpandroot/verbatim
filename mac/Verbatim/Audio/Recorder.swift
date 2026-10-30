@@ -620,26 +620,50 @@ enum RecordingRoute {
                                                    highQuality: highQualityAvailable)
         try RecordingRoute.setCategory(s, mode: mode(wide.mode), options: options(mixWithOthers: mixWithOthers, highQuality: wide.highQuality))
         let available = (s.availableInputs ?? []).map(input)
-        let picked = RecordingInputRules.choose(available: available, current: s.currentRoute.inputs.first?.uid, chosen: chosen)
+        let listed = RecordingInputRules.choose(available: available, current: s.currentRoute.inputs.first?.uid, chosen: chosen)
+        // AirPods playing audio whose microphone iOS hasn't listed yet (the first recording): plan for them and
+        // leave the input unpinned, so the session doesn't lock onto the iPhone microphone (`RecordingInputRules.awaited`).
+        let waiting = RecordingInputRules.awaited(picked: listed, available: available, bluetoothOutputs: bluetoothOutputs(s), chosen: chosen)
+        awaiting = waiting
+        let picked = waiting ?? listed
         let plan = RecordingInputRules.plan(for: picked, soundOnly: soundOnly, highQualityAvailable: highQualityAvailable)
         if plan != wide {
             try RecordingRoute.setCategory(s, mode: mode(plan.mode), options: options(mixWithOthers: mixWithOthers, highQuality: plan.highQuality))
         }
-        if pin, let picked, let port = s.availableInputs?.first(where: { $0.uid == picked.uid }) {
+        if pin, waiting == nil, let picked, let port = s.availableInputs?.first(where: { $0.uid == picked.uid }) {
             try? s.setPreferredInput(port)
         } else {
             try? s.setPreferredInput(nil)
         }
         lastPlan = plan
-        Log.note("audio session: \(plan.mode.rawValue) mode, high-quality AirPods \(plan.highQuality ? "asked" : "not asked"), input \(picked.map { "\($0.name) (\($0.kind.rawValue))" } ?? "iOS's choice")\(pin ? "" : ", not pinned")")
+        Log.note("audio session: \(plan.mode.rawValue) mode, high-quality AirPods \(plan.highQuality ? "asked" : "not asked"), input \(picked.map { "\($0.name) (\($0.kind.rawValue))" } ?? "iOS's choice")\(waiting != nil ? ", waiting for it to be listed" : "")\(pin ? "" : ", not pinned")")
         return picked
     }
 
+    /// The headset the last `prepare` is waiting for (on the output, not listed as an input yet), until `confirm`
+    /// finds it listed.
+    private(set) static var awaiting: RecordingInput? = nil
+
     /// After `setActive(true)`: sets the picked input again, now that the session controls the route (iOS can
-    /// ignore a preferred input set while the session is inactive).
-    static func confirm(_ picked: RecordingInput?, _ s: AVAudioSession = .sharedInstance()) {
-        guard let picked, let port = s.availableInputs?.first(where: { $0.uid == picked.uid }) else { return }
+    /// ignore a preferred input set while the session is inactive). Returns the input as iOS lists it, or nil when
+    /// it isn't listed (a headset `prepare` is still waiting for).
+    @discardableResult
+    static func confirm(_ picked: RecordingInput?, _ s: AVAudioSession = .sharedInstance()) -> RecordingInput? {
+        guard let picked else { return nil }
+        let ports = s.availableInputs ?? []
+        guard let found = RecordingInputRules.arrived(picked, in: ports.map(input)),
+              let port = ports.first(where: { $0.uid == found.uid }) else { return nil }
+        if awaiting != nil {
+            awaiting = nil
+            Log.note("audio session: \(port.portName) listed once the session started")
+        }
         if s.currentRoute.inputs.first?.uid != port.uid || s.preferredInput?.uid != port.uid { try? s.setPreferredInput(port) }
+        return found
+    }
+
+    /// The Bluetooth headsets on the output, as inputs (AirPods playing audio).
+    static func bluetoothOutputs(_ s: AVAudioSession = .sharedInstance()) -> [RecordingInput] {
+        s.currentRoute.outputs.filter { kind($0.portType) == .bluetooth }.map(input)
     }
 
     /// Mid-recording (the microphone menu, or the automatic move when the recording's input goes): moves the session
@@ -691,8 +715,7 @@ enum RecordingRoute {
     static func knownInputs(_ s: AVAudioSession = .sharedInstance()) -> [RecordingInput] {
         let records = s.category == .playAndRecord || s.category == .record
         let listed = (s.availableInputs ?? []).map(input) + s.currentRoute.inputs.map(input)
-        let outputs = s.currentRoute.outputs.filter { kind($0.portType) == .bluetooth }.map(input)
-        return RecordingInputRules.known(inputs: listed, bluetoothOutputs: outputs, sessionRecords: records)
+        return RecordingInputRules.known(inputs: listed, bluetoothOutputs: bluetoothOutputs(s), sessionRecords: records)
     }
 
     /// The input the next recording will use (`chosen` is a pick waiting for it).
@@ -901,8 +924,8 @@ final class Recorder: ObservableObject {
         let session = AVAudioSession.sharedInstance()
         let picked = try RecordingRoute.prepare(session, soundOnly: soundOnly, chosen: chosenInputUID)
         try session.setActive(true)
-        RecordingRoute.confirm(picked, session)
-        chosenInput = picked
+        chosenInput = RecordingRoute.confirm(picked, session)
+        awaitingInput = chosenInput == nil ? RecordingRoute.awaiting : nil
         #endif
         if keepWarm {
             CaptureStep.set("dictation: starting")
@@ -954,6 +977,14 @@ final class Recorder: ObservableObject {
     /// recording moves to the best input left (`RecordingInputRules.afterRouteChange`).
     private func pinCurrentInput() {
         let s = AVAudioSession.sharedInstance()
+        if let awaited = awaitingInput {
+            // AirPods iOS hasn't listed yet: no pinned input, so iOS can route to them as they come up.
+            try? s.setPreferredInput(nil)
+            pinnedInputUID = nil
+            Log.note("recorder: waiting for \(awaited.name) to be listed; iOS routes meanwhile")
+            waitForAwaitedInput(afterLoss: false)
+            return
+        }
         let available = s.availableInputs ?? []
         let port = chosenInput.flatMap { c in available.first(where: { $0.uid == c.uid }) }
             ?? s.currentRoute.inputs.first.flatMap { cur in available.first(where: { $0.uid == cur.uid }) }
@@ -972,14 +1003,23 @@ final class Recorder: ObservableObject {
     func useInput(_ uid: String) -> RecordingInput? {
         chosenInputUID = uid
         guard isRecording, !keepWarm else { return nil }
-        let s = AVAudioSession.sharedInstance()
-        guard let picked = RecordingRoute.move(to: uid, soundOnly: soundOnly, s) else {
+        stopWaiting()
+        guard let picked = moveRecording(to: uid) else {
             Log.note("recorder: the input you chose isn't there any more"); return nil
         }
-        chosenInput = picked
-        pinnedInputUID = picked.uid
         chosenInputUID = picked.uid
         Log.note("recorder: you chose \(picked.name) (\(picked.kind.rawValue))")
+        return picked
+    }
+
+    /// Moves a running recording to `uid` (the microphone menu, or AirPods coming up after a wait): the session's
+    /// mode and input, then capture, when the engine keeps running on the old input. Paused, capture restarts on it
+    /// when you resume. Nil when the input isn't there.
+    @discardableResult
+    private func moveRecording(to uid: String) -> RecordingInput? {
+        guard let picked = RecordingRoute.move(to: uid, soundOnly: soundOnly, AVAudioSession.sharedInstance()) else { return nil }
+        chosenInput = picked
+        pinnedInputUID = picked.uid
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
             guard let self, self.isRecording, !self.isPaused, let engine = self.engine, engine.isRunning,
                   AVAudioSession.sharedInstance().currentRoute.inputs.first?.uid != picked.uid else { return }
@@ -987,6 +1027,51 @@ final class Recorder: ObservableObject {
             if !self.restartCapture() { self.autoPause("The microphone changed. Tap Resume to keep recording.") }
         }
         return picked
+    }
+
+    /// A Bluetooth headset the recording waits for: AirPods iOS hadn't listed when it started (the first recording),
+    /// or AirPods that dropped out while coming up on their link. Nil otherwise.
+    private var awaitingInput: RecordingInput?
+    /// Bumped when a wait starts or ends, so older looks do nothing.
+    private var awaitToken = 0
+
+    private func stopWaiting() {
+        awaitingInput = nil
+        awaitToken += 1
+    }
+
+    /// Looks for the awaited headset at `RecordingInputRules.awaitChecks` and moves the recording to it when iOS
+    /// lists it. At the last look it settles on the best input left, with that input's mode; after a loss, it says so.
+    private func waitForAwaitedInput(afterLoss: Bool) {
+        awaitToken += 1
+        let token = awaitToken
+        let checks = RecordingInputRules.awaitChecks
+        for (i, delay) in checks.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, self.awaitToken == token else { return }
+                self.checkAwaitedInput(last: i == checks.count - 1, afterLoss: afterLoss)
+            }
+        }
+    }
+
+    private func checkAwaitedInput(last: Bool, afterLoss: Bool) {
+        guard isRecording, !keepWarm, let awaited = awaitingInput else { return }
+        let available = (AVAudioSession.sharedInstance().availableInputs ?? []).map(RecordingRoute.input)
+        if let arrived = RecordingInputRules.arrived(awaited, in: available) {
+            stopWaiting()
+            Log.note("recorder: \(arrived.name) listed; recording on it")
+            moveRecording(to: arrived.uid)
+            return
+        }
+        guard last else { return }
+        stopWaiting()
+        guard let rest = RecordingInputRules.afterRouteChange(pinned: nil, available: available) else { return }
+        Log.note("recorder: \(awaited.name) wasn't listed; recording on \(rest.name)")
+        moveRecording(to: rest.uid)
+        if afterLoss {
+            let name = rest.kind == .builtIn ? "the " + RecordingInputRules.builtInName : RecordingInputRules.displayName(rest)
+            onInputSwitched?("Your microphone disconnected. Recording continues on \(name).")
+        }
     }
 
     /// The route isn't on the recording's input: a microphone picked while paused, which the running engine didn't
@@ -1005,7 +1090,42 @@ final class Recorder: ObservableObject {
     private func pinRecordingInput() {
         let s = AVAudioSession.sharedInstance()
         let available = s.availableInputs ?? []
-        let choice = RecordingInputRules.afterRouteChange(pinned: pinnedInputUID, available: available.map(RecordingRoute.input))?.uid
+        let inputs = available.map(RecordingRoute.input)
+        // Waiting for AirPods: take them as soon as iOS lists them; until then, stay unpinned so iOS can route to them.
+        if let awaited = awaitingInput {
+            if let arrived = RecordingInputRules.arrived(awaited, in: inputs) {
+                stopWaiting()
+                Log.note("recorder: \(arrived.name) listed; recording on it")
+                if let moved = RecordingRoute.move(to: arrived.uid, soundOnly: soundOnly, s) {
+                    chosenInput = moved; pinnedInputUID = moved.uid
+                }
+            } else {
+                try? s.setPreferredInput(nil)
+                Log.note("recorder: still waiting for \(awaited.name)")
+            }
+            return
+        }
+        // AirPods dropping out of the list in the first seconds (coming up on their link), or while still on the
+        // output, are waited for instead of trading them for the iPhone microphone for the rest of the recording.
+        if let lost = chosenInput, let pinned = pinnedInputUID, !inputs.contains(where: { $0.uid == pinned }) {
+            // Relisted under another UID (the high-quality link): the same headset, so stay on it.
+            if let back = RecordingInputRules.arrived(lost, in: inputs), let moved = RecordingRoute.move(to: back.uid, soundOnly: soundOnly, s) {
+                chosenInput = moved; pinnedInputUID = moved.uid
+                Log.note("recorder: keeping \(moved.name), listed again")
+                return
+            }
+        }
+        if let lost = chosenInput, let pinned = pinnedInputUID, !inputs.contains(where: { $0.uid == pinned }),
+           RecordingInputRules.waits(for: lost, secondsIn: ProcessInfo.processInfo.systemUptime - startedAt,
+                                     bluetoothOutputs: RecordingRoute.bluetoothOutputs(s)) {
+            awaitingInput = lost
+            pinnedInputUID = nil
+            try? s.setPreferredInput(nil)
+            Log.note("recorder: \(lost.name) dropped out; waiting for it")
+            waitForAwaitedInput(afterLoss: true)
+            return
+        }
+        let choice = RecordingInputRules.afterRouteChange(pinned: pinnedInputUID, available: inputs)?.uid
         guard let choice, let port = available.first(where: { $0.uid == choice }) else {
             try? s.setPreferredInput(nil)
             Log.note("recorder: no input to pin; iOS chooses")
@@ -1279,6 +1399,7 @@ final class Recorder: ObservableObject {
         pinnedInputUID = nil
         chosenInputUID = nil
         chosenInput = nil
+        stopWaiting()
         try? AVAudioSession.sharedInstance().setPreferredInput(nil)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         #endif
@@ -2112,8 +2233,12 @@ final class Recorder: ObservableObject {
         do {
             let picked = try RecordingRoute.prepare(s, soundOnly: soundOnly, chosen: pinnedInputUID ?? chosenInputUID)
             try s.setActive(true)
-            RecordingRoute.confirm(picked, s)
-            if let picked { chosenInput = picked; pinnedInputUID = picked.uid }
+            if let found = RecordingRoute.confirm(picked, s) {
+                chosenInput = found; pinnedInputUID = found.uid
+            } else if let waiting = RecordingRoute.awaiting {
+                awaitingInput = waiting; pinnedInputUID = nil
+                waitForAwaitedInput(afterLoss: false)
+            }
             Log.note("recorder: audio session set up again")
         } catch {
             Log.note("recorder: couldn't set up the audio session again: \(error.localizedDescription)")
@@ -2184,7 +2309,7 @@ final class Recorder: ObservableObject {
                     // and move only when it's gone.
                     if self.restartCapture() {
                         #if os(iOS)
-                        if let before, self.pinnedInputUID != before {
+                        if let before, self.pinnedInputUID != before, self.awaitingInput == nil {
                             self.onInputSwitched?("Your microphone disconnected. Recording continues on \(self.currentInputName).")
                         }
                         #endif

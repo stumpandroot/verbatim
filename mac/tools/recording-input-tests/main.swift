@@ -93,6 +93,17 @@ check("sources: a route change says the microphone disconnected only when the in
 let pinCurrent = body(recorder, "private func pinCurrentInput(")
 check("sources: the recording pins the input it chose, not whatever the route said a moment after starting",
       pinCurrent.contains("chosenInput"), pinCurrent)
+let prepareBody = body(recorder, "static func prepare(")
+check("sources: prepare leaves the input unpinned while it waits for AirPods iOS hasn't listed (build 248's first recording)",
+      prepareBody.contains("RecordingInputRules.awaited(") && prepareBody.contains("if pin, waiting == nil"), prepareBody)
+check("sources: a starting recording waits for AirPods before pinning anything, and moves to them when listed",
+      pinCurrent.range(of: "awaitingInput")?.lowerBound ?? pinCurrent.endIndex < (pinCurrent.range(of: "setPreferredInput(port)")?.lowerBound ?? pinCurrent.startIndex)
+      && body(recorder, "private func checkAwaitedInput(").contains("RecordingInputRules.arrived("), pinCurrent)
+check("sources: restarting capture takes awaited AirPods when listed, and waits for AirPods that drop out early",
+      body(recorder, "private func pinRecordingInput(").contains("RecordingInputRules.arrived(")
+      && body(recorder, "private func pinRecordingInput(").contains("RecordingInputRules.waits("))
+check("sources: a wait ends when the recording stops",
+      body(recorder, "private func finishStop(").contains("stopWaiting()"))
 check("sources: the choice in the microphone menu lasts for one recording",
       body(recorder, "private func finishStop(").contains("chosenInputUID = nil"))
 let keyboard = read("VerbatimPhone/KeyboardSession.swift")
