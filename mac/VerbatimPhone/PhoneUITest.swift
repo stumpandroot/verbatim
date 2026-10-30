@@ -1835,10 +1835,14 @@ enum PhoneUITest {
         let edited: [HomeTile] = [.newThought, .journal, .dictate, .importMedia]
         check("New thought and Journal stay neutral in the first slots (P-14)",
               HomeScreen.tileFill(.newThought, in: edited) == nil && HomeScreen.tileFill(.journal, in: edited) == nil)
+        // By hue and by the palette rule's value: two dynamic Colors built from the same tone don't compare equal.
+        let editedHues = HomeTile.refinedHues(edited)
         check("Dictate is butter and Import sage wherever they sit (P-14)",
-              HomeScreen.tileFill(.dictate, in: edited, palette: .full) == Refined.butter
-              && HomeScreen.tileFill(.importMedia, in: edited, palette: .full) == Refined.sage
-              && HomeScreen.tileFill(.dictate, in: edited, palette: .soft) == Refined.butterTint)
+              editedHues[2] == .butter && editedHues[3] == .sage
+              && HomeScreen.tileFill(.dictate, in: edited) != nil && HomeScreen.tileFill(.importMedia, in: edited) != nil
+              && RefinedRules.fill(.butter, palette: .full) == RefinedHex.butter
+              && RefinedRules.fill(.sage, palette: .full) == RefinedHex.sage
+              && RefinedRules.fill(.butter, palette: .soft) == RefinedHex.butterTint)
         check("Live captions is the off-white tile (P-14)", HomeScreen.tileFill(.captions, in: [.dictate, .importMedia, .whatsPlaying, .captions]) == nil)
         // P-15: Recent recordings, newest first by date, no dictations.
         let recent = HomeScreen.recentRecordings(app.store)

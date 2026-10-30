@@ -67,31 +67,10 @@
         },
         {
           "platforms": [
-            "mac"
-          ],
-          "text": "The sidebar and toolbar have the new look, with Settings at the foot of the sidebar.",
-          "detail": "The sidebar is a paper gray with each place's glyph in persimmon. Back, Forward, Record, and Search or ask sit in the toolbar."
-        },
-        {
-          "platforms": [
             "iphone"
           ],
           "text": "The tab bar has the new look, with Record above it on every tab but Home.",
           "detail": "Record sits in the tab bar's accessory. Tap for a voice note, or touch and hold for Record as."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "Templates, Ask, By day, and today's page have the new look.",
-          "detail": "Cards on paper, serif titles, the kit's chips, and the persimmon tint on what you select. Plans tick off with the accent, and Send to Reminders is a sheet."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "Dictations, Dictionary, Queue, Recently Deleted, and onboarding have the new look.",
-          "detail": "So do Edit Home, the Cleaned tab's toolbar, the link card, and the Export, Add from Library, multitrack, and microphone sheets."
         },
         {
           "platforms": [
@@ -102,8 +81,7 @@
         },
         {
           "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Verbose has one look. The Look setting is gone; Palette chooses full color or soft tints.",
           "detail": "Your Home keeps the sections and tiles you had in the look you used. Onboarding no longer asks you to pick a look."
@@ -117,8 +95,7 @@
         },
         {
           "platforms": [
-            "iphone",
-            "mac"
+            "iphone"
           ],
           "text": "Widgets and the Live Activity have the new look: cards, serif titles, and the record disc.",
           "detail": "This week's widget no longer has a Color option. Widgets you already placed keep working."
@@ -129,13 +106,6 @@
           ],
           "text": "A minimized recording stays in view on transcripts and Audio only recordings.",
           "detail": "On iOS 26 the tab bar stays to carry it. With nothing recording, the tab bar still steps aside while you read."
-        },
-        {
-          "platforms": [
-            "mac"
-          ],
-          "text": "While you record, the toolbar's timer and Stop stay on transcripts too.",
-          "detail": "The same goes for capturing an app's audio."
         },
         {
           "platforms": [
@@ -153,17 +123,67 @@
         },
         {
           "platforms": [
-            "mac"
-          ],
-          "text": "A project you start from the sidebar opens in the Library, ready for transcripts.",
-          "detail": "The same goes for New Project in the Library's More menu. A project started from a transcript's menu still keeps you where you are."
-        },
-        {
-          "platforms": [
             "iphone"
           ],
           "text": "An answer from Ask says again how many passages and recordings it read.",
           "detail": "It sits at the foot of the answer card, under the line that says it ran on this iPhone."
+        }
+      ]
+    },
+    {
+      "build": "247",
+      "date": "2026-10-30",
+      "version": "1.0 beta",
+      "title": "Mac only: one look, a new sidebar and toolbar, and every screen in the new look",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "The sidebar and toolbar have the new look, with Settings at the foot of the sidebar.",
+          "detail": "The sidebar is a paper gray with each place's glyph in persimmon. Back, Forward, Record, and Search or ask sit in the toolbar."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Templates, Ask, By day, and today's page have the new look.",
+          "detail": "Cards on paper, serif titles, the kit's chips, and the persimmon tint on what you select. Plans tick off with the accent, and Send to Reminders is a sheet."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Dictations, Dictionary, Queue, Recently Deleted, and onboarding have the new look.",
+          "detail": "So do Edit Home, the Cleaned tab's toolbar, the link card, and the Export, Add from Library, multitrack, and microphone sheets."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Verbose has one look. The Look setting is gone; Palette chooses full color or soft tints.",
+          "detail": "Your Home keeps the sections and tiles you had in the look you used. Onboarding no longer asks you to pick a look."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Widgets and the Live Activity have the new look: cards, serif titles, and the record disc.",
+          "detail": "This week's widget no longer has a Color option. Widgets you already placed keep working."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "While you record, the toolbar's timer and Stop stay on transcripts too.",
+          "detail": "The same goes for capturing an app's audio."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "A project you start from the sidebar opens in the Library, ready for transcripts.",
+          "detail": "The same goes for New Project in the Library's More menu. A project started from a transcript's menu still keeps you where you are."
         },
         {
           "platforms": [
