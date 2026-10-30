@@ -1,11 +1,10 @@
 import SwiftUI
 import AppKit
 
-// brand: web style
-//
 // The Settings panes (SettingsView.swift holds the window), in the layout of MacSettingsMap (MacSettingsMap.swift).
-// Every row's label and description come from SettingsIndex, so search always matches what's on screen. Website style (DESIGN.md §11): actions inside rows are
-// line mini pills; switches, menus, and segmented controls stay native.
+// Every row's label and description come from SettingsIndex, so search always matches what's on screen. The refined
+// look (DESIGN.md §13): rows on the kit's cards, with the system's buttons, pop-up menus, and segmented controls, and
+// switches in the accent.
 
 // MARK: - Personalization and preferences
 
@@ -14,6 +13,8 @@ struct PersonalizationSettingsPane: View {
     @EnvironmentObject var app: AppState
     @AppStorage(MotionPreference.key) private var motionLimited = false
     @AppStorage(BuiltInVocabulary.enabledKey) private var builtInVocabulary = true
+    /// The look (Verbose style or Native), until the look switch retires.
+    @AppStorage(AppLook.key, store: AppLook.store) private var lookRaw = AppLook.verbose.rawValue
     @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
     /// The refined look's palette (DESIGN.md §13), stored with the look.
     @AppStorage(AppPalette.key, store: AppLook.store) private var palette: AppPalette = .full
@@ -21,9 +22,15 @@ struct PersonalizationSettingsPane: View {
     var body: some View {
         SettingsPane(tab: .personalization) {
             SettingsGroup {
-                // The look: Verbose style or Native, as two live thumbnails. Applies at once, with a crossfade.
+                // The look as a plain row with the system's pop-up: the switching card shows, then every window
+                // rebuilds behind it (LookSwitch.swift). It retires with the look switch.
                 SettingsRow("general.look") {
-                    LookPicker(thumbnail: 128, captions: false).padding(.vertical, 4)
+                    Picker("Look", selection: Binding(get: { AppLook(rawValue: lookRaw) ?? .verbose },
+                                                      set: { l in if l.rawValue != lookRaw { LookSwitch.shared.pick(l) } })) {
+                        ForEach(AppLook.allCases) { Text($0.label).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                    .onAppear { LookSwitch.prewarm() }
                 }
                 SettingsRow("general.palette") {
                     Picker("Palette", selection: $palette) {
@@ -76,8 +83,8 @@ struct UpdateSettingsSection: View {
             SettingsToggleRow("general.beta", isOn: $updater.betaUpdates, disabled: !updater.isRunning)
             SettingsRow("general.version", detail: "Version \(AppVersion.label). A check sends your IP address and Verbose's version to GitHub, nothing else.") {
                 HStack(spacing: 8) {
-                    PillButton(title: "What's new", kind: .line, size: .mini) { tab = .whatsNew }
-                    PillButton(title: "Check now", kind: .line, size: .mini, enabled: updater.isRunning && updater.canCheckForUpdates) { updater.checkForUpdates() }
+                    Button("What's new") { tab = .whatsNew }.buttonStyle(.settingsPill)
+                    Button("Check now") { updater.checkForUpdates() }.buttonStyle(.settingsPill).disabled(!(updater.isRunning && updater.canCheckForUpdates))
                 }
             }
         }
@@ -130,7 +137,7 @@ struct DictationForm: View {
                     }
                     .pickerStyle(.segmented).labelsHidden().frame(maxWidth: 420)
                     if let notice = FlowCleanup.unavailableNotice {
-                        Text(notice).font(.system(size: 12.5)).foregroundStyle(flow.cleanup == .literal ? Ink.mute : Ink.accentText)
+                        Text(notice).font(.system(size: 12.5)).foregroundStyle(flow.cleanup == .literal ? Refined.mute : Refined.accentText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -155,7 +162,7 @@ struct DictationForm: View {
                         HStack {
                             categoryLabel(.code)
                             Spacer(minLength: 12)
-                            Text("As spoken, always").font(.system(size: 13)).foregroundStyle(Ink.dim)
+                            Text("As spoken, always").font(.system(size: 13)).foregroundStyle(Refined.dim)
                         }
                     }
                 }
@@ -172,7 +179,7 @@ struct DictationForm: View {
                         ForEach(flow.snippets) { s in
                             HStack(alignment: .firstTextBaseline) {
                                 Text(verbatim: "“\(s.trigger)”").fontWeight(.medium).frame(width: 150, alignment: .leading)
-                                Text(s.expansion).foregroundStyle(Ink.dim).lineLimit(2)
+                                Text(s.expansion).foregroundStyle(Refined.dim).lineLimit(2)
                                 Spacer()
                                 Button("Remove") { flow.snippets.removeAll { $0.id == s.id } }
                                     .buttonStyle(.settingsPill).help("Remove").accessibilityLabel("Remove \(s.trigger)")
@@ -229,7 +236,7 @@ struct DictationForm: View {
     private func categoryLabel(_ c: AppCategory) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(c.title).font(.system(size: 13.5))
-            Text(c.examples).font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+            Text(c.examples).font(.system(size: 11.5)).foregroundStyle(Refined.mute)
         }
     }
 }
@@ -374,30 +381,24 @@ private struct MeetingAppRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
-            // The app's dot: a neutral wash with the speakers glyph (color stays for meaning, DESIGN.md §1).
-            IconGlyph(art: .iconSpeakers, size: 16, color: Ink.ink)
-                .frame(width: 30, height: 30)
-                .background(Ink.chip, in: Circle())
-                .accessibilityHidden(true)
+            IconSquare(art: .iconSpeakers, hue: .neutral)
             SettingsRowText(label: record.name, detail: detail)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if record.skipConsent {
-                PillButton(title: "Ask before recording", kind: .line, size: .mini,
-                           hint: "Shows the consent sheet again each time you record \(record.name)") {
-                    MeetingCoordinator.shared.setSkipConsent(key, false)
-                }
-                .help("Show the consent sheet again each time you record \(record.name)")
+                Button("Ask before recording") { MeetingCoordinator.shared.setSkipConsent(key, false) }
+                    .buttonStyle(.settingsPill)
+                    .accessibilityHint("Shows the consent sheet again each time you record \(record.name)")
+                    .help("Show the consent sheet again each time you record \(record.name)")
             }
-            // On (Verbose doesn't ask for this app), the pill is solid ink.
-            PillButton(title: "Don't ask for this app", kind: record.dontAsk ? .dark : .line, size: .mini,
-                       hint: record.dontAsk ? "Asks again when \(record.name) uses your microphone" : nil) {
-                MeetingCoordinator.shared.setDontAsk(key, !record.dontAsk)
-            }
-            .accessibilityValue(record.dontAsk ? "On" : "Off")
-            .help("Verbose doesn't ask when \(record.name) uses your microphone")
+            // Checked: Verbose doesn't ask for this app.
+            Toggle("Don't ask for this app", isOn: Binding(get: { record.dontAsk }, set: { MeetingCoordinator.shared.setDontAsk(key, $0) }))
+                .toggleStyle(.checkbox)
+                .font(.system(size: 13))
+                .accessibilityHint(record.dontAsk ? "Asks again when \(record.name) uses your microphone" : "")
+                .help("Verbose doesn't ask when \(record.name) uses your microphone")
         }
-        .padding(.horizontal, 20).padding(.vertical, 12)
-        .frame(minHeight: 60)
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(minHeight: 52)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .top) { RowRule() }
         .accessibilityElement(children: .contain)
@@ -474,7 +475,7 @@ struct ExportSettingsGroups: View {
         SettingsGroup {
             SettingsRow("export.watched", detail: "Auto-export from a watched folder writes files with the options above.") {
                 // The folders are at the top of this pane.
-                PillButton(title: "Watched folders", kind: .line, size: .mini, trailing: .arrow) { model.focusID = "watched.folders" }
+                Button("Watched folders") { model.focusID = "watched.folders" }.buttonStyle(.settingsPill)
             }
         }
     }
@@ -498,8 +499,8 @@ private struct ExportPaneRow<Control: View>: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 control()
             }
-            .padding(.horizontal, 20).padding(.vertical, 12)
-            .frame(minHeight: 60)
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .frame(minHeight: 52)
         }
         .accessibilityElement(children: .contain)
     }
@@ -512,7 +513,7 @@ private struct ExportPaneToggle: View {
     init(_ title: String, isOn: Binding<Bool>, note: String? = nil) { self.title = title; self._isOn = isOn; self.note = note }
     var body: some View {
         ExportPaneRow(title, note: note) {
-            Toggle(title, isOn: $isOn).toggleStyle(.switch).labelsHidden().tint(Ink.switchOn).controlSize(.small)
+            Toggle(title, isOn: $isOn).toggleStyle(.switch).labelsHidden().refinedSwitchTint()
         }
     }
 }
@@ -529,7 +530,7 @@ private struct ExportPaneStepper<V: Strideable>: View {
     var body: some View {
         ExportPaneRow(title) {
             HStack(spacing: 8) {
-                Text(format(value)).font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.ink).monospacedDigit()
+                Text(format(value)).font(.system(size: 13)).monospacedDigit().foregroundStyle(Refined.ink).monospacedDigit()
                 Stepper(title, value: $value, in: range, step: step).labelsHidden().controlSize(.small)
             }
         }
@@ -542,8 +543,8 @@ private struct ExportOffsetField: View {
     @State private var invalid = false
     var body: some View {
         TextField("00:00:00", text: $text)
-            .textFieldStyle(.roundedBorder).font(Ink.mono(13)).multilineTextAlignment(.trailing)
-            .foregroundStyle(invalid ? Ink.accentText : Ink.ink)
+            .textFieldStyle(.roundedBorder).font(.system(size: 13).monospacedDigit()).multilineTextAlignment(.trailing)
+            .foregroundStyle(invalid ? Refined.accentText : Refined.ink)
             .frame(width: 96)
             .onAppear { text = Timecode.offsetText(seconds) }
             .onChange(of: text) { _, v in
@@ -564,10 +565,10 @@ struct StorageSettingsPane: View {
             CloudSyncSection()
             SettingsGroup(title: "On this Mac", footer: Paths.root.path) {
                 SettingsRow("storage.library") {
-                    PillButton(title: "Show in Finder", kind: .line, size: .mini) { NSWorkspace.shared.activateFileViewerSelecting([Paths.root]) }
+                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.root]) }.buttonStyle(.settingsPill)
                 }
                 SettingsRow("storage.models") {
-                    PillButton(title: "Show in Finder", kind: .line, size: .mini) { NSWorkspace.shared.activateFileViewerSelecting([Paths.models]) }
+                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.models]) }.buttonStyle(.settingsPill)
                 }
             }
             SettingsGroup(title: "Links", footer: "Share links from Dropbox, Google Drive, OneDrive, SharePoint, and iCloud Drive download directly when they're shared with anyone who has the link.") {
@@ -695,26 +696,27 @@ struct SupportSettingsPane: View {
             // The lockup (DESIGN.md §4) and the tagline in the serif.
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) {
-                    BarsMark(color: Ink.persimmon).frame(width: 22, height: 23)
-                    Ink.wordmark(28)
+                    BarsMark(color: Refined.persimmon).frame(width: 22, height: 23)
+                    Text("\(Text("verbose").foregroundStyle(Refined.ink))\(Text(".").foregroundStyle(Refined.accentText))")
+                        .font(.system(size: 28, design: .serif))
                 }
-                Text(Ink.tagline).font(Ink.serif(19)).foregroundStyle(Ink.dim)
+                Text(Ink.tagline).font(.system(size: 17, design: .serif)).foregroundStyle(Refined.dim)
             }
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose. \(Ink.tagline)")
             SettingsGroup {
                 SettingsRow("about.version", detail: "Verbose \(AppVersion.label)") {
                     // What each build added (WhatsNewPane.swift). Sentence case, as in the sidebar (DESIGN.md §2, §8).
-                    PillButton(title: "What's new", kind: .line, size: .mini) { tab = .whatsNew }
+                    Button("What's new") { tab = .whatsNew }.buttonStyle(.settingsPill)
                 }
                 SettingsRow("about.support") {
                     if let u = Links.mail(subject: "Verbose support") {
-                        PillButton(title: "Contact support", kind: .line, size: .mini) { NSWorkspace.shared.open(u) }
+                        Button("Contact support") { NSWorkspace.shared.open(u) }.buttonStyle(.settingsPill)
                     }
                 }
                 SettingsRow("about.log") {
                     HStack(spacing: 8) {
-                        PillButton(title: "Show in Finder", kind: .line, size: .mini) { NSWorkspace.shared.activateFileViewerSelecting([Log.file]) }
-                        PillButton(title: "Send…", kind: .line, size: .mini) { sendDiagnosticLog() }
+                        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Log.file]) }.buttonStyle(.settingsPill)
+                        Button("Send…") { sendDiagnosticLog() }.buttonStyle(.settingsPill)
                     }
                 }
                 SettingsRow("about.legal") {
@@ -723,10 +725,10 @@ struct SupportSettingsPane: View {
                         Link("Terms", destination: Links.terms)
                         Link("Refunds", destination: Links.refunds)
                     }
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.accentText)
                 }
                 SettingsRow("about.acknowledgements") {
-                    PillButton(title: "Acknowledgements", kind: .line, size: .mini) { showAcknowledgements = true }
+                    Button("Acknowledgements") { showAcknowledgements = true }.buttonStyle(.settingsPill)
                 }
             }
             UpdateSettingsSection()
@@ -737,7 +739,7 @@ struct SupportSettingsPane: View {
                 Divider()
                 HStack {
                     Spacer()
-                    Button("Done") { showAcknowledgements = false }.buttonStyle(.pillDark()).keyboardShortcut(.defaultAction)
+                    Button("Done") { showAcknowledgements = false }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
                 }
                 .padding(12)
             }
@@ -851,7 +853,7 @@ struct CloudCleanupSettingsRows: View {
                             .buttonStyle(.settingsPill)
                     }
                 }
-                Link("Get a key from \(provider.company)", destination: provider.keysURL).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
+                Link("Get a key from \(provider.company)", destination: provider.keysURL).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Refined.accentText)
             }
             SettingsRow("dictate.cloudModel", detail: "Leave empty for \(provider.defaultModel).") {
                 TextField(provider.defaultModel, text: $model)

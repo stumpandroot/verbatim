@@ -1,7 +1,7 @@
 import Foundation
 
 // Pure rules behind the Native look on the Mac (Foundation only, so mac/tools/test-native.sh runs them on Linux):
-// which system color stands in for a Verbose token, which SF Symbol each sidebar item and Settings pane shows, the
+// which system color stands in for a Verbose token, which SF Symbol each sidebar item and kind shows, the
 // title case macOS buttons use, and the welcome tour's steps.
 
 /// The system role that replaces a Verbose token under Native.
@@ -62,27 +62,6 @@ enum NativeSymbols {
         case "you": return "person.crop.circle"
         case "dictionary": return "character.book.closed"
         default: return "circle"
-        }
-    }
-
-    /// A Settings pane, by `SettingsTab` raw value: the white glyph on its colored square (`NativeSettingsSquare`), so
-    /// filled variants where SF Symbols has one, as System Settings uses.
-    static func settings(_ raw: String) -> String {
-        switch raw {
-        case "general": return "circle.lefthalf.filled"
-        case "transcription": return "waveform"
-        case "dictate": return "keyboard.fill"
-        case "floatingButton": return "rectangle.stack.fill"
-        case "actions": return "wand.and.stars"
-        case "meetings": return "captions.bubble.fill"
-        case "watched": return "folder.fill"
-        case "storage": return "icloud.fill"
-        case "privacy": return "hand.raised.fill"
-        case "account": return "person.crop.circle.fill"
-        case "about": return "text.bubble.fill"
-        case "features": return "square.grid.2x2.fill"
-        case "whatsNew": return "sparkles"
-        default: return "gearshape.fill"
         }
     }
 

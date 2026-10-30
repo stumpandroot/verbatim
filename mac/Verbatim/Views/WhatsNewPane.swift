@@ -1,15 +1,13 @@
 import SwiftUI
 
-// brand: web style
-//
 // What's new on the Mac: Settings › What's new (also Verbose › What's New… in the app menu, the What's New… buttons in
-// About and General › Updates, and Home's note after an update). Every build's notes, newest first, from the bundled
-// ReleaseNotes.json (Model/ReleaseNotes.swift), grouped under version headers ("Version 1.0 beta"): the newest version
-// open, older ones closed until clicked. Verbose style: the pane's eyebrow and serif title, then a card per build with
-// a mono eyebrow ("Build 203 · Oct 25"), its title in the serif, and its items under serif platform labels. Native:
-// the bold title and a grouped Form section per build, headed by the build, with plain section labels. Either way the
-// Mac's items lead, the iPhone and Apple Watch ones fold under one "Also on iPhone and Apple Watch" row, and a line
-// with a detail opens it in place, without movement (`ReleaseNotes.summary`).
+// About and Support and feedback › Updates, and Home's note after an update). Every build's notes, newest first, from
+// the bundled ReleaseNotes.json (Model/ReleaseNotes.swift), grouped under version headers ("Version 1.0 beta"): the
+// newest version open, older ones closed until clicked. The refined look (DESIGN.md §13), in both look settings: the
+// pane's square and serif title, then a card per build with its build line ("Build 203 · Oct 25") in `mute`, its
+// title in the serif, and its items under platform labels. The Mac's items lead, the iPhone and Apple Watch ones fold
+// under one "Also on iPhone and Apple Watch" row, and a line with a detail opens it in place, without movement
+// (`ReleaseNotes.summary`).
 
 struct WhatsNewSettingsPane: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
@@ -27,7 +25,7 @@ struct WhatsNewSettingsPane: View {
         SettingsPane(tab: .whatsNew) {
             VStack(alignment: .leading, spacing: 22) {
                 if notes.isEmpty {
-                    Text("The release notes aren't in this build.").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    Text("The release notes aren't in this build.").font(.system(size: 13)).foregroundStyle(Refined.mute)
                 }
                 ForEach(Array(versions.enumerated()), id: \.element.id) { i, version in
                     let open = (i == 0) != toggled.contains(version.id)
@@ -51,21 +49,19 @@ struct WhatsNewVersionHeader: View {
     var version: ReleaseVersion
     var open: Bool
     var toggle: () -> Void
-    @Environment(\.look) private var look
 
     var body: some View {
-        let native = look == .native
         Button(action: toggle) {
             HStack(spacing: 8) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: native ? 10 : 11, weight: .semibold)).foregroundStyle(Ink.mute)
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(Refined.mute)
                     .rotationEffect(.degrees(open ? 90 : 0))
                     .frame(width: 12)
                 Text(version.heading)
-                    .font(native ? .system(size: 15, weight: .semibold) : Ink.serif(26))
-                    .foregroundStyle(Ink.ink)
+                    .font(.system(size: 22, design: .serif))
+                    .foregroundStyle(Refined.ink)
                 Text("\(version.notes.count) build\(version.notes.count == 1 ? "" : "s")")
-                    .font(.system(size: native ? 12 : 12.5)).foregroundStyle(Ink.mute)
+                    .font(.system(size: 12.5)).foregroundStyle(Refined.mute)
                 Spacer(minLength: 0)
             }
             .padding(.vertical, 2)
@@ -80,37 +76,27 @@ struct WhatsNewVersionHeader: View {
     }
 }
 
-/// One build: Verbose style's card with the eyebrow inside, or Native's Form section with the build as its header.
+/// One build: a card with its build line, its title in the serif, and its items.
 struct WhatsNewCard: View {
     var note: ReleaseNote
     /// The UI self-test opens this card's first detail, or its "Also on" row (`ReleaseNotes.showForTest`).
     var detailTarget = false
     var alsoTarget = false
-    @Environment(\.look) private var look
     /// Lines whose detail is open, by index within their part ("mac", "also-iphone").
     @State private var detailsOpen: Set<String> = []
     @State private var alsoOpen = false
 
     var body: some View {
         ScrollViewReader { proxy in
-            Group {
-                if look == .native {
-                    SettingsGroup(title: note.heading) {
-                        content.padding(.horizontal, 12).padding(.vertical, 10)
-                    }
-                    .accessibilityElement(children: .contain)
-                } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Eyebrow(text: note.heading)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(note.spokenHeading)
-                        content
-                    }
-                    .padding(.horizontal, 22).padding(.vertical, 18)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .settingsCard()
-                }
+            VStack(alignment: .leading, spacing: 8) {
+                Text(note.heading).font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(note.spokenHeading)
+                content
             }
+            .padding(.horizontal, 20).padding(.vertical, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .settingsCard()
             .onReceive(NotificationCenter.default.publisher(for: ReleaseNotes.showForTest)) { n in
                 showForTest(n.object as? String, proxy: proxy)
             }
@@ -118,12 +104,11 @@ struct WhatsNewCard: View {
     }
 
     private var content: some View {
-        let native = look == .native
         let sum = ReleaseNotes.summary(note.items, for: .mac)
-        return VStack(alignment: .leading, spacing: native ? 6 : 8) {
+        return VStack(alignment: .leading, spacing: 8) {
             Text(note.title)
-                .font(native ? .system(size: 15, weight: .semibold) : Ink.serif(24))
-                .foregroundStyle(Ink.ink)
+                .font(.system(size: 20, design: .serif))
+                .foregroundStyle(Refined.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             ForEach(Array(sum.sections.enumerated()), id: \.element.id) { k, section in
@@ -148,27 +133,25 @@ struct WhatsNewCard: View {
 
     /// A platform's label: the serif in Verbose style, a plain semibold label in Native. A header for VoiceOver.
     private func platformLabel(_ title: String) -> some View {
-        let native = look == .native
         return Text(title)
-            .font(native ? .system(size: 12, weight: .semibold) : Ink.serif(18))
-            .foregroundStyle(native ? Ink.mute : Ink.ink)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(Refined.ink)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
     }
 
     /// "Also on iPhone and Apple Watch" and how many items fold under it: click to show or hide them.
     private func alsoRow(title: String, count: Int) -> some View {
-        let native = look == .native
         return Button { alsoOpen.toggle() } label: {
             HStack(spacing: 6) {
-                Image(systemName: "chevron.right").font(.system(size: native ? 9 : 10, weight: .semibold))
+                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
                     .rotationEffect(.degrees(alsoOpen ? 90 : 0))
                     .frame(width: 10)
-                Text(title).font(.system(size: native ? 12.5 : 13, weight: .semibold))
-                Text("\(count)").font(.system(size: native ? 12.5 : 13)).monospacedDigit()
+                Text(title).font(.system(size: 13, weight: .semibold))
+                Text("\(count)").font(.system(size: 13)).monospacedDigit()
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(Ink.dim)
+            .foregroundStyle(Refined.dim)
             .padding(.vertical, 3)
             .contentShape(Rectangle())
         }
@@ -182,8 +165,7 @@ struct WhatsNewCard: View {
     }
 
     private func lines(_ items: [ReleaseItem], part: String) -> some View {
-        let native = look == .native
-        return VStack(alignment: .leading, spacing: native ? 4 : 6) {
+        return VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(items.enumerated()), id: \.offset) { i, item in
                 line(item, key: "\(part)|\(i)")
             }
@@ -194,7 +176,6 @@ struct WhatsNewCard: View {
     /// detail under it, without movement.
     @ViewBuilder
     private func line(_ item: ReleaseItem, key: String) -> some View {
-        let native = look == .native
         if let detail = item.detail {
             let open = detailsOpen.contains(key)
             VStack(alignment: .leading, spacing: 3) {
@@ -202,18 +183,18 @@ struct WhatsNewCard: View {
                     if open { detailsOpen.remove(key) } else { detailsOpen.insert(key) }
                 } label: {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•").foregroundStyle(Ink.mute).accessibilityHidden(true)
-                        Text(item.text).foregroundStyle(Ink.ink)
+                        Text("•").foregroundStyle(Refined.mute).accessibilityHidden(true)
+                        Text(item.text).foregroundStyle(Refined.ink)
                             .fixedSize(horizontal: false, vertical: true)
                         Image(systemName: "chevron.right")
-                            .font(.system(size: native ? 9 : 10, weight: .semibold))
-                            .foregroundStyle(Ink.mute)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Refined.mute)
                             .rotationEffect(.degrees(open ? 90 : 0))
                             .accessibilityHidden(true)
                         Spacer(minLength: 0)
                     }
-                    .font(.system(size: native ? 13 : 14))
-                    .lineSpacing(native ? 1 : 3)
+                    .font(.system(size: 14))
+                    .lineSpacing(3)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -223,8 +204,8 @@ struct WhatsNewCard: View {
                 .accessibilityAddTraits(.isButton)
                 .help(open ? "Show less" : "Show more")
                 if open {
-                    Text(detail).font(.system(size: native ? 12 : 13)).foregroundStyle(Ink.dim)
-                        .lineSpacing(native ? 1 : 2)
+                    Text(detail).font(.system(size: 13)).foregroundStyle(Refined.dim)
+                        .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                         .padding(.leading, 16)
@@ -233,13 +214,13 @@ struct WhatsNewCard: View {
             .id("\(note.id)|\(key)")
         } else {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("•").foregroundStyle(Ink.mute).accessibilityHidden(true)
-                Text(item.text).foregroundStyle(Ink.ink)
+                Text("•").foregroundStyle(Refined.mute).accessibilityHidden(true)
+                Text(item.text).foregroundStyle(Refined.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             }
-            .font(.system(size: native ? 13 : 14))
-            .lineSpacing(native ? 1 : 3)
+            .font(.system(size: 14))
+            .lineSpacing(3)
         }
     }
 

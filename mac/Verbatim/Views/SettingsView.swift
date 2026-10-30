@@ -1,13 +1,11 @@
 import SwiftUI
 import AppKit
 
-// Website style (DESIGN.md §11) for the Settings window; not marked `brand: web style` because the menu bar panel
-// below keeps its small keycap.
-
-/// The Settings window: a paper sidebar (search on top, then the panes of MacSettingsMap, each with its glyph, and the
-/// version at the foot, which opens What's new) and the chosen pane. Typing in search swaps the sidebar for the panes
-/// with matches and shows every matching setting; a result opens its pane and flashes the row. ⌘F focuses search;
-/// Esc clears it.
+/// The Settings window in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", MacSettings), one layout in
+/// both look settings: a sidebar on the field color (the search field on top, then the panes of MacSettingsMap, each
+/// with its colored icon square, the chosen one on the persimmon tint, and the version with What's new at the foot)
+/// beside the chosen pane on paper. Typing in search swaps the sidebar for the panes with matches and shows every
+/// matching setting; a result opens its pane and flashes the row. ⌘F focuses search; Esc clears it.
 struct SettingsView: View {
     @AppStorage("settingsTab") private var tab: SettingsTab = .personalization
     @ObservedObject private var model = SettingsModel.shared
@@ -36,16 +34,9 @@ struct SettingsView: View {
         return Group {
             if closed {
                 Color.clear
-                    .frame(minWidth: 820, idealWidth: 920, maxWidth: .infinity, minHeight: 560, idealHeight: 680, maxHeight: .infinity)
-            } else if look == .native {
-                // Native: System Settings' layout, a sidebar with SF Symbols and a grouped form (NativeSettings.swift).
-                NativeSettingsSplit(tab: $tab) {
-                    if model.isSearching { SettingsSearchResults() } else { pane.id(tab) }
-                }
-                .frame(minWidth: 820, idealWidth: 920, maxWidth: .infinity, minHeight: 560, idealHeight: 680, maxHeight: .infinity)
-                .lookTint(look)
+                    .frame(minWidth: 820, idealWidth: 1000, maxWidth: .infinity, minHeight: 560, idealHeight: 720, maxHeight: .infinity)
             } else {
-                verbose
+                window
             }
         }
         .lookRebuild()
@@ -55,10 +46,10 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)) { windowChanged($0, closing: false) }
     }
 
-    private var verbose: some View {
+    private var window: some View {
         HStack(spacing: 0) {
             SettingsSidebar(tab: $tab, searchFocused: $searchFocused)
-                .frame(width: 264)
+                .frame(width: 260)
             Group {
                 if model.isSearching {
                     SettingsSearchResults()
@@ -68,11 +59,11 @@ struct SettingsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .background(Ink.paper)
+        .background(Refined.paper)
         .ignoresSafeArea(.container, edges: .top)
-        .frame(minWidth: 820, idealWidth: 920, maxWidth: .infinity, minHeight: 560, idealHeight: 680, maxHeight: .infinity)
-        .foregroundStyle(Ink.ink)
-        .tint(Ink.switchOn)   // switches in brand sage instead of the system blue
+        .frame(minWidth: 820, idealWidth: 1000, maxWidth: .infinity, minHeight: 560, idealHeight: 720, maxHeight: .infinity)
+        .foregroundStyle(Refined.ink)
+        .tint(Refined.accentText)
         .background {
             // ⌘F focuses search; Esc (anywhere in the window) clears it.
             Button("Search Settings") { searchFocused = true }
@@ -108,149 +99,120 @@ struct SettingsView: View {
         w.titlebarAppearsTransparent = true
         w.titleVisibility = .hidden
         w.title = "Settings"
-        w.backgroundColor = NSColor(Ink.paper)
+        w.backgroundColor = NSColor(Refined.paper)
     }
 }
 
 // MARK: - Sidebar
 
+/// The sidebar (mockup): the search field, then each pane's row with its square, or while searching, the panes with
+/// matches and how many; the version and What's new at the foot.
 struct SettingsSidebar: View {
     @Binding var tab: SettingsTab
     var searchFocused: FocusState<Bool>.Binding
     @ObservedObject private var model = SettingsModel.shared
-    @Namespace private var plate
-    @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            searchField.padding(.bottom, 6)
+            searchField.padding(.bottom, 10)
             if model.isSearching {
                 let results = SettingsIndex.search(model.query)
                 let counts = SettingsIndex.sectionCounts(results)
-                groupLabel("Sections with matches", first: true)
+                Text("Sections with matches").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
+                    .padding(.horizontal, 10).padding(.bottom, 4)
+                    .accessibilityAddTraits(.isHeader)
                 if counts.isEmpty {
-                    Text("No matches").font(.system(size: 13)).foregroundStyle(Ink.mute).padding(.horizontal, 12).padding(.vertical, 7)
+                    Text("No matches").font(.system(size: 13)).foregroundStyle(Refined.mute).padding(.horizontal, 10).padding(.vertical, 6)
                 }
                 ForEach(Array(counts.enumerated()), id: \.element.tab) { i, c in
-                    SettingsSideItem(title: c.tab.sidebarTitle, count: c.count, selected: i == 0, plate: plate) {
+                    SettingsSideItem(tab: c.tab, count: c.count, selected: i == 0) {
                         if let first = results.first(where: { $0.section == c.tab }) { model.open(first) }
                     }
                     .uiTarget("settings-match-\(c.tab.rawValue)")
                 }
                 Spacer(minLength: 12)
-                Text("Press Esc to clear the search.").font(.system(size: 12)).foregroundStyle(Ink.mute).padding(.horizontal, 12)
+                Text("Press Esc to clear the search.").font(.system(size: 12)).foregroundStyle(Refined.mute).padding(.horizontal, 10)
             } else {
                 ForEach(SettingsTab.sidebar) { t in
-                    SettingsSideItem(title: t.sidebarTitle, art: t.art, selected: tab == t, plate: plate) { select(t) }
+                    SettingsSideItem(tab: t, selected: tab == t) { tab = t }
                         .uiTarget("settings-\(t.rawValue)")
                 }
                 Spacer(minLength: 12)
-                SettingsVersionFooter { select(.whatsNew) }
+                SettingsVersionFooter { tab = .whatsNew }
             }
         }
-        .padding(.horizontal, 14).padding(.top, 48).padding(.bottom, 14)
+        .padding(.horizontal, 10).padding(.top, 44).padding(.bottom, 14)
         .frame(maxHeight: .infinity, alignment: .top)
-        .modifier(SidebarPaper())
+        .background(Refined.field)
     }
 
-    private func select(_ t: SettingsTab) {
-        if limitMotion { tab = t } else { withAnimation(Motion.snap) { tab = t } }
-    }
-
-    /// The mono label over search matches.
-    private func groupLabel(_ text: String, first: Bool) -> some View {
-        Text(text).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
-            .padding(.horizontal, 12).padding(.top, first ? 10 : 16).padding(.bottom, 6)
-            .accessibilityAddTraits(.isHeader)
-    }
-
-    /// The website's pill search field: card white with an ink outline, a little heavier while you type.
+    /// The search field on the sidebar (mockup): a quiet wash, the magnifying glass, and a clear button while you type.
     private var searchField: some View {
-        let active = searchFocused.wrappedValue || model.isSearching
-        return HStack(spacing: 8) {
-            IconGlyph(art: .search, size: 15, color: Ink.mute)
-            TextField("Search settings", text: $model.query)
-                .textFieldStyle(.plain).font(.system(size: 13))
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").font(.system(size: 12, weight: .medium)).foregroundStyle(Refined.mute)
+                .accessibilityHidden(true)
+            TextField("Search settings", text: $model.query, prompt: Text("Search settings").foregroundStyle(Refined.mute))
+                .textFieldStyle(.plain).font(.system(size: 13)).foregroundStyle(Refined.ink)
                 .focused(searchFocused)
                 .onExitCommand { model.query = "" }
                 .onSubmit { if let first = SettingsIndex.search(model.query).first { model.open(first) } }
                 .accessibilityLabel("Search settings")
             if model.isSearching {
-                Button { model.query = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 12)).foregroundStyle(Ink.mute) }
+                Button { model.query = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 12)).foregroundStyle(Refined.mute) }
                     .buttonStyle(.plain).help("Clear the search (Esc)").accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, 14).frame(height: 34)
-        .background(Ink.card, in: Capsule())
-        .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: active ? 2 : 1.5))
-        .animation(Motion.touch, value: active)
+        .padding(.horizontal, 8).frame(height: 28)
+        .background(Refined.neutral, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.field), style: .continuous))
         .uiTarget("settings-search")
     }
 }
 
-/// A sidebar row (website style): a rounded row in dim text; under the pointer it takes the soft chip wash; selected,
-/// it's semibold ink on the card fill with the ink outline and a small hard shadow, and that plate slides between rows.
+/// A sidebar row (mockup): the pane's square and its name; chosen, the name in semibold on the persimmon tint.
 struct SettingsSideItem: View {
-    var title: String
-    /// The pane's glyph (none for search matches).
-    var art: BrandArt? = nil
+    var tab: SettingsTab
     var count: Int? = nil
     var selected: Bool
-    var plate: Namespace.ID
     var action: () -> Void
     @State private var hover = false
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
         HStack(spacing: 9) {
-            if let art { IconGlyph(art: art, size: 16, color: selected ? Ink.ink : Ink.dim).accessibilityHidden(true) }
-            Text(title).lineLimit(1).minimumScaleFactor(0.85)
+            IconSquare(art: tab.art, hue: tab.hue)
+            Text(tab.sidebarTitle).lineLimit(1).minimumScaleFactor(0.85)
             Spacer(minLength: 6)
-            if let count { Text("\(count)").font(Ink.mono(12)).foregroundStyle(Ink.mute) }
+            if let count { Text("\(count)").monospacedDigit().foregroundStyle(Refined.mute) }
         }
         .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
-        .foregroundStyle(selected ? Ink.ink : Ink.dim)
-        .padding(.horizontal, 12).frame(height: 32)
+        .foregroundStyle(Refined.ink)
+        .padding(.horizontal, 10).frame(height: 34)
         .background {
-            if selected {
-                shape.fill(Ink.card)
-                    .inkEdge(outline: true, shadow: CGSize(width: 2, height: 3), radius: 16)
-                    .matchedGeometryEffect(id: "settings-selection", in: plate)
-            } else {
-                shape.fill(Ink.chip).opacity(hover ? 1 : 0)
-            }
+            if selected { shape.fill(Refined.persimmonTint) } else { shape.fill(Refined.neutral).opacity(hover ? 1 : 0) }
         }
         .contentShape(shape)
         .onHover { hover = $0 }
-        .animation(Motion.touch, value: hover)
         .tapArea(action)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityLabel(count.map { "\(title), \($0) match\($0 == 1 ? "" : "es")" } ?? title)
+        .accessibilityLabel(count.map { "\(tab.sidebarTitle), \($0) match\($0 == 1 ? "" : "es")" } ?? tab.sidebarTitle)
     }
 }
 
-/// The foot of the Settings sidebar: the version, and What's new, which opens the release notes pane.
+/// The foot of the Settings sidebar (mockup): "Version 1.0 beta (237) · What's new"; the link opens the release notes
+/// pane.
 struct SettingsVersionFooter: View {
     var open: () -> Void
-    @Environment(\.look) private var look
 
     var body: some View {
         Button(action: open) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Version \(AppVersion.label)")
-                    .font(look == .native ? .system(size: 11) : Ink.mono(12)).foregroundStyle(Ink.mute)
-                // A text link: ink with an arrow in Verbose style (persimmon text reads as Record), the accent in Native.
-                HStack(spacing: 4) {
-                    Text("What's new")
-                    if look != .native { ArtIcon(art: .webArrow, size: 12, lineWidth: 1.5) }
-                }
-                .font(.system(size: look == .native ? 11 : 12.5, weight: .semibold))
-                .foregroundStyle(look == .native ? NativeInk.accent : Ink.ink)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            (Text("Version \(AppVersion.label) \u{00B7} ").foregroundStyle(Refined.mute)
+             + Text("What's new").foregroundStyle(Refined.accentText))
+                .font(.system(size: 12))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
@@ -273,36 +235,35 @@ struct SettingsSearchResults: View {
         let terms = SettingsIndex.terms(model.query)
         let counts = SettingsIndex.sectionCounts(results)
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                SettingsPaneHeader(overline: "\(results.count) result\(results.count == 1 ? "" : "s")",
-                                   title: "“\(model.query.trimmingCharacters(in: .whitespaces))”")
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\u{201C}\(model.query.trimmingCharacters(in: .whitespaces))\u{201D}")
+                        .font(.system(size: 30, design: .serif)).foregroundStyle(Refined.ink)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("\(results.count) result\(results.count == 1 ? "" : "s")").font(.system(size: 14)).foregroundStyle(Refined.dim)
+                }
                 if results.isEmpty {
-                    Text("Nothing in Settings matches that. Try a shorter word, like “sync” or “hotkey.”")
-                        .font(.system(size: 14)).foregroundStyle(Ink.dim)
+                    Text("Nothing in Settings matches that. Try a shorter word, like \u{201C}sync\u{201D} or \u{201C}hotkey.\u{201D}")
+                        .font(.system(size: 14)).foregroundStyle(Refined.dim)
                 }
                 ForEach(counts, id: \.tab) { c in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Eyebrow(text: c.tab.title)
-                            .accessibilityElement(children: .combine).accessibilityAddTraits(.isHeader)
-                        VStack(alignment: .leading, spacing: 0) {
-                            ForEach(results.filter { $0.section == c.tab }) { e in
-                                SettingsResultRow(entry: e, terms: terms) { model.open(e) }
-                                    .uiTarget("settings-result-\(results.firstIndex(of: e) ?? 0)")
-                            }
+                    SettingsGroup(title: c.tab.title) {
+                        ForEach(results.filter { $0.section == c.tab }) { e in
+                            SettingsResultRow(entry: e, terms: terms) { model.open(e) }
+                                .uiTarget("settings-result-\(results.firstIndex(of: e) ?? 0)")
                         }
-                        .padding(.top, -1)
-                        .settingsCard()
                     }
                 }
             }
-            .padding(.horizontal, 36).padding(.top, 44).padding(.bottom, 36)
-            .frame(maxWidth: 780, alignment: .leading)
+            .padding(.horizontal, 56).padding(.top, 44).padding(.bottom, 40)
+            .frame(maxWidth: 760 + 112, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
 
-/// A search result: the pane row's bold label and dim detail, with "Open →" as a line mini pill on the right.
+/// A search result: the row's label and description with the query tinted, and a chevron.
 struct SettingsResultRow: View {
     var entry: SettingsEntry
     var terms: [String]
@@ -311,22 +272,22 @@ struct SettingsResultRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(SettingsIndex.highlighted(entry.label, terms: terms)).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(SettingsIndex.highlighted(entry.label, terms: terms)).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Refined.ink)
                 if !entry.detail.isEmpty {
-                    Text(SettingsIndex.highlighted(entry.detail, terms: terms)).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                    Text(SettingsIndex.highlighted(entry.detail, terms: terms)).font(.system(size: 12.5)).foregroundStyle(Refined.mute)
                         .lineSpacing(2).lineLimit(2)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            PillLabel(title: "Open", kind: .line, size: .mini, trailing: .arrow, hover: hover)
+            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(Refined.faint)
+                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 20).padding(.vertical, 12)
-        .frame(minHeight: 60)
-        .background(Ink.ink.opacity(hover ? 0.035 : 0))
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(minHeight: 52)
+        .background(Refined.stripe.opacity(hover ? 1 : 0))
         .overlay(alignment: .top) { RowRule() }
         .onHover { hover = $0 }
-        .animation(Motion.touch, value: hover)
         .tapArea(action)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)

@@ -2,7 +2,6 @@ import SwiftUI
 import AppKit
 import Combine
 
-// brand: web style
 
 // Mac: the voice profile in Settings (`VoiceProfileSection`) and the enrollment sheet it opens
 // (`VoiceEnrollmentSheet`). Shared pieces and the recording live in VoiceEnrollment.swift.
@@ -20,11 +19,11 @@ struct VoiceProfileSection: View {
             if status.isEnrolled || status.isPartial {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .center, spacing: 18) {
-                        VoiceRingsMark(lineWidth: 1.5, color: Ink.ink).frame(width: 66, height: 44)
+                        VoiceRingsMark(lineWidth: 1.5, color: Refined.ink).frame(width: 66, height: 44)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 6) {
-                            Eyebrow(text: "How well it knows you")
-                            Text(status.line).font(Ink.serif(24)).tracking(-0.3).foregroundStyle(Ink.ink)
+                            Text("How well it knows you").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
+                            Text(status.line).font(.system(size: 24, design: .serif)).tracking(-0.3).foregroundStyle(Refined.ink)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .accessibilityElement(children: .combine)
@@ -44,11 +43,11 @@ struct VoiceProfileSection: View {
                 .settingsCard()
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    Eyebrow(text: "Your voice")
-                    Text("Teach Verbose your voice.").font(Ink.serif(24)).tracking(-0.3).foregroundStyle(Ink.ink)
+                    Text("Your voice").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
+                    Text("Teach Verbose your voice.").font(.system(size: 24, design: .serif)).tracking(-0.3).foregroundStyle(Refined.ink)
                         .accessibilityAddTraits(.isHeader)
                     Text("Read three short passages aloud, about 30 seconds in all. Verbose can then keep only your voice in dictation and mark your lines as “You” in transcripts. Your voice profile stays on this Mac.")
-                        .font(.system(size: 13.5)).lineSpacing(2).foregroundStyle(Ink.dim)
+                        .font(.system(size: 13.5)).lineSpacing(2).foregroundStyle(Refined.dim)
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Set Up Your Voice…") { VoiceEnrollmentSheet.present() }
                         .buttonStyle(.settingsPrimaryPill)
@@ -83,14 +82,14 @@ struct VoiceProfileControls: View {
                                     : "Available once Verbose knows your voice.")
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Toggle("Only keep my voice in dictation", isOn: $onlyMyVoice)
-                    .toggleStyle(.switch).labelsHidden().tint(Ink.switchOn)
+                    .toggleStyle(.switch).labelsHidden().refinedSwitchTint()
                     .disabled(!status.isEnrolled)
             }
             row {
                 SettingsRowText(label: "Label my lines as “You”", detail: "New transcripts name your speaker You.")
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Toggle("Label my lines as “You”", isOn: $labelYou)
-                    .toggleStyle(.switch).labelsHidden().tint(Ink.switchOn)
+                    .toggleStyle(.switch).labelsHidden().refinedSwitchTint()
                     .disabled(!status.isEnrolled)
             }
             if status.isEnrolled || status.isPartial {
@@ -165,7 +164,7 @@ enum VoiceEnrollmentSheet {
         let m = VoiceEnrollment(preview: preview)
         let root = VoiceEnrollmentView(model: m, close: { dismiss() })
             .limitMotionRoot()
-            .tint(Ink.switchOn)
+            .refinedSwitchTint()
         let host = NSHostingController(rootView: root)
         // No automatic sizing. With `.preferredContentSize`, AppKit asked SwiftUI for the size inside its own
         // Update Constraints pass, and the sheet's content changing as recording began (live words, the clock)
@@ -178,7 +177,7 @@ enum VoiceEnrollmentSheet {
         // Kept alive by `window` (ARC); a window that also released itself on close would be freed twice.
         w.isReleasedWhenClosed = false
         w.title = "Your voice"
-        w.backgroundColor = NSColor(Ink.paper)
+        w.backgroundColor = NSColor(Refined.paper)
         model = m
         window = w
         fit(w, host)
@@ -249,11 +248,11 @@ struct VoiceEnrollmentView: View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Your voice · step \(model.step.number) of 3")
-                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
-                Text(title).font(Ink.serif(40)).foregroundStyle(Ink.ink)
+                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Refined.mute)
+                Text(title).font(.system(size: 40, design: .serif)).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
                 if let detail {
-                    Text(detail).font(.system(size: 14)).foregroundStyle(Ink.dim)
+                    Text(detail).font(.system(size: 14)).foregroundStyle(Refined.dim)
                         .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: 520, alignment: .leading)
@@ -263,7 +262,7 @@ struct VoiceEnrollmentView: View {
         }
         .padding(.horizontal, 40).padding(.vertical, 34)
         .frame(width: 620, alignment: .topLeading)
-        .background(Ink.paper)
+        .background(Refined.paper)
     }
 
     private var title: String {
@@ -304,11 +303,11 @@ struct VoiceEnrollmentView: View {
     private var intro: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 12) {
-                VoiceRingsMark(color: Ink.ink).frame(width: 54, height: 36)
+                VoiceRingsMark(color: Refined.ink).frame(width: 54, height: 36)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Stays on this Mac").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Ink.ink)
+                    Text("Stays on this Mac").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Refined.ink)
                     Text("Your voice profile is saved only on this Mac. It isn't synced to iCloud or sent anywhere, and you can delete it in Settings.")
-                        .font(.system(size: 13)).foregroundStyle(Ink.dim)
+                        .font(.system(size: 13)).foregroundStyle(Refined.dim)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -317,14 +316,14 @@ struct VoiceEnrollmentView: View {
             .cardSurface(radius: Radius.tile)
             if !model.micName.isEmpty {
                 Text("Microphone · \(model.micName)")
-                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                    .font(.system(size: 12)).foregroundStyle(Refined.mute)
             }
             HStack {
                 Spacer()
                 Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.pillLine())
                 Button("Start") { model.start() }
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.pillDark())
+                    .buttonStyle(.borderedProminent)
             }
         }
     }
@@ -342,7 +341,7 @@ struct VoiceEnrollmentView: View {
                 if model.isPaused {
                     Button("Finish Now") { model.finishNow() }
                         .keyboardShortcut(.defaultAction)
-                        .buttonStyle(.pillDark())
+                        .buttonStyle(.borderedProminent)
                 }
             }
         }
@@ -351,7 +350,7 @@ struct VoiceEnrollmentView: View {
     private var analyzing: some View {
         HStack(spacing: 12) {
             ProgressView().controlSize(.small)
-            Text("Learning your voice…").font(.system(size: 13)).foregroundStyle(Ink.mute)
+            Text("Learning your voice…").font(.system(size: 13)).foregroundStyle(Refined.mute)
             Spacer()
             Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.pillLine())
         }
@@ -366,7 +365,7 @@ struct VoiceEnrollmentView: View {
                 Button("Read more") { model.readMore() }.buttonStyle(.pillLine())
                 Button("Done") { close() }
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.pillDark())
+                    .buttonStyle(.borderedProminent)
             }
             VoiceProfileControls(onDelete: { close() })
         }
@@ -378,7 +377,7 @@ struct VoiceEnrollmentView: View {
             Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.pillLine())
             Button("Try Again") { model.start() }
                 .keyboardShortcut(.defaultAction)
-                .buttonStyle(.pillDark())
+                .buttonStyle(.borderedProminent)
         }
     }
 }

@@ -44,7 +44,7 @@ struct PrivacySettingsPane: View {
                 }
                 if model.events.isEmpty {
                     Text("Nothing yet. Verbose hasn't used the network on this Mac since the list was cleared.")
-                        .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                        .font(.system(size: 12.5)).foregroundStyle(Refined.mute)
                         .padding(.horizontal, 20).padding(.vertical, 14)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .overlay(alignment: .top) { RowRule() }
@@ -71,20 +71,20 @@ struct NetworkEventRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(event.purpose.label).font(.system(size: 13.5, weight: .medium)).foregroundStyle(Ink.ink)
-                Text(event.host.isEmpty ? "Unknown host" : event.host).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                Text(event.purpose.label).font(.system(size: 13.5, weight: .medium)).foregroundStyle(Refined.ink)
+                Text(event.host.isEmpty ? "Unknown host" : event.host).font(.system(size: 12.5)).foregroundStyle(Refined.dim)
                     .lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(NetworkActivityModel.when(event.date)).font(.system(size: 12.5)).foregroundStyle(Ink.mute).monospacedDigit()
+                Text(NetworkActivityModel.when(event.date)).font(.system(size: 12.5)).foregroundStyle(Refined.mute).monospacedDigit()
                 if event.refused {
                     HStack(spacing: 4) {
-                        IconGlyph(art: .iconPrivacy, size: 12, color: Ink.accentText)
-                        Text("Refused by Local Only").font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.accentText)
+                        IconGlyph(art: .iconPrivacy, size: 12, color: Refined.accentText)
+                        Text("Refused by Local Only").font(.system(size: 12, weight: .medium)).foregroundStyle(Refined.accentText)
                     }
                 } else if let b = ByteText.format(event.bytes) {
-                    Text(b).font(.system(size: 12)).foregroundStyle(Ink.mute).monospacedDigit()
+                    Text(b).font(.system(size: 12)).foregroundStyle(Refined.mute).monospacedDigit()
                 }
             }
         }
@@ -135,12 +135,12 @@ struct DataPathBadge: View {
     var transcript: Transcript
     var body: some View {
         HStack(spacing: 5) {
-            IconGlyph(art: .iconPrivacy, size: 12, color: Ink.dim)
-            Text(transcript.dataPathBadge).font(.system(size: 12)).foregroundStyle(Ink.dim).lineLimit(2)
+            IconGlyph(art: .iconPrivacy, size: 12, color: Refined.dim)
+            Text(transcript.dataPathBadge).font(.system(size: 12)).foregroundStyle(Refined.dim).lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 8).padding(.vertical, 3)
-        .background(Ink.ink.opacity(0.06), in: Capsule())
+        .background(Refined.ink.opacity(0.06), in: Capsule())
         .help(transcript.dataLeftDevice
               ? "Something left this Mac for this transcript: a link download or cloud cleanup. Transcription itself ran on this device."
               : "Recorded or imported here, transcribed on this device. Nothing about it left your devices, except iCloud sync when it's on.")

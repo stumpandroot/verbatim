@@ -41,39 +41,39 @@ struct SignInSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if request.reason == .safariNeedsAccess {
-                Text("Safari's sign-in needs Full Disk Access").font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink)
+                Text("Safari's sign-in needs Full Disk Access").font(.system(size: 15, weight: .semibold)).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
                 Text("macOS keeps Safari's cookies private. Turn on Verbose in Privacy & Security › Full Disk Access, then choose Try again. If it still fails, quit and reopen Verbose.")
-                    .font(.system(size: 13)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
+                    .font(.system(size: 13)).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
                     Button("Open Full Disk Access") { NSWorkspace.shared.open(LinkSignIn.fullDiskAccessURL) }.buttonStyle(.pillLine())
-                    Button("Try again") { app.useSignIn(.safari) }.buttonStyle(.pillDark()).keyboardShortcut(.defaultAction)
+                    Button("Try again") { app.useSignIn(.safari) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
                 }
                 .padding(.top, 2)
                 let others = browsers.filter { $0 != .safari }
                 if !others.isEmpty {
-                    Text("Or use your sign-in from:").font(.system(size: 13)).foregroundStyle(Ink.dim).padding(.top, 6)
+                    Text("Or use your sign-in from:").font(.system(size: 13)).foregroundStyle(Refined.dim).padding(.top, 6)
                     browserList(others)
                 }
             } else {
-                Text("This video needs you to be signed in").font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink)
+                Text("This video needs you to be signed in").font(.system(size: 15, weight: .semibold)).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
                 if browsers.isEmpty {
                     Text("Verbose can use a sign-in from Safari, Chrome, Firefox, Brave, or Edge, and none of them is on this Mac. Download the video another way and import the file.")
-                        .font(.system(size: 13)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
+                        .font(.system(size: 13)).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
                 } else {
-                    Text("Use your sign-in from:").font(.system(size: 13)).foregroundStyle(Ink.dim)
+                    Text("Use your sign-in from:").font(.system(size: 13)).foregroundStyle(Refined.dim)
                     browserList(browsers)
                 }
             }
-            Text(footnote).font(.system(size: 12)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true).padding(.top, 2)
+            Text(footnote).font(.system(size: 12)).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true).padding(.top, 2)
             HStack {
                 Spacer()
                 Button("Cancel") { app.cancelSignIn() }.buttonStyle(.pillLine()).keyboardShortcut(.cancelAction).uiTarget("signin-cancel")
             }
             .padding(.top, 4)
         }
-        .padding(20).frame(width: 400, alignment: .leading).background(Ink.paper)
+        .padding(20).frame(width: 400, alignment: .leading).background(Refined.paper)
     }
 
     private var footnote: String {
@@ -93,9 +93,9 @@ struct SignInSheet: View {
                     HStack(spacing: 10) {
                         // Only installed browsers are listed, so the icon is always found (the space holds while it loads).
                         AppIcon(key: .bundleID(b.bundleID), interpolation: nil) { Color.clear }.frame(width: 22, height: 22)
-                        Text(b.name).font(.system(size: 13.5)).foregroundStyle(Ink.ink)
+                        Text(b.name).font(.system(size: 13.5)).foregroundStyle(Refined.ink)
                         Spacer()
-                        Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Ink.mute)
+                        Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Refined.mute)
                     }
                     .padding(.horizontal, 12).padding(.vertical, 9).contentShape(Rectangle())
                 }

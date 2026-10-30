@@ -1,15 +1,11 @@
 import SwiftUI
 import AppKit
 
-// brand: web style
-//
-// The Settings window's building blocks: the panes and their sidebar groups, the searchable index every row is
-// built from, and the row, group, and header views in the website style (DESIGN.md §11): a mono eyebrow and a
-// compact serif title, groups as card-white panels with an ink outline, hairline-separated rows with a bold label
-// and a dim detail, line mini pills for actions in rows, and switches that stay switches.
-//
-// Under the Native look the same pieces draw a grouped Form, as System Settings does: a bold title with no eyebrow,
-// white sections on the window gray, regular labels with secondary details, separators, and bordered buttons.
+// The Settings window's building blocks: the panes and their sidebar order, the searchable index every row is built
+// from, and the row, group, and header views in the refined look (DESIGN.md §13; mockup "Verbose Refined Look",
+// MacSettings), one layout in both look settings: a 40 pt icon square beside the pane's serif title and a one-line
+// description, then groups as `PaperCard`s of rows (the title in semibold, its description in `mute`, and the control
+// on the right), switches in the accent (`refinedSwitchTint()`), and the system's pop-up menus and buttons.
 
 // MARK: - Panes
 
@@ -68,9 +64,6 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
     /// preferences") truncated in the sidebar in both looks. The pane keeps the long name as its page title.
     var sidebarTitle: String { self == .personalization ? "Personalization" : title }
 
-    /// The pane's overline in Verbose style.
-    var group: String { self == .whatsNew ? "Support and feedback" : "Settings" }
-
     /// One line under the pane's title.
     var blurb: String {
         switch self {
@@ -92,14 +85,14 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
     /// The panes in the sidebar, in order (What's new opens from the version at its foot).
     static let sidebar: [SettingsTab] = allCases.filter { t in MacSettingsMap.panes.first { $0.raw == t.rawValue }?.inSidebar ?? true }
 
-    /// The pane's glyph in the Verbose style sidebar.
+    /// The pane's glyph on its square in the sidebar and beside its title (mockup MacSettings).
     var art: BrandArt {
         switch self {
         case .personalization: return .iconAppearance
-        case .recording: return .iconQuality
+        case .recording: return .iconMic
         case .dictate: return .iconDictations
         case .floatingButton: return .iconVoice
-        case .meetings: return .iconCaptions
+        case .meetings: return .iconSpeakers
         case .watched: return .iconFolder
         case .storage: return .iconSync
         case .privacy: return .iconPrivacy
@@ -109,6 +102,9 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
         case .whatsNew: return .iconNotes
         }
     }
+
+    /// The pane's square's hue (`RefinedRules.settingsPaneHue`).
+    var hue: RefinedHue { RefinedRules.settingsPaneHue(rawValue) }
 }
 
 // MARK: - Search index
@@ -311,16 +307,15 @@ enum SettingsIndex {
         }
     }
 
-    /// `s` with every occurrence of each query word on a persimmon tint.
+    /// `s` with every occurrence of each query word in ink on the persimmon tint.
     static func highlighted(_ s: String, terms: [String]) -> AttributedString {
         var a = AttributedString(s)
         for t in terms {
             var from = s.startIndex
             while from < s.endIndex, let r = s.range(of: t, options: [.caseInsensitive, .diacriticInsensitive], range: from..<s.endIndex) {
                 if let ar = Range(r, in: a) {
-                    // Native: the accent's soft wash (persimmon stays out of Native's chrome, DESIGN.md §13.2).
-                    a[ar][AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] = NativeSwap.on ? NativeInk.accentSoft : Ink.persimmonTint
-                    a[ar][AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] = Ink.ink
+                    a[ar][AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] = Refined.persimmonTint
+                    a[ar][AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] = Refined.ink
                 }
                 from = r.upperBound
             }
@@ -375,62 +370,48 @@ final class SettingsModel: ObservableObject {
 
 // MARK: - Page structure
 
-/// The pane's mono eyebrow (its sidebar group), a compact serif title, and its one-line description.
+/// The pane's 40 pt icon square beside its serif title, and its one-line description under them (mockup).
 struct SettingsPaneHeader: View {
-    var overline: String
     var title: String
+    var art: BrandArt? = nil
+    var hue: RefinedHue = .neutral
     var blurb: String? = nil
-    @Environment(\.look) private var look
+
     var body: some View {
-        if look == .native {
-            // Native: the title is in the window's toolbar (NativeSettings.swift), as System Settings shows it; the
-            // pane keeps its one-line description.
-            if let blurb {
-                Text(blurb).font(.system(size: 12)).foregroundStyle(.secondary)
-                    .frame(maxWidth: 600, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel("\(title). \(blurb)")
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                if let art { IconSquare(art: art, hue: hue, side: 40) }
+                Text(title).font(.system(size: 30, weight: .regular, design: .serif)).foregroundStyle(Refined.ink)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .accessibilityAddTraits(.isHeader)
             }
-        } else {
-            verbose
-        }
-    }
-    private var verbose: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Eyebrow(text: overline)
-            Text(title).font(Ink.serif(34)).tracking(-0.5).foregroundStyle(Ink.ink)
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .padding(.top, 6)
-                .accessibilityAddTraits(.isHeader)
             if let blurb {
-                Text(blurb).font(.system(size: 14)).lineSpacing(3).foregroundStyle(Ink.dim)
+                Text(blurb).font(.system(size: 14)).lineSpacing(3).foregroundStyle(Refined.dim)
                     .frame(maxWidth: 600, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 10)
             }
         }
     }
 }
 
-/// A scrolling pane: header, then groups. Scrolls to and flashes the row a search result opened.
+/// A scrolling pane: header, then groups, at most 760 pt wide with the mockup's 56 pt margins. Scrolls to and
+/// flashes the row a search result opened.
 struct SettingsPane<Content: View>: View {
     var tab: SettingsTab
     @ViewBuilder var content: () -> Content
     @ObservedObject private var model = SettingsModel.shared
     @Environment(\.limitMotion) private var limitMotion
-    @Environment(\.look) private var look
 
     var body: some View {
-        let native = look == .native
         LookSwitch.mark("settings-pane")
         if model.window?.isVisible == false { model.closedRenders.pane += 1 }
         return ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: native ? 18 : 22) {
-                    SettingsPaneHeader(overline: tab.group, title: tab.title, blurb: tab.blurb)
+                VStack(alignment: .leading, spacing: 18) {
+                    SettingsPaneHeader(title: tab.title, art: tab.art, hue: tab.hue, blurb: tab.blurb)
                     content()
                 }
-                // Native starts the title at the content's top inset, as System Settings does.
-                .padding(.horizontal, native ? 28 : 36).padding(.top, native ? 8 : 44).padding(.bottom, native ? 28 : 36)
-                .frame(maxWidth: native ? 700 : 780, alignment: .leading)
+                .padding(.horizontal, 56).padding(.top, 44).padding(.bottom, 40)
+                .frame(maxWidth: 760 + 112, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollIndicators(.automatic)
@@ -449,79 +430,56 @@ struct SettingsPane<Content: View>: View {
     }
 }
 
-/// An optional serif section title ("Apps Verbose has *noticed*") over a card of rows, with an optional note under it.
+/// A group (mockup): an optional label in semibold `mute` ("About you"), a card of rows, and an optional note.
 struct SettingsGroup<Content: View>: View {
     var title: String? = nil
     var footer: String? = nil
     @ViewBuilder var content: () -> Content
-    @Environment(\.look) private var look
 
     var body: some View {
-        VStack(alignment: .leading, spacing: look == .native ? 8 : 12) {
+        VStack(alignment: .leading, spacing: 8) {
             if let title {
-                if look == .native {
-                    // A Form section header: plain text, sentence case.
-                    Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary)
-                        .accessibilityAddTraits(.isHeader).padding(.top, 6).padding(.leading, 2)
-                } else {
-                    let parts = WebText.splitLastWord(title)
-                    SectionTitle(title: parts.0, italic: parts.1).padding(.top, 4)
-                }
+                Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
+                    .padding(.horizontal, 4).padding(.top, 6)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
             }
             VStack(alignment: .leading, spacing: 0) { content() }
                 // Each row draws a hairline above itself; the first one tucks under the card's edge.
                 .padding(.top, -1)
                 .settingsCard()
             if let footer {
-                Text(footer).font(.system(size: look == .native ? 11 : 12.5)).lineSpacing(3).foregroundStyle(Ink.mute)
+                Text(footer).font(.system(size: 12.5)).lineSpacing(3).foregroundStyle(Refined.mute)
                     .frame(maxWidth: 600, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 2)
+                    .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4)
             }
         }
     }
 }
 
 extension View {
-    /// A Settings card (website style): card white, the panel radius, and the 1.5 pt ink outline. Content is clipped
+    /// A Settings card: the kit's off-white card (no outline; a hairline under Increase Contrast). Content is clipped
     /// to it, so row tints and hairlines stay inside.
-    func settingsCard() -> some View { modifier(SettingsCardSurface()) }
-}
-
-/// A Settings card, or under Native a grouped Form section.
-struct SettingsCardSurface: ViewModifier {
-    @Environment(\.look) private var look
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
-        if look == .native {
-            content.nativeGroup()
-        } else {
-            content.clipShape(shape)
-                .background(Ink.card, in: shape)
-                .inkEdge(outline: true, radius: Radius.record)
-        }
+    func settingsCard() -> some View {
+        frame(maxWidth: .infinity, alignment: .leading)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
     }
 }
 
-/// The hairline between rows in a card (Native: an inset separator).
+/// The hairline between rows in a card, inset 16 pt from both sides (mockup).
 struct RowRule: View {
-    @Environment(\.look) private var look
-    var body: some View {
-        if look == .native {
-            Rectangle().fill(NativeInk.separator).frame(height: 1).padding(.leading, 12)
-        } else {
-            Rectangle().fill(Ink.hairline).frame(height: 1)
-        }
-    }
+    var body: some View { PaperDivider(leading: 16, trailing: 16) }
 }
 
-/// Marks a view as the target of a search result: it can be scrolled to, and it tints briefly when opened.
+/// Marks a view as the target of a search result: it can be scrolled to, and it takes the persimmon tint briefly when
+/// opened.
 struct SettingsAnchor: ViewModifier {
     var id: String
     var radius: CGFloat = 0
     @ObservedObject private var model = SettingsModel.shared
     func body(content: Content) -> some View {
         content
-            .background((NativeSwap.on ? NativeInk.accentSoft : Ink.persimmonTint).opacity(model.flashID == id ? 1 : 0), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .background(Refined.persimmonTint.opacity(model.flashID == id ? 1 : 0), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .animation(.easeOut(duration: 0.6), value: model.flashID == id)
             .id(id)
             .onAppear { model.anchorAppeared(id) }
@@ -532,27 +490,26 @@ extension View {
     func settingsAnchor(_ id: String, radius: CGFloat = 0) -> some View { modifier(SettingsAnchor(id: id, radius: radius)) }
 }
 
-/// One setting: label and description from the index on the left, its control on the right (or below, `stacked`).
+/// One setting (mockup): label and description from the index on the left, its control on the right (or below,
+/// `stacked`).
 struct SettingsRow<Control: View>: View {
     var id: String
     /// Replaces the index's description when it depends on state (a status, the chosen option's note).
     var detail: String? = nil
-    var detailColor: Color = Ink.mute
+    var detailColor: Color = Refined.mute
     var stacked = false
     @ViewBuilder var control: () -> Control
 
-    init(_ id: String, detail: String? = nil, detailColor: Color = Ink.mute, stacked: Bool = false, @ViewBuilder control: @escaping () -> Control) {
+    init(_ id: String, detail: String? = nil, detailColor: Color = Refined.mute, stacked: Bool = false, @ViewBuilder control: @escaping () -> Control) {
         self.id = id; self.detail = detail; self.detailColor = detailColor; self.stacked = stacked; self.control = control
     }
 
     private var entry: SettingsEntry? { SettingsIndex.entry(id) }
-    @Environment(\.look) private var look
 
     var body: some View {
-        let native = look == .native
         Group {
             if stacked {
-                VStack(alignment: .leading, spacing: native ? 8 : 12) { text; control() }
+                VStack(alignment: .leading, spacing: 10) { text; control() }
             } else {
                 HStack(alignment: .center, spacing: 16) {
                     text.frame(maxWidth: .infinity, alignment: .leading)
@@ -560,8 +517,8 @@ struct SettingsRow<Control: View>: View {
                 }
             }
         }
-        .padding(.horizontal, native ? 12 : 20).padding(.vertical, native ? 9 : 12)
-        .frame(minHeight: native ? 38 : 60)
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(minHeight: 52)
         .frame(maxWidth: .infinity, alignment: .leading)
         .settingsAnchor(id)
         .overlay(alignment: .top) { RowRule() }
@@ -572,30 +529,28 @@ struct SettingsRow<Control: View>: View {
     }
 }
 
-/// A row's text: the label in bold, the detail dim under it.
+/// A row's text: the label in semibold, the description in `mute` under it.
 struct SettingsRowText: View {
     var label: String
     var detail: String = ""
-    var detailColor: Color = Ink.mute
-    @Environment(\.look) private var look
+    var detailColor: Color = Refined.mute
     var body: some View {
-        let native = look == .native
-        VStack(alignment: .leading, spacing: native ? 2 : 3) {
-            Text(label).font(.system(size: native ? 13 : 14, weight: native ? .regular : .semibold)).foregroundStyle(Ink.ink)
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Refined.ink)
                 .fixedSize(horizontal: false, vertical: true)
             if !detail.isEmpty {
-                Text(detail).font(.system(size: native ? 11 : 12.5)).foregroundStyle(detailColor).lineSpacing(native ? 1 : 2).fixedSize(horizontal: false, vertical: true)
+                Text(detail).font(.system(size: 12.5)).foregroundStyle(detailColor).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 }
 extension SettingsRow where Control == EmptyView {
-    init(_ id: String, detail: String? = nil, detailColor: Color = Ink.mute) {
+    init(_ id: String, detail: String? = nil, detailColor: Color = Refined.mute) {
         self.init(id, detail: detail, detailColor: detailColor, stacked: false) { EmptyView() }
     }
 }
 
-/// A row whose control is a switch, labelled for VoiceOver with the row's label.
+/// A row whose control is a switch in the accent, labelled for VoiceOver with the row's label.
 struct SettingsToggleRow: View {
     var id: String
     @Binding var isOn: Bool
@@ -604,13 +559,10 @@ struct SettingsToggleRow: View {
     init(_ id: String, isOn: Binding<Bool>, detail: String? = nil, disabled: Bool = false) {
         self.id = id; self._isOn = isOn; self.detail = detail; self.disabled = disabled
     }
-    @Environment(\.look) private var look
-    @Environment(\.controlSize) private var controlSize
     var body: some View {
         SettingsRow(id, detail: detail) {
             Toggle(SettingsIndex.entry(id)?.label ?? id, isOn: $isOn)
-                .toggleStyle(.switch).labelsHidden().lookTint(look).disabled(disabled)
-                .controlSize(look == .native ? .small : controlSize)   // System Settings' small switches in Native
+                .toggleStyle(.switch).labelsHidden().refinedSwitchTint().disabled(disabled)
         }
     }
 }
@@ -619,7 +571,7 @@ struct SettingsToggleRow: View {
 struct SettingsLabeledStyle: LabeledContentStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            configuration.label.font(.system(size: NativeSwap.on ? 13 : 13.5)).foregroundStyle(Ink.ink)
+            configuration.label.font(.system(size: 13.5)).foregroundStyle(Refined.ink)
             Spacer(minLength: 12)
             configuration.content
         }
@@ -630,10 +582,9 @@ struct SettingsLabeledStyle: LabeledContentStyle {
 struct SettingsToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 12) {
-            configuration.label.font(.system(size: NativeSwap.on ? 13 : 13.5)).foregroundStyle(Ink.ink)
+            configuration.label.font(.system(size: 13.5)).foregroundStyle(Refined.ink)
             Spacer(minLength: 12)
-            Toggle("", isOn: configuration.$isOn).toggleStyle(.switch).labelsHidden()
-                .tint(NativeSwap.on ? nil : Ink.switchOn)
+            Toggle("", isOn: configuration.$isOn).toggleStyle(.switch).labelsHidden().refinedSwitchTint()
         }
     }
 }
@@ -645,64 +596,45 @@ extension View {
     }
 }
 
-/// A toggle chip (watched folders' export formats): the website's soft filter chip, ink when on.
+/// A toggle chip (watched folders' export formats): the kit's filter chip, chosen when on.
 struct SettingsChip: View {
     var title: String
     var on: Bool
     var action: () -> Void
-    @State private var hover = false
     var body: some View {
-        FilterChipLabel(title: title, selected: on, small: true, hover: hover)
-            .onHover { hover = $0 }
-            .tapArea(action)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(title)
+        RefinedChip(title: title, selected: on, action: action)
             .accessibilityValue(on ? "On" : "Off")
-            .accessibilityAddTraits(.isButton)
     }
 }
 
-/// A line mini pill in the danger color, for destructive actions in a row ("Delete All Data…"). The word carries
-/// the meaning; a confirmation always follows.
+/// A destructive action in a row ("Delete All Data…"): the danger color on the quiet wash. The word carries the
+/// meaning; a confirmation always follows.
 struct SettingsDangerPillStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
     private struct Face: View {
         let configuration: ButtonStyleConfiguration
-        @State private var hover = false
         @Environment(\.isEnabled) private var enabled
-        @Environment(\.look) private var look
         var body: some View {
-            if look == .native {
-                NativeButtonStyleFace(configuration: configuration, prominent: false, size: .mini, tint: NativeInk.danger)
-            } else {
-                verbose
-            }
-        }
-        private var verbose: some View {
             configuration.label
-                .font(.system(size: PillSize.mini.font, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .lineLimit(1)
-                .foregroundStyle(Ink.danger)
-                .padding(.horizontal, PillSize.mini.padding)
-                .frame(height: PillSize.mini.height)
-                .background {
-                    ZStack {
-                        Capsule().fill(Ink.danger.opacity(hover ? 0.08 : 0))
-                        Capsule().strokeBorder(Ink.danger, lineWidth: 1.5)
-                    }
-                }
+                .foregroundStyle(Refined.danger)
+                .padding(.horizontal, 12)
+                .frame(height: 26)
+                .background(Refined.neutral, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .fixedSize()
-                .contentShape(Capsule())
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.4)
-                .onHover { hover = $0 }
-                .animation(Motion.touch, value: hover)
         }
     }
 }
 
-extension ButtonStyle where Self == PillButtonStyle {
-    /// A line mini pill, for actions inside Settings rows.
-    static var settingsPill: PillButtonStyle { PillButtonStyle(kind: .line, size: .mini) }
-    /// A dark mini pill, for the one primary action in a Settings row.
-    static var settingsPrimaryPill: PillButtonStyle { PillButtonStyle(kind: .dark, size: .mini) }
+extension PrimitiveButtonStyle where Self == BorderedButtonStyle {
+    /// An action inside a Settings row: the system's bordered button (Apple draws the chrome, DESIGN.md §13).
+    static var settingsPill: BorderedButtonStyle { .bordered }
+}
+
+extension PrimitiveButtonStyle where Self == BorderedProminentButtonStyle {
+    /// The one primary action in a Settings row: the system's prominent button in the accent.
+    static var settingsPrimaryPill: BorderedProminentButtonStyle { .borderedProminent }
 }

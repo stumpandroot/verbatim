@@ -1,7 +1,6 @@
 import SwiftUI
 import AppKit
 
-// brand: web style
 
 extension BrandArt {
     /// A folder, in the fine-line interface set (24-unit grid).
@@ -46,11 +45,11 @@ struct WatchedFoldersPane: View {
                         watcher.addFolder()
                         if let last = watcher.folders.last { selectedRaw = last.id.uuidString }
                     }
-                    .buttonStyle(PillButtonStyle(kind: .dark, size: .regular))
+                    .buttonStyle(.borderedProminent)
                     .settingsAnchor("watched.add", radius: 18)
                     .uiTarget("watched-add")
                     Button("Open activity") { showActivity = true }
-                        .buttonStyle(PillButtonStyle(kind: .line, size: .regular))
+                        .buttonStyle(.bordered)
                         .settingsAnchor("watched.activity", radius: 18)
                 }
             }
@@ -66,11 +65,11 @@ struct WatchedFoldersPane: View {
 
     private var empty: some View {
         HStack(spacing: 16) {
-            IconPlate(art: .iconFolder, size: 64, color: Ink.dim)
+            IconPlate(art: .iconFolder, size: 64, color: Refined.dim)
             VStack(alignment: .leading, spacing: 4) {
-                Text("No folders yet").font(Ink.serif(22))
+                Text("No folders yet").font(.system(size: 22, design: .serif))
                 Text("Add a folder and anything new that lands in it is transcribed: a camera card's dailies, a recorder's sync folder, a shared Dropbox. Files already there are left alone.")
-                    .font(.system(size: 12.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
+                    .font(.system(size: 12.5)).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(18)
@@ -92,21 +91,21 @@ struct WatchedFolderRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            IconGlyph(art: .iconFolder, size: 18, color: Ink.ink)
+            IconGlyph(art: .iconFolder, size: 18, color: Refined.ink)
                 .frame(width: 34, height: 34)
                 .background(tileColor, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(folder.name).font(.system(size: 14, weight: .semibold)).lineLimit(1)
                 Text(WatchedFolder.display(folder.path) + (folder.includeSubfolders ? " · subfolders included" : ""))
-                    .font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1).truncationMode(.middle)
+                    .font(.system(size: 12).monospacedDigit()).foregroundStyle(Refined.mute).lineLimit(1).truncationMode(.middle)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text(summary).font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(1).truncationMode(.middle)
+            Text(summary).font(.system(size: 12.5)).foregroundStyle(Refined.dim).lineLimit(1).truncationMode(.middle)
                 .frame(minWidth: 0, maxWidth: 260, alignment: .trailing)
             tag.fixedSize().layoutPriority(1)
         }
         .padding(.horizontal, 20).padding(.vertical, 13)
-        .background(selected ? Ink.wash : Ink.ink.opacity(hover ? 0.035 : 0))
+        .background(selected ? Refined.persimmonTint : Refined.stripe.opacity(hover ? 1 : 0))
         .overlay(alignment: .top) { RowRule() }
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
@@ -124,7 +123,7 @@ struct WatchedFolderRow: View {
     }
 
     private var tileColor: Color {
-        switch status { case .watching: return Ink.sageTint; case .paused: return Ink.butterTint; case .needsAccess: return Ink.persimmonTint }
+        switch status { case .watching: return Refined.sageTint; case .paused: return Refined.butterTint; case .needsAccess: return Refined.persimmonTint }
     }
 
     private var summary: String {
@@ -174,7 +173,7 @@ struct WatchedFolderDetail: View {
                 SettingsRow("watched.location", detail: WatchedFolder.display(folder.path)) {
                     HStack(spacing: 8) {
                         Button("Show in Finder") { watcher.reveal(folder.id) }.buttonStyle(.settingsPill)
-                        Button("Stop Watching") { watcher.remove(folder.id) }.buttonStyle(.settingsPill)
+                        Button("Stop watching") { watcher.remove(folder.id) }.buttonStyle(.settingsPill)
                     }
                 }
             }
@@ -199,8 +198,8 @@ struct WatchedFolderDetail: View {
             .settingsAnchor("watched.formats", radius: Radius.button)
             VStack(alignment: .leading, spacing: 4) {
                 Text(folder.formats.isEmpty ? "None chosen: transcripts stay in your Library." : "Uses the Export options below (which text, speaker names, timecodes).")
-                    .font(.system(size: 12.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
-                PillButton(title: "Export settings", kind: .line, size: .mini, trailing: .arrow, action: openExport)
+                    .font(.system(size: 12.5)).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+                Button("Export settings", action: openExport).buttonStyle(.settingsPill)
                     .padding(.top, 4)
             }
             .settingsAnchor("watched.exportOptions", radius: 6)
@@ -224,7 +223,7 @@ struct WatchedFolderDetail: View {
                     Button("Next to the original") { watcher.update(folder.id) { $0.destination = nil; $0.destinationPath = nil } }
                     Button("Choose folder…") { watcher.chooseDestination(folder.id) }
                 } label: {
-                    Text(folder.destinationPath.map(WatchedFolder.display) ?? "Next to the original").font(Ink.mono(12)).lineLimit(1).truncationMode(.middle)
+                    Text(folder.destinationPath.map(WatchedFolder.display) ?? "Next to the original").font(.system(size: 12).monospacedDigit()).lineLimit(1).truncationMode(.middle)
                         .frame(maxWidth: 240, alignment: .trailing)
                 }
                 .menuStyle(.borderlessButton)
@@ -237,12 +236,12 @@ struct WatchedFolderDetail: View {
                 Text("File name").font(.system(size: 13))
                 Spacer(minLength: 12)
                 TextField("{original name}", text: $pattern)
-                    .textFieldStyle(.plain).font(Ink.mono(12)).multilineTextAlignment(.trailing)
+                    .textFieldStyle(.plain).font(.system(size: 12).monospacedDigit()).multilineTextAlignment(.trailing)
                     .frame(minWidth: 120, maxWidth: 180)
                     .onSubmit(savePattern)
                     .onChange(of: pattern) { _, _ in savePattern() }
                     .accessibilityLabel("File name pattern")
-                Text("." + (folder.exportFormats.first?.ext ?? "txt")).font(Ink.mono(12)).foregroundStyle(Ink.mute)
+                Text("." + (folder.exportFormats.first?.ext ?? "txt")).font(.system(size: 12).monospacedDigit()).foregroundStyle(Refined.mute)
             }
             .settingsAnchor("watched.fileName", radius: 6)
             HStack {
@@ -255,7 +254,7 @@ struct WatchedFolderDetail: View {
                 .labelsHidden().pickerStyle(.menu).fixedSize()
             }
             .settingsAnchor("watched.notify", radius: 6)
-            Text("{original name}, {title}, and {date} fill in for each file.").font(.system(size: 12)).foregroundStyle(Ink.mute)
+            Text("{original name}, {title}, and {date} fill in for each file.").font(.system(size: 12)).foregroundStyle(Refined.mute)
             Spacer(minLength: 0)
         }
         .padding(18)
@@ -264,7 +263,7 @@ struct WatchedFolderDetail: View {
     }
 
     private func cardEyebrow(_ s: String) -> some View {
-        Eyebrow(text: s).accessibilityAddTraits(.isHeader)
+        Text(s).font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute).accessibilityAddTraits(.isHeader)
     }
 
     private func savePattern() {
@@ -313,10 +312,10 @@ struct WatchActivitySheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SettingsPaneHeader(overline: "Watched folders", title: "Activity")
+            SettingsPaneHeader(title: "Activity", art: .iconFolder, hue: .butter, blurb: "What each watched folder has transcribed and exported.")
             if watcher.events.isEmpty {
                 Text("Nothing yet. When a file lands in a watched folder, it shows here as it's transcribed and exported.")
-                    .font(.system(size: 13)).foregroundStyle(Ink.mute).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .font(.system(size: 13)).foregroundStyle(Refined.mute).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
@@ -329,12 +328,12 @@ struct WatchActivitySheet: View {
             }
             HStack {
                 Spacer()
-                Button("Done", action: done).buttonStyle(PillButtonStyle(kind: .dark, size: .regular)).keyboardShortcut(.defaultAction)
+                Button("Done", action: done).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
             }
         }
         .padding(28)
         .frame(width: 600, height: 520)
-        .background(Ink.paper)
+        .background(Refined.paper)
     }
 
     private func row(_ e: WatchEvent) -> some View {
@@ -342,10 +341,10 @@ struct WatchActivitySheet: View {
             Circle().fill(color(e.kind)).frame(width: 7, height: 7).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
             VStack(alignment: .leading, spacing: 2) {
                 Text(e.file).font(.system(size: 13.5, weight: .medium)).lineLimit(1).truncationMode(.middle)
-                Text("\(e.folder) · \(e.detail)").font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(2)
+                Text("\(e.folder) · \(e.detail)").font(.system(size: 12)).foregroundStyle(Refined.mute).lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text(e.date, format: .dateTime.month(.abbreviated).day().hour().minute()).font(Ink.mono(12)).foregroundStyle(Ink.mute)
+            Text(e.date, format: .dateTime.month(.abbreviated).day().hour().minute()).font(.system(size: 12).monospacedDigit()).foregroundStyle(Refined.mute)
             if let id = e.transcriptID, app.store.transcript(id) != nil {
                 Button("Open") { done(); NSApp.activate(ignoringOtherApps: true); app.go(.transcript(id)) }
                     .buttonStyle(.settingsPill)
@@ -356,6 +355,6 @@ struct WatchActivitySheet: View {
     }
 
     private func color(_ k: WatchEvent.Kind) -> Color {
-        switch k { case .queued: return Ink.butter; case .exported, .ready: return Ink.sage; case .failed: return Ink.persimmon }
+        switch k { case .queued: return Refined.butter; case .exported, .ready: return Refined.sage; case .failed: return Refined.persimmon }
     }
 }

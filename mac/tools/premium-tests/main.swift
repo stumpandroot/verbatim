@@ -1,8 +1,8 @@
 import Foundation
 
 // The Mac Native look's pure rules (PremiumRules.swift): no brand color in Native's files, the recordings' date line,
-// the Library table's date cell, sort, and row meta, speakers' shares, This week's bars, the Settings window's colored
-// squares, and back and forward. Not part of any app target; run mac/tools/test-premium.sh.
+// the Library table's date cell, sort, and row meta, speakers' shares, This week's bars, and back and forward. Not part of any app target; run
+// mac/tools/test-premium.sh.
 var passed = 0, failed = 0
 func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "") {
     if ok { passed += 1; print("PASS  \(name)") }
@@ -15,8 +15,7 @@ func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "")
 // SF Pro Rounded out of the Mac's Native look. The Views folder is the first argument.
 let args = CommandLine.arguments
 let views = args.count > 1 ? args[1] : ""
-let nativeFiles = ["NativeChrome", "NativeSidebar",
-                   "NativeSettings", "PremiumLook", "PremiumItems"]
+let nativeFiles = ["NativeChrome", "NativeSidebar", "PremiumLook", "PremiumItems"]
 let banned = ["nativeAccent", "persimmon", "Persimmon", "PremiumInk.accentSoft", "PremiumInk.onAccent", "PremiumInk.shadow",
               "gradientCard", "RadialGradient", "LinearGradient", ".shadow(", "design: .rounded", "glow"]
 var read = 0
@@ -110,14 +109,6 @@ check("the refined Library's sort menu says Newest first, as the mockup", Native
       && NativeTableSort.name.title(descending: false) == "Title A–Z")
 check("every column and direction has its own sort title", Set(NativeTableSort.allCases.flatMap { [$0.title(descending: true), $0.title(descending: false)] }).count == 10)
 check("the table's columns are the mockup's", NativeTableSort.allCases.map(\.header) == ["Name", "Kind", "People or source", "Date", "Length"])
-
-// MARK: Settings squares
-
-let panes = ["general", "transcription", "dictate", "floatingButton", "actions", "meetings", "watched", "storage", "privacy", "account", "about", "features", "whatsNew"]
-check("Settings squares never use red", !NativeSettingsSquare.Tint.allCases.map(\.rawValue).contains("red"))
-check("Settings squares follow the mockup", NativeSettingsSquare.tint("general") == .blue && NativeSettingsSquare.tint("transcription") == .orange
-      && NativeSettingsSquare.tint("dictate") == .gray && NativeSettingsSquare.tint("privacy") == .blue && NativeSettingsSquare.tint("about") == .green)
-check("every Settings pane has a square", panes.allSatisfy { NativeSettingsSquare.tint($0).rawValue.count > 0 })
 
 // MARK: Back and forward
 

@@ -202,10 +202,10 @@ struct MarkHotkeyRow: View {
     private var combo: KeyCombo { KeyCombo(stored: stored) ?? MarkHotkeyStore.standard }
 
     var body: some View {
-        SettingsRow("dictate.markHotkey", detail: detail, detailColor: problem == nil && !hotkey.unavailable ? Ink.mute : Ink.accentText) {
+        SettingsRow("dictate.markHotkey", detail: detail, detailColor: problem == nil && !hotkey.unavailable ? Refined.mute : Refined.accentText) {
             HStack(spacing: 6) {
                 if recording {
-                    Text("Type a shortcut").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                    Text("Type a shortcut").font(.system(size: 12.5)).foregroundStyle(Refined.mute)
                     Button("Cancel") { stop() }.buttonStyle(.settingsPill)
                 } else {
                     ForEach(Array(combo.keycaps.enumerated()), id: \.offset) { _, k in KeyChip(text: k) }

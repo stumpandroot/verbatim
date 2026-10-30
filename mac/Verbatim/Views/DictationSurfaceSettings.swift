@@ -1,8 +1,6 @@
 import SwiftUI
 import AppKit
 
-// brand: web style
-//
 // Settings for how dictation shows and starts: Ribbon and notch › Where dictation shows (the Ribbon or the notch,
 // with each one's own rows), and Dictation and
 // keyboard › Hotkey (a list that shows its keys, a shortcut you record, or a mouse side button) and How it starts. Website style (DESIGN.md §11): cards with
@@ -86,16 +84,16 @@ private struct SurfaceCard: View {
                 .frame(height: 92)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .overlay(alignment: .topTrailing) { ChoiceDot(on: selected).padding(6) }
-            Text(surface.title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Ink.ink)
+            Text(surface.title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Refined.ink)
                 .padding(.top, 9).padding(.horizontal, 4)
-            Text(surface.detail).font(.system(size: 12)).foregroundStyle(Ink.mute).lineSpacing(1.5)
+            Text(surface.detail).font(.system(size: 12)).foregroundStyle(Refined.mute).lineSpacing(1.5)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2).padding(.horizontal, 4)
         }
         .padding(8).padding(.bottom, 2)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(selected ? Ink.card : (hover ? Ink.cardHover : Ink.paper), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .overlay { if !selected { RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1) } }
+        .background(selected ? Refined.card : (hover ? Ink.cardHover : Refined.paper), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay { if !selected { RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Refined.separator, lineWidth: 1) } }
         .inkEdge(outline: selected, shadow: selected ? InkEdge.row : .zero, radius: Radius.tile)
         .onHover { hover = $0 }
         .tapArea(action)
@@ -113,9 +111,9 @@ private struct ChoiceDot: View {
     @Environment(\.look) private var look
     var body: some View {
         ZStack {
-            Circle().fill(Ink.card)
+            Circle().fill(Refined.card)
             // Native: the accent radio, as System Settings draws it.
-            Circle().strokeBorder(on ? (look == .native ? NativeInk.accent : Ink.ink) : Ink.mute, lineWidth: on ? size * 0.31 : 1.5)
+            Circle().strokeBorder(on ? (look == .native ? NativeInk.accent : Refined.ink) : Refined.mute, lineWidth: on ? size * 0.31 : 1.5)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
@@ -201,17 +199,17 @@ struct KeyChip: View {
             Text(text).font(Ink.mono(big ? 15 : 12.5))
             if text == "fn" { Image(systemName: "globe").font(.system(size: big ? 14 : 12)) }
         }
-        .foregroundStyle(ghost ? Ink.mute : Ink.ink)
+        .foregroundStyle(ghost ? Refined.mute : Refined.ink)
         .padding(.horizontal, 8)
         .frame(minWidth: big ? 38 : 30, minHeight: big ? 34 : 28)
         .background {
             if ghost {
-                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1)
+                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Refined.separator, lineWidth: 1)
             } else {
                 ZStack {
-                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.ink).offset(y: 2)
-                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.card)
-                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Refined.ink).offset(y: 2)
+                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Refined.card)
+                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Refined.ink, lineWidth: 1)
                 }
             }
         }
@@ -250,7 +248,7 @@ struct HotkeyPickerRow: View {
                     option(.mouse, title: "A mouse button", note: "A side button on a mouse with more than three.", last: true) { mouseControl }
                 }
                 .padding(4)
-                .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Refined.separator, lineWidth: 1))
                 .frame(maxWidth: 620)
                 if recording {
                     HStack(spacing: 5) {
@@ -258,7 +256,7 @@ struct HotkeyPickerRow: View {
                         KeyChip(text: "esc")
                         Text("to stop recording without changing anything.")
                     }
-                    .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                    .font(.system(size: 12.5)).foregroundStyle(Refined.mute)
                 }
                 if let c = candidate { RecordedCard(combo: c, check: ShortcutCheck.check(c, also: recallTaken), mode: flow.mode,
                                                     again: startRecording, use: { commit(c) }, cancel: { candidate = nil }) }
@@ -278,15 +276,15 @@ struct HotkeyPickerRow: View {
             HStack(spacing: 12) {
                 ChoiceDot(on: on, size: 20)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Ink.ink)
+                    Text(title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Refined.ink)
                     if let note {
                         HStack(alignment: .firstTextBaseline, spacing: 5) {
                             if attention {
-                                BrandGlyph(art: .iconAttention, color: warn ? Ink.danger : Ink.dim, minLineWidth: 1.2)
+                                BrandGlyph(art: .iconAttention, color: warn ? Refined.danger : Refined.dim, minLineWidth: 1.2)
                                     .frame(width: 12, height: 12).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1.5 }
                                     .accessibilityHidden(true)
                             }
-                            Text(note).font(.system(size: 12)).foregroundStyle(warn ? Ink.danger : (attention ? Ink.dim : Ink.mute))
+                            Text(note).font(.system(size: 12)).foregroundStyle(warn ? Refined.danger : (attention ? Refined.dim : Refined.mute))
                                 .lineSpacing(1.5).fixedSize(horizontal: false, vertical: true)
                         }
                         .uiTarget("hotkey-note-\(choice.rawValue)")
@@ -316,13 +314,13 @@ struct HotkeyPickerRow: View {
             HStack(spacing: 6) {
                 Circle().fill(Ink.recordFill).frame(width: 8, height: 8)
                 ForEach(held.symbols, id: \.self) { KeyChip(text: $0) }
-                Rectangle().fill(Ink.ink).frame(width: 1.5, height: 18)
-                Text("Type a key").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                Rectangle().fill(Refined.ink).frame(width: 1.5, height: 18)
+                Text("Type a key").font(.system(size: 12.5)).foregroundStyle(Refined.mute)
             }
             .padding(.horizontal, 10)
             .frame(minWidth: 168, minHeight: 38, alignment: .leading)
-            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5))
+            .background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Refined.ink, lineWidth: 1.5))
             .background(RoundedRectangle(cornerRadius: Radius.button + 3, style: .continuous).fill(Ink.butter.opacity(0.7)).padding(-4))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Recording a shortcut. Press the keys you want, or Esc to stop.")
@@ -472,26 +470,26 @@ private struct RecordedCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Eyebrow(text: taken == nil ? "Recorded" : "Already taken")
+            Text(taken == nil ? "Recorded" : "Already taken").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
             Group {
                 if let t = taken { WebText.serif("That one belongs", italic: "to \(t.owner)", size: 22) }
                 else { WebText.serif("Your shortcut is", italic: combo.title, size: 22) }
             }
-            .foregroundStyle(Ink.ink).padding(.top, 4)
+            .foregroundStyle(Refined.ink).padding(.top, 4)
             HStack(spacing: 6) { ForEach(combo.keycaps, id: \.self) { KeyChip(text: $0, big: true) } }
                 .frame(maxWidth: .infinity, minHeight: 64)
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(taken == nil ? Ink.ink : Ink.danger, lineWidth: 1.5))
+                .background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(taken == nil ? Refined.ink : Refined.danger, lineWidth: 1.5))
                 .padding(.top, 14)
             if let t = taken {
                 HStack(alignment: .top, spacing: 6) {
-                    BrandGlyph(art: .webAttention, color: Ink.danger, minLineWidth: 1.3).frame(width: 16, height: 16)
-                    Text("\(t.sentence) Choose another shortcut.").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.danger)
+                    BrandGlyph(art: .webAttention, color: Refined.danger, minLineWidth: 1.3).frame(width: 16, height: 16)
+                    Text("\(t.sentence) Choose another shortcut.").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Refined.danger)
                 }
                 .padding(.top, 10)
             } else {
                 Text("\(mode == .toggle ? "Press it to start; press it again to paste." : "Hold it to talk; let go to paste.") It works in every app except while a password field is focused. If nothing happens, another app may have it; choose another.")
-                    .font(.system(size: 12.5)).lineSpacing(2).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
+                    .font(.system(size: 12.5)).lineSpacing(2).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 8)
             }
             HStack(spacing: 8) {
@@ -508,8 +506,8 @@ private struct RecordedCard: View {
         }
         .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 16)
         .frame(maxWidth: 420, alignment: .leading)
-        .background(Ink.paper, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1))
+        .background(Refined.paper, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Refined.separator, lineWidth: 1))
     }
 }
 
@@ -525,25 +523,25 @@ private struct MouseWaitCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Eyebrow(text: "Mouse button")
-            WebText.serif("Press the button", italic: "you want", size: 22).foregroundStyle(Ink.ink).padding(.top, 4)
+            Text("Mouse button").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
+            WebText.serif("Press the button", italic: "you want", size: 22).foregroundStyle(Refined.ink).padding(.top, 4)
             ZStack {
-                BrandGlyph(art: Self.shell, color: Ink.card)
+                BrandGlyph(art: Self.shell, color: Refined.card)
                 BrandGlyph(art: Self.side, color: Ink.butter)
-                BrandGlyph(art: Self.lines, color: Ink.ink)
+                BrandGlyph(art: Self.lines, color: Refined.ink)
             }
             .frame(width: 74, height: 110)
             .frame(maxWidth: .infinity)
             .padding(.top, 14)
             Text("Waiting for a click on button 4 or 5. Left, right, and middle clicks don't count.")
-                .font(.system(size: 12.5)).lineSpacing(2).foregroundStyle(Ink.dim).multilineTextAlignment(.center)
+                .font(.system(size: 12.5)).lineSpacing(2).foregroundStyle(Refined.dim).multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity).padding(.top, 10)
             HStack { Spacer(); Button("Cancel", action: cancel).buttonStyle(.settingsPill) }.padding(.top, 14)
         }
         .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 16)
         .frame(maxWidth: 420, alignment: .leading)
-        .background(Ink.paper, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1))
+        .background(Refined.paper, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Refined.separator, lineWidth: 1))
     }
 }
 

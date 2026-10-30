@@ -2,8 +2,8 @@ import Foundation
 
 // Pure rules behind the Native look on the Mac (DESIGN.md §13.2), Foundation only, so mac/tools/test-premium.sh runs
 // them on Linux: the recordings' date line and the Library table's date cell, a row's meta line, speakers' shares and
-// talk time, This week's bars, the Settings window's colored squares, the Library table's sort, and the toolbar's back
-// and forward history.
+// talk time, This week's bars, the Library table's sort, and the toolbar's back and forward history. (Settings' squares
+// moved to the refined look, `RefinedRules.settingsPaneHue`.)
 
 // MARK: - Recordings
 
@@ -184,35 +184,6 @@ enum NativeTableSort: String, CaseIterable {
         }
         if r == .orderedSame { return a.date > b.date }
         return descending ? r == .orderedDescending : r == .orderedAscending
-    }
-}
-
-// MARK: - Settings
-
-/// The Settings window's colored squares (mockup sections 6 and 10), in system colors by name, as System Settings
-/// draws them: Apple's own meanings where one exists (blue for Personalization and Privacy, gray for the keyboard and
-/// the account) and never red, which stays with recording.
-enum NativeSettingsSquare {
-    enum Tint: String, CaseIterable { case blue, orange, gray, indigo, purple, teal, cyan, green, pink, brown, mint, yellow }
-
-    /// The square's color for a Settings pane, by `SettingsTab` raw value.
-    static func tint(_ raw: String) -> Tint {
-        switch raw {
-        case "general": return .blue
-        case "transcription": return .orange
-        case "dictate": return .gray
-        case "floatingButton": return .indigo
-        case "actions": return .purple
-        case "meetings": return .teal
-        case "watched": return .blue
-        case "storage": return .cyan
-        case "privacy": return .blue
-        case "account": return .gray
-        case "about": return .green
-        case "features": return .pink
-        case "whatsNew": return .yellow
-        default: return .gray
-        }
     }
 }
 
