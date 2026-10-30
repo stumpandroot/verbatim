@@ -1,7 +1,9 @@
 {
   "notes": [
     {
-      "build": "next",
+      "build": "250",
+      "date": "2026-10-30",
+      "version": "1.0 beta",
       "title": "A muted mic doesn't cost you the recording",
       "items": [
         {
