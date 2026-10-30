@@ -350,29 +350,32 @@ struct RecordRings: View {
 
 /// A Home tile (mockup: Home's four): a bare glyph top left and the name at the foot, on its hue's fill (butter
 /// Dictate, sage Import, petal What's playing or App audio, the card for anything else), with a quiet line pattern in
-/// its top-right corner for what it does (`RefinedRules.tilePattern(forTile:)`). The Mac shows the shortcut at the
-/// trailing edge of the name. iPhone 74 pt tall with a 16 pt radius, Mac 84 pt with 14. Compact (Edit Home's size,
-/// and the Mac recorder mockup's row) is 58 pt: the name alone on the Mac, a smaller glyph over it on iPhone.
+/// its top-right corner for what it does (`RefinedRules.tilePattern(forTile:)`). The Mac shows a shortcut at the
+/// trailing edge of the name when both fit on one line, else on its own line under the name; a state ("Needs
+/// Accessibility") always takes its own line under the name (`RefinedRules.TileTrailing`), one line, never broken
+/// mid-word. iPhone 74 pt tall with a 16 pt radius, Mac 84 pt with 14. Compact (Edit Home's size, and the Mac
+/// recorder mockup's row) is 58 pt: the name alone on the Mac, a smaller glyph over it on iPhone.
 struct ColorTile: View {
     var title: String
     var art: BrandArt
     var hue: RefinedHue
     var pattern: RefinedRules.TilePattern? = nil
-    var shortcut: String? = nil
+    var trailing: RefinedRules.TileTrailing? = nil
     var compact = false
     var action: () -> Void
 
-    init(title: String, art: BrandArt, hue: RefinedHue, pattern: RefinedRules.TilePattern? = nil, shortcut: String? = nil,
-         compact: Bool = false, action: @escaping () -> Void) {
-        self.title = title; self.art = art; self.hue = hue; self.pattern = pattern; self.shortcut = shortcut
+    init(title: String, art: BrandArt, hue: RefinedHue, pattern: RefinedRules.TilePattern? = nil,
+         trailing: RefinedRules.TileTrailing? = nil, compact: Bool = false, action: @escaping () -> Void) {
+        self.title = title; self.art = art; self.hue = hue; self.pattern = pattern; self.trailing = trailing
         self.compact = compact; self.action = action
     }
 
     var body: some View {
-        Button(action: action) { ColorTileFace(title: title, art: art, hue: hue, pattern: pattern, shortcut: shortcut, compact: compact) }
+        Button(action: action) { ColorTileFace(title: title, art: art, hue: hue, pattern: pattern, trailing: trailing, compact: compact) }
             .buttonStyle(RefinedPress())
             .accessibilityLabel(title)
-            .accessibilityHint(shortcut.map { "Shortcut: " + Keycap.spoken($0) } ?? "")
+            // "Shortcut: Command O" for a shortcut; a state speaks as a state.
+            .accessibilityHint(trailing?.hint(spokenKeys: Keycap.spoken) ?? "")
     }
 }
 
@@ -382,27 +385,24 @@ struct ColorTileFace: View {
     var art: BrandArt
     var hue: RefinedHue
     var pattern: RefinedRules.TilePattern? = nil
-    var shortcut: String? = nil
+    var trailing: RefinedRules.TileTrailing? = nil
     var compact = false
     @CurrentPalette private var palette: AppPalette
     @Environment(\.colorSchemeContrast) private var contrast
     private let mac = RefinedPlatform.mac
 
-    init(title: String, art: BrandArt, hue: RefinedHue, pattern: RefinedRules.TilePattern? = nil, shortcut: String? = nil,
-         compact: Bool = false) {
-        self.title = title; self.art = art; self.hue = hue; self.pattern = pattern; self.shortcut = shortcut; self.compact = compact
+    init(title: String, art: BrandArt, hue: RefinedHue, pattern: RefinedRules.TilePattern? = nil,
+         trailing: RefinedRules.TileTrailing? = nil, compact: Bool = false) {
+        self.title = title; self.art = art; self.hue = hue; self.pattern = pattern; self.trailing = trailing; self.compact = compact
     }
 
     var body: some View {
         let ink = Refined.onFill(hue, palette)
         VStack(alignment: .leading, spacing: 0) {
             if !(compact && mac) { IconGlyph(art: art, size: compact ? 18 : 22, color: ink) }
-            Spacer(minLength: compact ? 4 : 8)
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(title).refinedFont(.tileName, weight: .semibold).lineLimit(2).minimumScaleFactor(compact ? 0.8 : 1)
-                Spacer(minLength: 4)
-                if let shortcut { Text(shortcut).refinedFont(.caption).accessibilityHidden(true) }
-            }
+            // With a line under the name, the gap gives it the room, so the tile keeps its height.
+            Spacer(minLength: trailing == nil ? (compact ? 4 : 8) : 2)
+            nameAndTrailing
         }
         .foregroundStyle(ink)
         .padding(.horizontal, compact && !mac ? 10 : 14).padding(.vertical, compact ? 10 : (mac ? 14 : 12))
@@ -415,6 +415,37 @@ struct ColorTileFace: View {
         }
         .refinedSurface(Refined.fill(hue, palette), radius: RefinedPlatform.radius(.tile))
         .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.tile), style: .continuous))
+    }
+
+    private var name: some View {
+        Text(title).refinedFont(.tileName, weight: .semibold).lineLimit(2).minimumScaleFactor(compact ? 0.8 : 1)
+    }
+
+    /// The trailing text on one line: it shrinks a little before it would wrap, and never breaks a word.
+    private func trailingText(_ t: RefinedRules.TileTrailing) -> some View {
+        Text(t.text).refinedFont(.caption).lineLimit(1).minimumScaleFactor(0.8).accessibilityHidden(true)
+    }
+
+    /// The name, and a shortcut beside it when both fit on one line; a state, or a shortcut that doesn't fit, on its
+    /// own line under the name.
+    @ViewBuilder private var nameAndTrailing: some View {
+        if let trailing {
+            let below = VStack(alignment: .leading, spacing: 1) { name; trailingText(trailing) }
+            if trailing.alwaysBelow {
+                below
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(title).refinedFont(.tileName, weight: .semibold).lineLimit(1).fixedSize()
+                        Spacer(minLength: 4)
+                        Text(trailing.text).refinedFont(.caption).lineLimit(1).fixedSize().accessibilityHidden(true)
+                    }
+                    below
+                }
+            }
+        } else {
+            name
+        }
     }
 }
 
@@ -1469,7 +1500,7 @@ struct ColorTile_Previews: PreviewProvider {
         ForEach(AppPalette.allCases) { p in
             RefinedPreviewPage {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    ColorTile(title: "Dictate", art: .iconDictations, hue: .butter, pattern: .waves, shortcut: RefinedPlatform.mac ? "⌃⌥" : nil) {}
+                    ColorTile(title: "Dictate", art: .iconDictations, hue: .butter, pattern: .waves, trailing: RefinedPlatform.mac ? .shortcut("⌃⌥") : nil) {}
                     ColorTile(title: "Import", art: .iconDownload, hue: .sage, pattern: .chevrons) {}
                     ColorTile(title: "What's playing", art: .iconVoice, hue: .petal, pattern: .offsetCircles) {}
                     ColorTile(title: "New thought", art: .iconThought, hue: .neutral, pattern: .shortLines) {}

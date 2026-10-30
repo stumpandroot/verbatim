@@ -294,6 +294,46 @@ enum RefinedRules {
         case dictationLines
     }
 
+    /// What a Mac Home tile shows with its name (`ColorTileFace`): a shortcut ("⌘O", "right ⌘ hold"), or a state
+    /// ("Needs Accessibility", "Drop to transcribe", "On screen now") with what VoiceOver says for it.
+    enum TileTrailing: Equatable, Sendable {
+        case shortcut(String)
+        case state(String, spoken: String)
+
+        /// The text drawn on the tile.
+        var text: String {
+            switch self {
+            case .shortcut(let k): return k
+            case .state(let s, _): return s
+            }
+        }
+
+        /// A state always takes its own line under the name. A shortcut sits beside the name when both fit on one
+        /// line, else under it. Either way it stays on one line, so a word never breaks (build 245: "Accessibili / ty").
+        var alwaysBelow: Bool {
+            if case .state = self { return true }
+            return false
+        }
+
+        /// The tile's VoiceOver hint for it: "Shortcut: Command O" for a shortcut (`spokenKeys` reads the keycaps);
+        /// a state speaks as a state ("Needs Accessibility access. Opens the setup."), never as a shortcut.
+        func hint(spokenKeys: (String) -> String) -> String {
+            switch self {
+            case .shortcut(let k): return "Shortcut: " + spokenKeys(k)
+            case .state(_, let spoken): return spoken
+            }
+        }
+
+        /// The tile's VoiceOver value: its detail, then the shortcut's keys. A state is the detail already, so it isn't
+        /// said twice.
+        func value(detail: String, spokenKeys: (String) -> String) -> String {
+            switch self {
+            case .shortcut(let k): return [detail, spokenKeys(k)].filter { !$0.isEmpty }.joined(separator: " ")
+            case .state(let s, _): return detail.isEmpty || detail == s ? s : "\(detail). \(s)"
+            }
+        }
+    }
+
     /// The pattern for a tile, by `HomeTile`'s raw value. Every tile in the catalog has one; an unknown tile has none.
     static func tilePattern(forTile raw: String) -> TilePattern? {
         switch raw {

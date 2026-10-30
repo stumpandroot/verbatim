@@ -261,17 +261,29 @@ struct HomeView: View {
         }
     }
 
-    /// What sits at the end of a tile's name: its shortcut, or a state that needs you ("Needs Accessibility").
-    func tileShortcut(_ t: HomeTile) -> String? {
+    /// What sits with a tile's name: its shortcut, or a state ("Needs Accessibility", "Drop to transcribe", "On screen
+    /// now"), which takes its own line under the name and speaks as a state (`RefinedRules.TileTrailing`).
+    func tileTrailing(_ t: HomeTile) -> RefinedRules.TileTrailing? {
         switch t {
         case .dictate:
-            guard app.dictation.accessibilityTrusted else { return "Needs Accessibility" }
-            return dictateKey.1.map { "\($0) hold" }
-        case .importMedia: return fileOver ? "Drop to transcribe" : "⌘O"
-        case .captions: return captions.isOpen ? "On screen now" : "⌥⌘C"
-        case .newThought: return Thoughts.hotkey
+            guard app.dictation.accessibilityTrusted else {
+                return .state("Needs Accessibility", spoken: "Needs Accessibility access. Opens the setup.")
+            }
+            return dictateKey.1.map { .shortcut("\($0) hold") }
+        case .importMedia:
+            return fileOver ? .state("Drop to transcribe", spoken: "Drop the file to transcribe it.") : .shortcut("⌘O")
+        case .captions:
+            return captions.isOpen ? .state("On screen now", spoken: "Live captions are on screen.") : .shortcut("⌥⌘C")
+        case .newThought: return .shortcut(Thoughts.hotkey)
         default: return nil
         }
+    }
+
+    /// The tile's VoiceOver hint: what a state means while there is one ("Needs Accessibility access. Opens the
+    /// setup."), else what the tile does.
+    static func tileHint(_ t: HomeTile, _ trailing: RefinedRules.TileTrailing?) -> String {
+        if case .state(_, let spoken)? = trailing { return spoken }
+        return tileHint(t)
     }
 
     static func tileHint(_ t: HomeTile) -> String {
@@ -313,9 +325,9 @@ struct HomeView: View {
     }
 
     @ViewBuilder private func tile(_ t: HomeTile, hue: RefinedHue, compact: Bool, importAnchor: Bool) -> some View {
-        let shortcut = tileShortcut(t)
+        let trailing = tileTrailing(t)
         let base = Button { runTile(t) } label: {
-            ColorTileFace(title: t.title, art: t.art, hue: hue, pattern: RefinedRules.tilePattern(forTile: t.rawValue), shortcut: shortcut, compact: compact)
+            ColorTileFace(title: t.title, art: t.art, hue: hue, pattern: RefinedRules.tilePattern(forTile: t.rawValue), trailing: trailing, compact: compact)
                 .overlay {
                     // A file held over Import: the tile says so, with the accent's edge.
                     if t == .importMedia && fileOver {
@@ -326,8 +338,9 @@ struct HomeView: View {
         }
         .buttonStyle(RefinedPress())
         .accessibilityLabel(t.title)
-        .accessibilityValue([tileDetail(t), shortcut.map(Keycap.spoken)].compactMap { $0 }.joined(separator: " "))
-        .accessibilityHint(Self.tileHint(t))
+        // The detail, then a shortcut's keys; a state is said once, and its hint says what it means.
+        .accessibilityValue(trailing?.value(detail: tileDetail(t), spokenKeys: Keycap.spoken) ?? tileDetail(t))
+        .accessibilityHint(Self.tileHint(t, trailing))
         switch t {
         case .dictate:
             base.popover(isPresented: dictateOpen, arrowEdge: .bottom) { DictateControls().padding(16).environmentObject(app) }

@@ -164,6 +164,13 @@
           ],
           "text": "An answer from Ask says again how many passages and recordings it read.",
           "detail": "It sits at the foot of the answer card, under the line that says it ran on this iPhone."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Home's Dictate tile shows \"Needs Accessibility\" on its own line, in one piece.",
+          "detail": "A state such as Drop to transcribe or On screen now sits under the tile's name too. VoiceOver reads it as a state, not a shortcut."
         }
       ]
     },

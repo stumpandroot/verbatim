@@ -449,6 +449,27 @@ nr.visit("home"); nr.visit("library:B"); nr.replaceCurrent("home")
 check("a replacement that meets Back's last entry collapses", nr.back == ["library:A"] && nr.current == "home", "\(nr.back)")
 check("previous names where Back goes", nr.previous == "library:A")
 
+// A Mac Home tile's trailing text (review fix 9): a state takes its own line and speaks as a state; only a shortcut
+// is "Shortcut:", and a state isn't said twice in the value.
+typealias TT = R.TileTrailing
+let keys: (String) -> String = { $0.map { ["⌘": "Command", "⌥": "Option", "⌃": "Control"][$0] ?? String($0) }.joined(separator: " ") }
+let needsAX = TT.state("Needs Accessibility", spoken: "Needs Accessibility access. Opens the setup.")
+check("tile: a state always takes its own line under the name; a shortcut only when it doesn't fit",
+      needsAX.alwaysBelow && TT.state("Drop to transcribe", spoken: "x").alwaysBelow && TT.state("On screen now", spoken: "x").alwaysBelow
+      && !TT.shortcut("⌘O").alwaysBelow)
+check("tile: a state's hint is the state, never \"Shortcut:\"",
+      needsAX.hint(spokenKeys: keys) == "Needs Accessibility access. Opens the setup." && !needsAX.hint(spokenKeys: keys).hasPrefix("Shortcut"))
+check("tile: a shortcut's hint names its keys", TT.shortcut("⌥⌘C").hint(spokenKeys: keys) == "Shortcut: Option Command C")
+check("tile: a state matching the detail is said once",
+      needsAX.value(detail: "Needs Accessibility", spokenKeys: keys) == "Needs Accessibility"
+      && TT.state("On screen now", spoken: "Live captions are on screen.").value(detail: "On screen now", spokenKeys: keys) == "On screen now")
+check("tile: a shortcut follows the detail", TT.shortcut("⌘O").value(detail: "Files or a link", spokenKeys: keys) == "Files or a link Command O")
+let homeView = read("\(views)/HomeView.swift")
+check("tile: the Mac's Home gives its states as states, and the kit's tile hint isn't a fixed \"Shortcut:\"",
+      homeView.contains(".state(\"Needs Accessibility\", spoken: \"Needs Accessibility access. Opens the setup.\")")
+      && homeView.contains(".state(\"Drop to transcribe\"") && homeView.contains(".state(\"On screen now\"")
+      && !kit.contains("\"Shortcut: \" + Keycap.spoken") && kit.contains("trailing?.hint(spokenKeys: Keycap.spoken)"))
+
 // You's week card reads the days for VoiceOver, built from the week's days (review fix 5).
 let youScreen = read("\(mac)/VerbatimPhone/YouScreen.swift")
 check("the iPhone You page's week card has the words-by-day value",
