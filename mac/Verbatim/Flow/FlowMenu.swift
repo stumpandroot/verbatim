@@ -88,17 +88,6 @@ final class FlowMenuPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-/// The menu's colors: Verbatim's tokens, so it follows Dark mode and Increase Contrast like the app.
-private enum Paper {
-    static let card = Refined.card
-    static let line = Refined.separator
-    static let rule = Refined.separator
-    static let hover = Refined.neutral
-    static let ink = Refined.ink
-    static let dim = Refined.dim
-    static let mute = Refined.mute
-}
-
 struct FlowMenuView: View {
     let opensLeft: Bool
     let anchorTop: Bool
@@ -151,8 +140,8 @@ struct FlowMenuView: View {
         }
         .padding(6)
         .frame(width: 240)
-        .background(Paper.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Paper.line))
+        .background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Refined.separator))
     }
 
     @ViewBuilder private var submenu: some View {
@@ -165,7 +154,7 @@ struct FlowMenuView: View {
                     let uid = AudioDevices.deviceUID(d.id)
                     choice(d.name, on: selectedUID != nil && selectedUID == uid) { pickMic(uid) }
                     if d.transport == "Bluetooth" {
-                        Text("Bluetooth: call quality, slow start").font(.system(size: 11.5)).foregroundStyle(Paper.mute).padding(.leading, 37).padding(.bottom, 4)
+                        Text("Bluetooth: call quality, slow start").font(.system(size: 11.5)).foregroundStyle(Refined.mute).padding(.leading, 37).padding(.bottom, 4)
                     }
                 }
             case .cleanup:
@@ -185,7 +174,7 @@ struct FlowMenuView: View {
                 }
                 .frame(maxHeight: min(CGFloat(actions.projects.count) * 31, 280))
                 Text(actions.projects.isEmpty ? "Make a project in Verbose's sidebar first." : "Uses the project's Dictionary words and files each dictation there.")
-                    .font(.system(size: 11.5)).foregroundStyle(Paper.mute).padding(.horizontal, 10).padding(.vertical, 6)
+                    .font(.system(size: 11.5)).foregroundStyle(Refined.mute).padding(.horizontal, 10).padding(.vertical, 6)
                     .fixedSize(horizontal: false, vertical: true)
             case .actions:
                 header("On selected text")
@@ -193,8 +182,8 @@ struct FlowMenuView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(settings.actions) { a in
                             MenuRow(highlighted: false, action: { close(); actions.run(a) }) {
-                                IconGlyph(art: a.art, size: 15, color: Paper.dim).frame(width: 20)
-                                Text(a.name).font(.system(size: 13)).foregroundStyle(Paper.ink).lineLimit(1)
+                                IconGlyph(art: a.art, size: 15, color: Refined.dim).frame(width: 20)
+                                Text(a.name).font(.system(size: 13)).foregroundStyle(Refined.ink).lineLimit(1)
                                 Spacer(minLength: 0)
                             }
                         }
@@ -202,10 +191,10 @@ struct FlowMenuView: View {
                 }
                 .scrollIndicators(.automatic)
                 .frame(maxHeight: min(CGFloat(settings.actions.count) * 31, 340))
-                Rectangle().fill(Paper.rule).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 5)
+                Rectangle().fill(Refined.separator).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 5)
                 MenuRow(highlighted: false, action: { actions.editActions(); close() }) {
-                    ArtIcon(art: .iconQuality, size: 16).foregroundStyle(Paper.dim).frame(width: 20)
-                    Text("Edit in Templates…").font(.system(size: 13)).foregroundStyle(Paper.ink)
+                    ArtIcon(art: .iconQuality, size: 16).foregroundStyle(Refined.dim).frame(width: 20)
+                    Text("Edit in Templates…").font(.system(size: 13)).foregroundStyle(Refined.ink)
                     Spacer(minLength: 0)
                 }
             case nil:
@@ -214,8 +203,8 @@ struct FlowMenuView: View {
         }
         .padding(6)
         .frame(width: 236)
-        .background(Paper.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Paper.line))
+        .background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Refined.separator))
         .padding(.top, anchorTop ? (sub == .cleanup ? 201 : sub == .mic ? 165 : sub == .project ? 82 : 0) : 0)
     }
 
@@ -226,29 +215,29 @@ struct FlowMenuView: View {
         close()
     }
 
-    private var rule: some View { Rectangle().fill(Paper.rule).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 5) }
+    private var rule: some View { Rectangle().fill(Refined.separator).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 5) }
 
     private func header(_ s: String) -> some View {
-        Text(s).font(.system(size: 12, weight: .semibold)).foregroundStyle(Paper.dim).padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 4)
+        Text(s).font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.dim).padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 4)
     }
 
     private func item(_ title: String, _ art: BrandArt, trailing: String? = nil, keys: String? = nil, chevron: Bool = false, highlighted: Bool = false, action: @escaping () -> Void) -> some View {
         MenuRow(highlighted: highlighted, action: action) {
-            ArtIcon(art: art, size: 16).foregroundStyle(highlighted ? Paper.ink : Paper.dim).frame(width: 20)
-            Text(title).font(.system(size: 13)).foregroundStyle(Paper.ink)
+            ArtIcon(art: art, size: 16).foregroundStyle(highlighted ? Refined.ink : Refined.dim).frame(width: 20)
+            Text(title).font(.system(size: 13)).foregroundStyle(Refined.ink)
             Spacer(minLength: 8)
-            if let trailing { Text(trailing).font(.system(size: 12)).foregroundStyle(Paper.mute).lineLimit(1) }
-            if let keys { Keycap(keys: keys, size: 10.5).foregroundStyle(Paper.mute) }
-            if chevron { Image(systemName: opensLeft ? "chevron.left" : "chevron.right").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(Paper.mute) }
+            if let trailing { Text(trailing).font(.system(size: 12)).foregroundStyle(Refined.mute).lineLimit(1) }
+            if let keys { Keycap(keys: keys, size: 10.5).foregroundStyle(Refined.mute) }
+            if chevron { Image(systemName: opensLeft ? "chevron.left" : "chevron.right").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(Refined.mute) }
         }
     }
 
     private func choice(_ title: String, on: Bool, note: String? = nil, action: @escaping () -> Void) -> some View {
         MenuRow(highlighted: false, action: action) {
-            Image(systemName: "checkmark").font(.system(size: 12, weight: .semibold)).foregroundStyle(Paper.ink).opacity(on ? 1 : 0).frame(width: 20)
+            Image(systemName: "checkmark").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.ink).opacity(on ? 1 : 0).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 13)).foregroundStyle(Paper.ink).lineLimit(1)
-                if let note { Text(note).font(.system(size: 11)).foregroundStyle(Paper.mute) }
+                Text(title).font(.system(size: 13)).foregroundStyle(Refined.ink).lineLimit(1)
+                if let note { Text(note).font(.system(size: 11)).foregroundStyle(Refined.mute) }
             }
             Spacer(minLength: 0)
         }
@@ -263,7 +252,7 @@ private struct MenuRow<Content: View>: View {
     var body: some View {
         HStack(spacing: 10) { content() }
             .padding(.horizontal, 10).padding(.vertical, 7)
-            .background((hover || highlighted) ? Paper.hover : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .background((hover || highlighted) ? Refined.neutral : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .contentShape(Rectangle())
             .onHover { hover = $0 }
             .onTapGesture(perform: action)
