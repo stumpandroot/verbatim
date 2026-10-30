@@ -356,9 +356,18 @@ struct ScrollPlace: NSViewRepresentable {
             apply()
         }
 
-        /// One turn of the main loop after the screen came: check the offset held (a late fix-up, never expected), and stop.
+        /// One turn of the main loop after the screen came: check the offset held. Content that's still shorter than the
+        /// offset (Home's cards filling in after the first frame, build 246) gets half a second more: each time it
+        /// grows, `apply` tries again through the frame observer. Then, or as soon as you scroll, stop where it is.
         private func secondTurn() {
             firstTurn = false
+            guard pending != nil else { return }
+            apply()
+            guard pending != nil else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.giveUp() }
+        }
+
+        private func giveUp() {
             guard let y = pending else { return }
             apply()
             if let s = scrollView, pending != nil {
@@ -370,6 +379,8 @@ struct ScrollPlace: NSViewRepresentable {
 
         private func apply() {
             guard let y = pending, !applying else { return }
+            // You scrolled while the content was still growing: your scroll wins.
+            if !firstTurn, Self.youAreScrolling { stop(); return }
             applying = true
             defer { applying = false }
             if scrollView == nil { scrollView = findScrollView() }

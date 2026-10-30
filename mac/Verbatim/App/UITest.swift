@@ -2947,7 +2947,8 @@ extension UITest {
                    target: "tb-back", check: { app.screen == .home })
         oneScreen("Back to Home", app: app)
         let homeAfter = ScreenPlaces.shared.liveOffset(homeKey)
-        check("\(tag): Home comes back at the same scroll offset (\(homeBefore.map { "\(Int($0))" } ?? "none"), now \(homeAfter.map { "\(Int($0))" } ?? "none"))",
+        let restoreNote = ScreenPlaces.shared.lastRestore.map { "\($0.key) to \(Int($0.offset))\($0.early ? " early" : " late")" } ?? "no restore"
+        check("\(tag): Home comes back at the same scroll offset (\(homeBefore.map { "\(Int($0))" } ?? "none"), now \(homeAfter.map { "\(Int($0))" } ?? "none"); \(restoreNote))",
               homeBefore != nil && homeAfter.map { abs($0 - homeBefore!) <= 4 } == true)
     }
 
