@@ -136,6 +136,13 @@
           ],
           "text": "While you record, the toolbar's timer and Stop stay on transcripts too.",
           "detail": "The same goes for capturing an app's audio."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "A recording that moves to the iPhone microphone uses that microphone's settings.",
+          "detail": "Take out your AirPods mid-recording, and Audio only keeps its full-quality sound on the iPhone microphone while a voice note goes back to its voice setting."
         }
       ]
     },

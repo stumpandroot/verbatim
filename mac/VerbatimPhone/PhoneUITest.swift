@@ -75,16 +75,32 @@ enum PhoneUITest {
         try? await Task.sleep(nanoseconds: 600_000_000)
     }
 
-    /// The iPhone's part: AirPods high-quality recording asked for on iOS 26, and Whisper Turbo with no Mac says so.
+    /// The iPhone's part: the recording session's plan after a real prepare, and Whisper Turbo with no Mac says so.
     private static func noisyPhoneChecks(_ app: PhoneState) {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") noisy: \(name)") }
         if #available(iOS 26, *) {
-            check("recording: AirPods high-quality recording is asked for", RecordingRoute.asksForHighQuality
-                  && RecordingRoute.options(highQuality: true).contains(.bluetoothHighQualityRecording))
             check("recording: the high-quality option stays out of spoken audio and measurement sessions",
                   !RecordingRoute.options().contains(.bluetoothHighQualityRecording))
-        } else {
-            check("recording: before iOS 26, the session asks for HFP only", !RecordingRoute.asksForHighQuality)
+        }
+        // A real prepare for a voice note and for Audio only (nothing activates or records): the plan it records, and
+        // the session's own mode and options, follow the input it picked. The session stays a recording session, as
+        // after any recording.
+        let session = AVAudioSession.sharedInstance()
+        for soundOnly in [false, true] {
+            let picked = try? RecordingRoute.prepare(session, soundOnly: soundOnly, chosen: nil, pin: false)
+            let want = RecordingInputRules.plan(for: picked, soundOnly: soundOnly, highQualityAvailable: RecordingRoute.highQualityAvailable)
+            let plan = RecordingRoute.lastPlan
+            var highQuality = false
+            if #available(iOS 26, *) { highQuality = session.categoryOptions.contains(.bluetoothHighQualityRecording) }
+            check("recording: \(soundOnly ? "Audio only" : "a voice note") on \(picked?.name ?? "iOS's choice") sets \(want.mode.rawValue) mode"
+                  + "\(want.highQuality ? " with" : " without") the high-quality option (plan \(plan.map { "\($0.mode.rawValue), high quality \($0.highQuality)" } ?? "none"),"
+                  + " session \(session.mode.rawValue), high quality \(highQuality))",
+                  plan == want && session.mode == RecordingRoute.mode(want.mode) && highQuality == want.highQuality
+                  && session.categoryOptions.contains(.allowBluetooth))
+            if picked?.kind == .builtIn {
+                check("recording: \(soundOnly ? "Audio only" : "a voice note") on the iPhone microphone uses \(soundOnly ? "measurement" : "spoken audio") mode",
+                      session.mode == (soundOnly ? .measurement : .spokenAudio) && !highQuality)
+            }
         }
         check("recording: the session still allows Bluetooth (HFP fallback)", RecordingRoute.options().contains(.allowBluetooth)
               && RecordingRoute.options(highQuality: true).contains(.allowBluetooth))

@@ -642,18 +642,19 @@ enum RecordingRoute {
         if s.currentRoute.inputs.first?.uid != port.uid || s.preferredInput?.uid != port.uid { try? s.setPreferredInput(port) }
     }
 
-    /// Mid-recording (the microphone menu): moves the session to the input `uid`, first changing the mode and option
-    /// when the new input needs them. Changing the high-quality option can relist AirPods under another UID, so the
+    /// Mid-recording (the microphone menu, or the automatic move when the recording's input goes): moves the session
+    /// to the input `uid`, first changing the mode and option when the new input needs them
+    /// (`RecordingInputRules.replan`). Changing the high-quality option can relist AirPods under another UID, so the
     /// port is found again by UID, then by name. Nil when the input isn't there.
     static func move(to uid: String, soundOnly: Bool, _ s: AVAudioSession = .sharedInstance()) -> RecordingInput? {
         guard let first = s.availableInputs?.first(where: { $0.uid == uid }) else { return nil }
         let wanted = input(first)
-        let plan = RecordingInputRules.plan(for: wanted, soundOnly: soundOnly, highQualityAvailable: highQualityAvailable)
-        if plan != lastPlan {
+        if let plan = RecordingInputRules.replan(moving: wanted, soundOnly: soundOnly, highQualityAvailable: highQualityAvailable, current: lastPlan) {
             let mixing = s.categoryOptions.contains(.mixWithOthers)
             do {
                 try RecordingRoute.setCategory(s, mode: mode(plan.mode), options: options(mixWithOthers: mixing, highQuality: plan.highQuality))
                 lastPlan = plan
+                Log.note("audio session: \(plan.mode.rawValue) mode, high-quality AirPods \(plan.highQuality ? "asked" : "not asked"), for \(wanted.name)")
             } catch {
                 Log.note("audio session: couldn't change the mode for \(wanted.name): \(error.localizedDescription)")
             }
@@ -706,9 +707,6 @@ enum RecordingRoute {
     static func currentName(_ s: AVAudioSession = .sharedInstance()) -> String {
         RecordingInputRules.displayName(s.currentRoute.inputs.first.map(input) ?? nextInput(s))
     }
-
-    /// True when this iPhone asks for AirPods high-quality recording (iOS 26 and later), for the self-test.
-    static var asksForHighQuality: Bool { highQualityAvailable }
 
     /// The last route a recording started on: "AirPods Pro (BluetoothHFP) 16000 Hz, 1 ch".
     private(set) static var lastRoute: String? = nil
@@ -968,13 +966,15 @@ final class Recorder: ObservableObject {
     /// The recorder's microphone menu: records from `uid` for the rest of this recording, or the next one when
     /// nothing is recording. The session changes its mode first when the new input needs it (AirPods' high-quality
     /// link wants the default mode), and capture restarts on the new input (`configurationChanged`, or here when the
-    /// engine keeps running on the old one).
-    func useInput(_ uid: String) {
+    /// engine keeps running on the old one). Picked while paused, capture restarts on it when you resume
+    /// (`togglePause`). Returns the input the recording moved to, nil when nothing moved.
+    @discardableResult
+    func useInput(_ uid: String) -> RecordingInput? {
         chosenInputUID = uid
-        guard isRecording, !keepWarm else { return }
+        guard isRecording, !keepWarm else { return nil }
         let s = AVAudioSession.sharedInstance()
         guard let picked = RecordingRoute.move(to: uid, soundOnly: soundOnly, s) else {
-            Log.note("recorder: the input you chose isn't there any more"); return
+            Log.note("recorder: the input you chose isn't there any more"); return nil
         }
         chosenInput = picked
         pinnedInputUID = picked.uid
@@ -986,11 +986,22 @@ final class Recorder: ObservableObject {
             Log.note("recorder: restarting capture on \(picked.name)")
             if !self.restartCapture() { self.autoPause("The microphone changed. Tap Resume to keep recording.") }
         }
+        return picked
+    }
+
+    /// The route isn't on the recording's input: a microphone picked while paused, which the running engine didn't
+    /// follow. Resume restarts capture then.
+    private var routeOffPinnedInput: Bool {
+        guard let pinned = pinnedInputUID else { return false }
+        return AVAudioSession.sharedInstance().currentRoute.inputs.first?.uid != pinned
     }
 
     /// Restarting capture (after a call, a route change, or Resume): the input the recording was using (AirPods
     /// stay AirPods), or the best input left only when that one is gone (`RecordingInputRules.afterRouteChange`:
-    /// another accessory, then the iPhone's microphone).
+    /// another accessory, then the iPhone's microphone). A move takes the new input's mode and options too
+    /// (`RecordingRoute.move`, as the microphone menu does): AirPods taken out of an Audio only recording put the
+    /// iPhone microphone back in measurement mode, and a voice note back in spoken audio, without the high-quality
+    /// option.
     private func pinRecordingInput() {
         let s = AVAudioSession.sharedInstance()
         let available = s.availableInputs ?? []
@@ -1001,9 +1012,19 @@ final class Recorder: ObservableObject {
             pinnedInputUID = nil
             return
         }
-        try? s.setPreferredInput(port)
-        Log.note(choice == pinnedInputUID ? "recorder: keeping \(port.portName)" : "recorder: the recording's input is gone; using \(port.portName)")
-        pinnedInputUID = choice
+        guard choice != pinnedInputUID else {
+            try? s.setPreferredInput(port)
+            Log.note("recorder: keeping \(port.portName)")
+            return
+        }
+        Log.note("recorder: the recording's input is gone; using \(port.portName)")
+        if let moved = RecordingRoute.move(to: choice, soundOnly: soundOnly, s) {
+            chosenInput = moved
+            pinnedInputUID = moved.uid
+        } else {
+            try? s.setPreferredInput(port)
+            pinnedInputUID = choice
+        }
     }
 
     private var currentInputName: String {
@@ -1059,8 +1080,15 @@ final class Recorder: ObservableObject {
         }
         #endif
         // Resuming after the recorder paused itself (a call, a device change): the engine stopped, start it again
-        // on the input the recording was using, if it's still there.
-        if isPaused, !keepWarm, let engine, !engine.isRunning {
+        // on the input the recording was using, if it's still there. iPhone: also when you picked a microphone while
+        // paused and the engine kept running on the old one.
+        #if os(iOS)
+        let moveOnResume = isPaused && !keepWarm && routeOffPinnedInput
+        #else
+        let moveOnResume = false
+        #endif
+        if isPaused, !keepWarm, let engine, !engine.isRunning || moveOnResume {
+            if engine.isRunning { Log.note("recorder: resuming on the microphone you picked while paused") }
             guard restartCapture() else {
                 Log.note("recorder: couldn't resume; still paused")
                 onAutoPaused?("Couldn't restart the microphone. Stop to keep what was recorded.")

@@ -134,6 +134,14 @@ enum RecordingInputRules {
         return SessionPlan(mode: soundOnly ? .measurement : .spokenAudio, highQuality: false)
     }
 
+    /// The plan a running recording switches to when it moves to `input` (the microphone menu, or the automatic move
+    /// when its input goes), or nil when the plan in force (`current`) already fits. AirPods taken out of an Audio only
+    /// recording put the iPhone microphone back in measurement mode; a voice note back in spoken audio.
+    static func replan(moving input: RecordingInput?, soundOnly: Bool, highQualityAvailable: Bool, current: SessionPlan?) -> SessionPlan? {
+        let next = plan(for: input, soundOnly: soundOnly, highQualityAvailable: highQualityAvailable)
+        return next == current ? nil : next
+    }
+
     /// Whether a recording that's running should move: a change it didn't ask for keeps the input it has while that
     /// input is there (AirPods coming up on their high-quality link, a sample rate change), and moves to the best
     /// input left only when it's gone.
@@ -204,5 +212,17 @@ enum RecordingInputChecks {
               R.afterRouteChange(pinned: airPods.uid, available: [builtIn]) == builtIn)
         check("route change: a change never moves a recording off the input it has to the iPhone microphone",
               R.afterRouteChange(pinned: airPods.uid, available: [builtIn, airPods, wired]) == airPods)
+        let onAirPods = R.plan(for: airPods, soundOnly: true, highQualityAvailable: true)
+        check("route change: AirPods taken out of Audio only put the iPhone microphone back in measurement, without the high-quality option",
+              R.replan(moving: R.afterRouteChange(pinned: airPods.uid, available: [builtIn]), soundOnly: true, highQualityAvailable: true,
+                       current: onAirPods) == .init(mode: .measurement, highQuality: false))
+        check("route change: AirPods taken out of a voice note put the iPhone microphone back in spoken audio",
+              R.replan(moving: builtIn, soundOnly: false, highQualityAvailable: true,
+                       current: R.plan(for: airPods, soundOnly: false, highQualityAvailable: true)) == .init(mode: .spokenAudio, highQuality: false))
+        check("route change: a move to an input with the same plan leaves the session alone",
+              R.replan(moving: wired, soundOnly: false, highQualityAvailable: true, current: R.plan(for: builtIn, soundOnly: false, highQualityAvailable: true)) == nil
+              && R.replan(moving: builtIn, soundOnly: true, highQualityAvailable: false, current: R.plan(for: airPods, soundOnly: true, highQualityAvailable: false)) == nil)
+        check("route change: a move with no plan in force sets one up",
+              R.replan(moving: builtIn, soundOnly: false, highQualityAvailable: true, current: nil) == .init(mode: .spokenAudio, highQuality: false))
     }
 }

@@ -143,8 +143,8 @@ struct RecorderSheet: View {
                 ForEach(inputs, id: \.uid) { input in
                     let name = RecordingInputRules.displayName(input)
                     Button {
-                        app.recorder.useInput(input.uid)
-                        mic = name
+                        // The capsule names what the route says after the move; a failed move keeps the old name.
+                        if app.recorder.useInput(input.uid) != nil { mic = HomeScreen.currentMic() }
                     } label: {
                         if name == mic { Label(name, systemImage: "checkmark") } else { Text(name) }
                     }
