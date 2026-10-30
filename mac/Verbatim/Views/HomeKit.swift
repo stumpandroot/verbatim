@@ -114,6 +114,12 @@ struct HomeWeek: Equatable {
         return m % 60 == 0 ? "\(m / 60) hr" : "\(m / 60) hr \(m % 60) min"
     }
 
+    /// The seven bars for VoiceOver, day by day (`RefinedRules.weekDaysSpoken`): "Monday, 120 words; Tuesday, no words;
+    /// Wednesday, today, 40 words; Thursday, to come…".
+    var spokenDays: String {
+        RefinedRules.weekDaysSpoken(days.map { (Formats.pattern("EEEE").string(from: $0.start), $0.words, $0.isToday, $0.isFuture) })
+    }
+
     /// The seven bars This week's card draws: each day's words as a share of the busiest day.
     var cardDays: [WeekCard.Day] {
         let top = Double(max(1, peak))

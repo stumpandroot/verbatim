@@ -235,6 +235,10 @@ check("no words, no parts", R.liveWords("  ") == ("", ""))
 check("the moments line: the count and the newest three times",
       R.momentsLine([31, 58]) == "2 moments \u{00B7} 0:31 \u{00B7} 0:58" && R.momentsLine([5]) == "1 moment \u{00B7} 0:05"
       && R.momentsLine([1, 2, 3, 4]) == "4 moments \u{00B7} 0:02 \u{00B7} 0:03 \u{00B7} 0:04" && R.momentsLine([]).isEmpty)
+let spokenWeek = R.weekDaysSpoken([("Monday", 120, false, false), ("Tuesday", 0, false, false), ("Wednesday", 1, true, false),
+                                   ("Thursday", 0, false, true), ("Friday", 1200, false, false)])
+check("You's week reads each day for VoiceOver: words, no words, today, and days to come (review fix 5)",
+      spokenWeek == "Monday, 120 words; Tuesday, no words; Wednesday, today, 1 word; Thursday, to come; Friday, \(1200.formatted()) words", spokenWeek)
 
 let gmt = { () -> Calendar in var c = Calendar(identifier: .gregorian); c.timeZone = TimeZone(identifier: "UTC")!; return c }()
 func day(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 12) -> Date { gmt.date(from: DateComponents(year: y, month: m, day: d, hour: h))! }
@@ -444,6 +448,11 @@ check("a place changed in place keeps Forward", nr.current == "library:A" && nr.
 nr.visit("home"); nr.visit("library:B"); nr.replaceCurrent("home")
 check("a replacement that meets Back's last entry collapses", nr.back == ["library:A"] && nr.current == "home", "\(nr.back)")
 check("previous names where Back goes", nr.previous == "library:A")
+
+// You's week card reads the days for VoiceOver, built from the week's days (review fix 5).
+let youScreen = read("\(mac)/VerbatimPhone/YouScreen.swift")
+check("the iPhone You page's week card has the words-by-day value",
+      youScreen.contains(".accessibilityValue(week.spokenDays)") && read("\(views)/HomeKit.swift").contains("RefinedRules.weekDaysSpoken(days.map"))
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

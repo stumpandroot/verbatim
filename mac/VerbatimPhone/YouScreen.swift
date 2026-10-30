@@ -140,6 +140,8 @@ struct YouScreen: View {
             WeekCard(words: week.words, detail: week.words == 1 ? "word dictated" : "words dictated", saved: "\(saved) saved", days: week.cardDays)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")) dictated, \(saved) saved typing.")
+                // Words by day, as the bars show them (the bars are decorative).
+                .accessibilityValue(week.spokenDays)
                 .accessibilityIdentifier("you.week")
             PaperCard {
                 Menu {

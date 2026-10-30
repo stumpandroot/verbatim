@@ -380,6 +380,18 @@ enum RefinedRules {
         return ([count] + times.suffix(3).map { time($0) }).joined(separator: " \u{00B7} ")
     }
 
+    /// This week's bars as VoiceOver reads them on the iPhone's You page (the bars themselves are decorative): "Monday,
+    /// 120 words; Tuesday, no words; Wednesday, today, 40 words; Thursday, to come…". Each day gives its full name
+    /// (in the person's language), its words, and whether it's today or still to come.
+    static func weekDaysSpoken(_ days: [(name: String, words: Int, isToday: Bool, isFuture: Bool)]) -> String {
+        days.map { d in
+            if d.isFuture { return "\(d.name), to come" }
+            let words = d.words == 0 ? "no words" : d.words == 1 ? "1 word" : "\(d.words.formatted()) words"
+            return d.isToday ? "\(d.name), today, \(words)" : "\(d.name), \(words)"
+        }
+        .joined(separator: "; ")
+    }
+
     /// A day as the Mac Library's Date column says it (mockup MacLibrary): "Today", the weekday for the rest of the
     /// last week ("Mon"), the month and day this year ("Oct 12"), and the date with its year before that ("Oct 12, 2025").
     static func shortDay(_ date: Date, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current) -> String {
