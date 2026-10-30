@@ -10,9 +10,7 @@ import CoreAudio
 /// in a card beside This week. While you record, the Record card turns into the recording card (the clock, the live
 /// waveform, your words, Mark moment, Pause, and Stop and transcribe). Today's thoughts and Journal when you show them.
 /// One column, at most 860 pt wide; two Large neighbors that can pair share a band (two thirds and one third), and a
-/// narrow window stacks them. It's the same Home in both looks until the look switch goes, each look reading its own
-/// layout; the window's chrome stays each look's. Edit Home's button closes the page; editing outlines each section and
-/// opens the inspector on the right (EditHome.swift). Sections arrive at once and keep their identity when the layout
+/// narrow window stacks them. Edit Home's button closes the page; editing outlines each section and opens the inspector on the right (EditHome.swift). Sections arrive at once and keep their identity when the layout
 /// changes.
 struct HomeView: View {
     /// Ticks `now` once a minute: one timer for every render. Built in `body`, each render made a new timer and
@@ -22,12 +20,11 @@ struct HomeView: View {
     @ObservedObject var log = ActivityLog.shared
     @ObservedObject var captions = LiveCaptions.shared
     @ObservedObject var flow = FlowSettings.shared
-    /// Edit Home's layouts (both looks) and whether Home is being edited.
+    /// Edit Home's layout and whether Home is being edited.
     @ObservedObject var layouts = HomeLayoutStore.shared
     @ObservedObject var edit = HomeEditSession.shared
     @ObservedObject private var recordAs = RecordAsStore.shared
     @AppStorage(YouProfile.nameKey) var storedName = ""
-    @Environment(\.look) var look
     /// The microphone's name, looked up off the main thread and kept current by Core Audio's notifications. (Looking
     /// it up here, in a `@State` initial value and on every UserDefaults change, ran a full device scan on the main
     /// thread each time Home's parent re-rendered.)
@@ -56,7 +53,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        LookSwitch.mark("home")
+        NavMarks.mark("home")
         return HStack(spacing: 0) {
             column.frame(maxWidth: .infinity)
             if edit.editing {
@@ -68,9 +65,9 @@ struct HomeView: View {
         .background(Refined.paper)
         .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
         .onChange(of: app.focusLink) { _, _ in importOpen = true }
-        .onAppear { LookSwitch.mark("home-appear"); mics.refresh() }
-        // Only when editing: a write publishes even when nothing changes, and at a look switch the old Home leaves in
-        // the same update the new one is built, so it re-rendered the new Home (and Settings' Edit Home list) again.
+        .onAppear { NavMarks.mark("home-appear"); mics.refresh() }
+        // Only when editing: a write publishes even when nothing changes, so it re-rendered Home (and Settings' Edit
+        // Home list) again.
         .onDisappear { if edit.editing { edit.editing = false } }
         .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mics.refresh(); now = Date() }
@@ -82,9 +79,9 @@ struct HomeView: View {
         // own width back, so Home either kept a too-wide layout or grew past the detail area.) The width is worked
         // out in the body, never stored: a stored width laid Home out twice on every visit (900 pt, then the real one).
         GeometryReader { geo in
-            let _ = LookSwitch.mark("home-grid")
+            let _ = NavMarks.mark("home-grid")
             let width = Self.contentWidth(geo.size.width)
-            let layout = layouts.layout(look.homeLook)
+            let layout = layouts.layout
             let rows = HomeRows.rows(layout.shown, wide: Self.wide(width))
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -106,7 +103,7 @@ struct HomeView: View {
                 .padding(.horizontal, Self.margin(geo.size.width)).padding(.top, 18).padding(.bottom, 40)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 // Back and Forward bring Home back where you left it; the sidebar opens it at the top (App/NavTrail.swift).
-                .scrollPlace(ScreenPlaces.scrollKey("home", look: look), restore: NavTrail.shared.movingThroughHistory)
+                .scrollPlace(ScreenPlaces.scrollKey("home"), restore: NavTrail.shared.movingThroughHistory)
             }
             // The greeting fades under the toolbar's glass instead of running into it (review M-05).
             .softScrollEdges(.top)
@@ -428,7 +425,7 @@ struct HomeView: View {
     private func recentCard(_ size: HomeCardSize) -> some View {
         let items = Array(app.archive.prefix(size == .large ? 4 : 2))
         return VStack(alignment: .leading, spacing: 0) {
-            SerifSectionTitle("Recent", link: "Library") { app.go(.library) }
+            SectionTitle("Recent", link: "Library") { app.go(.library) }
                 .padding(.horizontal, 16).padding(.top, 2)
             if items.isEmpty && app.search.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -457,14 +454,14 @@ struct HomeView: View {
     /// A recent recording: the row is the button that opens it; Clean up sits beside it, never inside it (macOS 26
     /// click safety).
     private func recentRow(_ t: Transcript) -> some View {
-        let fillers = WebStatus.cachedFillers(t)
+        let fillers = RowStatus.cachedFillers(t)
         return HStack(spacing: 0) {
             Button { app.go(.transcript(t.id)) } label: {
                 // The live progress (StageClock) while it transcribes: only this row re-renders on a tick.
                 LiveStage(t) { t in
                     PaperRow(kind: t.refinedKind, title: t.title, meta: Self.recentMeta(t)) {
                         if t.status != .ready { RowLength(text: t.status == .failed ? "Didn't finish" : t.stageText) }
-                        else if !WebStatus.isTextOnly(t), t.duration > 0 { RowLength(text: HomeRecentStyle.length(t.duration)) }
+                        else if !RowStatus.isTextOnly(t), t.duration > 0 { RowLength(text: HomeRecentStyle.length(t.duration)) }
                     }
                 }
             }

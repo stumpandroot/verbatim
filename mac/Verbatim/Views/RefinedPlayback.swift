@@ -626,7 +626,7 @@ struct RecordingTimerCapsule: View {
 }
 
 #if os(iOS)
-/// The minimized recorder (the iPhone, both looks): the persimmon dot (dimmed while paused), "Recording · 4:12" over
+/// The minimized recorder (the iPhone): the persimmon dot (dimmed while paused), "Recording · 4:12" over
 /// your newest words or the kind, then Pause or Resume and Stop (the red square). A tap on the text opens the recorder.
 /// No background of its own: the tab bar's accessory draws the glass in Native, and the bar's card in Verbose style.
 /// VoiceOver reads one element ("Recording, 4 minutes 12 seconds") with Pause or Resume, Stop, and Open as actions.

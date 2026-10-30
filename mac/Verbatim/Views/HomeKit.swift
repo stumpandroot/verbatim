@@ -8,13 +8,12 @@ import UIKit
 
 // Home, shared by the Mac (HomeView) and iPhone (HomeScreen) apps: the greeting and counts (pure, self-tested), This
 // week's numbers and bars, the Recent rows' styles, the refined Home's tile colors and kinds (DESIGN.md §6, §13), the
-// journal's week dots, the brand icons that draw themselves on (the Mac sidebar), the cards that tilt (`HomeCard`, the
-// Mac's You and Library), and Edit Home's probe for the self-tests. Home's own drawing is the refined kit
+// journal's week dots, the brand icons that draw themselves on (the Mac sidebar), and Edit Home's probe for the
+// self-tests. Home's own drawing is the refined kit
 // (RefinedKit.swift); its Record meter and the hover and touch listening retired with the old Home.
 //
-// Motion (DESIGN.md §7): `HomeCard` tilts toward the pointer, lifts 2 pt, and catches a sheen and an edge light on
-// hover (Mac), and presses in on click or touch. Springs never bounce. With Reduce Motion or Limit animation
-// everything is still, and the screenshot tour (VERBATIM_UITEST=1) keeps it still so captures repeat.
+// Motion (DESIGN.md §7): springs never bounce. With Reduce Motion or Limit animation everything is still, and the
+// screenshot tour (VERBATIM_UITEST=1) keeps it still so captures repeat.
 
 enum HomeMotion {
     /// Off in the screenshot tour, so Home captures are the same every run.
@@ -374,138 +373,6 @@ struct DrawOnGlyph: View {
     }
 }
 
-// MARK: - Cards
-
-/// Every card on Home (DESIGN.md §7): the Record panel, the start tiles, This week, the Method cards, and the recent
-/// recordings. On Mac it tilts toward the pointer, lifts 2 pt, and catches a sheen and an edge light (`CardMotion`),
-/// and presses in on click. On iPhone, where there's no hover, it presses in on touch. With motion limited it only
-/// dims while pressed.
-///
-/// Mac: the visuals move underneath and a flat, untransformed layer on top takes the pointer, as `CardButton` does,
-/// because a 3D-rotated view, or a Button competing with a gesture, loses clicks on macOS 26. Because that layer
-/// takes the pointer, `content` hears hover through its `hovering` argument rather than its own `onHover`.
-struct HomeCard<Content: View>: View {
-    var tilt: Double = 3
-    var lift: Double = 2
-    var radius: CGFloat
-    var enabled = true
-    /// The soft lift shadow under the pointer. Mac web-style cards turn it off and draw the hard ink shadow
-    /// themselves (`inkEdge`, WebStyle.swift).
-    var shadow = true
-    /// The pointer arrived (true) or left (false). Mac only.
-    var onHover: ((Bool) -> Void)? = nil
-    /// The pointer or finger went down (true) or came up (false).
-    var onPress: ((Bool) -> Void)? = nil
-    var action: () -> Void
-    @ViewBuilder var content: (_ hovering: Bool) -> Content
-
-    #if os(macOS)
-    /// Only whether the pointer is over the card lives here, so `content` is rebuilt on enter and exit, never on every
-    /// pointer move: the pointer position (for the tilt and sheen) and the press live in `HomeCardSurface`, which
-    /// draws the already-built content.
-    @State private var hovering = false
-
-    var body: some View {
-        HomeCardSurface(radius: radius, tilt: tilt, lift: lift, enabled: enabled, shadow: shadow,
-                        content: content(hovering && enabled),
-                        onHover: { h in
-                            if hovering != h { hovering = h }
-                            onHover?(h)
-                        },
-                        onPress: onPress, action: action)
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction { if enabled { action() } }
-    }
-    #else
-    var body: some View {
-        Button { if enabled { action() } } label: { content(false) }
-            .buttonStyle(HomeCardPressStyle(radius: radius, tilt: tilt, lift: lift, onPress: onPress))
-            .disabled(!enabled)
-    }
-    #endif
-}
-
-#if os(macOS)
-/// The moving part of a Mac `HomeCard`: the card's visuals tilt, lift, and catch the sheen underneath, and a flat,
-/// untransformed hit layer on top takes the pointer. The hit layer reads its own size, so nothing is measured into
-/// state on layout; the pointer position changes only this view's body, never the content's.
-private struct HomeCardSurface<Content: View>: View {
-    var radius: CGFloat
-    var tilt: Double
-    var lift: Double
-    var enabled: Bool
-    var shadow: Bool
-    let content: Content
-    var onHover: (Bool) -> Void
-    var onPress: ((Bool) -> Void)?
-    var action: () -> Void
-    @Environment(\.limitMotion) private var limitMotion
-    /// Native: no tilt, lift, or sheen; only the press shows.
-    @Environment(\.look) private var look
-    @State private var pointer: CGPoint? = nil
-    @State private var size: CGSize = .zero
-    @State private var down = false
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        content
-            .cardMotion(hover: enabled && look != .native ? pointer : nil, size: size, pressed: down && enabled, radius: radius, tilt: tilt, lift: lift, shadow: shadow)
-            .opacity(down && enabled && limitMotion ? 0.8 : 1)
-            .allowsHitTesting(false)
-            .overlay {
-                // The hit layer: flat, on top, and the only thing that receives the pointer.
-                GeometryReader { g in
-                    shape.fill(Color.white.opacity(0.001))
-                        .contentShape(shape)
-                        .onContinuousHover { phase in
-                            switch phase {
-                            case .active(let p):
-                                if pointer == nil { onHover(true) }
-                                if size != g.size { size = g.size }
-                                pointer = p
-                            case .ended:
-                                pointer = nil
-                                if down { down = false; onPress?(false) }
-                                onHover(false)
-                            }
-                        }
-                        .gesture(DragGesture(minimumDistance: 0)
-                            .onChanged { _ in if !down { down = true; onPress?(true) } }
-                            .onEnded { v in
-                                down = false
-                                onPress?(false)
-                                if enabled && CGRect(origin: .zero, size: g.size).insetBy(dx: -4, dy: -4).contains(v.location) { action() }
-                            })
-                }
-            }
-    }
-}
-#endif
-
-#if os(iOS)
-/// iPhone: the card presses in (scale 0.98) while a finger is on it; a brief dim instead with motion limited.
-private struct HomeCardPressStyle: ButtonStyle {
-    var radius: CGFloat
-    var tilt: Double
-    var lift: Double
-    var onPress: ((Bool) -> Void)?
-    func makeBody(configuration: Configuration) -> some View { PressBody(configuration: configuration, style: self) }
-    private struct PressBody: View {
-        let configuration: ButtonStyleConfiguration
-        let style: HomeCardPressStyle
-        @Environment(\.limitMotion) private var limitMotion
-        var body: some View {
-            configuration.label
-                .cardMotion(hover: nil, size: .zero, pressed: configuration.isPressed, radius: style.radius, tilt: style.tilt, lift: style.lift)
-                .opacity(configuration.isPressed && limitMotion ? 0.75 : 1)
-                .animation(Motion.fade, value: configuration.isPressed && limitMotion)
-                .onChange(of: configuration.isPressed) { _, pressed in style.onPress?(pressed) }
-        }
-    }
-}
-#endif
-
 extension BrandArt {
     /// The check in "Copied" (24-unit grid, 1.5 stroke), drawn on when a dictation is copied.
     static let homeCheck = BrandArt(box: iconGrid, strokes: [.path("M5 12.5L10 17.5L19 7")], strokeWidth: 1.5)
@@ -602,30 +469,11 @@ extension HomeTile {
         case .brainDump: return .iconBrainDump
         }
     }
-
-    // brand: native begin
-    /// The tile's SF Symbol in Native.
-    var symbol: String {
-        switch self {
-        case .dictate: return "mic"
-        case .importMedia: return "square.and.arrow.down"
-        case .whatsPlaying, .appAudio: return "speaker.wave.2"
-        case .captions: return "captions.bubble"
-        case .thoughtPad: return "doc.text"
-        case .dictations: return "text.bubble"
-        case .dictionary: return "character.book.closed"
-        case .projects: return "folder"
-        case .newThought: return "lightbulb"
-        case .journal: return "book"
-        case .brainDump: return "brain.head.profile"
-        }
-    }
-    // brand: native end
 }
 
 /// What Home has on screen, by section and size, and which tiles: the self-test checks an edit reaches Home. Counted,
 /// because a section (or a tile) that moves to another band can appear again before its old place disappears. Tiles
-/// weren't: closing Edit Home's inspector widens Native Home so Stats and the tiles pair into one band, every tile
+/// weren't: closing Edit Home's inspector widened Home so two sections paired into one band, every tile
 /// appeared in its new band before leaving the old one, and leaving took it off the list (build 213's "a new tile
 /// reaches Home" failure, with Search drawn on Home).
 @MainActor

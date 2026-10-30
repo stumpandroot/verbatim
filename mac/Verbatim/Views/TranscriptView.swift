@@ -1,8 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// A transcript in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", MacTranscript), one layout in both
-/// look settings: a centered 640 pt reading column on paper with the title in the serif, a meta line led by the kind's
+/// A transcript (DESIGN.md §13; mockup "Verbose Refined Look", MacTranscript): a centered 640 pt reading column on paper with the title in the serif, a meta line led by the kind's
 /// chip (and the project's), then each turn as the speaker's chip and the time over the serif reading text, and the
 /// glass player bar floating at the foot of the column. The window's toolbar holds Back and Forward, the centered
 /// segmented control (Original, Cleaned, Summary, Review once something was corrected, and a template's result), Share,
@@ -27,7 +26,6 @@ struct TranscriptView: View {
     @State private var editingTitle = false
     @State private var titleDraft = ""
     @FocusState private var titleFocused: Bool
-    @Environment(\.look) private var look
     /// The tab, text size, Follow, engine words, Select text, the selected passage, and the running action, shared
     /// with the window's toolbar and inspector (MacChrome.swift).
     @EnvironmentObject private var nav: WindowNav
@@ -47,8 +45,8 @@ struct TranscriptView: View {
         }
     }
 
-    /// The looks a transcript is on screen in (the self-test checks each look draws this one layout, once).
-    static var onScreen = Set<AppLook>()
+    /// How many transcripts are on screen (the self-test checks there's one).
+    static var onScreen = 0
 
     /// The reading column's width (the mockup's 640 pt), and the player bar's.
     static let column: CGFloat = 640
@@ -72,10 +70,10 @@ struct TranscriptView: View {
     private var transcript: Transcript? { app.store.transcript(id) }
 
     var body: some View {
-        LookSwitch.mark("transcript")
+        NavMarks.mark("transcript")
         // Actions run from the window's toolbar, which shows their sheet and Summarize's alert (MacChrome.swift).
         return screenBody
-            // Transcribe again with Whisper Turbo, from More (either look): what it does, the download when the model
+            // Transcribe again with Whisper Turbo, from More: what it does, the download when the model
             // isn't here, and that your edits stay with the words you can switch back to.
             .alert(TurboRerun.title + "?", isPresented: Binding(get: { app.turboAsk == id }, set: { if !$0, app.turboAsk == id { app.turboAsk = nil } })) {
                 Button("Cancel", role: .cancel) {}
@@ -100,7 +98,7 @@ struct TranscriptView: View {
             }
             .onAppear {
                 if UITest.enabled { Log.note("UITEST nav appear ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000)) segments=\(t.segments.count)") }
-                Self.onScreen.insert(look)
+                Self.onScreen += 1
                 // Opened from search, a link, a note, or an Ask citation: land on that passage, on Original.
                 let focus = app.focusSegment.flatMap { f in t.segments.first { $0.id == f } }
                 nav.opened(t, focus: focus != nil)
@@ -115,10 +113,9 @@ struct TranscriptView: View {
                 }
                 if UITest.enabled { DispatchQueue.main.async { Log.note("UITEST nav settled ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000))") } }
             }
-            // Stops only when the last screen for this transcript goes and no other transcript took playback: a look
-            // switch builds the new screen before the old one leaves, and that used to stop the audio.
+            // Stops only when the last screen for this transcript goes and no other transcript took playback.
             .onDisappear {
-                Self.onScreen.remove(look)
+                Self.onScreen = max(0, Self.onScreen - 1)
                 if app.player.screenLeft(id) { app.player.stop() }
             }
             .skipsSponsors(t, player: app.player)
@@ -195,7 +192,7 @@ struct TranscriptView: View {
                     KindPickerChip(kind: t.kind, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
                 }
                 if let project {
-                    KindColorChip(title: project.name, hue: RefinedRules.projectHue(project.colorIndex))
+                    KindChip(title: project.name, hue: RefinedRules.projectHue(project.colorIndex))
                         .accessibilityLabel("Project: \(project.name)")
                 }
                 Text(Self.meta(t)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
@@ -228,7 +225,7 @@ struct TranscriptView: View {
     /// "Tuesday, Oct 27, 8:35 PM · 0:42 · 2 speakers · English" after the chips. A dictation's text has no length.
     static func meta(_ t: Transcript, now: Date = Date()) -> String {
         RefinedRules.transcriptMeta(when: RefinedRules.transcriptWhen(t.createdAt, now: now),
-                                    duration: WebStatus.isTextOnly(t) ? 0 : t.duration,
+                                    duration: RowStatus.isTextOnly(t) ? 0 : t.duration,
                                     speakers: t.speakers.count, language: t.language.map(LanguageDetection.name))
     }
 

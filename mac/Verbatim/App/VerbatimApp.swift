@@ -29,7 +29,6 @@ struct VerbatimApp: App {
             ContentView()
                 .environmentObject(app)
                 .limitMotionRoot()
-                .lookRoot()
                 .frame(minWidth: 980, minHeight: 640)
                 .onAppear { Log.note("window appeared") }
         }
@@ -99,7 +98,7 @@ struct VerbatimApp: App {
         }
 
         Settings {
-            SettingsView().environmentObject(app).limitMotionRoot().lookRoot()
+            SettingsView().environmentObject(app).limitMotionRoot()
         }
 
         MenuBarExtra(isInserted: holder.menuBarBinding) {
@@ -109,9 +108,8 @@ struct VerbatimApp: App {
                 DictationsMenuRow().padding(.horizontal, 12).padding(.bottom, 10)
                 LiveCaptionsMenuRow().padding(.horizontal, 12).padding(.bottom, 12)
             }
-            .frame(width: 320).background(Ink.paper)
-            .lookRebuild()
-            .environmentObject(app).limitMotionRoot().lookRoot()
+            .frame(width: 320).background(Refined.paper)
+            .environmentObject(app).limitMotionRoot()
         } label: {
             // The bars mark as a template image, so the menu bar tints it (DESIGN.md §3, §4).
             Image(nsImage: BrandArt.markBars.templateImage(size: 16, key: "menubar"))

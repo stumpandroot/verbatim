@@ -1,9 +1,8 @@
 import Foundation
 
-// Edit Home's layout model (Verbatim/Model/HomeLayout.swift): each app's defaults (one Home in both looks since the
-// refined look), the older settings carried over, decoding stored layouts (unknown sections and tiles ignored, missing ones
-// added where they belong), the editor's moves, the four tiles, the Mac's pairing, Today's thoughts and Journal, and the
-// iPhone's tab bar (Verbatim/Model/PhoneTabBar.swift). Not part of any app target; run mac/tools/test-home-layout.sh.
+// Edit Home's layout model (Verbatim/Model/HomeLayout.swift): each app's defaults, the older settings carried over, decoding stored layouts (unknown sections and tiles ignored, missing ones
+// added where they belong), the editor's moves, the four tiles, the Mac's pairing, Today's thoughts and Journal, the
+// one-time moves of a stored layout (one layout after the look switch, and the Record card), and the iPhone's tab bar (Verbatim/Model/PhoneTabBar.swift). Not part of any app target; run mac/tools/test-home-layout.sh.
 var passed = 0, failed = 0
 func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "") {
     if ok { passed += 1; print("PASS  \(name)") }
@@ -15,34 +14,31 @@ func json(_ s: String) -> Data { Data(s.utf8) }
 
 // MARK: Defaults
 
-let pv = HomeLayout.defaults(.phone, .verbose)
-let pn = HomeLayout.defaults(.phone, .native)
-let mv = HomeLayout.defaults(.mac, .verbose)
-let mn = HomeLayout.defaults(.mac, .native)
+let pv = HomeLayout.defaults(.phone)
+let mv = HomeLayout.defaults(.mac)
 
-// One Home in both looks (the refined look, DESIGN.md §13): each app's defaults are the same in either look.
 check("iPhone: the Record card, tiles, This week, Recent recordings",
       names(pv.shown) == ["record", "tiles", "week", "recent"], "\(names(pv.shown))")
 check("iPhone: Record card and tiles Large, This week a Compact strip",
       pv.size(.record) == .large && pv.size(.tiles) == .large && pv.size(.week) == .compact && pv.size(.recent) == .large)
-check("iPhone Native starts with the same Home, the Record card included", pn == pv && pn.isVisible(.record))
+check("iPhone starts with the Record card shown", pv.isVisible(.record))
 check("Mac: the Record card, tiles, then Recent recordings beside This week",
       names(mv.shown) == ["record", "tiles", "recent", "week"], "\(names(mv.shown))")
 check("Mac: every section Large", mv.shown.allSatisfy { $0.size == .large })
-check("Mac Native starts with the same Home, the Record card included", mn == mv && mn.isVisible(.record))
+check("Mac starts with the Record card shown", mv.isVisible(.record))
 // The consolidation (October 28, 2026): eleven sections down to six.
 check("Home's sections: Record, tiles, This week, Recent recordings, Today's thoughts, and Journal",
       HomeSection.allCases.map(\.rawValue) == ["record", "tiles", "week", "recent", "thoughts", "journal"])
 check("Queue, Projects, Moments, Last dictation, and Stats left", HomeSection.retired == ["stats", "lastDictation", "projects", "moments", "queue"]
       && HomeSection.retired.allSatisfy { HomeSection(rawValue: $0) == nil })
-check("every default lists each available section once", [(pv, HomePlatform.phone, HomeLook.verbose), (pn, .phone, .native), (mv, .mac, .verbose), (mn, .mac, .native)].allSatisfy { l, p, look in
-    Set(l.items.map(\.section)) == Set(HomeSection.allCases.filter { $0.isAvailable(on: p, look: look) }) && l.items.count == Set(l.items.map(\.section)).count })
-check("iPhone tiles: Dictate, Import, What's playing, New thought", pv.tiles == [.dictate, .importMedia, .whatsPlaying, .newThought] && pn.tiles == pv.tiles)
-check("Mac tiles: Dictate, Import, App audio, New thought", mv.tiles == [.dictate, .importMedia, .appAudio, .newThought] && mn.tiles == mv.tiles)
+check("every default lists each available section once", [(pv, HomePlatform.phone), (mv, .mac)].allSatisfy { l, p in
+    Set(l.items.map(\.section)) == Set(HomeSection.allCases.filter { $0.isAvailable(on: p) }) && l.items.count == Set(l.items.map(\.section)).count })
+check("iPhone tiles: Dictate, Import, What's playing, New thought", pv.tiles == [.dictate, .importMedia, .whatsPlaying, .newThought])
+check("Mac tiles: Dictate, Import, App audio, New thought", mv.tiles == [.dictate, .importMedia, .appAudio, .newThought])
 check("Live captions left the four and stays in the catalog", !pv.tiles.contains(.captions) && HomeTile.available(on: .phone).contains(.captions)
       && HomeTile.available(on: .mac).contains(.captions))
 check("the tile catalog drops Search, Moments, Queue, and Paste a link", ["search", "moments", "queue", "pasteLink"].allSatisfy { HomeTile(rawValue: $0) == nil })
-check("defaults are already normalized", [(pv, HomePlatform.phone, HomeLook.verbose), (pn, .phone, .native), (mv, .mac, .verbose), (mn, .mac, .native)].allSatisfy { l, p, look in l.normalized(p, look) == l })
+check("defaults are already normalized", pv.normalized(.phone) == pv && mv.normalized(.mac) == mv)
 
 // MARK: Platform-specific tiles and sections
 
@@ -54,18 +50,14 @@ check("every section is on both apps", HomeSection.allCases.allSatisfy { $0.plat
 
 // MARK: Older settings (migration)
 
-let noWeek = HomeLayout.initial(.mac, .verbose, legacy: .init(showWeek: false))
+let noWeek = HomeLayout.initial(.mac, legacy: .init(showWeek: false))
 check("Mac: Show This week on Home turned off carries over as a hidden This week", !noWeek.isVisible(.week) && names(noWeek.shown) == ["record", "tiles", "recent"])
-check("Mac: and in Native", !HomeLayout.initial(.mac, .native, legacy: .init(showWeek: false)).isVisible(.week))
-check("Mac: the switch left on changes nothing", HomeLayout.initial(.mac, .verbose, legacy: .init(showWeek: true)) == mv)
-let recordCard = HomeLayout.initial(.phone, .native, legacy: .init(nativeRecordCard: true))
-check("iPhone Native: Show the Record card on (an older setting) leaves the card where it is", names(recordCard.shown) == ["record", "tiles", "week", "recent"], "\(names(recordCard.shown))")
-check("iPhone: the Record card setting doesn't touch Verbose style", HomeLayout.initial(.phone, .verbose, legacy: .init(nativeRecordCard: false)) == pv)
-check("no older settings: the defaults", HomeLayout.initial(.phone, .native, legacy: .init()) == pn)
-check("an install from before keeps the four tiles it had (Live captions)", HomeLayout.initial(.phone, .verbose, legacy: .init(keepsEarlierTiles: true)).tiles
-      == [.dictate, .importMedia, .whatsPlaying, .captions] && HomeLayout.initial(.mac, .native, legacy: .init(keepsEarlierTiles: true)).tiles
+check("Mac: the switch left on changes nothing", HomeLayout.initial(.mac, legacy: .init(showWeek: true)) == mv)
+check("no older settings: the defaults", HomeLayout.initial(.phone, legacy: .init()) == pv && HomeLayout.initial(.mac, legacy: .init()) == mv)
+check("an install from before keeps the four tiles it had (Live captions)", HomeLayout.initial(.phone, legacy: .init(keepsEarlierTiles: true)).tiles
+      == [.dictate, .importMedia, .whatsPlaying, .captions] && HomeLayout.initial(.mac, legacy: .init(keepsEarlierTiles: true)).tiles
       == [.dictate, .importMedia, .appAudio, .captions])
-check("and nothing else changes for it", HomeLayout.initial(.mac, .verbose, legacy: .init(keepsEarlierTiles: true)).items == mv.items)
+check("and nothing else changes for it", HomeLayout.initial(.mac, legacy: .init(keepsEarlierTiles: true)).items == mv.items)
 
 // MARK: Storage round trip and tolerant decoding
 
@@ -76,17 +68,17 @@ edited.moveShown(fromOffsets: IndexSet(integer: 2), toOffset: 0)
 edited.tiles = [.dictionary, .dictate, .projects, .journal]
 let data = edited.encoded()
 check("a layout encodes", data != nil)
-check("and decodes to the same layout", data.flatMap { HomeLayout.decode($0, .phone, .verbose) } == edited)
+check("and decodes to the same layout", data.flatMap { HomeLayout.decode($0, .phone) } == edited)
 check("the stored form carries version \(HomeLayout.currentVersion)", data.flatMap { try? JSONDecoder().decode(HomeLayout.Record.self, from: $0) }?.version == HomeLayout.currentVersion)
-check("garbage isn't a layout", HomeLayout.decode(json("not json"), .phone, .verbose) == nil)
-check("an empty record is the defaults", HomeLayout.decode(json("{}"), .mac, .native) == mn)
+check("garbage isn't a layout", HomeLayout.decode(json("not json"), .phone) == nil)
+check("an empty record is the defaults", HomeLayout.decode(json("{}"), .mac) == mv)
 
 let unknown = json("""
 {"version":1,"items":[{"section":"hologram","visible":true,"size":"large"},{"section":"recent","visible":true,"size":"huge"},
 {"section":"record","visible":false,"size":"compact"},{"section":"recent","visible":false,"size":"compact"}],
 "tiles":["teleport","dictionary","dictionary","dictate"]}
 """)
-let u = HomeLayout.decode(unknown, .phone, .verbose)
+let u = HomeLayout.decode(unknown, .phone)
 check("unknown sections are ignored", u.map { !$0.items.contains { $0.section.rawValue == "hologram" } } == true)
 check("a section listed twice keeps its first entry", u?.items.filter { $0.section == .recent }.count == 1 && u?.isVisible(.recent) == true)
 check("an unknown size falls back to the default size", u?.size(.recent) == .large)
@@ -95,19 +87,19 @@ check("missing sections are added, each once", u.map { Set($0.items.map(\.sectio
 check("unknown and repeated tiles are dropped, then filled to four from the defaults", u?.tiles == [.dictionary, .dictate, .importMedia, .whatsPlaying], "\(u?.tiles.map(\.rawValue) ?? [])")
 // A layout saved before the consolidation: its retired sections and tiles are read without them.
 let preConsolidation = json(#"{"version":1,"items":[{"section":"record","visible":true,"size":"large"},{"section":"queue","visible":true,"size":"compact"},{"section":"tiles","visible":true,"size":"large"},{"section":"lastDictation","visible":true,"size":"large"},{"section":"moments","visible":true,"size":"large"},{"section":"recent","visible":false,"size":"compact"},{"section":"stats","visible":true,"size":"large"},{"section":"projects","visible":true,"size":"compact"}],"tiles":["search","dictate","moments","pasteLink"]}"#)
-let pc = HomeLayout.decode(preConsolidation, .mac, .verbose)
+let pc = HomeLayout.decode(preConsolidation, .mac)
 check("a pre-consolidation layout keeps its order and choices for the sections that stay", pc.map { names($0.shown) } == ["record", "tiles", "week"]
       && pc?.isVisible(.recent) == false && pc?.size(.recent) == .compact, "\(pc.map { names($0.items) } ?? [])")
 check("its retired tiles are replaced from the defaults, in order", pc?.tiles == [.dictate, .importMedia, .appAudio, .newThought], "\(pc?.tiles.map(\.rawValue) ?? [])")
 
 let otherApp = json(#"{"items":[{"section":"week","visible":true}],"tiles":["appAudio","thoughtPad","captions"]}"#)
-let o = HomeLayout.decode(otherApp, .phone, .native)
+let o = HomeLayout.decode(otherApp, .phone)
 check("a missing size or visibility takes the default", o?.size(.week) == .compact && o?.isVisible(.week) == true)
 check("tiles the app doesn't offer are dropped", o?.tiles == [.captions, .dictate, .importMedia, .whatsPlaying], "\(o?.tiles.map(\.rawValue) ?? [])")
 
 // A layout saved before Today's thoughts and Journal existed: they're added after their neighbors, hidden.
 let older = json(#"{"items":[{"section":"recent","visible":true,"size":"large"},{"section":"record","visible":true,"size":"large"}],"tiles":["dictate","import","whatsPlaying","captions"]}"#)
-let old = HomeLayout.decode(older, .phone, .verbose)
+let old = HomeLayout.decode(older, .phone)
 check("a layout without a version decodes", old != nil)
 check("its own order is kept", old.map { names($0.shown).starts(with: ["recent", "record"]) } == true, "\(old.map { names($0.items) } ?? [])")
 check("missing sections land after the section before them in the defaults", old.map { l in
@@ -117,7 +109,7 @@ check("missing sections land after the section before them in the defaults", old
 } == true, "\(old.map { names($0.items) } ?? [])")
 check("added sections take the defaults' visibility", old.map { !$0.isVisible(.thoughts) && !$0.isVisible(.journal) && $0.isVisible(.tiles) } == true)
 let newer = json(#"{"version":9,"items":[{"section":"journal","visible":true,"size":"large","pinned":true}],"tiles":["dictate"],"accent":"blue"}"#)
-let n = HomeLayout.decode(newer, .mac, .verbose)
+let n = HomeLayout.decode(newer, .mac)
 check("a newer build's layout decodes what this build knows", n.map { $0.isVisible(.journal) && $0.size(.journal) == .large && $0.items.count == mv.items.count } == true)
 check("a section missing at the front goes first", n.map { $0.items.first?.section == .record } == true, "\(n.map { names($0.items) } ?? [])")
 
@@ -132,7 +124,7 @@ e.setVisible(.week, true)
 check("showing a hidden one again: also at the end", names(e.shown) == ["record", "tiles", "recent", "journal", "week"])
 e.setVisible(.week, true)
 check("showing a shown section changes nothing", names(e.shown) == ["record", "tiles", "recent", "journal", "week"])
-var ip = pn
+var ip = pv
 ip.setVisible(.record, false, inPlace: true)
 ip.setVisible(.record, true, inPlace: true)
 check("a switch elsewhere shows a section where it sits", names(ip.shown) == ["record", "tiles", "week", "recent"])
@@ -151,9 +143,9 @@ m.moveShown(.recent, before: .record)
 check("move a section before another", names(m.shown) == ["recent", "record", "tiles", "week"])
 m.moveShown(.recent, before: nil)
 check("move a section to the end", names(m.shown) == ["record", "tiles", "week", "recent"])
-var s = pn
+var s = pv
 s.setSize(.week, .large)
-check("change a section's size", s.size(.week) == .large && s.size(.tiles) == .large && names(s.shown) == names(pn.shown))
+check("change a section's size", s.size(.week) == .large && s.size(.tiles) == .large && names(s.shown) == names(pv.shown))
 
 // MARK: Tiles
 
@@ -170,7 +162,7 @@ picks = HomeLayout.move(.dictate, to: 9, in: picks)
 check("a drag past the end lands in the last slot", picks == [.dictionary, .importMedia, .newThought, .dictate])
 var short = pv
 short.tiles = [.dictionary]
-check("a layout with fewer than four tiles is filled from the defaults", short.normalized(.phone, .verbose).tiles == [.dictionary, .dictate, .importMedia, .whatsPlaying])
+check("a layout with fewer than four tiles is filled from the defaults", short.normalized(.phone).tiles == [.dictionary, .dictate, .importMedia, .whatsPlaying])
 
 check("tile slots keep their place and skip missing picks", HomeTileSlot.slots([.dictionary, .dictate, .projects], 2..<4) == [HomeTileSlot(slot: 2, tile: .projects)])
 
@@ -194,16 +186,16 @@ check("rows are identified by their first section", HomeRows.rows(mv.shown, wide
 
 // MARK: Today's thoughts and Journal (October 26, 2026)
 
-check("Today's thoughts and Journal start hidden in every look on both apps", [pv, pn, mv, mn].allSatisfy { l in
+check("Today's thoughts and Journal start hidden on both apps", [pv, mv].allSatisfy { l in
     !l.isVisible(.thoughts) && !l.isVisible(.journal) && l.item(.thoughts) != nil && l.item(.journal) != nil })
-check("they're offered on both apps, in both looks", [HomePlatform.phone, .mac].allSatisfy { p in HomeLook.allCases.allSatisfy { look in
-    HomeSection.thoughts.isAvailable(on: p, look: look) && HomeSection.journal.isAvailable(on: p, look: look) } })
+check("they're offered on both apps", [HomePlatform.phone, .mac].allSatisfy { p in
+    HomeSection.thoughts.isAvailable(on: p) && HomeSection.journal.isAvailable(on: p) })
 check("Today's thoughts and Journal didn't change the shown sections", names(pv.shown) == ["record", "tiles", "week", "recent"]
-      && names(mn.shown) == ["record", "tiles", "recent", "week"])
+      && names(mv.shown) == ["record", "tiles", "recent", "week"])
 check("section names", HomeSection.thoughts.title == "Today's thoughts" && HomeSection.journal.title == "Journal")
 // A layout saved by the build before them, with every section it knew: they're added at the end, hidden.
 let before223 = json(#"{"version":1,"items":[{"section":"record","visible":true,"size":"large"},{"section":"tiles","visible":true,"size":"large"},{"section":"week","visible":true,"size":"compact"},{"section":"recent","visible":true,"size":"large"},{"section":"moments","visible":true,"size":"large"},{"section":"lastDictation","visible":false,"size":"compact"},{"section":"projects","visible":false,"size":"compact"},{"section":"queue","visible":false,"size":"compact"}],"tiles":["dictate","import","whatsPlaying","captions"]}"#)
-let b = HomeLayout.decode(before223, .phone, .verbose)
+let b = HomeLayout.decode(before223, .phone)
 check("an older saved layout decodes without them", b != nil)
 check("its shown sections and order are kept, without Moments", b.map { names($0.shown) } == ["record", "tiles", "week", "recent"], "\(b.map { names($0.shown) } ?? [])")
 check("Today's thoughts and Journal are added, hidden, after Recent recordings", b.map { l in
@@ -214,14 +206,14 @@ check("Today's thoughts and Journal are added, hidden, after Recent recordings",
 check("they take the defaults' size (Large)", b?.size(.thoughts) == .large && b?.size(.journal) == .large)
 check("its tiles are kept", b?.tiles == [.dictate, .importMedia, .whatsPlaying, .captions])
 let macOld = json(#"{"items":[{"section":"week","visible":true,"size":"large"},{"section":"stats","visible":true,"size":"large"}],"tiles":["thoughtPad","dictate","appAudio","captions"]}"#)
-let mo = HomeLayout.decode(macOld, .mac, .native)
+let mo = HomeLayout.decode(macOld, .mac)
 check("an older Mac layout keeps the Today's page tile and gets the new sections hidden", mo.map { $0.tiles.first == .thoughtPad && !$0.isVisible(.thoughts) && !$0.isVisible(.journal) } == true)
 var shown = pv
 shown.setVisible(.thoughts, true)
 shown.setVisible(.journal, true)
 shown.setSize(.thoughts, .compact)
 check("showing them puts them at the end of Home", names(shown.shown).suffix(2) == ["thoughts", "journal"])
-check("and the layout round-trips with them", shown.encoded().flatMap { HomeLayout.decode($0, .phone, .verbose) } == shown)
+check("and the layout round-trips with them", shown.encoded().flatMap { HomeLayout.decode($0, .phone) } == shown)
 var macShown = mv
 macShown.setVisible(.thoughts, true)
 macShown.setVisible(.journal, true)
@@ -232,7 +224,7 @@ check("on the Mac, Large Today's thoughts sits beside Journal, under Recent reco
 check("New thought and Journal tiles are on both apps", [HomePlatform.phone, .mac].allSatisfy { HomeTile.available(on: $0).contains(.newThought) && HomeTile.available(on: $0).contains(.journal) })
 check("tile names", HomeTile.newThought.title == "New thought" && HomeTile.journal.title == "Journal")
 check("the Mac's floating page tile reads Today's page, not a second Thoughts", HomeTile.thoughtPad.title == "Today's page" && HomeTile.thoughtPad.title != HomeTile.newThought.title)
-check("a stored layout picks the new tiles", HomeLayout.decode(json(#"{"tiles":["newThought","journal","dictate","import"]}"#), .phone, .native)?.tiles == [.newThought, .journal, .dictate, .importMedia])
+check("a stored layout picks the new tiles", HomeLayout.decode(json(#"{"tiles":["newThought","journal","dictate","import"]}"#), .phone)?.tiles == [.newThought, .journal, .dictate, .importMedia])
 
 check("Large shows the latest four thoughts, in the order they started", HomeThoughts.latest([1, 2, 3, 4, 5, 6]) == [3, 4, 5, 6])
 check("fewer than four: all of them", HomeThoughts.latest([1, 2]) == [1, 2] && HomeThoughts.latest([Int]()) == [])
@@ -303,7 +295,7 @@ check("at most three tiles are colored", HomeTile.hues([.dictate, .importMedia, 
 
 // MARK: The refined Home's Record card, once (HomeRefinedMigration)
 
-let oldNative = HomeLayout.decode(json(#"{"version":1,"items":[{"section":"week","visible":true,"size":"large"},{"section":"record","visible":false,"size":"large"},{"section":"tiles","visible":true,"size":"compact"},{"section":"recent","visible":true,"size":"large"},{"section":"thoughts","visible":true,"size":"compact"},{"section":"journal","visible":false,"size":"large"}],"tiles":["journal","dictate","import","whatsPlaying"]}"#), .phone, .native)!
+let oldNative = HomeLayout.decode(json(#"{"version":1,"items":[{"section":"week","visible":true,"size":"large"},{"section":"record","visible":false,"size":"large"},{"section":"tiles","visible":true,"size":"compact"},{"section":"recent","visible":true,"size":"large"},{"section":"thoughts","visible":true,"size":"compact"},{"section":"journal","visible":false,"size":"large"}],"tiles":["journal","dictate","import","whatsPlaying"]}"#), .phone)!
 let turnedOn = HomeRefinedMigration.apply(oldNative)
 check("migration: a hidden Record card is shown, at the top of Home", turnedOn.isVisible(.record) && turnedOn.shown.first?.section == .record)
 check("migration: every other section keeps its order, visibility, and size",
@@ -318,24 +310,61 @@ check("migration: a shown card keeps the place you gave it", HomeRefinedMigratio
 
 let migSuite = "home-layout-tests.\(UUID().uuidString)"
 let migStore = UserDefaults(suiteName: migSuite)!
-migStore.set(oldNative.encoded()!, forKey: HomeLayout.key(.native))
-migStore.set(pv.encoded()!, forKey: HomeLayout.key(.verbose))
+migStore.set(oldNative.encoded()!, forKey: HomeLayout.key)
 check("migration: the flag is home.refined.recordShown.v1", HomeRefinedMigration.key == "home.refined.recordShown.v1")
 check("migration: runs the first time", HomeRefinedMigration.runOnce(migStore, platform: .phone) && migStore.bool(forKey: HomeRefinedMigration.key))
-let afterRun = migStore.data(forKey: HomeLayout.key(.native)).flatMap { HomeLayout.decode($0, .phone, .native) }
-check("migration: the stored Native layout now shows the card, the rest as saved", afterRun == turnedOn)
-check("migration: the stored Verbose layout, already showing it, is unchanged",
-      migStore.data(forKey: HomeLayout.key(.verbose)).flatMap { HomeLayout.decode($0, .phone, .verbose) } == pv)
+let afterRun = migStore.data(forKey: HomeLayout.key).flatMap { HomeLayout.decode($0, .phone) }
+check("migration: the stored layout now shows the card, the rest as saved", afterRun == turnedOn)
 var hiddenAgain = turnedOn
 hiddenAgain.setVisible(.record, false)
-migStore.set(hiddenAgain.encoded()!, forKey: HomeLayout.key(.native))
+migStore.set(hiddenAgain.encoded()!, forKey: HomeLayout.key)
 check("migration: never runs again, so a card hidden afterward stays hidden", !HomeRefinedMigration.runOnce(migStore, platform: .phone)
-      && migStore.data(forKey: HomeLayout.key(.native)).flatMap { HomeLayout.decode($0, .phone, .native) }?.isVisible(.record) == false)
+      && migStore.data(forKey: HomeLayout.key).flatMap { HomeLayout.decode($0, .phone) }?.isVisible(.record) == false)
 let migFresh = UserDefaults(suiteName: migSuite + ".migFresh")!
 check("migration: a new install has nothing to change and is marked done", HomeRefinedMigration.runOnce(migFresh, platform: .mac)
-      && migFresh.data(forKey: HomeLayout.key(.native)) == nil && migFresh.bool(forKey: HomeRefinedMigration.key))
+      && migFresh.data(forKey: HomeLayout.key) == nil && migFresh.bool(forKey: HomeRefinedMigration.key))
 migStore.removePersistentDomain(forName: migSuite)
 migFresh.removePersistentDomain(forName: migSuite + ".migFresh")
+
+// MARK: One layout after the look switch (HomeLookMigration, October 29, 2026)
+
+// Each look kept its own layout; the one layout is the chosen look's, so nobody's Home changes.
+var verboseLayout = pv
+verboseLayout.setVisible(.week, false)
+var nativeLayout = pv
+nativeLayout.moveShown(.recent, before: .record)
+nativeLayout.tiles = [.journal, .dictate, .importMedia, .whatsPlaying]
+let oldLayouts = ["home.layout.verbose": verboseLayout.encoded()!, "home.layout.native": nativeLayout.encoded()!]
+func stored(_ k: String) -> Data? { oldLayouts[k] }
+check("look migration: the one layout's key is home.layout, and the look's key is appearance.look",
+      HomeLayout.key == "home.layout" && HomeLookMigration.lookKey == "appearance.look")
+check("look migration: Native chosen keeps Native's layout",
+      HomeLookMigration.migrated(current: nil, look: "native", stored: stored).flatMap { HomeLayout.decode($0, .phone) } == nativeLayout)
+check("look migration: Verbose style chosen keeps Verbose style's layout",
+      HomeLookMigration.migrated(current: nil, look: "verbose", stored: stored).flatMap { HomeLayout.decode($0, .phone) } == verboseLayout)
+check("look migration: never chose a look (Verbose style) keeps Verbose style's layout",
+      HomeLookMigration.migrated(current: nil, look: nil, stored: stored).flatMap { HomeLayout.decode($0, .phone) } == verboseLayout)
+check("look migration: an unknown stored look reads as Verbose style, as the switch did",
+      HomeLookMigration.sourceKey(look: "premium") == "home.layout.verbose" && HomeLookMigration.sourceKey(look: "native") == "home.layout.native")
+check("look migration: a one layout already stored is never replaced",
+      HomeLookMigration.migrated(current: pv.encoded()!, look: "native", stored: stored) == nil)
+check("look migration: the chosen look with no layout stored moves nothing (the first layout starts from the defaults)",
+      HomeLookMigration.migrated(current: nil, look: "native", stored: { _ in nil }) == nil)
+
+let lookSuite = "home-layout-tests.look.\(UUID().uuidString)"
+let lookStore = UserDefaults(suiteName: lookSuite)!
+lookStore.set("native", forKey: HomeLookMigration.lookKey)
+for (k, v) in oldLayouts { lookStore.set(v, forKey: k) }
+check("look migration: runs once on a device that chose Native", HomeLookMigration.runOnce(lookStore)
+      && lookStore.data(forKey: HomeLayout.key).flatMap { HomeLayout.decode($0, .phone) } == nativeLayout)
+check("look migration: the older layouts stay where they were", lookStore.data(forKey: "home.layout.verbose") == oldLayouts["home.layout.verbose"]
+      && lookStore.data(forKey: "home.layout.native") == oldLayouts["home.layout.native"])
+var editedLater = nativeLayout
+editedLater.setSize(.tiles, .compact)
+lookStore.set(editedLater.encoded()!, forKey: HomeLayout.key)
+check("look migration: doesn't run again, so later edits stay", !HomeLookMigration.runOnce(lookStore)
+      && lookStore.data(forKey: HomeLayout.key).flatMap { HomeLayout.decode($0, .phone) } == editedLater)
+lookStore.removePersistentDomain(forName: lookSuite)
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

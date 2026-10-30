@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-// Library › By day (mockup "Thoughts", section 03), on the refined kit (DESIGN.md §13) in both look settings: Thoughts
+// Library › By day (mockup "Thoughts", section 03), on the refined kit (DESIGN.md §13): Thoughts
 // and Journal, one page a day. A month calendar marks each day with entries with a dot, a day list sits under it, and
 // the selected day's page fills the right side. Thoughts adds New thought, Copy, Send to, Export, and Open as pad;
 // Journal's entries show a title, a play button with the length, and the first line. Thoughts are butter and journal
@@ -15,10 +15,9 @@ struct ByDayView: View {
     var kind: RecordingKind
     @State private var selected: Date?
     /// The month the calendar shows once you've moved it; until then, the shown day's month. (Build 219 set it in
-    /// `onAppear`, which rendered all of By day a second time right after it appeared: in Native, 220 to 790 ms
-    /// between the screen's appear and its first frame.)
+    /// `onAppear`, which rendered all of By day a second time right after it appeared: 220 to 790 ms between the
+    /// screen's appear and its first frame.)
     @State private var shownMonth: Date?
-    @Environment(\.look) private var look
 
     /// The day and month you left come back with the screen (ScreenPlaces, App/NavTrail.swift).
     init(kind: RecordingKind) {
@@ -38,7 +37,7 @@ struct ByDayView: View {
         let day = selected ?? (pages.first { $0.day == today }?.day ?? pages.first?.day ?? today)
         let items = pages.first { $0.day == day }?.items ?? []
         let month = shownMonth ?? day
-        let _ = LookSwitch.mark("byday")
+        let _ = NavMarks.mark("byday")
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 RefinedPageHeader(title: name, count: titleCount(pages, today: today),
@@ -60,12 +59,12 @@ struct ByDayView: View {
             }
             .padding(.horizontal, 32).padding(.top, 18).padding(.bottom, 40)
             .frame(minWidth: 0, maxWidth: 1180, alignment: .leading)
-            .scrollPlace(ScreenPlaces.scrollKey(isThoughts ? "byday-thoughts" : "byday-journal", look: look))
+            .scrollPlace(ScreenPlaces.scrollKey(isThoughts ? "byday-thoughts" : "byday-journal"))
             .navMarkWhenLaidOut("byday-laid-out")
         }
         .softScrollEdges(.top)
         .background(Refined.paper)
-        .onAppear { LookSwitch.mark("byday-appear") }
+        .onAppear { NavMarks.mark("byday-appear") }
         .onChange(of: kind) { _, _ in selected = nil }
         .onChange(of: selected) { _, d in ScreenPlaces.shared.setDay(kind, day: d, month: shownMonth) }
         .onChange(of: shownMonth) { _, m in ScreenPlaces.shared.setDay(kind, day: selected, month: m) }

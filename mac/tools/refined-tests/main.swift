@@ -293,11 +293,11 @@ let kitFiles = ["RefinedKit.swift", "RefinedPlayback.swift", "RefinedPages.swift
 for f in kitFiles {
     let s = read("\(views)/\(f)")
     check("\(f) has no color literals", s.range(of: #"0x[0-9A-Fa-f]{6}|Color\((red|\.sRGB|hex)"#, options: .regularExpression) == nil)
-    check("\(f) takes no Verbose-style tokens (they turn into Native's under NativeSwap)", s.range(of: #"\bInk\.(?!make)"#, options: .regularExpression) == nil)
+    check("\(f) takes no old `Ink` tokens", s.range(of: #"\bInk\.(?!make)"#, options: .regularExpression) == nil)
     check("\(f) reads Limit animation, not only Reduce Motion", !s.contains("accessibilityReduceMotion") || s.contains("limitMotion"))
 }
 let kit = kitFiles.map { read("\(views)/\($0)") }.joined(separator: "\n")
-for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "KindColorChip", "IconSquare", "SerifSectionTitle",
+for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "KindChip", "IconSquare", "SectionTitle",
           "LargeSerifTitle", "ReadingText", "GlassPlayerBar", "RecorderClockPanel", "PaperRow", "WeekCard", "RecordingCard",
           "RefinedActionStyle", "RefinedChip", "RefinedSearchField", "IconSquareRow", "PaperTable", "PaperRowBackground",
           "RefinedSegmented", "KindPickerChip", "RefinedTagChips", "RefinedCircleButton", "TurnTime", "MomentChip", "AudioPlayerCard",
@@ -305,7 +305,7 @@ for c in ["RecordCard", "ColorTile", "PaperCard", "KindBadge", "SpeakerChip", "K
           "RefinedPageHeader", "RefinedEmptyState", "PaperRowButton", "PaperGroup", "RefinedStatus"] {
     check("the kit has \(c) with a preview", kit.contains("struct \(c)") && kit.contains("\(c)_Previews"))
 }
-check("the kit reads the palette from where Settings stores it", kit.contains("AppPalette.key, store: AppLook.store"))
+check("the kit reads the palette from where Settings stores it", kit.contains("AppPalette.key, store: AppearanceStore.defaults"))
 check("the Record card draws its rings and disc in one coordinate system",
       kit.contains("struct RecordArtLayer") && kit.contains("RecordArtLayer(art: art") && kit.contains("RefinedRules.RecordArt.innerCenter")
       && !kit.contains("RecordDiscMark(size: 56)") && !kit.contains("RecordDiscMark(size: 40)"))
@@ -353,6 +353,83 @@ check("every value in the table is used", unused.isEmpty, "\(unused.sorted())")
 let design = read("\(mac)/DESIGN.md")
 let undocumented = tableNames.filter { !design.contains("`\($0)`") }
 check("DESIGN.md §13 lists every value in the table", undocumented.isEmpty, "\(undocumented.sorted())")
+
+// MARK: The Mac's recording date line, speakers' shares, Library table sort, and Back and Forward (RefinedRules.swift)
+
+
+var mcal = Calendar(identifier: .gregorian)
+mcal.timeZone = TimeZone(identifier: "America/New_York")!
+let usLocale = Locale(identifier: "en_US")
+func mdate(_ y: Int, _ mo: Int, _ d: Int, _ h: Int, _ mi: Int) -> Date {
+    mcal.date(from: DateComponents(year: y, month: mo, day: d, hour: h, minute: mi))!
+}
+let mnow = mdate(2026, 10, 23, 16, 0)
+func spaced(_ s: String) -> String { s.replacingOccurrences(of: "\u{202F}", with: " ").replacingOccurrences(of: "\u{00A0}", with: " ") }
+check("today's recording", spaced(RecordingDateLine.line(mdate(2026, 10, 23, 9, 12), now: mnow, calendar: mcal, locale: usLocale)) == "Today · 9:12 AM",
+      RecordingDateLine.line(mdate(2026, 10, 23, 9, 12), now: mnow, calendar: mcal, locale: usLocale))
+check("yesterday's recording", spaced(RecordingDateLine.line(mdate(2026, 10, 22, 18, 20), now: mnow, calendar: mcal, locale: usLocale)) == "Yesterday · 6:20 PM")
+let older = spaced(RecordingDateLine.line(mdate(2026, 10, 20, 14, 5), now: mnow, calendar: mcal, locale: usLocale))
+check("an older recording names the day", older.hasPrefix("Tue, Oct 20") || older.hasPrefix("Tue Oct 20"), older)
+let lastYear = spaced(RecordingDateLine.line(mdate(2025, 3, 2, 8, 0), now: mnow, calendar: mcal, locale: usLocale))
+check("last year's recording has the year", lastYear.contains("2025") && lastYear.hasSuffix("8:00 AM"), lastYear)
+
+// Speakers
+
+let shares = SpeakerShares.compute([("Ginna", 40), ("Allie", 10), ("Ginna", 28), ("Allie", 22)])
+check("speakers rank by talk time", shares.map(\.id) == ["Ginna", "Allie"])
+check("68% and 32%", shares.map(\.percent) == [68, 32], "\(shares.map(\.percent))")
+let thirds = SpeakerShares.compute([("A", 1), ("B", 1), ("C", 1)])
+check("percents always add up to 100", thirds.map(\.percent).reduce(0, +) == 100, "\(thirds.map(\.percent))")
+check("ties keep the order they first spoke in", thirds.map(\.id) == ["A", "B", "C"])
+check("no talk time, no speakers", SpeakerShares.compute([("A", 0)]).isEmpty && SpeakerShares.compute([]).isEmpty)
+
+
+typealias Cells = (name: String, kind: String, people: String, date: Date, length: Double)
+let tableRows: [Cells] = [("Catalog call", "Meeting", "Anika", mdate(2026, 10, 23, 9, 0), 2292),
+                     ("apple notes", "Thought", "", mdate(2026, 10, 22, 9, 0), 160),
+                     ("Budget", "Journal", "Ben", mdate(2026, 10, 21, 9, 0), 372)]
+func tableSorted(_ c: LibraryTableSort, _ d: Bool) -> [String] { tableRows.sorted { LibraryTableSort.ordered($0, $1, by: c, descending: d) }.map(\.name) }
+check("sort by name, A to Z, ignoring case", tableSorted(.name, false) == ["apple notes", "Budget", "Catalog call"], "\(tableSorted(.name, false))")
+check("sort by date, newest first", tableSorted(.date, true) == ["Catalog call", "apple notes", "Budget"])
+check("sort by length, longest first", tableSorted(.length, true) == ["Catalog call", "Budget", "apple notes"])
+check("rows with no people sort last either way", tableSorted(.people, false).last == "apple notes" && tableSorted(.people, true).last == "apple notes")
+check("dates and lengths start newest and longest", LibraryTableSort.date.startsDescending && LibraryTableSort.length.startsDescending && !LibraryTableSort.name.startsDescending)
+check("only the date sort keeps day headers", LibraryTableSort.allCases.filter(\.grouped) == [.date])
+check("the table and the Library's sort agree", LibraryTableSort.librarySort(.date, descending: true) == "newest" && LibraryTableSort.librarySort(.name, descending: false) == "title"
+      && LibraryTableSort.librarySort(.kind, descending: false) == nil)
+check("a stored sort starts the table on its column", LibraryTableSort.column(forLibrarySort: "longest") == (.length, true) && LibraryTableSort.column(forLibrarySort: "newest") == (.date, true))
+check("the refined Library's sort menu says Newest first, as the mockup", LibraryTableSort.date.title(descending: true) == "Newest first"
+      && LibraryTableSort.date.title(descending: false) == "Oldest first" && LibraryTableSort.length.title(descending: false) == "Shortest first"
+      && LibraryTableSort.name.title(descending: false) == "Title A–Z")
+check("every column and direction has its own sort title", Set(LibraryTableSort.allCases.flatMap { [$0.title(descending: true), $0.title(descending: false)] }).count == 10)
+check("the table's columns are the mockup's", LibraryTableSort.allCases.map(\.header) == ["Name", "Kind", "People or source", "Date", "Length"])
+
+// Back and forward
+
+var nh = NavHistory<String>()
+nh.visit("library"); nh.visit("t1")
+check("back goes where you were", nh.canGoBack && nh.goBack() == "library" && nh.current == "library")
+check("forward returns", nh.canGoForward && nh.goForward() == "t1" && !nh.canGoForward)
+_ = nh.goBack(); nh.visit("home")
+check("a new place clears forward", !nh.canGoForward && nh.current == "home")
+nh.visit("home")
+check("visiting where you are changes nothing", nh.back == ["library"])
+var ng = NavHistory<String>()
+for s in ["home", "t1", "library", "t1", "t2"] { ng.visit(s) }
+ng.removeAll { $0 == "t1" }
+check("a deleted transcript leaves the history", !ng.back.contains("t1") && ng.back == ["home", "library"], "\(ng.back)")
+var nlong = NavHistory<Int>(); nlong.limit = 3
+for i in 0..<10 { nlong.visit(i) }
+check("history keeps a limit", nlong.back == [6, 7, 8])
+check("nothing to go back to", NavHistory<Int>().canGoBack == false && { var e = NavHistory<Int>(); return e.goBack() == nil }())
+var nr = NavHistory<String>()
+nr.replaceCurrent("library")
+check("replacing with nothing there starts the trail", nr.current == "library" && !nr.canGoBack)
+nr.visit("t1"); _ = nr.goBack(); nr.replaceCurrent("library:A")
+check("a place changed in place keeps Forward", nr.current == "library:A" && nr.canGoForward && nr.previous == nil)
+nr.visit("home"); nr.visit("library:B"); nr.replaceCurrent("home")
+check("a replacement that meets Back's last entry collapses", nr.back == ["library:A"] && nr.current == "home", "\(nr.back)")
+check("previous names where Back goes", nr.previous == "library:A")
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

@@ -164,7 +164,7 @@ struct HomeThoughtsSection: View {
     private func large(_ page: [Transcript]) -> some View {
         let shown = HomeThoughts.latest(page)
         return VStack(alignment: .leading, spacing: 6) {
-            SerifSectionTitle("Today's thoughts", link: "Today's page") { app.openThoughtPage() }
+            SectionTitle("Today's thoughts", link: "Today's page") { app.openThoughtPage() }
             Button { app.openThoughtPage() } label: {
                 PaperCard {
                     if shown.isEmpty {
@@ -262,7 +262,7 @@ struct HomeJournalSection: View {
 
     private func large(_ latest: Transcript?, _ week: [HomeJournalWeek.Day]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            SerifSectionTitle("Journal", link: "By day") { app.go(.journal) }
+            SectionTitle("Journal", link: "By day") { app.go(.journal) }
             VStack(alignment: .leading, spacing: 12) {
                 Button { app.go(.journal) } label: {
                     VStack(alignment: .leading, spacing: 3) {

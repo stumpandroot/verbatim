@@ -4,7 +4,7 @@ import AppKit
 // While a meeting records: a menu bar item with the record dot and a running timer, shown only while recording
 // (whether or not Settings › General › Show in menu bar is on). Clicking it opens the meeting panel, the refined
 // look's recording card (DESIGN.md §6.10): both tracks with real level meters, Pause, Stop and save, and Copy the chat
-// notice again. One design in both look settings.
+// notice again. One design.
 
 /// The two tracks' recent levels and the elapsed time, sampled ten times a second only while the panel is open.
 @MainActor

@@ -3,7 +3,7 @@ import SwiftUI
 // What's new on the Mac: Settings › What's new (also Verbose › What's New… in the app menu, the What's New… buttons in
 // About and Support and feedback › Updates, and Home's note after an update). Every build's notes, newest first, from
 // the bundled ReleaseNotes.json (Model/ReleaseNotes.swift), grouped under version headers ("Version 1.0 beta"): the
-// newest version open, older ones closed until clicked. The refined look (DESIGN.md §13), in both look settings: the
+// newest version open, older ones closed until clicked. The refined look (DESIGN.md §13): the
 // pane's square and serif title, then a card per build with its build line ("Build 203 · Oct 25") in `mute`, its
 // title in the serif, and its items under platform labels. The Mac's items lead, the iPhone and Apple Watch ones fold
 // under one "Also on iPhone and Apple Watch" row, and a line with a detail opens it in place, without movement
@@ -131,7 +131,7 @@ struct WhatsNewCard: View {
         .transaction { $0.animation = nil }
     }
 
-    /// A platform's label: the serif in Verbose style, a plain semibold label in Native. A header for VoiceOver.
+    /// A platform's label, semibold. A header for VoiceOver.
     private func platformLabel(_ title: String) -> some View {
         return Text(title)
             .font(.system(size: 15, weight: .semibold))
@@ -251,39 +251,34 @@ struct WhatsNewHomeLine: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
     var open: () -> Void
     @AppStorage(ReleaseNotes.lastSeenKey) private var lastSeen = 0
-    @Environment(\.look) private var look
-    @State private var hover = false
     /// The UI self-test shows the note for a build of its choosing.
     static var previewBuild: Int? = nil
 
     var body: some View {
         if let note = ReleaseNotes.pending(current: Self.previewBuild ?? ReleaseNotes.currentBuild, lastSeen: lastSeen, notes: notes),
            let number = note.number {
-            let native = look == .native
             HStack(spacing: 0) {
                 Button {
                     lastSeen = max(lastSeen, number)
                     open()
                 } label: {
                     HStack(spacing: 10) {
-                        ArtIcon(art: .iconNotes, size: 16, lineWidth: 1.4).foregroundStyle(native ? NativeInk.accent : Ink.ink)
-                        (Text("What's new in build \(number)").fontWeight(.semibold) + Text("  ·  " + note.title).foregroundStyle(Ink.dim))
-                            .font(.system(size: 13)).foregroundStyle(Ink.ink)
+                        ArtIcon(art: .iconNotes, size: 16, lineWidth: 1.4).foregroundStyle(Refined.ink)
+                        (Text("What's new in build \(number)").fontWeight(.semibold) + Text("  ·  " + note.title).foregroundStyle(Refined.dim))
+                            .font(.system(size: 13)).foregroundStyle(Refined.ink)
                             .lineLimit(1).truncationMode(.tail)
                         Spacer(minLength: 8)
-                        Text(native ? "Read More" : "Read more").font(.system(size: 12.5, weight: .semibold))
-                            .foregroundStyle(native ? NativeInk.accent : Ink.ink)
-                            .underline(!native && hover)
+                        Text("Read more").font(.system(size: 12.5, weight: .semibold))
+                            .foregroundStyle(Refined.accentText)
                     }
                     .padding(.leading, 14).padding(.vertical, 9)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .onHover { hover = $0 }
                 .accessibilityLabel("What's new in build \(number): \(note.title)")
                 .accessibilityHint("Opens What's new in Settings")
                 Button { lastSeen = max(lastSeen, number) } label: {
-                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Ink.mute)
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Refined.mute)
                         .frame(width: 30, height: 30)
                         .contentShape(Rectangle())
                 }
@@ -292,23 +287,9 @@ struct WhatsNewHomeLine: View {
                 .accessibilityLabel("Close")
                 .padding(.trailing, 6)
             }
-            .modifier(LineSurface())
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
             .padding(.top, top)
             .transition(.opacity)
-        }
-    }
-
-    /// Verbose style: card white, the row radius, and the ink outline. Native: a group box.
-    private struct LineSurface: ViewModifier {
-        @Environment(\.look) private var look
-        func body(content: Content) -> some View {
-            if look == .native {
-                content.nativeGroup(radius: 8)
-            } else {
-                content
-                    .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                    .inkEdge(outline: true, radius: Radius.row)
-            }
         }
     }
 }

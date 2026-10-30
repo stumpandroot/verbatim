@@ -25,11 +25,24 @@ enum RefinedPlatform {
 
 // MARK: - Palette
 
+/// Where this device keeps its appearance settings (Palette), never synced: the App Group on iPhone, so the widgets
+/// could read it; the Mac's own defaults. One instance for the process, so every `@AppStorage` reading a setting
+/// observes the same object it's written through.
+enum AppearanceStore {
+    static let defaults: UserDefaults = {
+        #if os(iOS)
+        return UserDefaults(suiteName: "group.co.stumpandroot.verbatim.ios") ?? .standard
+        #else
+        return .standard
+        #endif
+    }()
+}
+
 extension AppPalette {
     /// The palette chosen on this device. Setting it updates every kit view at once (they observe the same store).
     static var current: AppPalette {
-        get { AppPalette(stored: AppLook.store.string(forKey: key)) }
-        set { AppLook.store.set(newValue.rawValue, forKey: key) }
+        get { AppPalette(stored: AppearanceStore.defaults.string(forKey: key)) }
+        set { AppearanceStore.defaults.set(newValue.rawValue, forKey: key) }
     }
 }
 
@@ -48,7 +61,7 @@ extension EnvironmentValues {
 /// The palette a kit view draws in: the override if one is set, otherwise the stored setting, live.
 @propertyWrapper
 struct CurrentPalette: DynamicProperty {
-    @AppStorage(AppPalette.key, store: AppLook.store) private var raw = AppPalette.full.rawValue
+    @AppStorage(AppPalette.key, store: AppearanceStore.defaults) private var raw = AppPalette.full.rawValue
     @Environment(\.paletteOverride) private var override
     init() {}
     var wrappedValue: AppPalette { override ?? AppPalette(stored: raw) }
@@ -821,7 +834,7 @@ struct KindPickerChip: View {
                 }
             }
         } label: {
-            KindColorChip(kind: kind)
+            KindChip(kind: kind)
                 .frame(minHeight: RefinedPlatform.mac ? 0 : CGFloat(RefinedRules.minTapTarget))
                 .contentShape(Rectangle())
         }
@@ -1253,7 +1266,7 @@ struct SpeakerChip: View {
 }
 
 /// A kind (or a project) as a colored capsule with its name, in a transcript's header: "Meeting".
-struct KindColorChip: View {
+struct KindChip: View {
     var title: String
     var hue: RefinedHue
 
@@ -1376,7 +1389,7 @@ struct LargeSerifTitle: View {
 }
 
 /// A section's title in the serif ("Recent", "Today"), with an optional trailing link ("See all").
-struct SerifSectionTitle<Trailing: View>: View {
+struct SectionTitle<Trailing: View>: View {
     var title: String
     @ViewBuilder var trailing: Trailing
 
@@ -1389,12 +1402,12 @@ struct SerifSectionTitle<Trailing: View>: View {
     }
 }
 
-extension SerifSectionTitle where Trailing == EmptyView {
+extension SectionTitle where Trailing == EmptyView {
     init(_ title: String) { self.init(title: title) { EmptyView() } }
 }
 
-extension SerifSectionTitle where Trailing == RefinedLink {
-    /// A section title with a text link at the trailing edge: `SerifSectionTitle("Recent", link: "See all") { … }`.
+extension SectionTitle where Trailing == RefinedLink {
+    /// A section title with a text link at the trailing edge: `SectionTitle("Recent", link: "See all") { … }`.
     init(_ title: String, link: String, action: @escaping () -> Void) {
         self.init(title: title) { RefinedLink(title: link, action: action) }
     }
@@ -1472,7 +1485,7 @@ struct PaperCard_Previews: PreviewProvider {
     static let kinds: [RecordingKind] = [.meeting, .audio, .brainDump, .interview]
     static var previews: some View {
         RefinedPreviewPage {
-            SerifSectionTitle("Recent", link: "See all") {}
+            SectionTitle("Recent", link: "See all") {}
             PaperList(kinds, id: \.self, inset: 60) { k in
                 HStack(spacing: 12) {
                     KindBadge(kind: k)
@@ -1509,10 +1522,10 @@ struct SpeakerChip_Previews: PreviewProvider {
     }
 }
 
-struct KindColorChip_Previews: PreviewProvider {
+struct KindChip_Previews: PreviewProvider {
     static var previews: some View {
         RefinedPreviewPage {
-            HStack { KindColorChip(kind: .meeting); KindColorChip(kind: .interview); KindColorChip(title: "Lapp Wagons", hue: .butter) }
+            HStack { KindChip(kind: .meeting); KindChip(kind: .interview); KindChip(title: "Lapp Wagons", hue: .butter) }
         }
     }
 }
@@ -1539,11 +1552,11 @@ struct IconSquare_Previews: PreviewProvider {
     }
 }
 
-struct SerifSectionTitle_Previews: PreviewProvider {
+struct SectionTitle_Previews: PreviewProvider {
     static var previews: some View {
         RefinedPreviewPage {
-            SerifSectionTitle("Today")
-            SerifSectionTitle("Recent", link: "See all") {}
+            SectionTitle("Today")
+            SectionTitle("Recent", link: "See all") {}
         }
     }
 }
@@ -1551,7 +1564,7 @@ struct SerifSectionTitle_Previews: PreviewProvider {
 struct PaperRow_Previews: PreviewProvider {
     static var previews: some View {
         RefinedPreviewPage {
-            SerifSectionTitle("Recent", link: "See all") {}
+            SectionTitle("Recent", link: "See all") {}
             PaperCard {
                 PaperRow(kind: .meeting, title: "Lapp Wagons catalog call", meta: "Meeting · Today, 8:35 PM") { RowLength(text: "0:42") }
                 PaperDivider(leading: RefinedPlatform.mac ? 16 : 60, trailing: RefinedPlatform.mac ? 16 : 0)
@@ -1666,7 +1679,7 @@ struct KindPickerChip_Previews: PreviewProvider {
         RefinedPreviewPage {
             FlowRow {
                 KindPickerChip(kind: .meeting, isAuto: false) { _ in }
-                KindColorChip(title: "Lapp Wagons", hue: .butter)
+                KindChip(title: "Lapp Wagons", hue: .butter)
                 RefinedTagChips(tags: ["catalog", "lapp"], onAdd: { _ in }, onRemove: { _ in })
             }
         }

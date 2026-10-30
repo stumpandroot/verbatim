@@ -1,6 +1,6 @@
 import SwiftUI
 
-// The queue on the refined kit (DESIGN.md §13) in both look settings: the large serif title with the count, Cancel all
+// The queue on the refined kit (DESIGN.md §13): the large serif title with the count, Cancel all
 // and Add files, serif section titles over cards of rows (the kind's dot, the title, the status, and a thin persimmon
 // bar for the running file), and the kit's empty state.
 
@@ -48,7 +48,7 @@ struct QueueView: View {
                                       action: "Add files") { app.chooseFiles() }
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
-                        SerifSectionTitle("Up next")
+                        SectionTitle("Up next")
                         // Lazy: a batch import can queue hundreds.
                         LazyVStack(spacing: 0) {
                             if let r = running { QueueRow(transcript: r, state: .running) }
@@ -67,7 +67,7 @@ struct QueueView: View {
 
                 if !recent.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        SerifSectionTitle("Recently finished")
+                        SectionTitle("Recently finished")
                         PaperList(recent, id: \.id, inset: 16, trailingInset: 16) { t in
                             QueueRow(transcript: t, state: t.status == .failed ? .failed : .done)
                         }

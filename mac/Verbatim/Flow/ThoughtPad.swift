@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-// Today's page (mockup "Thoughts", section 02): the Thought pad, reworked, on the refined kit (DESIGN.md §13) in both
-// look settings. The same floating, non-activating panel and size (380 × 540), with the dated serif title
+// Today's page (mockup "Thoughts", section 02): the Thought pad, reworked, on the refined kit (DESIGN.md §13).
+// The same floating, non-activating panel and size (380 × 540), with the dated serif title
 // "Thoughts · Mon, Oct 26", each thought's time in a card of rows, arrows to earlier
 // days (Next is off on today), the mic, and Copy and Send to <app> for the whole day. Click a thought to edit it;
 // right-click to copy or delete it. No Clear: each day keeps its own page. While the panel is open, a dictation lands
@@ -190,10 +190,10 @@ private struct ThoughtPadRoot: View {
     @ObservedObject var state: ThoughtPageState
 
     var body: some View {
-        LookSwitch.mark(state.shown ? "pad" : "pad-closed")
+        NavMarks.mark(state.shown ? "pad" : "pad-closed")
         return Group {
             if state.shown {
-                ThoughtPageView(controller: controller, dictation: dictation, state: state).limitMotionRoot().lookRoot()
+                ThoughtPageView(controller: controller, dictation: dictation, state: state).limitMotionRoot()
             } else {
                 Color.clear
             }
@@ -566,7 +566,7 @@ private struct ThoughtEditor: View {
     }
 }
 
-/// Today's page's Organize (both looks): runs Plan my day over the page's thoughts and opens the plan in its own window
+/// Today's page's Organize: runs Plan my day over the page's thoughts and opens the plan in its own window
 /// (`ThoughtsPlanWindow`), and once a plan is made, "Plan · made 3:20 PM · 2 new thoughts since". It never runs again
 /// on its own.
 struct ThoughtPadOrganizeRow: View {

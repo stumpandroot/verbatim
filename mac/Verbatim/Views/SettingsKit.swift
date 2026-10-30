@@ -3,7 +3,7 @@ import AppKit
 
 // The Settings window's building blocks: the panes and their sidebar order, the searchable index every row is built
 // from, and the row, group, and header views in the refined look (DESIGN.md §13; mockup "Verbose Refined Look",
-// MacSettings), one layout in both look settings: a 40 pt icon square beside the pane's serif title and a one-line
+// MacSettings): a 40 pt icon square beside the pane's serif title and a one-line
 // description, then groups as `PaperCard`s of rows (the title in semibold, its description in `mute`, and the control
 // on the right), switches in the accent (`refinedSwitchTint()`), and the system's pop-up menus and buttons.
 
@@ -61,7 +61,7 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
     var title: String { MacSettingsMap.title(rawValue) ?? rawValue }
 
     /// The Mac sidebar's name for the pane: the title, except the first pane, whose full name ("Personalization and
-    /// preferences") truncated in the sidebar in both looks. The pane keeps the long name as its page title.
+    /// preferences") truncated in the sidebar. The pane keeps the long name as its page title.
     var sidebarTitle: String { self == .personalization ? "Personalization" : title }
 
     /// One line under the pane's title.
@@ -128,13 +128,12 @@ struct SettingsEntry: Identifiable, Hashable {
 enum SettingsIndex {
     private static let base: [SettingsEntry] = [
         // General
-        .init("general.look", .personalization, "Look", "How Verbose looks on this Mac. Your iPhone has its own setting.", keywords: "native verbose style theme apple stock paper design"),
         .init("general.palette", .personalization, "Palette", "Full puts persimmon on the Record card and bright colors on Home's tiles. Soft uses light tints of the same colors.", keywords: "color colour soft full tint muted bright pastel theme"),
         .init("general.appearance", .personalization, "Appearance", "Match the system, or always light or dark.", keywords: "dark mode light theme color"),
         .init("general.limitMotion", .personalization, "Limit animation", "Fades instead of movement; illustrations stay still. Always on when Reduce Motion is on in System Settings.", keywords: "reduce motion accessibility animations"),
         .init("general.menuBar", .personalization, "Show in menu bar", "Record from anywhere with the menu bar item, or press ⌥⇧R while Verbose is running.", keywords: "menubar status item record shortcut"),
         .init("general.sounds", .personalization, "Sounds", "A short chime when recording or dictation starts, a tick when your words are ready, and a soft tone when you cancel.", keywords: "chime audio feedback"),
-        .init("general.customizeHome", .personalization, "Customize Home", "Show, hide, reorder, and resize Home's sections, and choose its four tiles. Each look keeps its own layout.", keywords: "edit home sections reorder drag tiles shortcut compact large hide show layout"),
+        .init("general.customizeHome", .personalization, "Customize Home", "Show, hide, reorder, and resize Home's sections, and choose its four tiles.", keywords: "edit home sections reorder drag tiles shortcut compact large hide show layout"),
         .init("general.homeWeek", .personalization, "Show This week on Home", "Words, time saved typing, recordings, and moments for the week, in one strip under the tiles.", keywords: "this week stats words saved typing recordings moments method cards welcome"),
         .init("general.tourOnLaunch", .features, "Show the welcome tour when Verbose opens", keywords: "onboarding launch"),
         .init("general.tour", .features, "Welcome tour", "Walk through the basics again.", keywords: "onboarding intro help"),
@@ -402,7 +401,7 @@ struct SettingsPane<Content: View>: View {
     @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
-        LookSwitch.mark("settings-pane")
+        NavMarks.mark("settings-pane")
         if model.window?.isVisible == false { model.closedRenders.pane += 1 }
         return ScrollViewReader { proxy in
             ScrollView {
@@ -415,7 +414,7 @@ struct SettingsPane<Content: View>: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollIndicators(.automatic)
-            .onAppear { LookSwitch.mark("settings-pane-appear"); reveal(proxy) }
+            .onAppear { NavMarks.mark("settings-pane-appear"); reveal(proxy) }
             .onChange(of: model.focusID) { _, _ in reveal(proxy) }
         }
     }

@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 // An Audio only recording's screen on the Mac (approved mockup "Verbose Brain Dump", section 4, October 27, 2026), on
-// the refined kit (DESIGN.md §13) in both look settings, in place of the transcript while it has no words: the title
+// the refined kit (DESIGN.md §13), in place of the transcript while it has no words: the title
 // you type over the kind's chip and when, the player as the main content (AudioPlayerCard: its waveform with the
 // moments as ticks, back 5 seconds, play, and the speed), the moments with the names you give them, notes, Transcribe,
 // and Share. Click Transcribe for a plain transcribe (a voice note when it's done), or open its menu to Transcribe As
@@ -73,7 +73,7 @@ struct MacAudioDetail: View {
     @ViewBuilder private func notes(_ t: Transcript) -> some View {
         let list = t.notes.filter { $0.at == nil }
         VStack(alignment: .leading, spacing: 8) {
-            SerifSectionTitle("Notes")
+            SectionTitle("Notes")
             if !list.isEmpty {
                 PaperList(list, id: \.id, inset: 14, trailingInset: 14) { n in
                     Text(n.text).refinedFont(.body).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
@@ -179,7 +179,7 @@ struct MacAudioMoments: View {
     var body: some View {
         let ms = transcript.notes.filter { $0.at != nil }.sorted { ($0.at ?? 0) < ($1.at ?? 0) }
         VStack(alignment: .leading, spacing: 8) {
-            SerifSectionTitle(title: "Moments") {
+            SectionTitle(title: "Moments") {
                 if !ms.isEmpty { Text("\(ms.count)").refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute) }
             }
             if ms.isEmpty {

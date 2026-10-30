@@ -137,8 +137,8 @@ struct WatchedFolderRow: View {
     /// asks for the folder again.
     @ViewBuilder private var tag: some View {
         switch status {
-        case .watching: StatusText(text: busy > 0 ? "Transcribing \(busy)" : "Watching", tone: busy > 0 ? .accent : .kept, check: busy == 0)
-        case .paused: StatusText(text: "Paused", tone: .dim)
+        case .watching: RefinedStatus(text: busy > 0 ? "Transcribing \(busy)" : "Watching", tone: busy > 0 ? .accent : .kept, check: busy == 0)
+        case .paused: RefinedStatus(text: "Paused", tone: .quiet)
         case .needsAccess:
             Button("Needs access") { watcher.reconnect(folder.id) }
                 .buttonStyle(SettingsDangerPillStyle())
@@ -160,7 +160,7 @@ struct WatchedFolderDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SectionTitle(title: "Auto-export for", italic: folder.name)
+            SectionTitle("Auto-export for \(folder.name)")
                 .padding(.top, 4)
             HStack(alignment: .top, spacing: 16) {
                 formatsCard

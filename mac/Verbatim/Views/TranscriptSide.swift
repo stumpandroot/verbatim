@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-// The Mac transcript's parts around the reading column, on the refined kit (DESIGN.md §13), in both look settings:
+// The Mac transcript's parts around the reading column, on the refined kit (DESIGN.md §13):
 // the side column (the inspector in Native, a column beside the text in Verbose style) with Moments, Speakers, Export
 // and Copy for AI, and Details; the Share and More menus (the toolbar's in Native, the page's in Verbose style); the
 // glass player bar; and the kind-change offer under the header.

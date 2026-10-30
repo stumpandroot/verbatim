@@ -8,8 +8,8 @@ import Combine
 
 /// Your voice profile in Settings: how well Verbatim knows your voice (or what setting it up does), Set Up / Read
 /// More, and, unless `showsControls` is false, the switches that use it and Delete voice profile.
-/// Self-contained: no environment objects, so any Settings pane can host it. Website style (DESIGN.md §11): a card
-/// with the 1.5 pt ink outline (`settingsCard`), a serif line, and mini pills, like the other Settings panes.
+/// Self-contained: no environment objects, so any Settings pane can host it. A Settings card with a serif line and
+/// the system's buttons, like the other Settings panes.
 struct VoiceProfileSection: View {
     var showsControls = true
     @ObservedObject private var status = VoiceProfileStatus.shared
@@ -64,7 +64,7 @@ struct VoiceProfileSection: View {
 }
 
 /// The switches that use the profile, and Delete voice profile with its confirmation in place: rows in a Settings
-/// card (label and detail on the left, a standard switch or a mini pill on the right).
+/// card (label and detail on the left, a standard switch or a button on the right).
 struct VoiceProfileControls: View {
     /// Called after the profile is deleted (the sheet closes itself).
     var onDelete: (() -> Void)? = nil
@@ -320,7 +320,7 @@ struct VoiceEnrollmentView: View {
             }
             HStack {
                 Spacer()
-                Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.pillLine())
+                Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.bordered)
                 Button("Start") { model.start() }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
@@ -337,7 +337,7 @@ struct VoiceEnrollmentView: View {
             }
             HStack {
                 Spacer()
-                Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.pillLine())
+                Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.bordered)
                 if model.isPaused {
                     Button("Finish Now") { model.finishNow() }
                         .keyboardShortcut(.defaultAction)
@@ -352,7 +352,7 @@ struct VoiceEnrollmentView: View {
             ProgressView().controlSize(.small)
             Text("Learning your voice…").font(.system(size: 13)).foregroundStyle(Refined.mute)
             Spacer()
-            Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.pillLine())
+            Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.bordered)
         }
         .frame(minHeight: 120, alignment: .top)
     }
@@ -362,7 +362,7 @@ struct VoiceEnrollmentView: View {
             VoiceQualityPanel(line: VoiceEnrollment.line(for: r))
             HStack {
                 Spacer()
-                Button("Read more") { model.readMore() }.buttonStyle(.pillLine())
+                Button("Read more") { model.readMore() }.buttonStyle(.bordered)
                 Button("Done") { close() }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
@@ -374,7 +374,7 @@ struct VoiceEnrollmentView: View {
     private var failed: some View {
         HStack {
             Spacer()
-            Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.pillLine())
+            Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.bordered)
             Button("Try Again") { model.start() }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)

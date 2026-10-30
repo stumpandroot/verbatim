@@ -206,7 +206,7 @@ struct AllowDownloadButton: View {
                 LocalOnly.allowModelDownloads()
                 app.retry(transcript)
             }
-            .buttonStyle(.pillLine())
+            .buttonStyle(.bordered)
             .help("Downloads the model once, then Local Only goes back to refusing downloads.")
         }
     }

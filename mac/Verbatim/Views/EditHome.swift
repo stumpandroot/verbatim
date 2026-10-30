@@ -3,7 +3,7 @@ import AppKit
 
 // Edit Home on the Mac (mockup "premium", section 03, Mac): a list of Home's sections with a checkbox to show each,
 // a drag to reorder, and Compact or Large; the Tiles row opens the tile picker. Changes reach Home at once and
-// are kept in this Mac's defaults (HomeLayout.swift). On the refined kit (DESIGN.md §13) in both look settings.
+// are kept in this Mac's defaults (HomeLayout.swift). On the refined kit (DESIGN.md §13).
 //
 // Two ways in: Edit Home at the end of Home outlines the sections and shows this list as an inspector on the right,
 // with Reset and Done; Settings › Personalization › Customize Home shows the same list (no Done).
@@ -22,7 +22,6 @@ struct EditHomeView: View {
     var onDone: (() -> Void)? = nil
     @ObservedObject private var store = HomeLayoutStore.shared
     @ObservedObject private var session = HomeEditSession.shared
-    @Environment(\.look) private var look
     @State private var localPicking = false
     @State private var confirmReset = false
     /// Whether the inspector is on screen, for the self-test.
@@ -30,14 +29,12 @@ struct EditHomeView: View {
 
     init(onDone: (() -> Void)? = nil) { self.onDone = onDone }
 
-    /// Layouts are still kept per look setting (HomeLayout.swift); the editor itself is one design.
-    private var hl: HomeLook { look.homeLook }
     private var inspector: Bool { onDone != nil }
     /// The inspector's picker follows the shared session (the self-test opens it); Settings keeps its own.
     private var picking: Binding<Bool> { inspector ? $session.pickingTiles : $localPicking }
 
     var body: some View {
-        let layout = store.layout(hl)
+        let layout = store.layout
         VStack(alignment: .leading, spacing: 12) {
             if inspector {
                 Text("Home sections").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
@@ -48,7 +45,7 @@ struct EditHomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
             List {
                 ForEach(layout.shown, id: \.section) { item in row(item, layout: layout) }
-                    .onMove { from, to in store.update(hl) { $0.moveShown(fromOffsets: from, toOffset: to) } }
+                    .onMove { from, to in store.update { $0.moveShown(fromOffsets: from, toOffset: to) } }
                 ForEach(layout.hidden, id: \.section) { item in row(item, layout: layout) }
             }
             .listStyle(.plain)
@@ -76,7 +73,7 @@ struct EditHomeView: View {
         .frame(maxHeight: inspector ? .infinity : nil, alignment: .top)
         .background { if inspector { Refined.paper } }
         .confirmationDialog("Put Home back the way it started?", isPresented: $confirmReset) {
-            Button("Reset Home", role: .destructive) { store.reset(hl) }
+            Button("Reset Home", role: .destructive) { store.reset() }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Every section and tile goes back to how Home began.")
@@ -93,7 +90,7 @@ struct EditHomeView: View {
                 .foregroundStyle(Refined.faint)
                 .accessibilityHidden(true)
             Toggle(isOn: Binding(get: { item.visible },
-                                 set: { on in store.update(hl) { $0.setVisible(item.section, on) } })) {
+                                 set: { on in store.update { $0.setVisible(item.section, on) } })) {
                 Text(item.section.title).refinedFont(.rowTitle).foregroundStyle(Refined.ink).lineLimit(1)
             }
             .toggleStyle(.checkbox)
@@ -104,7 +101,7 @@ struct EditHomeView: View {
                 Button("Choose tiles") { picking.wrappedValue = true }
                     .buttonStyle(RefinedActionStyle(kind: .quiet))
                     .controlSize(.small)
-                    .popover(isPresented: picking, arrowEdge: .leading) { HomeTilePickerMac(look: hl) }
+                    .popover(isPresented: picking, arrowEdge: .leading) { HomeTilePickerMac() }
                     .help(layout.tiles.map(\.title).joined(separator: ", "))
                     .accessibilityValue(layout.tiles.map(\.title).joined(separator: ", "))
             }
@@ -112,7 +109,7 @@ struct EditHomeView: View {
             // A borderless menu, narrower than a pop-up button, so the section's name keeps its room.
             Menu {
                 ForEach(HomeCardSize.allCases, id: \.self) { s in
-                    Button { store.update(hl) { $0.setSize(item.section, s) } } label: {
+                    Button { store.update { $0.setSize(item.section, s) } } label: {
                         if s == item.size { Label(s.title, systemImage: "checkmark") } else { Text(s.title) }   // brand: system surface
                     }
                 }
@@ -138,14 +135,12 @@ struct EditHomeView: View {
 /// their places. Saved as soon as four are picked. Picked tiles take the colors Home gives them
 /// (`HomeTile.refinedHues`).
 struct HomeTilePickerMac: View {
-    let homeLook: HomeLook
     @State private var picks: [HomeTile]
     /// Whether the picker is open, for the self-test.
     static var visible = false
 
-    init(look: HomeLook) {
-        homeLook = look
-        _picks = State(initialValue: HomeLayoutStore.shared.layout(look).tiles)
+    init() {
+        _picks = State(initialValue: HomeLayoutStore.shared.layout.tiles)
     }
 
     var body: some View {
@@ -165,7 +160,7 @@ struct HomeTilePickerMac: View {
 
     private func commit() {
         guard picks.count == HomeLayout.tileCount else { return }
-        HomeLayoutStore.shared.update(homeLook) { $0.tiles = picks }
+        HomeLayoutStore.shared.update { $0.tiles = picks }
     }
 
     private func cell(_ t: HomeTile) -> some View {

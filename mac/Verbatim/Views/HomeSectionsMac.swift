@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 // Home's Today's thoughts and Journal on the Mac (Edit Home), each Compact (one slim row) or Large (the card under its
-// serif title), drawn with the refined kit (DESIGN.md §13) in both looks; and the outline and name badge each section
+// serif title), drawn with the refined kit (DESIGN.md §13); and the outline and name badge each section
 // wears while Home is being edited.
 
 // MARK: - Editing frame
@@ -114,7 +114,7 @@ struct HomeThoughtsMac: View {
     private func large(_ page: [Transcript]) -> some View {
         let shown = HomeThoughts.latest(page)
         return VStack(alignment: .leading, spacing: 6) {
-            SerifSectionTitle("Today's thoughts", link: "Today's page") { HomeDayPages.openToday(app) }
+            SectionTitle("Today's thoughts", link: "Today's page") { HomeDayPages.openToday(app) }
             Button { HomeDayPages.openToday(app) } label: {
                 PaperCard {
                     if shown.isEmpty {
@@ -206,12 +206,12 @@ struct HomeJournalMac: View {
 
     private func large(_ latest: Transcript?, _ week: [HomeJournalWeek.Day]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            SerifSectionTitle("Journal", link: "By day") { HomeDayPages.openJournal(app) }
+            SectionTitle("Journal", link: "By day") { HomeDayPages.openJournal(app) }
             VStack(alignment: .leading, spacing: 12) {
                 Button { HomeDayPages.openJournal(app) } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         if let t = latest {
-                            Text(PremiumDateLine.line(t.createdAt)).refinedFont(.meta).foregroundStyle(Refined.mute)
+                            Text(RecordingDateLine.line(t.createdAt)).refinedFont(.meta).foregroundStyle(Refined.mute)
                             Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
                             Text(TranscriptPreview.text(t)).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)
                         } else {

@@ -46,7 +46,7 @@ struct SignInSheet: View {
                 Text("macOS keeps Safari's cookies private. Turn on Verbose in Privacy & Security › Full Disk Access, then choose Try again. If it still fails, quit and reopen Verbose.")
                     .font(.system(size: 13)).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
-                    Button("Open Full Disk Access") { NSWorkspace.shared.open(LinkSignIn.fullDiskAccessURL) }.buttonStyle(.pillLine())
+                    Button("Open Full Disk Access") { NSWorkspace.shared.open(LinkSignIn.fullDiskAccessURL) }.buttonStyle(.bordered)
                     Button("Try again") { app.useSignIn(.safari) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
                 }
                 .padding(.top, 2)
@@ -69,7 +69,7 @@ struct SignInSheet: View {
             Text(footnote).font(.system(size: 12)).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true).padding(.top, 2)
             HStack {
                 Spacer()
-                Button("Cancel") { app.cancelSignIn() }.buttonStyle(.pillLine()).keyboardShortcut(.cancelAction).uiTarget("signin-cancel")
+                Button("Cancel") { app.cancelSignIn() }.buttonStyle(.bordered).keyboardShortcut(.cancelAction).uiTarget("signin-cancel")
             }
             .padding(.top, 4)
         }

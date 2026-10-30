@@ -3,13 +3,14 @@ import Foundation
 import Combine
 #endif
 
-// Edit Home (mockup "premium", section 03): which sections Home shows, in what order, at what size, and which four
-// shortcut tiles it offers. Each app keeps one layout per look, per device: the iPhone in the App Group (so widgets
-// can read it), the Mac in its own defaults. Nothing syncs.
+// Edit Home: which sections Home shows, in what order, at what size, and which four shortcut tiles it offers. Each app
+// keeps one layout per device: the iPhone in the App Group (so widgets can read it), the Mac in its own defaults.
+// Nothing syncs.
 //
-// The model is plain Foundation, so mac/tools/test-home-layout.sh runs it on Linux: each app's defaults (one Home in
-// both looks since the refined look), the tolerant decoding (unknown sections and tiles are ignored, missing ones are added
-// where they belong), the move rules the editor uses, and how the Mac pairs sections side by side.
+// The model is plain Foundation, so mac/tools/test-home-layout.sh runs it on Linux: each app's defaults, the tolerant
+// decoding (unknown sections and tiles are ignored, missing ones are added where they belong), the move rules the
+// editor uses, how the Mac pairs sections side by side, and the one-time moves of a stored layout (the look switch's
+// retirement, `HomeLookMigration`, and the Record card, `HomeRefinedMigration`).
 
 /// Which app a layout is for. Some sections and tiles exist on one app only.
 enum HomePlatform: String, Sendable {
@@ -19,11 +20,6 @@ enum HomePlatform: String, Sendable {
     #else
     static let current = HomePlatform.phone
     #endif
-}
-
-/// The look a layout belongs to (AppLook's raw values; each look keeps its own layout).
-enum HomeLook: String, CaseIterable, Sendable {
-    case verbose, native
 }
 
 /// Compact is one slim row or strip; Large is the full card.
@@ -58,12 +54,12 @@ enum HomeSection: String, CaseIterable, Sendable {
     /// The app this section is limited to, if any: every section is on both apps.
     var platformOnly: HomePlatform? { nil }
 
-    func isAvailable(on platform: HomePlatform, look: HomeLook) -> Bool { true }
+    func isAvailable(on platform: HomePlatform) -> Bool { true }
 
     /// Edit Home's second line for the section (the tiles row names its tiles instead).
-    func detail(on platform: HomePlatform, look: HomeLook) -> String {
+    func detail(on platform: HomePlatform) -> String {
         switch self {
-        // One Home in both looks (the refined look, DESIGN.md §13): the Record card, which turns into the recording.
+        // The Record card, which turns into the recording (DESIGN.md §6).
         case .record: return platform == .mac ? "The Record card, and the recording while you record" : "The Record card"
         case .tiles: return "Four shortcuts"
         case .week: return "Words, time saved, and recordings"
@@ -172,7 +168,7 @@ struct HomeTileSlot: Hashable, Sendable {
     }
 }
 
-/// One app's Home layout in one look.
+/// One app's Home layout.
 struct HomeLayout: Equatable, Sendable {
     static let currentVersion = 1
     static let tileCount = 4
@@ -183,20 +179,19 @@ struct HomeLayout: Equatable, Sendable {
         var size: HomeCardSize
     }
 
-    /// Every section the app offers in this look, shown ones in Home's order; hidden ones keep a place too.
+    /// Every section the app offers, shown ones in Home's order; hidden ones keep a place too.
     var items: [Item]
     /// Exactly `tileCount` tiles, in order.
     var tiles: [HomeTile]
 
     // MARK: Defaults
 
-    /// Home as a new install (or Reset) starts it: one Home in both looks since the refined look (DESIGN.md §13,
-    /// October 28, 2026), as its mockup draws it. iPhone: the Record card, the four tiles, a slim This week, and Recent
-    /// recordings. Mac: the Record card, the four tiles in a row, then Recent recordings beside This week. Today's
-    /// thoughts and Journal start hidden. A layout a device already stored keeps its sections, order, and sizes (the
-    /// Record card aside, turned on once by `HomeRefinedMigration`); the look is still a key (each look keeps its own
-    /// layout until the look switch goes).
-    static func defaults(_ platform: HomePlatform, _ look: HomeLook) -> HomeLayout {
+    /// Home as a new install (or Reset) starts it (DESIGN.md §13, October 28, 2026), as its mockup draws it. iPhone:
+    /// the Record card, the four tiles, a slim This week, and Recent recordings. Mac: the Record card, the four tiles in
+    /// a row, then Recent recordings beside This week. Today's thoughts and Journal start hidden. A layout a device
+    /// already stored keeps its sections, order, and sizes (the Record card aside, turned on once by
+    /// `HomeRefinedMigration`).
+    static func defaults(_ platform: HomePlatform) -> HomeLayout {
         func on(_ s: HomeSection, _ size: HomeCardSize) -> Item { Item(section: s, visible: true, size: size) }
         func off(_ s: HomeSection, _ size: HomeCardSize) -> Item { Item(section: s, visible: false, size: size) }
         let items: [Item]
@@ -223,22 +218,18 @@ struct HomeLayout: Equatable, Sendable {
         platform == .phone ? [.dictate, .importMedia, .whatsPlaying, .captions] : [.dictate, .importMedia, .appAudio, .captions]
     }
 
-    /// The settings Edit Home replaced, read once when a look has no stored layout yet.
+    /// The settings Edit Home replaced, read once when there's no stored layout yet.
     struct Legacy: Equatable, Sendable {
         /// Mac: Settings › General › Show This week on Home (`home.showWeek`).
         var showWeek: Bool? = nil
-        /// iPhone, Native: Settings › Appearance › Show the Record card (`home.premium.recordCard`).
-        var nativeRecordCard: Bool? = nil
         /// An install from before the consolidation (`Consolidation.wasExistingInstall`): it keeps the four tiles it had.
         var keepsEarlierTiles = false
     }
 
-    /// The first layout for a look: the defaults, with the older settings carried over.
-    static func initial(_ platform: HomePlatform, _ look: HomeLook, legacy: Legacy) -> HomeLayout {
-        var l = defaults(platform, look)
-        // In place: the Record card comes back where it used to sit, under This week.
+    /// The first layout: the defaults, with the older settings carried over.
+    static func initial(_ platform: HomePlatform, legacy: Legacy) -> HomeLayout {
+        var l = defaults(platform)
         if legacy.showWeek == false { l.setVisible(.week, false, inPlace: true) }
-        if platform == .phone, look == .native, legacy.nativeRecordCard == true { l.setVisible(.record, true, inPlace: true) }
         if legacy.keepsEarlierTiles { l.tiles = earlierTiles(platform) }
         return l
     }
@@ -313,18 +304,18 @@ struct HomeLayout: Equatable, Sendable {
 
     // MARK: Cleaning up
 
-    /// The layout with every rule applied: only sections the app and look offer, each once; any it lacks added after
-    /// the section that comes before it in the defaults; exactly four tiles the app offers, each once.
-    func normalized(_ platform: HomePlatform, _ look: HomeLook) -> HomeLayout {
-        HomeLayout.from(Record(self), platform, look)
+    /// The layout with every rule applied: only sections the app offers, each once; any it lacks added after the
+    /// section that comes before it in the defaults; exactly four tiles the app offers, each once.
+    func normalized(_ platform: HomePlatform) -> HomeLayout {
+        HomeLayout.from(Record(self), platform)
     }
 
     /// Builds a layout from what was stored, ignoring what this build doesn't know.
-    static func from(_ record: Record, _ platform: HomePlatform, _ look: HomeLook) -> HomeLayout {
-        let base = defaults(platform, look)
+    static func from(_ record: Record, _ platform: HomePlatform) -> HomeLayout {
+        let base = defaults(platform)
         var items: [Item] = []
         for raw in record.items ?? [] {
-            guard let s = HomeSection(rawValue: raw.section), s.isAvailable(on: platform, look: look),
+            guard let s = HomeSection(rawValue: raw.section), s.isAvailable(on: platform),
                   !items.contains(where: { $0.section == s }), let d = base.item(s) else { continue }
             items.append(Item(section: s, visible: raw.visible ?? d.visible, size: raw.size.flatMap(HomeCardSize.init(rawValue:)) ?? d.size))
         }
@@ -374,20 +365,51 @@ struct HomeLayout: Equatable, Sendable {
     }
 
     /// Nil when the data isn't a layout at all (the caller starts from the defaults).
-    static func decode(_ data: Data, _ platform: HomePlatform, _ look: HomeLook) -> HomeLayout? {
+    static func decode(_ data: Data, _ platform: HomePlatform) -> HomeLayout? {
         guard let r = try? JSONDecoder().decode(Record.self, from: data) else { return nil }
-        return from(r, platform, look)
+        return from(r, platform)
     }
 
-    /// The defaults key for a look's layout.
-    static func key(_ look: HomeLook) -> String { "home.layout.\(look.rawValue)" }
+    /// The defaults key for the layout.
+    static let key = "home.layout"
+}
+
+// MARK: - One layout after the look switch (October 29, 2026)
+
+/// The look switch retired (DESIGN.md §13): each look kept its own layout, under "home.layout.verbose" and
+/// "home.layout.native". The one layout ("home.layout") starts as the layout of the look the device had chosen
+/// ("appearance.look"; Verbose style when it never chose one), so nobody's Home changes. Once per device: a stored
+/// one-look layout is never replaced, and the two older layouts stay where they are.
+enum HomeLookMigration {
+    /// Where the look switch stored the chosen look (the App Group on iPhone, the Mac's defaults).
+    static let lookKey = "appearance.look"
+
+    /// The older key the one layout comes from: Native's when Native was chosen, else Verbose style's (the default,
+    /// and what anything else stored there read as).
+    static func sourceKey(look: String?) -> String { look == "native" ? "home.layout.native" : "home.layout.verbose" }
+
+    /// The data to store under the one key: the chosen look's layout, when the one key is still empty and that look
+    /// stored a layout. Nil when there's nothing to move (the device starts from its first layout, `initial`).
+    static func migrated(current: Data?, look: String?, stored: (String) -> Data?) -> Data? {
+        guard current == nil else { return nil }
+        return stored(sourceKey(look: look))
+    }
+
+    /// Moves the chosen look's layout to the one key in `defaults` (where `HomeLayoutStore` keeps it). Returns
+    /// whether it moved one.
+    @discardableResult
+    static func runOnce(_ defaults: UserDefaults) -> Bool {
+        guard let data = migrated(current: defaults.data(forKey: HomeLayout.key), look: defaults.string(forKey: lookKey),
+                                  stored: { defaults.data(forKey: $0) }) else { return false }
+        defaults.set(data, forKey: HomeLayout.key)
+        return true
+    }
 }
 
 // MARK: - The refined Home's Record card (October 28, 2026)
 
-/// One look is the plan (DESIGN.md §13), and its Home leads with the Record card. A layout a device saved before the
-/// refined Home (Native's hid the card, since Record sat in the toolbar or the tab bar) gets the card turned on once, at
-/// the top of Home; every other section, size, and tile stays as saved. The flag keeps it to once per device, so a card
+/// Home leads with the Record card (DESIGN.md §13). A layout a device saved before the refined Home (Native's hid the
+/// card, since Record sat in the toolbar or the tab bar) gets the card turned on once, at the top of Home; every other section, size, and tile stays as saved. The flag keeps it to once per device, so a card
 /// hidden again afterward stays hidden.
 enum HomeRefinedMigration {
     static let key = "home.refined.recordShown.v1"
@@ -402,17 +424,15 @@ enum HomeRefinedMigration {
         return l
     }
 
-    /// Runs once per device, over both looks' stored layouts in `defaults` (where `HomeLayoutStore` keeps them): each
-    /// stored layout that hides the card is written back with it shown. A look with nothing stored starts from the
-    /// defaults, which already show it. Returns whether it ran.
+    /// Runs once per device, over the stored layout in `defaults` (where `HomeLayoutStore` keeps it): a stored layout
+    /// that hides the card is written back with it shown. A device with nothing stored starts from the defaults, which
+    /// already show it. Run after `HomeLookMigration`, so it sees the one layout. Returns whether it ran.
     @discardableResult
     static func runOnce(_ defaults: UserDefaults, platform: HomePlatform) -> Bool {
         guard !defaults.bool(forKey: key) else { return false }
-        for look in HomeLook.allCases {
-            guard let data = defaults.data(forKey: HomeLayout.key(look)),
-                  let stored = HomeLayout.decode(data, platform, look) else { continue }
+        if let data = defaults.data(forKey: HomeLayout.key), let stored = HomeLayout.decode(data, platform) {
             let shown = apply(stored)
-            if shown != stored, let out = shown.encoded() { defaults.set(out, forKey: HomeLayout.key(look)) }
+            if shown != stored, let out = shown.encoded() { defaults.set(out, forKey: HomeLayout.key) }
         }
         defaults.set(true, forKey: key)
         return true
@@ -498,11 +518,7 @@ enum HomeRows {
 // MARK: - The store
 
 #if canImport(Combine)
-extension AppLook {
-    var homeLook: HomeLook { self == .native ? .native : .verbose }
-}
-
-/// Both looks' layouts for this device, read once and written on each change. Home and Edit Home observe it; a change
+/// This device's Home layout, read once and written on each change. Home and Edit Home observe it; a change
 /// re-renders Home in place (sections keep their identity, nothing animates in).
 @MainActor
 final class HomeLayoutStore: ObservableObject {
@@ -520,47 +536,47 @@ final class HomeLayoutStore: ObservableObject {
     let platform: HomePlatform
     private let defaults: UserDefaults
     private let persist: Bool
-    @Published private(set) var verbose: HomeLayout
-    @Published private(set) var native: HomeLayout
+    @Published private(set) var layout: HomeLayout
 
     init(platform: HomePlatform, defaults: UserDefaults, legacy: UserDefaults, persist: Bool) {
         self.platform = platform
         self.defaults = defaults
         self.persist = persist
         let old = HomeLayout.Legacy(showWeek: legacy.object(forKey: "home.showWeek") as? Bool,
-                                    nativeRecordCard: legacy.object(forKey: "home.premium.recordCard") as? Bool,
                                     keepsEarlierTiles: Consolidation.wasExistingInstall(legacy))
-        // The refined Home's Record card, turned on once for layouts saved before it (HomeRefinedMigration).
-        if persist { HomeRefinedMigration.runOnce(defaults, platform: platform) }
-        func load(_ look: HomeLook) -> HomeLayout {
-            if persist, let data = defaults.data(forKey: HomeLayout.key(look)), let l = HomeLayout.decode(data, platform, look) { return l }
-            guard persist else { return HomeLayout.defaults(platform, look) }
+        if persist {
+            // The chosen look's layout becomes the one layout (HomeLookMigration), then the refined Home's Record card
+            // is turned on once for a layout saved before it (HomeRefinedMigration).
+            HomeLookMigration.runOnce(defaults)
+            HomeRefinedMigration.runOnce(defaults, platform: platform)
+        }
+        if persist, let data = defaults.data(forKey: HomeLayout.key), let l = HomeLayout.decode(data, platform) {
+            layout = l
+        } else if persist {
             // Saved at once, so the tiles an install starts with stay its tiles (the consolidation's new defaults
             // reach only installs that start from them).
-            let first = HomeLayout.initial(platform, look, legacy: old)
-            if let data = first.encoded() { defaults.set(data, forKey: HomeLayout.key(look)) }
-            return first
+            let first = HomeLayout.initial(platform, legacy: old)
+            if let data = first.encoded() { defaults.set(data, forKey: HomeLayout.key) }
+            layout = first
+        } else {
+            layout = HomeLayout.defaults(platform)
         }
-        verbose = load(.verbose)
-        native = load(.native)
     }
-
-    func layout(_ look: HomeLook) -> HomeLayout { look == .native ? native : verbose }
 
     /// Applies a change, cleans it up, and saves it. Publishes only when something changed.
-    func update(_ look: HomeLook, _ change: (inout HomeLayout) -> Void) {
-        var l = layout(look)
+    func update(_ change: (inout HomeLayout) -> Void) {
+        var l = layout
         change(&l)
-        set(l.normalized(platform, look), for: look)
+        set(l.normalized(platform))
     }
 
-    /// Back to the look's defaults (the older settings aren't read again).
-    func reset(_ look: HomeLook) { set(HomeLayout.defaults(platform, look), for: look) }
+    /// Back to the defaults (the older settings aren't read again).
+    func reset() { set(HomeLayout.defaults(platform)) }
 
-    private func set(_ l: HomeLayout, for look: HomeLook) {
-        guard l != layout(look) else { return }
-        if look == .native { native = l } else { verbose = l }
-        if persist, let data = l.encoded() { defaults.set(data, forKey: HomeLayout.key(look)) }
+    private func set(_ l: HomeLayout) {
+        guard l != layout else { return }
+        layout = l
+        if persist, let data = l.encoded() { defaults.set(data, forKey: HomeLayout.key) }
     }
 }
 #endif

@@ -71,7 +71,7 @@ enum UnclearStyle {
     }
 }
 
-/// Reduce background noise, as a checkmark item in a player's menu (both apps, both looks). Listening only: the
+/// Reduce background noise, as a checkmark item in a player's menu (both apps). Listening only: the
 /// transcript and the saved file never change.
 struct ReduceNoiseToggle: View {
     @ObservedObject var player: Player

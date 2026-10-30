@@ -53,7 +53,7 @@ struct DocumentView: View {
     // MARK: Toolbar
 
     /// Proofread as a refined chip, Clean up and Tone as menu faces, and Accept all, Undo, and Reset as refined
-    /// actions at the end (DESIGN.md §13), in both look settings. Sits on the page: no box, no hairline. No control
+    /// actions at the end (DESIGN.md §13). Sits on the page: no box, no hairline. No control
     /// sits under a parent gesture (macOS 26).
     private func toolbar(_ currentLints: [Harper.Lint]) -> some View {
         let canUndo = !transcript.documentHistory.isEmpty

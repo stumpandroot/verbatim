@@ -48,11 +48,6 @@ enum UITest {
                     ?? NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }) else { Log.note("UITEST FAIL no window"); return }
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
-            // Every click step runs in Verbose style (the look new installs start in); the tour adds Native screens.
-            if AppLook.current != .verbose {
-                AppLook.current = .verbose
-                try? await Task.sleep(nanoseconds: 800_000_000)
-            }
             // The Thoughts bubble stays off the screenshots except its own (thoughtsSteps and thoughtShots turn it on).
             Thoughts.showBubble = false
             // Screen changes with 1,000 transcripts while a file transcribes; then the big library goes again.
@@ -93,7 +88,7 @@ enum UITest {
             try? await Task.sleep(nanoseconds: 400_000_000)
             // Live captions left the four default tiles (consolidation, October 28, 2026); its menu item and ⌥⌘C remain.
             check("Live captions isn't a default tile, and still opens from its command",
-                  !HomeLayout.defaults(.mac, .verbose).tiles.contains(.captions) && HomeTile.available(on: .mac).contains(.captions))
+                  !HomeLayout.defaults(.mac).tiles.contains(.captions) && HomeTile.available(on: .mac).contains(.captions))
             app.toggleLiveCaptions()
             try? await Task.sleep(nanoseconds: 600_000_000)
             check("Live captions opens from File › Live Captions (⌥⌘C)", LiveCaptions.shared.isOpen)
@@ -111,9 +106,9 @@ enum UITest {
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
             timingSummary("clicks")
             // The refined Library (DESIGN.md §6.8): the chips, the sort, the columns, and a row's click and double-click.
-            await libraryClicks(app: app, window: window, native: false)
+            await libraryClicks(app: app, window: window)
             // Back: the Library comes back where you left it, ⌘[ and the View menu, and Back to Home (App/NavTrail.swift).
-            await backSteps(app: app, window: window, native: false)
+            await backSteps(app: app, window: window)
 
             await settingsSteps(main: window)
             await ribbonSteps(app: app)
@@ -528,9 +523,14 @@ enum UITest {
         YouTourSeed.run()
         try? await Task.sleep(nanoseconds: 800_000_000)
         let memo = app.store.transcripts.first { $0.title == "Lapp Wagons catalog call" }
-        await chromeClicks(app: app, window: window, native: false)
+        await chromeClicks(app: app, window: window)
         app.go(.home); app.captureMode = "voice"
         await show("01-home")
+        // Home draws the Record card, and the four tiles in one row under it.
+        let tileFrames = HomeLayoutStore.shared.layout.tiles.compactMap { frames[HomeView.tileTarget($0)] }
+        check("home: the Record card and the four tiles in one row (\(tileFrames.map { "\(Int($0.minY))" }.joined(separator: ", ")))",
+              frames["tile-record"] != nil && tileFrames.count == HomeLayout.tileCount
+              && tileFrames.allSatisfy { abs($0.minY - tileFrames[0].minY) < 1 && $0.width >= 100 })
         app.captureMode = "dictate"
         await show("02-home-dictate")
         app.captureMode = "voice"
@@ -538,8 +538,8 @@ enum UITest {
         // The This week strip under the tiles.
         await reveal("home-week", in: window)
         await show("02c-home-week")
-        await editHomeSteps(app: app, window: window, look: .verbose, suffix: "")
-        await homeThoughtsSteps(app: app, window: window, look: .verbose, suffix: "")
+        await editHomeSteps(app: app, window: window)
+        await homeThoughtsSteps(app: app, window: window)
         app.requestRecord()                       // no mic on the runner: the permission sheet
         await show("03-mic-sheet")
         app.showMicSheet = false
@@ -614,7 +614,7 @@ enum UITest {
         await show("05e-recently-deleted")
         if let m = memo { app.go(.transcript(m.id)) }
         await show("06-transcript")
-        if let m = memo { transcriptLayoutCheck(app, m.id, look: .verbose) }
+        if let m = memo { transcriptLayoutCheck(app, m.id) }
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Summary")
         await show("06h-transcript-summary")
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
@@ -668,8 +668,8 @@ enum UITest {
         await show("07b-dictations")
         app.go(.activity)
         await show("07c-you")
-        let youRefined = YouView.onScreen.contains(AppLook.current)
-        Log.note("UITEST \(youRefined ? "PASS" : "FAIL") you: the You page draws the refined layout in \(AppLook.current.label)")
+        let youRefined = YouView.onScreen > 0
+        Log.note("UITEST \(youRefined ? "PASS" : "FAIL") you: the You page draws the refined layout")
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
         await thoughtShots(suffix: "")
@@ -728,7 +728,7 @@ enum UITest {
         app.go(.home)
         await show("10-home-again")
         await whatsNewLine(app: app, window: window, name: "10f-home-whats-new")
-        for (i, name) in ["10a-onboarding-welcome", "10a2-onboarding-look", "10b-onboarding-permissions", "10c-onboarding-try", "10d-onboarding-placement", "10e-onboarding-quality"].enumerated() {
+        for (i, name) in ["10a-onboarding-welcome", "10b-onboarding-permissions", "10c-onboarding-try", "10d-onboarding-placement", "10e-onboarding-quality"].enumerated() {
             onboardingStep = i
             app.showOnboarding = true
             await show(name)
@@ -779,234 +779,71 @@ enum UITest {
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
         NSApplication.shared.appearance = nil
-        timingSummary("tour-verbose")
-        await nativeTour(app: app, window: window, memo: memo?.id)
-        timingSummary("tour-native")
+        timingSummary("tour")
         write(show: "done")
-    }
-
-    /// The Native look (Settings › Personalization › Look) on the key screens, light then dark, with `-native` names:
-    /// Home, the Library, a transcript, You and Settings (refined, the same in both looks), and the welcome tour's Pick
-    /// a look step.
-    /// Ends back in Verbose style.
-    private static func nativeTour(app: AppState, window: NSWindow, memo: UUID?) async {
-        // The switch as a pick makes it (LookSwitch.swift): the card, the rebuild behind it, and its time.
-        await lookSwitch(to: .native, on: "home")
-        try? await Task.sleep(nanoseconds: 400_000_000)
-        nativeChecks()
-        await chromeClicks(app: app, window: window, native: true)
-        await libraryClicks(app: app, window: window, native: true)
-        await backSteps(app: app, window: window, native: true)
-        app.go(.home); app.captureMode = "voice"
-        await show("01-home-native")
-        // The same refined Home in Native: the Record card, and the four tiles in one row under it.
-        let tileFrames = HomeLayoutStore.shared.layout(.native).tiles.compactMap { frames[HomeView.tileTarget($0)] }
-        check("native: Home draws the refined Record card and the four tiles in one row (\(tileFrames.map { "\(Int($0.minY))" }.joined(separator: ", ")))",
-              frames["tile-record"] != nil && tileFrames.count == HomeLayout.tileCount
-              && tileFrames.allSatisfy { abs($0.minY - tileFrames[0].minY) < 1 && $0.width >= 100 })
-        await editHomeSteps(app: app, window: window, look: .native, suffix: "-native")
-        await homeThoughtsSteps(app: app, window: window, look: .native, suffix: "-native")
-        app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
-        app.go(.library)
-        // The refined Library in Native (DESIGN.md §6.8): with the inspector's preview, then closed as the mockup draws
-        // it. The List view retired with the Table and List choice.
-        let inspectorWas = WindowNav.shared.inspector
-        await show("05-library-native")
-        WindowNav.shared.inspector = false
-        await show("05b-library-table-native")
-        WindowNav.shared.inspector = inspectorWas
-        if let m = memo { app.go(.transcript(m)) }
-        await show("06-transcript-native")
-        if let m = memo { transcriptLayoutCheck(app, m, look: .native) }
-        NotificationCenter.default.post(name: .verbatimShowMode, object: "Summary")
-        await show("06h-transcript-summary-native")
-        NotificationCenter.default.post(name: .verbatimShowMode, object: "Transcript")
-        app.go(.byDay(.idea))
-        await show("05n-by-day-thoughts-native")
-        app.go(.byDay(.journal))
-        await show("05o-by-day-journal-native")
-        await templateShots(app: app, suffix: "-native")
-        await askShots(app: app, suffix: "-native")
-        await thoughtShots(suffix: "-native")
-        await sharedScreenShots(app: app, memo: memo)
-        // The recording surfaces drawn the same in Native (DESIGN.md §6.10): Live captions and the meeting banner.
-        app.toggleLiveCaptions()
-        await show("04c-live-captions-native")
-        LiveCaptions.shared.close(force: true)
-        await meetingPromptShot("04d-meeting-prompt-native")
-        // The refined You page, the same in Native (DESIGN.md §6.11).
-        app.go(.activity)
-        await show("07c-you-native")
-        check("native look: You draws the same refined page", YouView.onScreen.contains(.native))
-        UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
-        openSettingsWindow()
-        await show("09-settings-general-native")
-        check("native look: Settings, closed during the switch, opens in Native", SettingsView.lastBuilt == .native)
-        UserDefaults.standard.set(SettingsTab.recording.rawValue, forKey: "settingsTab")
-        await show("09c-settings-transcription-native")
-        UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
-        await show("09d-settings-dictate-native")
-        UserDefaults.standard.set(SettingsTab.whatsNew.rawValue, forKey: "settingsTab")
-        await show("09i-settings-whats-new-native")
-        await whatsNewOpened(suffix: "-native")
-        UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
-        NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
-        window.makeKeyAndOrderFront(nil)
-        app.go(.home)
-        await whatsNewLine(app: app, window: window, name: "10f-home-whats-new-native")
-        onboardingStep = OnboardingStep.look.rawValue
-        app.showOnboarding = true
-        await show("10a2-onboarding-look-native")
-        app.showOnboarding = false
-        onboardingStep = 0
-        try? await Task.sleep(nanoseconds: 700_000_000)
-        NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
-        await show("11-dark-home-native")
-        app.go(.library)
-        await show("15-dark-library-native")
-        if let m = memo { app.go(.transcript(m)) }
-        await show("12-dark-transcript-native")
-        NSApplication.shared.appearance = nil
-        try? await Task.sleep(nanoseconds: 400_000_000)
-        // Back to Verbose style on the open transcript: the switch rebuilds the screen, and its audio stays open (it
-        // used to stop when the old screen left after the new one appeared), with the same sponsor reads skipped.
-        let opened = app.player.canPlay
-        let loaded = app.player.loadedURL
-        await lookSwitch(to: .verbose, on: memo == nil ? "home" : "transcript")
-        try? await Task.sleep(nanoseconds: 400_000_000)
-        if memo != nil {
-            if opened {
-                check("look switch on an open transcript keeps its audio", app.player.canPlay && app.player.loadedURL == loaded)
-            } else {
-                Log.note("UITEST note: the transcript's audio hadn't opened before the look switch; its check is skipped")
-            }
-        }
-        app.go(.home)
-        try? await Task.sleep(nanoseconds: 400_000_000)
-    }
-
-    /// The screens step 6 moved onto the refined kit, in Native with `-native` names, to compare with their Verbose
-    /// shots: one design in both looks (DESIGN.md §13). Dictionary, Dictations, Queue, Recently Deleted, the Cleaned
-    /// tab, the export sheet, Add from Library, the link card, the mic, app, and multitrack sheets, and onboarding.
-    private static func sharedScreenShots(app: AppState, memo: UUID?) async {
-        app.go(.dictionary)
-        await show("07-dictionary-native")
-        app.go(.dictations)
-        await show("07b-dictations-native")
-        app.go(.queue)
-        await show("05b-queue-native")
-        app.go(.trash)
-        await show("05e-recently-deleted-native")
-        if let m = memo {
-            app.go(.transcript(m))
-            NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
-            try? await Task.sleep(nanoseconds: 1_500_000_000)   // Harper lints off the main thread
-            await show("06b-document-native")
-            NotificationCenter.default.post(name: .verbatimShowMode, object: "Transcript")
-            app.exportRequest = ExportRequest(ids: [m])
-            await show("06f-export-sheet-native")
-            app.exportRequest = nil
-            try? await Task.sleep(nanoseconds: 700_000_000)
-        }
-        if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
-            app.projectFilter = project.id; app.go(.library)
-            app.addFromLibrary = project.id
-            await show("05m-add-from-library-native")
-            app.addFromLibrary = nil
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            app.projectFilter = nil
-        }
-        app.go(.home)
-        let card = LinkImport(id: UUID(), url: "https://www.youtube.com/watch?v=Q7r2mDn4x1k", site: "YouTube")
-        card.title = "How we light interviews in small rooms"; card.duration = 3852
-        card.phase = .downloading; card.progress = 0.42
-        app.linkImports[card.id] = card; app.linkBadgeHeld.insert(card.id); app.linkCardID = card.id
-        await show("05j-link-card-native")
-        app.linkCardID = nil; app.linkBadgeHeld.remove(card.id); app.linkImports[card.id] = nil
-        app.showMicSheet = true
-        await show("03-mic-sheet-native")
-        app.showMicSheet = false
-        app.showAppPicker = true
-        await show("04-app-picker-native")
-        app.showAppPicker = false
-        app.multitrackDraft = MultitrackDraft.sample()
-        await show("04b-multitrack-native")
-        app.multitrackDraft = nil
-        for (i, name) in ["10a-onboarding-welcome-native", "10b-onboarding-permissions-native", "10e-onboarding-quality-native"].enumerated() {
-            onboardingStep = [0, 2, 5][i]
-            app.showOnboarding = true
-            await show(name)
-            app.showOnboarding = false
-            try? await Task.sleep(nanoseconds: 700_000_000)
-        }
-        onboardingStep = 0
     }
 
     /// Edit Home (EditHome.swift, HomeLayout.swift), clicked: Edit Home at the end of Home opens the inspector; then
     /// hide a section (This week), reorder two, change a size (the tiles) and a tile (Search in the last slot), check
     /// Home draws exactly that, click Done, and reset. The layout store starts from the defaults in the self-test and
     /// never writes the Mac's layout.
-    private static func editHomeSteps(app: AppState, window: NSWindow, look: AppLook, suffix: String) async {
+    private static func editHomeSteps(app: AppState, window: NSWindow) async {
         let store = HomeLayoutStore.shared
         let session = HomeEditSession.shared
-        let hl = look.homeLook
-        let other: HomeLook = hl == .native ? .verbose : .native
-        store.reset(hl)
+        store.reset()
         session.editing = false
         app.go(.home); app.captureMode = "voice"
         try? await Task.sleep(nanoseconds: 900_000_000)
-        await step("edit home\(suffix): Edit Home at the end of Home opens the inspector", window, target: "home-edit",
+        await step("edit home: Edit Home at the end of Home opens the inspector", window, target: "home-edit",
                    check: { session.editing && EditHomeView.visible })
-        await show("02e-edit-home\(suffix)")
-        let before = store.layout(hl)
-        store.update(hl) { $0.setVisible(.week, false) }
-        let order = store.layout(hl).shown.map(\.section)
-        store.update(hl) { $0.moveShown(fromOffsets: IndexSet(integer: 0), toOffset: 2) }
+        await show("02e-edit-home")
+        let before = store.layout
+        store.update { $0.setVisible(.week, false) }
+        let order = store.layout.shown.map(\.section)
+        store.update { $0.moveShown(fromOffsets: IndexSet(integer: 0), toOffset: 2) }
         let tileSize: HomeCardSize = before.size(.tiles) == .large ? .compact : .large
-        store.update(hl) { $0.setSize(.tiles, tileSize) }
+        store.update { $0.setSize(.tiles, tileSize) }
         session.pickingTiles = true
-        await show("02f-edit-home-tiles\(suffix)")
-        check("edit home\(suffix): Choose… opens the tile picker", HomeTilePickerMac.visible)
+        await show("02f-edit-home-tiles")
+        check("edit home: Choose… opens the tile picker", HomeTilePickerMac.visible)
         session.pickingTiles = false
         try? await Task.sleep(nanoseconds: 500_000_000)
         let dropped = before.tiles[HomeLayout.tileCount - 1]
-        store.update(hl) { l in l.tiles = HomeLayout.toggle(.dictionary, in: HomeLayout.toggle(dropped, in: l.tiles)) }
+        store.update { l in l.tiles = HomeLayout.toggle(.dictionary, in: HomeLayout.toggle(dropped, in: l.tiles)) }
         try? await Task.sleep(nanoseconds: 700_000_000)
-        await show("02g-edit-home-edited\(suffix)")
-        await step("edit home\(suffix): Done closes the inspector", window, target: "home-edit-done", check: { !session.editing })
-        let after = store.layout(hl)
+        await show("02g-edit-home-edited")
+        await step("edit home: Done closes the inspector", window, target: "home-edit-done", check: { !session.editing })
+        let after = store.layout
         let onScreen = HomeProbe.sections
         let drawn = after.shown
-        check("edit home\(suffix): a hidden section leaves Home (This week)", !after.isVisible(.week) && onScreen[.week] == nil)
-        check("edit home\(suffix): two sections swap places", order.count >= 2 && after.shown.prefix(2).map(\.section) == [order[1], order[0]])
-        check("edit home\(suffix): Home draws only the shown sections (\(onScreen.keys.map(\.rawValue).sorted().joined(separator: ", ")))",
+        check("edit home: a hidden section leaves Home (This week)", !after.isVisible(.week) && onScreen[.week] == nil)
+        check("edit home: two sections swap places", order.count >= 2 && after.shown.prefix(2).map(\.section) == [order[1], order[0]])
+        check("edit home: Home draws only the shown sections (\(onScreen.keys.map(\.rawValue).sorted().joined(separator: ", ")))",
               Set(onScreen.keys) == Set(drawn.map(\.section)))
-        check("edit home\(suffix): a size change reaches Home (tiles \(tileSize.rawValue))", onScreen[.tiles] == tileSize)
-        check("edit home\(suffix): a new tile reaches Home (Dictionary for \(dropped.title))", HomeProbe.tiles.contains(.dictionary) && !HomeProbe.tiles.contains(dropped))
-        check("edit home\(suffix): the other look keeps its own layout", store.layout(other) == HomeLayout.defaults(.mac, other))
-        store.reset(hl)
+        check("edit home: a size change reaches Home (tiles \(tileSize.rawValue))", onScreen[.tiles] == tileSize)
+        check("edit home: a new tile reaches Home (Dictionary for \(dropped.title))", HomeProbe.tiles.contains(.dictionary) && !HomeProbe.tiles.contains(dropped))
+        store.reset()
         try? await Task.sleep(nanoseconds: 900_000_000)
-        check("edit home\(suffix): Reset puts Home back", store.layout(hl) == HomeLayout.defaults(.mac, hl)
-              && Set(HomeProbe.sections.keys) == Set(store.layout(hl).shown.map(\.section)))
-        check("edit home\(suffix): Home starts with the Record card, the tiles, then Recent recordings beside This week, in either look",
-              store.layout(hl).shown.map(\.section) == [.record, .tiles, .recent, .week] && HomeProbe.sections[.record] == .large)
+        check("edit home: Reset puts Home back", store.layout == HomeLayout.defaults(.mac)
+              && Set(HomeProbe.sections.keys) == Set(store.layout.shown.map(\.section)))
+        check("edit home: Home starts with the Record card, the tiles, then Recent recordings beside This week",
+              store.layout.shown.map(\.section) == [.record, .tiles, .recent, .week] && HomeProbe.sections[.record] == .large)
     }
 
     /// Home's Today's thoughts and Journal sections and the New thought and Journal tiles (HomeSectionsMac.swift,
-    /// the refined kit in both looks): shown from Edit Home's model, they render, Large and Compact; the New thought tile
+    /// the refined kit): shown from Edit Home's model, they render, Large and Compact; the New thought tile
     /// starts and stops a thought (simulated audio) that lands on today's page; the section's New thought does the same;
     /// the Journal tile opens Journal By day. Then the layout is reset.
-    private static func homeThoughtsSteps(app: AppState, window: NSWindow, look: AppLook, suffix: String) async {
+    private static func homeThoughtsSteps(app: AppState, window: NSWindow) async {
         let store = HomeLayoutStore.shared
         let capture = ThoughtCapture.shared
-        let hl = look.homeLook
         let hour = Thoughts.newPageHour
         let today = DayPages.today(hour: hour)
         let wasSimulating = capture.simulate
-        let name = "home thoughts\(suffix)"
-        store.reset(hl)
-        check("\(name): Today's thoughts and Journal start hidden", !store.layout(hl).isVisible(.thoughts) && !store.layout(hl).isVisible(.journal))
-        store.update(hl) { l in
+        let name = "home thoughts"
+        store.reset()
+        check("\(name): Today's thoughts and Journal start hidden", !store.layout.isVisible(.thoughts) && !store.layout.isVisible(.journal))
+        store.update { l in
             l.setVisible(.thoughts, true)
             l.setVisible(.journal, true)
             l.tiles = [.newThought, .journal, .dictate, .importMedia]
@@ -1014,7 +851,7 @@ enum UITest {
         app.go(.home); app.captureMode = "voice"
         try? await Task.sleep(nanoseconds: 900_000_000)
         await reveal("home-thoughts", in: window)
-        await show("02h-home-thoughts-journal\(suffix)")
+        await show("02h-home-thoughts-journal")
         check("\(name): the shown sections render (Today's thoughts and Journal, Large)",
               HomeProbe.sections[.thoughts] == .large && HomeProbe.sections[.journal] == .large)
         check("\(name): the New thought and Journal tiles reach Home", HomeProbe.tiles.contains(.newThought) && HomeProbe.tiles.contains(.journal))
@@ -1035,74 +872,35 @@ enum UITest {
                    check: { !capture.isRecording && app.store.page(.idea, day: today, hour: hour).count == before + 1 })
         capture.simulate = wasSimulating
 
-        store.update(hl) { l in l.setSize(.thoughts, .compact); l.setSize(.journal, .compact) }
+        store.update { l in l.setSize(.thoughts, .compact); l.setSize(.journal, .compact) }
         try? await Task.sleep(nanoseconds: 700_000_000)
         await reveal("home-thoughts", in: window)
-        await show("02i-home-thoughts-journal-compact\(suffix)")
+        await show("02i-home-thoughts-journal-compact")
         check("\(name): Compact reaches Home", HomeProbe.sections[.thoughts] == .compact && HomeProbe.sections[.journal] == .compact)
         await reveal(HomeView.tileTarget(.journal), in: window)
         await step("\(name): the Journal tile opens Journal By day", window, target: HomeView.tileTarget(.journal), check: { app.screen == .byDay(.journal) })
-        store.reset(hl)
+        store.reset()
         app.go(.home)
         try? await Task.sleep(nanoseconds: 700_000_000)
     }
 
-    /// Checks that only hold while Native is on: tokens turn into Native's colors, resolved for the appearance asked
-    /// for (not whichever is drawing) and cached, and the serif role turns into SF Pro.
     private static func check(_ name: String, _ ok: Bool) {
         if ok { pass += 1 } else { fail += 1 }
         Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
     }
 
-    private static func nativeChecks() {
-        check("native look: tokens turn into system colors while it's on", NativeSwap.on && NativeSwap.color(light: Ink.paperHex) != nil)
-        check("native look: the serif role is SF Pro", Ink.serif(30) == NativeSwap.serif(30, weight: .regular) && Ink.serif(30) != SurfaceFont.serif(30))
-        let light = NativeSwap.color(light: Ink.paperHex, dark: false, increased: false)
-        let dark = NativeSwap.color(light: Ink.paperHex, dark: true, increased: false)
-        func same(_ a: NSColor?, _ b: NSColor) -> Bool {
-            guard let a = a?.usingColorSpace(.sRGB), let b = b.usingColorSpace(.sRGB) else { return false }
-            return abs(a.redComponent - b.redComponent) < 0.01 && abs(a.greenComponent - b.greenComponent) < 0.01 && abs(a.blueComponent - b.blueComponent) < 0.01
-        }
-        let aqua = NSAppearance(named: .aqua)!, darkAqua = NSAppearance(named: .darkAqua)!
-        check("native look: the window is the system's window background in light and dark (no warm glow)",
-              same(light, NSColor.windowBackgroundColor.resolved(in: aqua)) && same(dark, NSColor.windowBackgroundColor.resolved(in: darkAqua)))
-        // The accent follows System Settings › Appearance: tinted text resolves to the system accent, and Native's
-        // accent is SwiftUI's accent color (no AccentColor asset, so Multicolor is blue).
-        let accentText = NativeSwap.color(light: 0xB23F24, dark: false, increased: false)   // Ink.accentText's light value
-        check("native look: the accent follows the system accent color", NativeRole.accentText.nsColor == .controlAccentColor
-              && same(accentText, NSColor.controlAccentColor.resolved(in: aqua)) && NativeInk.accent == Color.accentColor)   // brand: native
-        // No persimmon in Native's chrome: the accent isn't the old #D5431F, and the record dot is the system red.
-        let persimmon = NSColor(srgbRed: 0xD5 / 255.0, green: 0x43 / 255.0, blue: 0x1F / 255.0, alpha: 1)
-        var record: NSColor?, window: NSColor?
-        aqua.performAsCurrentDrawingAppearance {
-            record = NSColor(NativeInk.record).usingColorSpace(.sRGB)
-            window = NSColor(NativeInk.window).usingColorSpace(.sRGB)
-        }
-        check("native look: no persimmon in the chrome (the accent, the window, and the record dot are system colors)",
-              !same(accentText, persimmon) && same(record, NSColor.systemRed.resolved(in: aqua)) && same(window, NSColor.windowBackgroundColor.resolved(in: aqua)))
-        let before = NativeSwap.cachedColorCount
-        _ = NativeSwap.color(light: Ink.inkHex, dark: true, increased: false)
-        let afterFirst = NativeSwap.cachedColorCount
-        _ = NativeSwap.color(light: Ink.inkHex, dark: true, increased: false)
-        check("native look: a token resolves once per appearance, then comes from the cache", afterFirst <= before + 1 && NativeSwap.cachedColorCount == afterFirst)
-        check("native look: brand fills keep their color", NativeSwap.color(light: Ink.persimmonHex, dark: false, increased: false) == nil)
-    }
-
-    /// The Native window's own controls, clicked: the sidebar (a List selection), a Library item (click selects,
-    /// double-click opens), and the toolbar's Back.
-    /// The window's chrome in one look, clicked (DESIGN.md §13): the sidebar, the toolbar's Back and Record with its
-    /// menu, and the Library's table under them. One design in both looks, so the Verbose pass records the sidebar's
-    /// and toolbar's frames and the Native pass checks it draws them the same.
-    private static func chromeClicks(app: AppState, window: NSWindow, native: Bool) async {
+    /// The window's chrome, clicked (DESIGN.md §13): the sidebar, the toolbar's Back and Record with its menu, and the
+    /// Library's table under them.
+    private static func chromeClicks(app: AppState, window: NSWindow) async {
         let nav = WindowNav.shared
-        let tag = native ? "native" : "chrome"
+        let tag = "chrome"
         app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
         app.go(.queue)
         try? await Task.sleep(nanoseconds: 700_000_000)
         await step("\(tag): sidebar Home goes home", window, target: "side-home", check: { app.screen == .home })
         await step("\(tag): sidebar Library opens the Library", window, target: "side-library", check: { app.screen == .library })
         try? await Task.sleep(nanoseconds: 400_000_000)
-        // The one table in both looks (DESIGN.md §6.8): a click selects a row for the inspector, a double-click opens it.
+        // The table (DESIGN.md §6.8): a click selects a row for the inspector, a double-click opens it.
         let first = LibraryView.shownOrder.first
         if windowFrames["lib-item-1"]?() != nil {
             await step("\(tag): clicking a Library row selects it", window, target: "lib-item-1",
@@ -1112,20 +910,9 @@ enum UITest {
                    check: { app.screen.transcriptID != nil && app.screen.transcriptID == first })
         await step("\(tag): the toolbar's Back returns to the Library", window, target: "tb-back", check: { app.screen == .library })
         await step("\(tag): Open Transcript in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
-        // The sidebar and toolbar are one design: the same frames in both looks.
         let chrome = ["side-home", "side-library", "side-settings", "tb-back", "tb-record"].map { id in windowFrames[id]?() ?? frames[id] }
-        if native {
-            let same = zip(chrome, chromeFrames).allSatisfy { a, b in
-                guard let a, let b else { return a == nil && b == nil }
-                return abs(a.minX - b.minX) < 1.5 && abs(a.width - b.width) < 1.5 && abs(a.height - b.height) < 1.5
-            }
-            check("native: the sidebar and toolbar draw as in Verbose style (\(chrome.map { $0.map { "\(Int($0.minX)),\(Int($0.width))" } ?? "-" }.joined(separator: " ")))",
-                  !chromeFrames.isEmpty && same)
-        } else {
-            chromeFrames = chrome
-            check("chrome: the sidebar and toolbar draw Home, Library, Settings, Back, and Record", chrome.allSatisfy { $0 != nil })
-        }
-        let fresh = UserDefaults(suiteName: "co.stumpandroot.verbatim.uitest.native") ?? .standard
+        check("chrome: the sidebar and toolbar draw Home, Library, Settings, Back, and Record", chrome.allSatisfy { $0 != nil })
+        let fresh = UserDefaults(suiteName: "co.stumpandroot.verbatim.uitest.table") ?? .standard
         fresh.set(false, forKey: WindowNav.retiredTableKey)
         WindowNav.retireTableChoice(fresh)
         check("\(tag): the Library's old Table and List choice is removed, so every Library is the table",
@@ -1166,23 +953,17 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
-    /// The chrome's frames from the Verbose pass (`chromeClicks`), for the Native pass to compare.
-    private static var chromeFrames: [CGRect?] = []
-
-    /// The refined Library (DESIGN.md §6.8) in one look, clicked: it's the one Library on screen, built in this look;
-    /// a chip filters and clears the rest, All clears it; a column title sorts and a second click turns the order
-    /// around, writing the Library's sort where it can; and (Verbose style, as Native's clicks cover it) a click
-    /// selects a row and a double-click opens it.
-    static func libraryClicks(app: AppState, window: NSWindow, native: Bool) async {
-        let tag = native ? "library (native)" : "library"
-        let look: AppLook = native ? .native : .verbose
+    /// The Library (DESIGN.md §6.8), clicked: it's the one Library on screen; a chip filters and clears the rest, All
+    /// clears it; a column title sorts and a second click turns the order around, writing the Library's sort where it
+    /// can; and a click selects a row and a double-click opens it.
+    static func libraryClicks(app: AppState, window: NSWindow) async {
+        let tag = "library"
         func target(_ id: String) -> CGRect? { windowFrames[id]?() ?? frames[id] }
         let sortWas = UserDefaults.standard.string(forKey: LibrarySort.key)
         app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all; app.search = ""
         app.go(.library)
         try? await Task.sleep(nanoseconds: 1_000_000_000)
-        check("\(tag): one refined Library on screen, built in this look (\(LibraryView.onScreen.map(\.rawValue).sorted().joined(separator: ", ")))",
-              LibraryView.onScreen == [look])
+        check("\(tag): one Library on screen (\(LibraryView.onScreen))", LibraryView.onScreen == 1)
         let drawn = ["kind-all", "source-voiceMemos", "kind-meeting", "kind-idea", "kind-audio", "source-links", "source-marked",
                      "library-sort", "lib-sort-name", "lib-sort-date", "lib-table"]
         let missing = drawn.filter { target($0) == nil }
@@ -1210,7 +991,7 @@ enum UITest {
         await step("\(tag): the Date column sorts newest first", window, target: "lib-sort-date",
                    check: { UserDefaults.standard.string(forKey: LibrarySort.key) == LibrarySort.newest.rawValue })
 
-        if !native, LibraryView.shownOrder.count >= 2 {
+        if LibraryView.shownOrder.count >= 2 {
             let order = LibraryView.shownOrder
             WindowNav.shared.librarySelection = nil
             await step("\(tag): a click selects a row", window, target: "lib-item-1",
@@ -1228,13 +1009,12 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
-    /// A transcript draws its one refined layout in either look (DESIGN.md §13), once: the screen on screen is the one
-    /// built in this look, its tabs start Original, Cleaned, and Summary, its turns take the speaker rotation by who
-    /// talks first, and its meta line says when and how long without repeating the kind.
-    static func transcriptLayoutCheck(_ app: AppState, _ id: UUID, look: AppLook) {
-        let tag = look == .native ? "transcript (native)" : "transcript"
-        check("\(tag): one refined transcript on screen, built in this look (\(TranscriptView.onScreen.map(\.rawValue).sorted().joined(separator: ", ")))",
-              TranscriptView.onScreen == [look])
+    /// A transcript draws its layout (DESIGN.md §13), once: one transcript is on screen, its tabs start Original,
+    /// Cleaned, and Summary, its turns take the speaker rotation by who talks first, and its meta line says when and how
+    /// long without repeating the kind.
+    static func transcriptLayoutCheck(_ app: AppState, _ id: UUID) {
+        let tag = "transcript"
+        check("\(tag): one transcript on screen (\(TranscriptView.onScreen))", TranscriptView.onScreen == 1)
         guard let t = app.store.transcript(id) else { return }
         let tabs = TranscriptView.tabs(t, current: .original, templates: app.store.allTemplates).map(\.1)
         check("\(tag): its tabs start Original, Cleaned, and Summary (\(tabs.joined(separator: ", ")))", Array(tabs.prefix(3)) == ["Original", "Cleaned", "Summary"])
@@ -1244,21 +1024,6 @@ enum UITest {
         check("\(tag): the meta line says when and how long, and not the kind (\(meta))",
               meta.contains(RefinedRules.time(t.duration)) && !meta.contains(RecordingKind.refinedName(t.kind)))
         check("\(tag): the reading text starts at the serif's 18 pt", WindowNav.shared.textSize >= WindowNav.textSizes.min && WindowNav.textSizes.normal == 18)
-    }
-
-    /// Switches the look as the picker does, checks the card shows in the new look and goes, and logs the time from the
-    /// pick to the rebuilt window's first frame: `UITEST TIMING look-switch <ms> to=<look> screen=<screen>`.
-    private static func lookSwitch(to look: AppLook, on screen: String) async {
-        let before = LookSwitch.shared.cardsShown
-        let ms = await LookSwitch.shared.switchTo(look)
-        // Counted when the card is set, so a busy main thread on the CI machine can't make the check miss it.
-        let shown = LookSwitch.shared.cardsShown > before
-        try? await Task.sleep(nanoseconds: 300_000_000)   // the card's fade out
-        let ok = shown && AppLook.current == look && LookSwitch.shared.card == nil
-        if ok { pass += 1 } else { fail += 1 }
-        Log.note("UITEST \(ok ? "PASS" : "FAIL") look switch to \(look.rawValue) shows the card, then the look (card \(shown ? "shown" : "missing"))")
-        Log.note("UITEST TIMING look-switch \(Int(ms.rounded())) to=\(look.rawValue) screen=\(screen) rebuild=\(Int(LookSwitch.shared.lastRebuildMs.rounded()))")
-        Log.note("UITEST look-switch marks to=\(look.rawValue) \(LookSwitch.shared.lastMarks)")
     }
 
     /// What's new with the Mac's items first: a line's detail opened, then the "Also on iPhone and Apple Watch" row
@@ -1702,14 +1467,10 @@ enum UITest {
         check("settings search needs every word", SettingsIndex.search("sync iphone").map(\.id) == ["storage.icloud"] && SettingsIndex.search("sync icloud").map(\.id).contains("storage.icloud") && SettingsIndex.search("   ").isEmpty)
         check("every settings pane is searchable", SettingsTab.allCases.allSatisfy { t in SettingsIndex.all.contains { $0.section == t } })
         check("settings ids are unique", Set(SettingsIndex.all.map(\.id)).count == SettingsIndex.all.count)
-        // The Native look (LookRules.swift, NativeLook.swift).
-        check("native look: paper becomes the window background", NativeRoles.role(light: Ink.paperHex) == .window)
-        check("native look: brand persimmon keeps its color", NativeRoles.role(light: Ink.persimmonHex) == nil)
-        check("native look: buttons use title case", NativeText.titleCase("Don't ask for this app") == "Don't Ask for This App")
-        check("native look: Pick a look comes after the welcome", OnboardingStep.at(1) == .look && OnboardingStep.count == 6)
-        check("native look: Settings › General › Look is searchable", SettingsIndex.search("native").map(\.id).contains("general.look"))
-        // The run starts in Verbose style (above), so this checks Verbose keeps its tokens; nativeChecks() checks Native.
-        check("native look: Verbose style keeps its own tokens", !NativeSwap.on && NativeSwap.color(light: Ink.paperHex) == nil)
+        // The welcome tour's steps (OnboardingView.swift), and no Look setting (the look switch retired, DESIGN.md §13).
+        check("onboarding: the tour has five steps, permissions after the welcome", OnboardingStep.count == 5 && OnboardingStep.at(1) == .permissions)
+        check("settings: there's no Look setting, and Palette is searchable",
+              !SettingsIndex.all.contains { $0.id == "general.look" } && SettingsIndex.search("palette").map(\.id).contains("general.palette"))
         // What's new: the bundled notes, their rules, when Home's note shows, and where it's found (ReleaseNotes.swift).
         ReleaseNotes.selfTest(app: .mac) { check($0, $1) }
         check("release notes: Settings search finds What's new", SettingsIndex.search("release notes").map(\.section).contains(.whatsNew))
@@ -2122,10 +1883,9 @@ enum UITest {
     /// Screen-change timing for CI, never a pass or fail: from the navigation (the click that called `go`) to the new
     /// screen's root `onAppear`, and to the next turn of the main loop after it (the first frame committed). One line
     /// per change: `UITEST TIMING <screen> <ms> settled=<ms>`. Launch's first screen isn't a change and isn't logged, and
-    /// neither is the same screen appearing again for the same navigation: a look switch rebuilds the window, and its
-    /// screen used to be timed from the last click seconds before (build 213's 5,103 ms transcript and 1,391 ms Home in
-    /// `tour-native` were the switches, which `look-switch` already times), and Native's split view can make a screen
-    /// appear twice (two identical lines).
+    /// neither is the same screen appearing again for the same navigation: a window rebuild used to be timed from the
+    /// last click seconds before (build 213's 5,103 ms transcript and 1,391 ms Home), and the split view can make a
+    /// screen appear twice (two identical lines).
     private static var lastTimedNav = 0
     static func screenAppeared(_ key: String, nav: Int, since start: Date, window: NSWindow?) {
         guard enabled, nav > 0, nav != lastTimedNav else { return }
@@ -2134,7 +1894,7 @@ enum UITest {
         let appeared = Date().timeIntervalSince(start) * 1000
         DispatchQueue.main.async { [weak window] in
             let settled = Date().timeIntervalSince(start) * 1000
-            let marks = LookSwitch.endNavigationMarks()
+            let marks = NavMarks.end()
             Log.note("UITEST TIMING \(screen) \(Int(appeared.rounded())) settled=\(Int(settled.rounded()))")
             if !marks.isEmpty { Log.note("UITEST nav marks \(screen) \(marks) settled+\(Int(settled.rounded()))") }
             timings.append((appeared, settled))
@@ -2263,10 +2023,10 @@ enum UITest {
         func ev(_ type: NSEvent.EventType) -> NSEvent? {
             NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: t, windowNumber: window.windowNumber, context: nil, eventNumber: Int(t * 1000) % 100000, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1)
         }
-        // An AppKit control (an NSTableView like Native's sidebar, or an NSButton like the Native toolbar's Back) tracks
-        // the press in a loop of its own that waits for the mouse-up in the event queue. Sent straight after the down,
-        // the up never reached that loop, so the click blocked the main thread for good (build 209 stopped at the Native
-        // sidebar click; builds 210 to 212 at the toolbar's Back, so `tour-native` was never logged). Where a control is
+        // An AppKit control (an NSTableView like the sidebar, or an NSButton like the toolbar's Back) tracks the press in
+        // a loop of its own that waits for the mouse-up in the event queue. Sent straight after the down, the up never
+        // reached that loop, so the click blocked the main thread for good (build 209 stopped at a sidebar click; builds
+        // 210 to 212 at the toolbar's Back). Where a control is
         // found under the point the up is queued first; everywhere else both still go straight to the window. A hit test
         // doesn't always find what the window routes the down to (the toolbar's Back in build 212), so a timer in the
         // common modes, which the tracking loop runs, queues the up if the down is still tracking half a second later.
@@ -3041,14 +2801,13 @@ extension UITest {
     /// the big library's timings don't pay for a frame reader on every row.
     static var rowTargets = false
 
-    /// Back and the places screens come back to (App/NavTrail.swift), in one look: scroll the Library down, open a row,
+    /// Back and the places screens come back to (App/NavTrail.swift): scroll the Library down, open a row,
     /// and Back returns to the Library with the same row selected and in view, the same scroll offset (within a few
     /// points), and the same search and filter; ⌘[ and ⌘] with View › Back and Forward enabled as they should be; and
     /// Back from a transcript opened from Home returns to Home where it was. Forty seeded transcripts make the Library
     /// long enough to scroll; they and every remembered place are gone afterwards, so the tour's screens are unchanged.
-    static func backSteps(app: AppState, window: NSWindow, native: Bool) async {
-        let tag = native ? "back (native)" : "back"
-        let look: AppLook = native ? .native : .verbose
+    static func backSteps(app: AppState, window: NSWindow) async {
+        let tag = "back"
         var ids: [UUID] = []
         for i in 0..<40 {
             var t = Transcript(title: String(format: "Backtrail %02d", i), source: .voiceMemo, sourceLabel: "Voice memo",
@@ -3075,19 +2834,15 @@ extension UITest {
         try? await Task.sleep(nanoseconds: 1_200_000_000)
 
         // 1. Scroll the Library down, select a row near the middle, and open it.
-        let key = ScreenPlaces.scrollKey(ScreenPlaces.libraryKey(nil), look: look)
+        let key = ScreenPlaces.scrollKey(ScreenPlaces.libraryKey(nil))
         ScreenPlaces.shared.scrollLive(key, by: 600)
         try? await Task.sleep(nanoseconds: 800_000_000)
         let h = window.contentView?.bounds.height ?? 0
-        // Native's items carry both handles: the window's (exact, for clicks) and SwiftUI's frame (for "in view").
-        func rowFrame(_ id: UUID) -> CGRect? {
-            native ? (windowFrames["lib-row-\(id.uuidString)"]?() ?? frames["lib-row-\(id.uuidString)"]) : frames["lib-row-\(id.uuidString)"]
-        }
-        // The row nearest the window's lower middle, well inside the list. Native's scroll area
-        // is shorter than the window (419 of 692 pt in build 232), so its rows are picked from the upper part.
+        func rowFrame(_ id: UUID) -> CGRect? { frames["lib-row-\(id.uuidString)"] }
+        // The row nearest the window's lower middle, well inside the list.
         var picked: (id: UUID, distance: CGFloat)?
-        let aim = native ? h * 0.35 : h * 0.6
-        let bottom = native ? h * 0.55 : h - 60
+        let aim = h * 0.6
+        let bottom = h - 60
         for id in ids {
             guard let f = rowFrame(id), f.minY > 120, f.maxY < bottom else { continue }
             let d = abs(f.midY - aim)
@@ -3100,60 +2855,25 @@ extension UITest {
         }
         let target = "lib-row-\(row.uuidString)"
         let before = ScreenPlaces.shared.liveOffset(key) ?? scrolled
-        if native {
-            // Native's scrolled list: the self-test's click lookup can't reach a scrolled row's live frame on the CI
-            // runner (builds 223-225), while clicks on Native rows elsewhere pass. Click, and when the click doesn't land,
-            // select and open the row directly so the Back restore below is still tested. Logged, not gated.
-            await reveal(target, in: window)
-            click(target, in: window)
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            if WindowNav.shared.librarySelection != row {
-                Log.note("UITEST note: \(tag): the click on a scrolled Native row didn't land; selecting it directly")
-                WindowNav.shared.librarySelection = row
-                try? await Task.sleep(nanoseconds: 300_000_000)
-            }
-            click(target, in: window); click(target, in: window)
-            try? await Task.sleep(nanoseconds: 900_000_000)
-            if app.screen != .transcript(row) {
-                Log.note("UITEST note: \(tag): the double-click on a scrolled Native row didn't open it; opening it directly")
-                if app.screen != .library {
-                    // The click opened another row (build 232): come back first, so Back's trail is Library, then this row.
-                    Log.note("UITEST note: \(tag): the double-click opened \(String(describing: app.screen)); going back to the Library first")
-                    app.go(.library)
-                    try? await Task.sleep(nanoseconds: 900_000_000)
-                    WindowNav.shared.librarySelection = row
-                    try? await Task.sleep(nanoseconds: 300_000_000)
-                }
-                app.go(.transcript(row))
-                try? await Task.sleep(nanoseconds: 900_000_000)
-            }
-            check("\(tag): the selected row opens from the scrolled Library", app.screen == .transcript(row))
-        } else {
-            // A click selects and a double-click opens, in both looks (the one Library table, DESIGN.md §6.8).
-            await step("\(tag): double-clicking a row in the scrolled Library opens it", window, target: target, clicks: 2,
-                       check: { app.screen == .transcript(row) })
-        }
-        oneScreen("opening a transcript from the scrolled Library\(native ? " (native)" : "")", app: app)
+        // A click selects and a double-click opens (the Library table, DESIGN.md §6.8).
+        await step("\(tag): double-clicking a row in the scrolled Library opens it", window, target: target, clicks: 2,
+                   check: { app.screen == .transcript(row) })
+        oneScreen("opening a transcript from the scrolled Library", app: app)
 
         // 2. Back: the same row, offset, search, and filter. Frames come from the Library built by Back, not this one.
         frames = frames.filter { !$0.key.hasPrefix("lib-row-") }
         await step("\(tag): the toolbar's Back returns to the Library", window,
                    target: "tb-back", check: { app.screen == .library })
-        oneScreen("Back to the Library\(native ? " (native)" : "")", app: app)
+        oneScreen("Back to the Library", app: app)
         let after = ScreenPlaces.shared.liveOffset(key)
-        // Native's grouped List (build 232 on) restores within a section header's height: 615 for 600 in build 233.
-        let slack: CGFloat = native ? 24 : 4
+        let slack: CGFloat = 4
         check("\(tag): the Library comes back at the same scroll offset (\(Int(before)), now \(after.map { "\(Int($0))" } ?? "none"))",
               after.map { abs($0 - before) <= slack } ?? false)
-        let selected = ScreenPlaces.shared.selectedRow(nil) == row && (!native || WindowNav.shared.librarySelection == row)
-        // "In view" from SwiftUI's frame for both looks: Native's window handle can point at an off-screen copy.
+        let selected = ScreenPlaces.shared.selectedRow(nil) == row
         let back = frames["lib-row-\(row.uuidString)"] ?? rowFrame(row)
-        // Native's List doesn't always report a reused row's frame again; then the restored offset stands in for it.
-        let inView = back.map { $0.minY >= 0 && $0.maxY <= h }
-            ?? (native && after.map { abs($0 - before) <= slack } == true)
-        if back == nil && native { Log.note("UITEST note: \(tag): no frame for the row after Back; judged in view by the restored offset") }
+        let inView = back.map { $0.minY >= 0 && $0.maxY <= h } ?? false
         if !(selected && inView) {
-            Log.note("UITEST detail: \(tag): remembered row \(ScreenPlaces.shared.selectedRow(nil) == row), Native selection \(WindowNav.shared.librarySelection == row), frame \(back.map { "\(Int($0.minY))-\(Int($0.maxY))" } ?? "none") of \(Int(h))")
+            Log.note("UITEST detail: \(tag): remembered row \(ScreenPlaces.shared.selectedRow(nil) == row), window selection \(WindowNav.shared.librarySelection == row), frame \(back.map { "\(Int($0.minY))-\(Int($0.maxY))" } ?? "none") of \(Int(h))")
         }
         check("\(tag): the same row is selected and in view", selected && inView)
         check("\(tag): the same search and filter", app.search == "Backtrail" && app.libraryKind == .meeting && app.libraryFilter == .all && app.projectFilter == nil)
@@ -3176,21 +2896,15 @@ extension UITest {
         app.libraryKind = nil
         app.go(.home)
         try? await Task.sleep(nanoseconds: 1_000_000_000)
-        let homeKey = ScreenPlaces.scrollKey("home", look: look)
+        let homeKey = ScreenPlaces.scrollKey("home")
         ScreenPlaces.shared.scrollLive(homeKey, by: 80)
         try? await Task.sleep(nanoseconds: 400_000_000)
         await reveal("row-0", in: window)
         let homeBefore = ScreenPlaces.shared.liveOffset(homeKey)
-        if native {
-            // A Home item's click lands on its play pill or menu as often as its title; open it as its title does.
-            if let t = app.archive.first { app.go(.transcript(t.id)) }
-            try? await Task.sleep(nanoseconds: 900_000_000)
-        } else {
-            await step("\(tag): a row on Home opens its transcript", window, target: "row-0", check: { app.screen.transcriptID != nil })
-        }
+        await step("\(tag): a row on Home opens its transcript", window, target: "row-0", check: { app.screen.transcriptID != nil })
         await step("\(tag): Back from a transcript opened from Home returns to Home", window,
                    target: "tb-back", check: { app.screen == .home })
-        oneScreen("Back to Home\(native ? " (native)" : "")", app: app)
+        oneScreen("Back to Home", app: app)
         let homeAfter = ScreenPlaces.shared.liveOffset(homeKey)
         check("\(tag): Home comes back at the same scroll offset (\(homeBefore.map { "\(Int($0))" } ?? "none"), now \(homeAfter.map { "\(Int($0))" } ?? "none"))",
               homeBefore != nil && homeAfter.map { abs($0 - homeBefore!) <= 4 } == true)
@@ -3213,17 +2927,14 @@ extension UITest {
         memo.status = .ready
         memo.createdAt = Date()
         let meta = HomeRecentStyle.metaParts(memo, style: HomeRecentStyle(memo), compact: false, day: false).map(\.text)
-        check("\(name): Premium items leave the day out of the meta line (M-09: \(meta.joined(separator: " · ")))",
+        check("\(name): an item whose date line says the day leaves it out of the meta line (M-09: \(meta.joined(separator: " · ")))",
               !meta.contains("Today") && meta.contains("Voice note"))
         check("\(name): the app picker's error is plain words with a way to fix it (M-11)",
               !AppPickerSheet.permissionText.contains("TCC") && AppPickerSheet.permissionText.contains("Screen & System Audio Recording"))
         // Library
         var thought = ThoughtPadMigration.textThought("Buy the long wagon bolts.", at: Date(), source: "Mac")
         thought.status = .ready
-        var ideaMemo = memo; ideaMemo.kind = .idea
-        check("\(name): Thoughts' kind dot is neutral, voice notes keep Record (M-12)",
-              KindDot.isNeutral(thought) && KindDot.isNeutral(ideaMemo) && !KindDot.isNeutral(memo))
-        check("\(name): a text-only thought reads Text with no length (M-13)", WebStatus.isTextOnly(thought) && !WebStatus.isTextOnly(memo))
+        check("\(name): a text-only thought reads Text with no length (M-13)", RowStatus.isTextOnly(thought) && !RowStatus.isTextOnly(memo))
         check("\(name): one name for voice notes (M-14)", LibrarySource.voiceMemos.label == "Voice notes" && LibraryFilter.describe(memo) == "Voice note"
               && TranscriptView.sourceName(memo) == "Voice note")
         check("\(name): Journal's day headers use the Library's date order (M-15)", JournalDays.dateFormat == "EEE MMM d")
@@ -3328,8 +3039,6 @@ extension UITest {
               && LiveCaptionsView.waitingLine(.mic, open: true).hasPrefix("Listening to your mic."))
         check("review: Return pastes the selected recent dictation, as its pill says",
               Recall.keyAction(keyCode: 36, modifiers: [], queryEmpty: true) == .pasteSelected)
-        check("review: Native draws no glow: its window is the system's window background",
-              NativeRole.window.nsColor == NSColor.windowBackgroundColor)
         check("review: the on-device promise has one phrasing", TemplateCopy.onDevice("Mac") == "On this Mac with Apple Intelligence. Nothing leaves it.")
         check("review: saved actions draw brand glyphs", FlowAction.builtIn.allSatisfy { a in
             a.symbol == "sparkles" || a.symbol == "wand.and.stars" || a.art.strokes.count > 1 })

@@ -8,7 +8,7 @@ import AppKit
 // (decision 11, Dictation.swift). Plan my day runs on the note's paragraphs; each task links to its paragraph. The
 // note and its plan are the day's (`DayPlanRecord`, source note, in `plans.json`), so they sync, and a note the Brain
 // dump window kept is that day's page note as it is: nothing is copied, and an older build still opens it in its window.
-// Drawn with the refined kit (DESIGN.md §13) in both look settings.
+// Drawn with the refined kit (DESIGN.md §13).
 
 /// The page's note while it's on screen: where dictation inserts, and where a plan task's ¶ link lands.
 @MainActor
@@ -374,7 +374,7 @@ enum ThoughtsPlanWindow {
             .frame(minWidth: 360, minHeight: 360)
             .background(Refined.paper)
             .tint(Refined.accentText)
-            .environmentObject(app).limitMotionRoot().lookRoot()
+            .environmentObject(app).limitMotionRoot()
         if let w = window {
             (w.contentViewController as? NSHostingController<AnyView>)?.rootView = AnyView(root)
             w.makeKeyAndOrderFront(nil); return

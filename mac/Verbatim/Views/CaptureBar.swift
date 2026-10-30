@@ -65,7 +65,7 @@ enum EditRecordAsWindow {
     static func open() {
         NSApp.activate(ignoringOtherApps: true)
         if let w = window { w.makeKeyAndOrderFront(nil); return }
-        let host = NSHostingController(rootView: RecordAsEditor().limitMotionRoot().lookRoot())
+        let host = NSHostingController(rootView: RecordAsEditor().limitMotionRoot())
         host.sizingOptions = []
         let w = NSWindow(contentViewController: host)
         w.styleMask = [.titled, .closable]
@@ -176,14 +176,14 @@ struct ImportPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Import").font(.system(size: 14, weight: .bold))
             Button { done(); openFile() } label: { Label("Choose files or a folder…", art: .document, size: 15) }
-                .buttonStyle(.pillLine(large: true)).frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.bordered).controlSize(.large).frame(maxWidth: .infinity, alignment: .leading)
             Button { done(); app.chooseMultitrack() } label: { Label("Multi-track recording…", art: .iconMultitrack, size: 15) }
-                .buttonStyle(.pillLine(large: true)).frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.bordered).controlSize(.large).frame(maxWidth: .infinity, alignment: .leading)
                 .help("One audio file per mic, recorded at the same time. Each file becomes a speaker.")
             Text("Or paste a link").font(.system(size: 12)).foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 TextField("https://…", text: $link).textFieldStyle(.roundedBorder).focused($focused).onSubmit(submit)
-                Button("Fetch", action: submit).buttonStyle(.pillDark()).disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
+                Button("Fetch", action: submit).buttonStyle(.borderedProminent).disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             Toggle("Also keep the video (MP4)", isOn: $keepVideo).toggleStyle(.checkbox).font(.system(size: 12.5))
             Text(keepVideo ? "Saved to \(Keep.folder.lastPathComponent) in \(Keep.folder.deletingLastPathComponent().lastPathComponent), up to 1080p. Keep only what you have the right to save." : "YouTube, Vimeo, podcasts, and most video pages. Only the audio is downloaded.")
@@ -260,7 +260,7 @@ struct DictateControls: View {
                     }
                 }
             } else {
-                // The reason wraps (a popover sizes to one line otherwise and cuts it off), then one dark pill.
+                // The reason wraps (a popover sizes to one line otherwise and cuts it off), then one prominent button.
                 HStack(alignment: .top, spacing: 10) {
                     IconGlyph(art: .iconAccessibility, size: 20, color: Ink.danger)
                     VStack(alignment: .leading, spacing: 2) {
@@ -270,7 +270,7 @@ struct DictateControls: View {
                     }
                 }
                 Button("Open Accessibility settings") { app.dictation.requestAccessibility(); app.dictation.openAccessibilitySettings() }
-                    .buttonStyle(PillButtonStyle(kind: .dark, size: .mini))
+                    .buttonStyle(.borderedProminent).controlSize(.small)
                     .padding(.leading, 30)
             }
             if let last = app.dictation.lastResult, !last.isEmpty {

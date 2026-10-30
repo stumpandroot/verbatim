@@ -1,8 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// The Settings window in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", MacSettings), one layout in
-/// both look settings: a sidebar on the field color (the search field on top, then the panes of MacSettingsMap, each
+/// The Settings window (DESIGN.md §13; mockup "Verbose Refined Look", MacSettings): a sidebar on the field color (the search field on top, then the panes of MacSettingsMap, each
 /// with its colored icon square, the chosen one on the persimmon tint, and the version with What's new at the foot)
 /// beside the chosen pane on paper. Typing in search swaps the sidebar for the panes with matches and shows every
 /// matching setting; a result opens its pane and flashes the row. ⌘F focuses search; Esc clears it.
@@ -10,16 +9,12 @@ struct SettingsView: View {
     @AppStorage("settingsTab") private var tab: SettingsTab = .personalization
     @ObservedObject private var model = SettingsModel.shared
     @FocusState private var searchFocused: Bool
-    @Environment(\.look) private var look
     /// Whether the window is closed. SwiftUI keeps a closed Settings window's views (it orders the window out), and
     /// every pane that reads AppState re-rendered on each publish: every screen change in the main window (build 214:
-    /// 60 to 250 ms of a Verbose screen change, and a full pane rebuild at each look switch). Closed, the window holds
-    /// an empty view of the same size, so nothing in it observes anything; the panes are built again, in the current
-    /// look, when it comes back on screen. Not reading AppState here keeps this view out of those publishes too (the
+    /// 60 to 250 ms of a screen change). Closed, the window holds an empty view of the same size, so nothing in it
+    /// observes anything; the panes are built again when it comes back on screen. Not reading AppState here keeps this view out of those publishes too (the
     /// panes get it from the scene).
     @State private var closed = false
-    /// The look the panes were last built in, for the self-test.
-    private(set) static var lastBuilt: AppLook?
 
     /// The window closed, or is on screen again.
     private func windowChanged(_ note: Notification, closing: Bool) {
@@ -29,8 +24,8 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        if closed { SettingsModel.shared.closedRenders.root += 1 } else { Self.lastBuilt = look }
-        LookSwitch.mark(closed ? "settings-closed" : "settings")
+        if closed { SettingsModel.shared.closedRenders.root += 1 }
+        NavMarks.mark(closed ? "settings-closed" : "settings")
         return Group {
             if closed {
                 Color.clear
@@ -39,7 +34,6 @@ struct SettingsView: View {
                 window
             }
         }
-        .lookRebuild()
         .background(WindowReader { w in configure(w) })
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { windowChanged($0, closing: true) }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { windowChanged($0, closing: false) }
@@ -306,7 +300,7 @@ struct ThoughtsMenuSection: View {
     @AppStorage(Thoughts.bubbleKey) private var showBubble = Thoughts.bubbleDefault
 
     var body: some View {
-        let _ = LookSwitch.mark("menu-thoughts")
+        let _ = NavMarks.mark("menu-thoughts")
         let count = capture.app?.store.todaysThoughts().count ?? 0
         VStack(alignment: .leading, spacing: 2) {
             Text("Thoughts").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Ink.mute).padding(.horizontal, 8).padding(.bottom, 2)
@@ -369,7 +363,7 @@ struct MenuBarPanel: View {
     @EnvironmentObject var app: AppState
 
     var body: some View {
-        LookSwitch.mark("menubar")
+        NavMarks.mark("menubar")
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 BarsMark().frame(width: 16, height: 16)
@@ -379,7 +373,7 @@ struct MenuBarPanel: View {
             }
             ThoughtsMenuSection()
             if app.recorder.isRecording || app.capture.isCapturing {
-                // The refined recording card, compact (RecordingStatus.swift), in both looks.
+                // The refined recording card, compact (RecordingStatus.swift).
                 MenuBarRecordingRow()
             } else {
                 Button { NSApp.activate(ignoringOtherApps: true); app.requestRecord() } label: {

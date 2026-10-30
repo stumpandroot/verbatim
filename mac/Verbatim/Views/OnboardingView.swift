@@ -1,10 +1,9 @@
 import SwiftUI
 import AVFoundation
 
-/// The welcome tour on the Mac, on the refined kit (DESIGN.md §13) in both look settings: what Verbatim does, the look
-/// (Verbose style or Native; this step retires with the look switch), permissions, a first dictation, where the Ribbon
-/// lives, and transcription quality. Shown once after an update and whenever Settings asks for it. Steps are
-/// `OnboardingStep` (LookRules.swift). Choosing a look redraws the tour in it.
+/// The welcome tour on the Mac, on the refined kit (DESIGN.md §13): what Verbatim does, permissions, a first dictation,
+/// where the Ribbon lives, and transcription quality. Shown once after an update and whenever Settings asks for it.
+/// Steps are `OnboardingStep` (below).
 struct OnboardingView: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var flow = FlowSettings.shared
@@ -31,7 +30,6 @@ struct OnboardingView: View {
             Group {
                 switch current {
                 case .welcome: welcome
-                case .look: pickLook
                 case .permissions: permissions
                 case .tryIt: tryIt
                 case .placement: placement
@@ -47,8 +45,6 @@ struct OnboardingView: View {
         .frame(width: 640, height: 460)
         .background(Refined.paper)
         .animation(reduceMotion ? Motion.fade : Motion.settle, value: step)
-        // Choosing a look redraws the tour in it (the step stays).
-        .lookRebuild()
         .tint(Refined.accentText)
         .onAppear { refresh(); edge = currentEdge }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in refresh() }
@@ -78,20 +74,6 @@ struct OnboardingView: View {
             }
             .padding(.top, 22)
         }
-    }
-
-    /// "Pick a look": the two looks side by side; choosing one applies it at once, so the tour itself is the preview.
-    /// New installs start in Verbose style, so this opens with it chosen; Continue keeps whichever is chosen.
-    private var pickLook: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            title("Pick a look")
-            para("Both work the same. Choose the one you'd rather look at.")
-            LookPicker(thumbnail: 210)
-                .padding(.top, 24)
-            Text("You can change this anytime in Settings › Personalization and preferences.")
-                .refinedFont(.meta).foregroundStyle(Refined.mute).padding(.top, 20)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var permissions: some View {
@@ -345,4 +327,25 @@ struct OnboardingView: View {
         micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
         trusted = app.dictation.accessibilityTrusted
     }
+}
+
+/// The Mac welcome tour's steps, in order.
+enum OnboardingStep: Int, CaseIterable {
+    case welcome, permissions, tryIt, placement, quality
+
+    /// The header's label for the step.
+    var label: String {
+        switch self {
+        case .welcome: return "Welcome to Verbose"
+        case .permissions: return "Permissions"
+        case .tryIt: return "Try it"
+        case .placement: return "The Ribbon"
+        case .quality: return "Last step"
+        }
+    }
+
+    static var count: Int { allCases.count }
+
+    /// The step for an index, clamped to the tour (the self-test opens the tour on a given step).
+    static func at(_ index: Int) -> OnboardingStep { OnboardingStep(rawValue: max(0, min(count - 1, index))) ?? .welcome }
 }

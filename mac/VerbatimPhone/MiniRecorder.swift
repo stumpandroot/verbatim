@@ -208,7 +208,7 @@ struct MiniRecorderInset: ViewModifier {
     private var showsBar: Bool {
         !RecordPlacement.systemAccessory && app.readingTranscripts == 0
             && !HomeSpacing.hidesRecordAccessory(tab: tab, homeAtRoot: app.homePath.isEmpty, recording: app.recordingActive,
-                                                 layout: layouts.layout(look.homeLook))
+                                                 layout: layouts.layout)
     }
 
     func body(content: Content) -> some View {

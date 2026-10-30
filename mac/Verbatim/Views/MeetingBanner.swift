@@ -3,10 +3,10 @@ import AppKit
 
 // Meeting capture's floating surfaces (App/MeetingCoordinator.swift): the banner at the top right of the screen
 // with the pointer (a call prompt, the silent-remote warning, the sleep note, short notices) and the consent
-// sheet, on the refined kit (DESIGN.md §6.10, §13) in both look settings: the opaque card with a hairline (they float
+// sheet, on the refined kit (DESIGN.md §6.10, §13): the opaque card with a hairline (they float
 // over other apps), the kit's ink and secondary text, and its quiet and strong actions; never text on glass. The
 // buttons are direct gestures on a flat layer in a panel that takes the first click (`acceptsFirstMouse`), because
-// SwiftUI Buttons lose clicks in non-activating panels on macOS 26 (see TapArea and CardButton in Theme.swift).
+// SwiftUI Buttons lose clicks in non-activating panels on macOS 26 (see TapArea in Controls.swift).
 
 // MARK: - Panel
 

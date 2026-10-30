@@ -397,7 +397,7 @@ private struct RibbonFrameKey: PreferenceKey {
 
 /// A hit-safe control for the Ribbon's cards (the prompt's X and answers, a notice's action). A direct gesture on
 /// a flat hit area, not a SwiftUI Button: on macOS 26 Buttons inside this non-activating panel lost clicks, the
-/// same failure `CardButton` and `TapArea` work around in the main window. It fires on release inside the control
+/// same failure `TapArea` works around in the main window. It fires on release inside the control
 /// (with a small margin), at high priority so the Ribbon's own drag-or-click never takes it. VoiceOver gets a
 /// button with the label and a press action.
 struct RibbonControl<Label: View>: View {

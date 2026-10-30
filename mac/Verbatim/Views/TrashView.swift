@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Recently Deleted on the refined kit (DESIGN.md §13) in both look settings: the large serif title with the count,
+// Recently Deleted on the refined kit (DESIGN.md §13): the large serif title with the count,
 // Restore all and Empty, then each transcript in a card with its kind's dot, when it was deleted and the days left,
 // Restore, and Delete now. The empty screen is the kit's empty state.
 

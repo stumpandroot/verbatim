@@ -6,7 +6,7 @@ import AppKit
 // result's sections, and the footer that says Apple Intelligence made it. While Run automatically's run waits or works,
 // a line says so; when the kind changed after it ran, "Now a Journal. Run Daily reflection?" offers the new kind's
 // template and never runs it on its own (the transcript shows that offer under its header). The transcript's result
-// tab, in both look settings.
+// tab.
 
 struct TemplateResultsSection: View {
     @EnvironmentObject var app: AppState

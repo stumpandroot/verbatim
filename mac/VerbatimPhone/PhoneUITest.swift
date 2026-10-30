@@ -1618,7 +1618,7 @@ enum PhoneUITest {
     /// when the look's layout shows it.
     private static func homeLayoutCheck(_ look: AppLook) {
         let shown = HomeScreen.recordCardsOnScreen
-        let record = HomeLayoutStore.shared.layout(look.homeLook).isVisible(.record) == (HomeProbe.sections[.record] != nil)
+        let record = HomeLayoutStore.shared.layout.isVisible(.record) == (HomeProbe.sections[.record] != nil)
         lookCheck("Home in \(look == .native ? "Native" : "Verbose style") draws the refined Home, once (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))",
                   shown == [look] && record)
     }
@@ -1667,23 +1667,21 @@ enum PhoneUITest {
     private static func editHomeTour(_ app: PhoneState, look: AppLook, suffix: String) async {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") edit home\(suffix): \(name)") }
         let store = HomeLayoutStore.shared
-        let hl = look.homeLook
-        let other: HomeLook = hl == .native ? .verbose : .native
         app.appearance = "light"
         app.homePath = NavigationPath()
         app.tab = .home
-        store.reset(hl)
+        store.reset()
         try? await Task.sleep(nanoseconds: 700_000_000)
         NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-top")
         NotificationCenter.default.post(name: .verbatimEditHome, object: true)
         await show("p13a-edit-home\(suffix)")
         check("Edit Home opens from Home", EditHomeView.visible)
-        let before = store.layout(hl)
-        store.update(hl) { $0.setVisible(.week, false) }
-        let order = store.layout(hl).shown.map(\.section)
-        store.update(hl) { $0.moveShown(fromOffsets: IndexSet(integer: 0), toOffset: 2) }
+        let before = store.layout
+        store.update { $0.setVisible(.week, false) }
+        let order = store.layout.shown.map(\.section)
+        store.update { $0.moveShown(fromOffsets: IndexSet(integer: 0), toOffset: 2) }
         let tileSize: HomeCardSize = before.size(.tiles) == .large ? .compact : .large
-        store.update(hl) { $0.setSize(.tiles, tileSize) }
+        store.update { $0.setSize(.tiles, tileSize) }
         await show("p13b-edit-home-edited\(suffix)")
         NotificationCenter.default.post(name: .verbatimHomeTilePicker, object: true)
         await show("p13c-edit-home-tiles\(suffix)")
@@ -1691,11 +1689,11 @@ enum PhoneUITest {
         NotificationCenter.default.post(name: .verbatimHomeTilePicker, object: false)
         try? await Task.sleep(nanoseconds: 800_000_000)
         let dropped = before.tiles[HomeLayout.tileCount - 1]
-        store.update(hl) { l in l.tiles = HomeLayout.toggle(.dictionary, in: HomeLayout.toggle(dropped, in: l.tiles)) }
+        store.update { l in l.tiles = HomeLayout.toggle(.dictionary, in: HomeLayout.toggle(dropped, in: l.tiles)) }
         NotificationCenter.default.post(name: .verbatimEditHome, object: false)
         try? await Task.sleep(nanoseconds: 900_000_000)
         await show("p13d-home-edited\(suffix)")
-        let after = store.layout(hl)
+        let after = store.layout
         let onScreen = HomeProbe.sections
         check("Edit Home closes with Done", !EditHomeView.visible)
         check("a hidden section leaves Home (This week)", !after.isVisible(.week) && onScreen[.week] == nil)
@@ -1704,11 +1702,10 @@ enum PhoneUITest {
               Set(onScreen.keys) == Set(HomeSpacing.drawn(after).map(\.section)))
         check("a size change reaches Home (tiles \(tileSize.rawValue))", onScreen[.tiles] == tileSize)
         check("a new tile reaches Home (Dictionary for \(dropped.title))", HomeProbe.tiles.contains(.dictionary) && !HomeProbe.tiles.contains(dropped))
-        check("the other look keeps its own layout", store.layout(other) == HomeLayout.defaults(.phone, other))
-        store.reset(hl)
+        store.reset()
         try? await Task.sleep(nanoseconds: 1_200_000_000)
-        check("Reset puts Home back", store.layout(hl) == HomeLayout.defaults(.phone, hl)
-              && Set(HomeProbe.sections.keys) == Set(HomeSpacing.drawn(store.layout(hl)).map(\.section)))
+        check("Reset puts Home back", store.layout == HomeLayout.defaults(.phone)
+              && Set(HomeProbe.sections.keys) == Set(HomeSpacing.drawn(store.layout).map(\.section)))
         // The same screen from Settings › Personalization › Customize Home (SettingsPages.swift).
         app.tab = .settings
         SettingsPage.open("customizeHome")
@@ -1720,11 +1717,11 @@ enum PhoneUITest {
         try? await Task.sleep(nanoseconds: 600_000_000)
         if RecordPlacement.systemAccessory {
             // With the Record card hidden, Record's accessory comes back on Home (both looks, DESIGN.md §16).
-            store.update(hl) { $0.setVisible(.record, false) }
+            store.update { $0.setVisible(.record, false) }
             try? await Task.sleep(nanoseconds: 900_000_000)
             check("Record comes back in the tab bar's accessory on Home while the Record card is hidden",
                   RecordAccessory.onScreen > 0 && HomeProbe.sections[.record] == nil)
-            store.reset(hl)
+            store.reset()
             try? await Task.sleep(nanoseconds: 700_000_000)
         }
     }
@@ -1849,13 +1846,12 @@ enum PhoneUITest {
     private static func homeThoughtsTour(_ app: PhoneState, look: AppLook, suffix: String) async {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") home thoughts\(suffix): \(name)") }
         let store = HomeLayoutStore.shared
-        let hl = look.homeLook
         app.appearance = "light"
         app.homePath = NavigationPath()
         app.tab = .home
-        store.reset(hl)
-        check("Today's thoughts and Journal start hidden", !store.layout(hl).isVisible(.thoughts) && !store.layout(hl).isVisible(.journal))
-        store.update(hl) { l in
+        store.reset()
+        check("Today's thoughts and Journal start hidden", !store.layout.isVisible(.thoughts) && !store.layout.isVisible(.journal))
+        store.update { l in
             l.setVisible(.thoughts, true)
             l.setVisible(.journal, true)
             l.tiles = [.newThought, .journal, .dictate, .importMedia]
@@ -1878,7 +1874,7 @@ enum PhoneUITest {
         check("Today's thoughts on Home counts it", HomeThoughtsSection.shownCount == before + 1)
         HomeTileAction.startThought = keep
         app.lastThought = nil
-        store.update(hl) { l in l.setSize(.thoughts, .compact); l.setSize(.journal, .compact) }
+        store.update { l in l.setSize(.thoughts, .compact); l.setSize(.journal, .compact) }
         try? await Task.sleep(nanoseconds: 700_000_000)
         NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-thoughts")
         await show("p15b-home-thoughts-journal-compact\(suffix)")
@@ -1888,7 +1884,7 @@ enum PhoneUITest {
         check("the Journal tile opens Journal By day", ByDayScreen.shown?.kind == .journal && app.tab == app.tabBar.host(for: .journal))
         app.setPath(app.tab, NavigationPath())
         app.tab = .home
-        store.reset(hl)
+        store.reset()
         try? await Task.sleep(nanoseconds: 700_000_000)
     }
 
@@ -2086,8 +2082,7 @@ enum PhoneUITest {
         check("moments become bookmarks; unnamed ones take their line's words once transcribed", notes.map(\.text) == ["", "The price"] && notes.allSatisfy(\.isBookmark)
               && notes.allSatisfy { $0.markSource == MarkSource.phoneApp.rawValue })
         check("moments added to a transcript start after it", notes.map { $0.at ?? -1 } == [642, 718])
-        check("the Record card is on Home by default in both looks", HomeLayout.defaults(.phone, .native).isVisible(.record)
-              && HomeLayout.defaults(.phone, .verbose).isVisible(.record))
+        check("the Record card is on Home by default", HomeLayout.defaults(.phone).isVisible(.record))
         // The Native redesign (October 27, 2026): system blue for what you tap, system red only for recording, system
         // backgrounds, and no persimmon in the chrome.
         check("Native's accent is system blue", sameColor(NativeInk.accent, .systemBlue))

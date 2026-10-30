@@ -160,15 +160,37 @@ extension PaperGroup where Trailing == EmptyView {
 
 // MARK: - Status and checks
 
-/// A status word at the end of a row ("Answered", "Ready", "Needs retry"): plain text, never a capsule. Accent for
-/// what's done or chosen, `mute` for the rest; the word carries the meaning.
+/// What a status word says by its color: `quiet` in `mute`, `accent` for what's done or chosen, `kept` in sage for
+/// something running or kept (Watching, Allowed), and `danger` for what needs you (Needed).
+enum RefinedStatusTone { case quiet, accent, kept, danger }
+
+/// A status word at the end of a row ("Answered", "Ready", "Needs retry"): plain text, never a capsule, with a check in
+/// front when `check` is on. The word carries the meaning; the color only repeats it.
 struct RefinedStatus: View {
     var text: String
-    var accent = false
+    var tone: RefinedStatusTone = .quiet
+    var check = false
+
+    init(text: String, accent: Bool = false) { self.text = text; tone = accent ? .accent : .quiet }
+    init(text: String, tone: RefinedStatusTone, check: Bool = false) { self.text = text; self.tone = tone; self.check = check }
+
     var body: some View {
-        Text(text).refinedFont(.meta, weight: accent ? .semibold : .regular)
-            .foregroundStyle(accent ? Refined.accentText : Refined.mute)
-            .lineLimit(1)
+        HStack(spacing: 4) {
+            if check { Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).accessibilityHidden(true) }
+            Text(text)
+        }
+        .refinedFont(.meta, weight: tone == .quiet ? .regular : .semibold)
+        .foregroundStyle(color)
+        .lineLimit(1).fixedSize()
+    }
+
+    private var color: Color {
+        switch tone {
+        case .quiet: return Refined.mute
+        case .accent: return Refined.accentText
+        case .kept: return Refined.sageText
+        case .danger: return Refined.danger
+        }
     }
 }
 

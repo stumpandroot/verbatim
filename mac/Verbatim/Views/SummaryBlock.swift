@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A transcript's Summary tab in the refined look (DESIGN.md §13), on the Mac and iPhone, in both look settings: the
+/// A transcript's Summary tab in the refined look (DESIGN.md §13), on the Mac and iPhone: the
 /// overview in the serif reading text, the key points, Apple Intelligence's note, and Edit and Regenerate as accent
 /// links. Edit makes it the person's own (automatic summaries never replace it then); Regenerate asks before replacing
 /// an edited one. With no summary yet it offers Summarize, or says why Apple Intelligence can't write one here.

@@ -33,7 +33,7 @@ struct HomeScreen: View {
     static var recordCardsOnScreen = Set<AppLook>()
 
     var body: some View {
-        let layout = layouts.layout(look.homeLook)
+        let layout = layouts.layout
         let drawn = HomeSpacing.drawn(layout)
         return scroller {
             VStack(alignment: .leading, spacing: 0) {
@@ -242,7 +242,7 @@ struct HomeScreen: View {
         let items = Array(Self.recentRecordings(app.store).prefix(3))
         let large = size == .large
         return VStack(alignment: .leading, spacing: 6) {
-            SerifSectionTitle("Recent", link: "See all") { app.go(.library) }
+            SectionTitle("Recent", link: "See all") { app.go(.library) }
             if items.isEmpty {
                 PaperCard {
                     VStack(alignment: .leading, spacing: 3) {

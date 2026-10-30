@@ -136,7 +136,7 @@ struct YouScreen: View {
         let saved = HomeWeek.savedText(week.secondsSaved(typingWPM: flow.typingWPM))
         let pace = Self.pace(words: week.words, seconds: week.seconds)
         return VStack(alignment: .leading, spacing: 10) {
-            SerifSectionTitle(title: "Your week") {
+            SectionTitle(title: "Your week") {
                 Text(Self.rangeLabel(week)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1)
             }
             WeekCard(words: week.words, detail: week.words == 1 ? "word dictated" : "words dictated", saved: "\(saved) saved", days: week.cardDays)
@@ -201,7 +201,7 @@ struct YouScreen: View {
     /// editor (300 characters, with its counter).
     private var aboutSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SerifSectionTitle("About me", link: aboutMe.isEmpty ? "Add" : "Edit") { commitName(); editingAbout = true }
+            SectionTitle("About me", link: aboutMe.isEmpty ? "Add" : "Edit") { commitName(); editingAbout = true }
             Button { commitName(); editingAbout = true } label: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(aboutMe.isEmpty ? Self.aboutPlaceholder : aboutMe)
@@ -234,7 +234,7 @@ struct YouScreen: View {
     private var voiceSection: some View {
         let known = voice.isEnrolled || voice.isPartial
         return VStack(alignment: .leading, spacing: 10) {
-            SerifSectionTitle("Your voice")
+            SectionTitle("Your voice")
             PaperCard {
                 Button { commitName(); showVoice = true } label: {
                     SettingsRow(hue: RefinedRules.settingsHue(2), art: .iconVoice, title: known ? "Read more passages" : "Set up your voice",
@@ -253,7 +253,7 @@ struct YouScreen: View {
     /// The cleanup level (the same setting as Settings › Cleanup), what it does, and a link to Cloud cleanup.
     private var cleanupSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SerifSectionTitle("Cleanup")
+            SectionTitle("Cleanup")
             PaperCard {
                 VStack(alignment: .leading, spacing: 10) {
                     RefinedSegmented(label: "Cleanup level", options: CleanupLevel.allCases.map { ($0, $0.title) }, selection: $flow.cleanup)

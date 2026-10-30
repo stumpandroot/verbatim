@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 // The main window's sidebar in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", the sidebar on every
-// Mac board), one design in both look settings: the paper-gray `side` column of the window's split view, SF Pro rows
+// Mac board): the paper-gray `side` column of the window's split view, SF Pro rows
 // with each place's fine-line glyph in the accent, counts in `mute`, sentence-case group headers (By day, Make,
 // Projects), and the selected row on the persimmon tint in semibold. Settings sits at the foot. The order, hiding,
 // and Customize sidebar work as before (SidebarLayout.swift); Queue shows only while something works; transcripts
@@ -21,7 +21,7 @@ struct MacSidebar: View {
     @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
-        LookSwitch.mark("sidebar")
+        NavMarks.mark("sidebar")
         // Every count in one pass over the library, once per library change (Store+Memo.swift).
         let counts = app.store.counts
         return VStack(alignment: .leading, spacing: 0) {
@@ -265,7 +265,7 @@ extension SidebarHeader where Trailing == EmptyView {
 
 /// A sidebar row (mockup): the place's glyph in the accent, its name, and a count in `mute` (or a spinner while the
 /// Queue works). Selected, the persimmon tint behind it and the name in semibold; under the pointer, the quiet wash.
-/// Clicks use `tapArea`, which stays reliable on macOS 26 under the row's drag and drop (Theme.swift).
+/// Clicks use `tapArea`, which stays reliable on macOS 26 under the row's drag and drop (Controls.swift).
 struct SidebarRow: View {
     var title: String
     var art: BrandArt
@@ -314,16 +314,6 @@ enum SideBadge {
 struct QueueItemAnchor: PreferenceKey {
     static var defaultValue: Anchor<CGRect>? = nil
     static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
-}
-
-/// The Settings window's sidebar surface until it moves to the refined look (step 5 of the look's move): Verbose
-/// style's paper, flush to the window edges, divided from the content by one hairline.
-struct SidebarPaper: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .background(Ink.paper.ignoresSafeArea())
-            .overlay(alignment: .trailing) { Rectangle().fill(Ink.hairline).frame(width: 1).ignoresSafeArea() }
-    }
 }
 
 #if DEBUG

@@ -37,7 +37,7 @@ struct PhoneAddFromLibrarySheet: View {
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     }
                     ForEach(Self.days(shown), id: \.day) { group in
-                        SerifSectionTitle(PhoneDayHeader.label(group.day))
+                        SectionTitle(PhoneDayHeader.label(group.day))
                             .padding(.top, 18).padding(.bottom, 8)
                             .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)

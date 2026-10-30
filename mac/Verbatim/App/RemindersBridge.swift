@@ -149,7 +149,7 @@ final class MockReminders: ReminderService {
     }
 }
 
-/// The Send to Reminders sheet's state (iPhone and Mac, both looks): the list, what's checked, and the send.
+/// The Send to Reminders sheet's state (iPhone and Mac): the list, what's checked, and the send.
 @MainActor
 final class SendToReminders: ObservableObject {
     let plan: DayPlan

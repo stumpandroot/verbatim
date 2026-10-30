@@ -12,7 +12,6 @@ struct EditHomeView: View {
     /// Done, when presented as a sheet. Nil when pushed from Settings.
     var onDone: (() -> Void)? = nil
     @ObservedObject private var store = HomeLayoutStore.shared
-    @Environment(\.look) private var look
     @Environment(\.limitMotion) private var limitMotion
     @State private var pickingTiles = false
     /// Tab bar…: the tab bar picker (TabBarSettings.swift), as a sheet over Edit Home.
@@ -23,12 +22,9 @@ struct EditHomeView: View {
 
     init(onDone: (() -> Void)? = nil) { self.onDone = onDone }
 
-    /// Layouts are still kept per look setting (HomeLayout.swift); the editor itself is one design.
-    private var hl: HomeLook { look.homeLook }
-
     var body: some View {
-        let layout = store.layout(hl)
-        // Home is the refined one in both looks, so every section is offered in both, the Record card included.
+        let layout = store.layout
+        // Every section is offered, the Record card included.
         let hidden = layout.hidden
         List {
             Section {
@@ -43,7 +39,7 @@ struct EditHomeView: View {
                 ForEach(Array(layout.shown.enumerated()), id: \.element.section) { i, item in
                     row(item, layout: layout, first: i == 0, last: i == layout.shown.count - 1)
                 }
-                .onMove { from, to in store.update(hl) { $0.moveShown(fromOffsets: from, toOffset: to) } }
+                .onMove { from, to in store.update { $0.moveShown(fromOffsets: from, toOffset: to) } }
             }
             .listSectionSeparator(.hidden)
             if !hidden.isEmpty {
@@ -65,13 +61,13 @@ struct EditHomeView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
         .confirmationDialog("Put Home back the way it started?", isPresented: $confirmReset, titleVisibility: .visible) {
-            Button("Reset Home", role: .destructive) { animate { store.reset(hl) } }
+            Button("Reset Home", role: .destructive) { animate { store.reset() } }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Every section and tile goes back to how Home began.")
         }
         .sheet(isPresented: $pickingTiles) {
-            NavigationStack { HomeTilePicker(look: hl) }
+            NavigationStack { HomeTilePicker() }
                 .environmentObject(app)
         }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimHomeTilePicker)) { note in
@@ -176,7 +172,7 @@ struct EditHomeView: View {
                     .accessibilityHint("Pick the four tiles and their order.")
             }
         } else {
-            Text(item.section.detail(on: .phone, look: hl)).refinedFont(.meta).foregroundStyle(Refined.mute)
+            Text(item.section.detail(on: .phone)).refinedFont(.meta).foregroundStyle(Refined.mute)
                 .lineLimit(2).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -192,7 +188,7 @@ struct EditHomeView: View {
         Menu {
             ForEach(HomeCardSize.allCases, id: \.self) { size in
                 Button {
-                    store.update(hl) { $0.setSize(item.section, size) }
+                    store.update { $0.setSize(item.section, size) }
                 } label: {
                     if size == item.size { Label(size.title, systemImage: "checkmark") } else { Text(size.title) }   // brand: system surface (menu)
                 }
@@ -217,7 +213,7 @@ struct EditHomeView: View {
 
     private func visibility(_ item: HomeLayout.Item) -> some View {
         Button {
-            animate { store.update(hl) { $0.setVisible(item.section, !item.visible) } }
+            animate { store.update { $0.setVisible(item.section, !item.visible) } }
         } label: {
             RefinedCheckbox(on: item.visible, size: 22)
                 .frame(width: 44, height: 44)
@@ -234,15 +230,13 @@ struct EditHomeView: View {
 /// iPhone offers. Tap a tile to pick it into the next slot, or a picked one to take it off. Done saves four. Picked
 /// tiles take the colors Home gives them (`HomeTile.refinedHues`).
 struct HomeTilePicker: View {
-    let homeLook: HomeLook
     @Environment(\.dismiss) private var dismiss
     @State private var picks: [HomeTile]
     /// Whether the picker is on screen, for the self-test.
     static var visible = false
 
-    init(look: HomeLook) {
-        homeLook = look
-        _picks = State(initialValue: HomeLayoutStore.shared.layout(look).tiles)
+    init() {
+        _picks = State(initialValue: HomeLayoutStore.shared.layout.tiles)
     }
 
     var body: some View {
@@ -272,7 +266,7 @@ struct HomeTilePicker: View {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {
-                    HomeLayoutStore.shared.update(homeLook) { $0.tiles = picks }
+                    HomeLayoutStore.shared.update { $0.tiles = picks }
                     dismiss()
                 }
                 .fontWeight(.semibold)

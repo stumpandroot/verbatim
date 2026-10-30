@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-// Dictations on the refined kit (DESIGN.md §13) in both look settings: the large serif title with the count and the
+// Dictations on the refined kit (DESIGN.md §13): the large serif title with the count and the
 // retention menu, category chips, serif day titles over cards of rows that copy when clicked.
 
 /// Every dictation, newest first, grouped by day: what you said, what was pasted, and where.
@@ -63,7 +63,7 @@ struct DictationsView: View {
                     LazyVStack(alignment: .leading, spacing: 16) {
                         ForEach(Self.days(shown), id: \.0) { day, items in
                             VStack(alignment: .leading, spacing: 8) {
-                                SerifSectionTitle(day)
+                                SectionTitle(day)
                                 VStack(spacing: 0) {
                                     ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
                                         if i > 0 { PaperDivider(leading: 16, trailing: 16) }

@@ -2,8 +2,8 @@ import SwiftUI
 import AppKit
 import AVFoundation
 
-// Ask your library on the Mac (mockup "Library features", section 2a and 2c), on the refined kit (DESIGN.md §13) in
-// both look settings: the ⌘K panel, "Search or ask", with a Search and Ask switch, scope chips, the answer with
+// Ask your library on the Mac (mockup "Library features", section 2a and 2c), on the refined kit (DESIGN.md §13):
+// the ⌘K panel, "Search or ask", with a Search and Ask switch, scope chips, the answer with
 // numbered citation chips, Copy, and Save as recipe; and Make › Ask, with Questions (ask here, and recent questions)
 // and Recipes (saved questions, run now or weekly, and their digests). The toolbar's search field is the window's one
 // search field; Return there asks. Search keeps the Library's search: it filters the Library and lists matching
@@ -546,7 +546,7 @@ struct AskView: View {
     @AppStorage(RecipesSetting.key) private var showRecipes = false
 
     var body: some View {
-        LookSwitch.mark("ask")
+        NavMarks.mark("ask")
         let recipes = RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty)
         let pane: AskPane = recipes ? nav.pane : .questions
         return ScrollView {

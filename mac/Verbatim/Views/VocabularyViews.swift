@@ -183,7 +183,7 @@ struct BuiltInVocabularySection: View {
         let off = BuiltInVocabulary.disabled(disabledRaw)
         let active = all.filter { !off.contains($0.id) }.count
         VStack(alignment: .leading, spacing: 8) {
-            SerifSectionTitle("Built-in vocabulary")
+            SectionTitle("Built-in vocabulary")
             VStack(spacing: 0) {
                 HStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 3) {

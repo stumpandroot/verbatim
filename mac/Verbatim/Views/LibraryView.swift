@@ -1,8 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// The Library in the refined look (DESIGN.md §6.8 and §13; mockup "Verbose Refined Look", MacLibrary), one layout in
-/// both look settings: the serif title with the count, the quick filter chips (All, Voice notes, Meetings, Thoughts,
+/// The Library (DESIGN.md §6.8 and §13; mockup "Verbose Refined Look", MacLibrary): the serif title with the count, the quick filter chips (All, Voice notes, Meetings, Thoughts,
 /// Audio, Links, Marked) with the sort ("Newest first") at the end, and every recording as a table in a card: Name,
 /// Kind (its colored chip), People or source, Date, and Length, with alternating rows and the selected row in the
 /// persimmon tint. Every column sorts. A click selects (⌘-click adds, Shift-click a range), a double-click or Return
@@ -12,11 +11,10 @@ import AppKit
 /// (App/NavTrail.swift). A lazy table: a library of hundreds builds only the rows on screen.
 struct LibraryView: View {
     @EnvironmentObject var app: AppState
-    @Environment(\.look) private var look
     /// Newest, Oldest, Longest, or Title A–Z, remembered on this Mac; the table writes it when its sort is one of them.
     @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
     /// The table's sort: one column and its direction, started from the Library's sort.
-    @State private var column: NativeTableSort
+    @State private var column: LibraryTableSort
     @State private var descending: Bool
     /// The selected recordings, kept across screens (ScreenPlaces).
     @State private var selection: Set<UUID> = ScreenPlaces.shared.tableSelection
@@ -24,21 +22,21 @@ struct LibraryView: View {
     @State private var anchor: UUID? = nil
     @FocusState private var focused: Bool
 
-    /// The looks the Library is on screen in, and its rows' order (the self-test).
-    static var onScreen = Set<AppLook>()
+    /// How many Libraries are on screen, and their rows' order (the self-test).
+    static var onScreen = 0
     static var shownOrder: [UUID] = []
 
     private static let margin: CGFloat = 40
     private static let maxContent: CGFloat = 1100
 
     init() {
-        let (c, d) = NativeTableSort.column(forLibrarySort: UserDefaults.standard.string(forKey: LibrarySort.key) ?? LibrarySort.newest.rawValue)
+        let (c, d) = LibraryTableSort.column(forLibrarySort: UserDefaults.standard.string(forKey: LibrarySort.key) ?? LibrarySort.newest.rawValue)
         _column = State(initialValue: c)
         _descending = State(initialValue: d)
     }
 
     var body: some View {
-        let _ = LookSwitch.mark("library")
+        let _ = NavMarks.mark("library")
         let lists = app.libraryLists(kind: app.libraryKind)
         let rows = ordered(lists.list)
         let order = rows.map(\.id)
@@ -55,7 +53,7 @@ struct LibraryView: View {
                             .padding(.bottom, selection.count > 1 ? 90 : 40)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             // Back and the sidebar bring the Library back where you left it (App/NavTrail.swift).
-                            .scrollPlace(ScreenPlaces.scrollKey(ScreenPlaces.libraryKey(app.projectFilter), look: look))
+                            .scrollPlace(ScreenPlaces.scrollKey(ScreenPlaces.libraryKey(app.projectFilter)))
                             .navMarkWhenLaidOut("library-laid-out")
                     }
                     .softScrollEdges(.top)
@@ -91,15 +89,15 @@ struct LibraryView: View {
             if s.count == 1, let id = s.first, WindowNav.shared.librarySelection != id { WindowNav.shared.librarySelection = id }
         }
         .onAppear {
-            LookSwitch.mark("library-appear")
+            NavMarks.mark("library-appear")
             KeptMedia.shared.refresh()
-            Self.onScreen.insert(look)
+            Self.onScreen += 1
             // Back and the sidebar bring the selection back with the Library.
             if let s = WindowNav.shared.librarySelection ?? ScreenPlaces.shared.selectedRow(app.projectFilter), !selection.contains(s) {
                 selection = [s]; anchor = s
             }
         }
-        .onDisappear { Self.onScreen.remove(look) }
+        .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
     }
 
     // MARK: Page
@@ -246,17 +244,17 @@ struct LibraryView: View {
     }
 
     /// The sorts the menu offers, in its order.
-    static let sortChoices: [(title: String, column: NativeTableSort, descending: Bool)] = [
-        (NativeTableSort.date.title(descending: true), .date, true), (NativeTableSort.date.title(descending: false), .date, false),
-        (NativeTableSort.length.title(descending: true), .length, true), (NativeTableSort.length.title(descending: false), .length, false),
-        (NativeTableSort.name.title(descending: false), .name, false), (NativeTableSort.kind.title(descending: false), .kind, false),
-        (NativeTableSort.people.title(descending: false), .people, false),
+    static let sortChoices: [(title: String, column: LibraryTableSort, descending: Bool)] = [
+        (LibraryTableSort.date.title(descending: true), .date, true), (LibraryTableSort.date.title(descending: false), .date, false),
+        (LibraryTableSort.length.title(descending: true), .length, true), (LibraryTableSort.length.title(descending: false), .length, false),
+        (LibraryTableSort.name.title(descending: false), .name, false), (LibraryTableSort.kind.title(descending: false), .kind, false),
+        (LibraryTableSort.people.title(descending: false), .people, false),
     ]
 
-    private func setSort(_ c: NativeTableSort, descending d: Bool) {
+    private func setSort(_ c: LibraryTableSort, descending d: Bool) {
         column = c; descending = d
         // A sort the Library's other places share writes the Library's sort.
-        if let raw = NativeTableSort.librarySort(c, descending: d), raw != sortRaw { sortRaw = raw }
+        if let raw = LibraryTableSort.librarySort(c, descending: d), raw != sortRaw { sortRaw = raw }
     }
 
     /// ⌥⌘1 to ⌥⌘8 choose a type (All is 1), as the type chips' shortcuts always did.
@@ -283,7 +281,7 @@ struct LibraryView: View {
         return app.store.memo(key) {
             let cells = list.map { t in (t, (name: t.title, kind: RecordingKind.refinedName(t.refinedKind), people: Self.people(t, projects: projects),
                                              date: t.createdAt, length: t.duration)) }
-            let sorted = cells.sorted { NativeTableSort.ordered($0.1, $1.1, by: column, descending: descending) }.map(\.0)
+            let sorted = cells.sorted { LibraryTableSort.ordered($0.1, $1.1, by: column, descending: descending) }.map(\.0)
             guard column == .date else { return sorted }
             return sorted.filter(\.pinned) + sorted.filter { !$0.pinned }
         }
@@ -310,7 +308,7 @@ struct LibraryView: View {
     /// The column titles: a click sorts by that column, and again turns the order around.
     private func header(_ columns: LibraryColumns) -> some View {
         HStack(spacing: LibraryColumns.gap) {
-            ForEach(NativeTableSort.allCases, id: \.self) { c in
+            ForEach(LibraryTableSort.allCases, id: \.self) { c in
                 Button {
                     if c == column { setSort(c, descending: !descending) } else { setSort(c, descending: c.startsDescending) }
                 } label: {
@@ -507,7 +505,7 @@ struct LibraryColumns {
         people = (unit * 1.6).rounded(.down); date = (unit * 1).rounded(.down)
     }
 
-    func width(_ c: NativeTableSort) -> CGFloat {
+    func width(_ c: LibraryTableSort) -> CGFloat {
         switch c {
         case .name: return name
         case .kind: return kind
@@ -555,7 +553,7 @@ private struct LibraryTableRow: View {
                 Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
             }
             .frame(width: columns.name, alignment: .leading)
-            KindColorChip(kind: t.refinedKind)
+            KindChip(kind: t.refinedKind)
                 .frame(width: columns.kind, alignment: .leading)
             peopleCell(t)
                 .frame(width: columns.people, alignment: .leading)
@@ -583,7 +581,7 @@ private struct LibraryTableRow: View {
 
     /// A text-only thought has no length (review M-13).
     private func length(_ t: Transcript) -> String? {
-        WebStatus.isTextOnly(t) ? nil : HomeRecentStyle.length(t.duration)
+        RowStatus.isTextOnly(t) ? nil : HomeRecentStyle.length(t.duration)
     }
 
     private func label(_ t: Transcript) -> String {
@@ -662,7 +660,7 @@ struct PassageResults: View {
             if results.isEmpty {
                 Text("No passages match \u{201C}\(query)\u{201D}").refinedFont(.meta).foregroundStyle(Refined.mute)
             } else {
-                SerifSectionTitle("Passages")
+                SectionTitle("Passages")
             }
             ForEach(results, id: \.0.id) { t, segs, n in
                 PaperCard {
@@ -725,9 +723,8 @@ struct PassageLine: View {
 }
 
 // MARK: - Preview
-// brand: native begin
 
-/// The Library's preview in Native's inspector: the selected recording (or the newest) with its kind, day, length,
+/// The Library's preview in the window's inspector: the selected recording (or the newest) with its kind, day, length,
 /// and people, its title, the summary, its first line, and Play, Open Transcript, and ⋯. Plain text on the inspector,
 /// as the transcript's inspector lists its parts; Apple draws the inspector.
 struct LibraryPreview: View {
@@ -735,7 +732,7 @@ struct LibraryPreview: View {
     @ObservedObject var nav: WindowNav
 
     var body: some View {
-        let _ = LookSwitch.mark("library-preview")
+        let _ = NavMarks.mark("library-preview")
         let list = app.libraryLists(kind: app.libraryKind).list
         let chosen = nav.librarySelection.flatMap { id in list.first { $0.id == id } } ?? list.max { $0.createdAt < $1.createdAt }
         ScrollView {
@@ -758,7 +755,7 @@ struct LibraryPreview: View {
                 .padding(.top, 3)
             HStack(spacing: 8) {
                 if t.audioFileName != nil && t.status == .ready {
-                    Button { nav.play(t, app: app) } label: { Label("Play", systemImage: "play.fill") }
+                    Button { nav.play(t, app: app) } label: { Label("Play", systemImage: "play.fill") }   // brand: system surface (the inspector)
                         .buttonStyle(.borderedProminent)
                         .help("Open and play (Space)")
                 }
@@ -774,7 +771,7 @@ struct LibraryPreview: View {
             .padding(.top, 12)
             if let s = t.summary, !s.isEmpty {
                 Divider().padding(.vertical, 14)
-                NativeSummaryText(summary: s, byModel: t.summaryByModel, compact: true)
+                InspectorSummary(summary: s, byModel: t.summaryByModel)
             }
             if let line = t.visibleSegments(hideFiller: true).first?.text, !line.isEmpty {
                 Divider().padding(.vertical, 14)
@@ -788,10 +785,46 @@ struct LibraryPreview: View {
     /// "Meeting · Thu Oct 22 · 1:04:12 · Anika, Marcus".
     private func meta(_ t: Transcript) -> String {
         var parts = [RecordingKind.refinedName(t.refinedKind), Formats.pattern("EEE MMM d").string(from: t.createdAt)]
-        if t.duration > 0 && !WebStatus.isTextOnly(t) { parts.append(HomeRecentStyle.length(t.duration)) }
+        if t.duration > 0 && !RowStatus.isTextOnly(t) { parts.append(HomeRecentStyle.length(t.duration)) }
         let people = LibraryView.people(t, projects: app.store.projectsByID)
         if !people.isEmpty { parts.append(people) }
         return parts.joined(separator: " · ")
     }
 }
-// brand: native end
+
+/// A transcript's summary in the Library's inspector, as plain text the way the inspector lists everything else: the
+/// overview, the first key points, and "Made by Apple Intelligence" in secondary.
+private struct InspectorSummary: View {
+    var summary: TranscriptSummary
+    var byModel: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Summary").font(.system(size: 13, weight: .semibold)).accessibilityAddTraits(.isHeader)
+            if !summary.overview.isEmpty {
+                Text(summary.overview).font(.system(size: 13)).lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                    .padding(.top, 6)
+            }
+            if !summary.keyPoints.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(summary.keyPoints.prefix(3).enumerated()), id: \.offset) { _, p in
+                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                            Text("•").font(.system(size: 13)).foregroundStyle(.secondary)
+                            Text(p).font(.system(size: 13)).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        }
+                    }
+                }
+                .padding(.top, 8)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Key points")
+            }
+            if byModel {
+                Text(AIGeneratedNote.summary).font(.system(size: 11)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}

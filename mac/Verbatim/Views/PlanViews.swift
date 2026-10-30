@@ -1,7 +1,7 @@
 import SwiftUI
 
 // Plan my day's sections and Audio only's waveform, shared by the Mac and the iPhone (approved mockup "Verbose Brain
-// Dump", October 27, 2026; DayPlan.swift, AudioOnly.swift), on the refined kit (DESIGN.md §13) in both look settings.
+// Dump", October 27, 2026; DayPlan.swift, AudioOnly.swift), on the refined kit (DESIGN.md §13).
 //
 // Section titles in the serif, tasks with an empty ring to tick, ideas as bullets (they aren't things to check off),
 // and each task's time at the trailing end in the accent, which opens the line it came from. Plans and kinds are

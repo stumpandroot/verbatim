@@ -182,7 +182,7 @@ struct PhoneAudioDetail: View {
                     .padding(.top, 14)
 
                 let ms = moments(t)
-                SerifSectionTitle(title: "Moments") {
+                SectionTitle(title: "Moments") {
                     if !ms.isEmpty { Text("\(ms.count)").refinedFont(.hint).monospacedDigit().foregroundStyle(Refined.mute) }
                 }
                 .padding(.top, 24).padding(.bottom, 8)
@@ -212,7 +212,7 @@ struct PhoneAudioDetail: View {
                     }
                 }
 
-                SerifSectionTitle("Notes").padding(.top, 24).padding(.bottom, 8)
+                SectionTitle("Notes").padding(.top, 24).padding(.bottom, 8)
                 let notes = plainNotes(t)
                 if notes.isEmpty {
                     RefinedLink(title: "Add a note") { addingNote = true }

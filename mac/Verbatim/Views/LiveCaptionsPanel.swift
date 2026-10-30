@@ -145,7 +145,7 @@ enum CaptionsMenu {
 
 // MARK: - View
 
-/// The panel's content on the refined kit (DESIGN.md §6.10), one design in both look settings: the paper page, a
+/// The panel's content on the refined kit (DESIGN.md §6.10): the paper page, a
 /// header with the captions glyph, the source, and the elapsed time (SF Pro with tabular digits); caption lines in the
 /// serif, the newest word in the accent; and a row of quiet chips with Save as transcript as the strong action.
 struct LiveCaptionsView: View {

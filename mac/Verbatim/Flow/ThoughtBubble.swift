@@ -6,7 +6,7 @@ import AppKit
 // non-activating panel at `.statusBar` level on every Space and beside full-screen apps, where only the drawn shape
 // takes clicks (gestures and `tapArea`, never SwiftUI Buttons), and it never becomes key or activates Verbose. While a
 // thought records, the disc turns persimmon and shows the Thoughts icon with its wave following the mic, with the
-// refined look's compact recording card beside it (DESIGN.md §6.10, one design in both look settings): what's
+// refined look's compact recording card beside it (DESIGN.md §6.10): what's
 // recording, the clock, the waveform, your words, Mark, and how to stop, on the persimmon fill (never on glass). Notices,
 // the hint, and Saved ("Added to Thoughts · 10:42", for two seconds) sit on the kit's card with a hairline. Drag it
 // anywhere; its spot is kept per display. Settings › Features › Thoughts › Show the bubble.
@@ -187,7 +187,7 @@ struct ThoughtBubbleView: View {
 
     var body: some View {
         // In a screen change's or look switch's marks only if the bubble re-renders with it (it shouldn't).
-        let _ = LookSwitch.mark("bubble")
+        let _ = NavMarks.mark("bubble")
         ZStack {
             Color.clear
             disc

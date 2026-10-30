@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 // The main window's frame in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", the sidebar and toolbar
-// on every Mac board), one design in both look settings: the split view with the paper-gray sidebar (MacSidebar.swift),
+// on every Mac board): the split view with the paper-gray sidebar (MacSidebar.swift),
 // one system toolbar for every screen, and one inspector, all built once at the window and kept while screens change.
 // Apple draws the chrome (the toolbar, its glass, the search field, the inspector); Verbose draws the content and tints
 // the chrome with the accent. The toolbar's items keep their identities and only switch what they show, the inspector
@@ -12,7 +12,7 @@ import AppKit
 // MARK: - State
 
 /// What the window's toolbar, inspector, and screens share: the transcript's tab and text size, the Library's
-/// selection, and the inspector. Back and Forward are both looks' (NavTrail, App/NavTrail.swift). One per app.
+/// selection, and the inspector. Back and Forward are NavTrail's (App/NavTrail.swift). One per app.
 @MainActor
 final class WindowNav: ObservableObject {
     static let shared = WindowNav()
@@ -20,7 +20,7 @@ final class WindowNav: ObservableObject {
     /// The inspector beside the Library and transcripts. Remembered on this Mac.
     @Published var inspector: Bool { didSet { UserDefaults.standard.set(inspector, forKey: Self.inspectorKey) } }
     static let inspectorKey = "native.inspector"
-    /// The open transcript's tab, reading text size, and whether the text follows playback (both looks).
+    /// The open transcript's tab, reading text size, and whether the text follows playback.
     @Published var mode: TranscriptView.Mode = .original
     @Published var textSize: CGFloat = WindowNav.textSizes.normal
     @Published var follow = true
@@ -35,7 +35,7 @@ final class WindowNav: ObservableObject {
     static let textSizes = TextSizes()
     /// The passage selected in the open transcript (a note added in the inspector links to it).
     @Published var selectedSegment: UUID?
-    /// The Library item whose preview the inspector shows, and the row Back comes back to (both looks).
+    /// The Library item whose preview the inspector shows, and the row Back comes back to.
     @Published var librarySelection: UUID?
     /// Native's old Table and List choice for the Library. The refined Library is the table only (DESIGN.md §6.8), so
     /// the stored choice is removed at launch.
@@ -131,7 +131,7 @@ struct MacWindow<Detail: View>: View {
     @ViewBuilder var detail: () -> Detail
 
     var body: some View {
-        LookSwitch.mark("window")
+        NavMarks.mark("window")
         return NavigationSplitView(columnVisibility: $columns) {
             MacSidebar()
         } detail: {
@@ -166,7 +166,7 @@ struct MacInspector: View {
     @ObservedObject var nav: WindowNav
 
     var body: some View {
-        LookSwitch.mark("inspector")
+        NavMarks.mark("inspector")
         return ZStack {
             Refined.paper.ignoresSafeArea()
             switch app.screen {
@@ -200,7 +200,7 @@ struct MacToolbar: ToolbarContent {
     var screen: Screen
 
     var body: some ToolbarContent {
-        let _ = LookSwitch.mark("toolbar")
+        let _ = NavMarks.mark("toolbar")
         ToolbarItem(id: "window.leading", placement: .navigation) { ToolbarLeadingItem(nav: nav, screen: screen) }
         if let id = screen.transcriptID {
             ToolbarItem(id: "window.center", placement: .principal) { ToolbarModePicker(nav: nav, id: id) }

@@ -80,7 +80,7 @@ struct PhoneRoot: View {
         // there (HomeSections.swift).
         .recordTabChrome(hidden: app.readingTranscripts > 0
                          || HomeSpacing.hidesRecordAccessory(tab: app.tab, homeAtRoot: app.homePath.isEmpty,
-                                                             recording: app.recordingActive, layout: layouts.layout(look.homeLook)))
+                                                             recording: app.recordingActive, layout: layouts.layout))
         // The selected tab, and the chrome's buttons, take the accent (DESIGN.md §13). iPhone switches keep the
         // system's green (`refinedSwitchTint()`).
         .tint(Refined.accentText)

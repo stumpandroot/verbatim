@@ -47,7 +47,7 @@ struct DictationsListScreen: View {
                     .modifier(DictationPageRow())
             }
             ForEach(order, id: \.self) { day in
-                SerifSectionTitle(PhoneDayHeader.label(day))
+                SectionTitle(PhoneDayHeader.label(day))
                     .padding(.top, 22).padding(.bottom, 8)
                     .modifier(DictationPageRow())
                 let list = days[day] ?? []

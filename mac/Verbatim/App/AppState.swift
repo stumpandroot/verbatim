@@ -68,14 +68,14 @@ final class AppState: ObservableObject {
     @Changed("advModel") var advModel = "v2"
     @Changed("identifySpeakers") var identifySpeakers = true
     @Changed("applyDictionary") var applyDictionary = true
-    /// Settings › General › Show This week on Home: whether This week is among Home's shown sections in the current
-    /// look (Edit Home's layout, HomeLayout.swift, which read the old `home.showWeek` value once).
+    /// Settings › General › Show This week on Home: whether This week is among Home's shown sections (Edit Home's
+    /// layout, HomeLayout.swift, which read the old `home.showWeek` value once).
     var showHomeWeek: Bool {
-        get { HomeLayoutStore.shared.layout(AppLook.current.homeLook).isVisible(.week) }
+        get { HomeLayoutStore.shared.layout.isVisible(.week) }
         set {
             guard newValue != showHomeWeek else { return }
             objectWillChange.send()
-            HomeLayoutStore.shared.update(AppLook.current.homeLook) { $0.setVisible(.week, newValue, inPlace: true) }
+            HomeLayoutStore.shared.update { $0.setVisible(.week, newValue, inPlace: true) }
         }
     }
     @Changed("projectVocab") var projectScopedVocabulary = false
@@ -278,7 +278,7 @@ final class AppState: ObservableObject {
         // leaves at once, and a publish made just before this (a project filter, a search) can't trigger a flush that
         // strands the screen change.
         navStartedAt = Date()
-        if UITest.enabled { LookSwitch.beginNavigationMarks() }
+        if UITest.enabled { NavMarks.begin() }
         if let open = navInterval { Perf.signposter.endInterval("Navigate", open) }
         navInterval = Perf.signposter.beginInterval("Navigate", "\(self.key(next), privacy: .public)")
         // Back and Forward's trail and what the screen you're leaving comes back to (App/NavTrail.swift). Plain

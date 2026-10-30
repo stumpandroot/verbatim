@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 // Make › Templates in the main window (mockup "Library features", sections 1a to 1c), on the refined kit (DESIGN.md
-// §13) in both look settings: the template library with filter chips, a template's sections and Run automatically
+// §13): the template library with filter chips, a template's sections and Run automatically
 // chips beside it, the editor for your own, and Run automatically (one template or Off per kind, and three options).
 // Since the consolidation (October 28, 2026) it's the one list of what turns words into something else: the transcript
 // templates and the text actions the Ribbon's menu runs on selected text (Settings › Actions moved here), each marked
@@ -59,7 +59,7 @@ struct TemplatesView: View {
     @ObservedObject private var nav = TemplatesNav.shared
 
     var body: some View {
-        LookSwitch.mark("templates")
+        NavMarks.mark("templates")
         return Group {
             switch nav.pane {
             case .library: TemplateLibraryPane()

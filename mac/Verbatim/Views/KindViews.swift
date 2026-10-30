@@ -1,17 +1,10 @@
 import SwiftUI
 
 // Capture and archive: kinds, tags, hidden filler lines, and background voices, shared by the Mac and iPhone apps.
-// Design rules (claude/verbatim-capture-archive-design.md): every piece takes a form the app already has (chips,
-// row cards, meta lines, dotted-leader headings); kinds are neutral, so action hues keep one meaning each.
+// Kinds take their colors from the refined kit (`RefinedRules.kindHue`, DESIGN.md §13), always with their glyph and
+// name.
 
 extension RecordingKind {
-    /// Kinds are neutral (DESIGN.md §1): ink at 6% behind `dim` text and the kind's own diagram, so a category
-    /// never borrows an action hue (persimmon Record, butter Dictate, sage Import, petal App audio).
-    var fill: Color { Ink.neutralChip }
-    /// Text and diagram color on `fill`.
-    var onFill: Color { Ink.ink }
-    /// The tint for row icon tiles.
-    var tint: Color { Ink.neutralChip }
     var art: BrandArt {
         switch self {
         case .journal: return .kindJournal
@@ -27,60 +20,7 @@ extension RecordingKind {
         case .audio: return .kindAudio
         }
     }
-    var index: String {
-        switch self {
-        case .journal: return "01"
-        case .idea: return "02"
-        case .meeting: return "03"
-        case .note: return "04"
-        case .dictation: return "05"
-        case .podcast: return "06"
-        case .video: return "07"
-        case .talk: return "08"
-        case .interview: return "09"
-        case .brainDump: return "10"
-        case .audio: return "11"
-        }
-    }
-    /// The hero card's one line.
-    var line: String {
-        switch self {
-        case .journal: return "Your days, in order."
-        case .idea: return "Thinking out loud."
-        case .meeting: return "Calls and conversations."
-        case .note: return "Everything else."
-        case .dictation: return "Words you sent elsewhere."
-        case .podcast: return "Shows and conversations you listened to."
-        case .video: return "Things you watched."
-        case .talk: return "One voice, at length."
-        case .interview: return "Questions and answers."
-        case .brainDump: return "Your day, talked through."
-        case .audio: return "Sound you keep as sound."
-        }
-    }
 }
-
-// brand: native begin
-extension RecordingKind {
-    /// The kind's SF Symbol in the Native look, in place of its diagram. Thoughts draw their own icon instead
-    /// (`BrandArt.iconThought`) where there's room for a view; this is the stand-in where only a symbol fits.
-    var nativeSymbol: String {
-        switch self {
-        case .journal: return "book"
-        case .idea: return "lightbulb"
-        case .meeting: return "person.2"
-        case .note: return "doc.text"
-        case .dictation: return "text.bubble"
-        case .podcast: return "mic"
-        case .video: return "play.rectangle"
-        case .talk: return "person.wave.2"
-        case .interview: return "quote.bubble"
-        case .brainDump: return "brain.head.profile"
-        case .audio: return "waveform"
-        }
-    }
-}
-// brand: native end
 
 extension Transcript {
     /// Settings › Main speaker only: other voices fold into Background voices. Off by default.
@@ -230,7 +170,7 @@ struct BackgroundVoicesCard: View {
 // MARK: - Library
 
 /// Journal entries grouped by day, newest first: "Today · Sat Oct 17" headings, in the same date order as every other
-/// day header (`DayHeader`; review M-15).
+/// day header (review M-15).
 enum JournalDays {
     struct Day: Identifiable { var id: Date; var label: String; var date: String; var entries: [Transcript] }
 

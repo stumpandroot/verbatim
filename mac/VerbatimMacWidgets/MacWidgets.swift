@@ -15,15 +15,7 @@ struct VerbatimMacWidgetBundle: WidgetBundle {
     }
 }
 
-/// The Mac app's Native look swaps tokens for system colors (Views/NativeLook.swift), which Tokens.swift asks on the
-/// Mac. The widgets draw each look themselves from the snapshot's look, so here the tokens keep their Verbose values.
-enum NativeSwap {
-    static let on = false
-    static func color(light: UInt32, dark: Bool, increased: Bool) -> NSColor? { nil }
-    static func serif(_ size: CGFloat, weight: Font.Weight) -> Font { .system(size: size, weight: weight, design: .serif) }
-}
-
-/// Increase Contrast for Tokens.swift's colors (the app watches it in Views/NativeLook.swift; a widget reads it).
+/// Increase Contrast for Tokens.swift's colors (the app watches it in Views/MacAppearance.swift; a widget reads it).
 enum ContrastSetting {
     static var increased: Bool { NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast }
 }

@@ -13,25 +13,13 @@ struct PersonalizationSettingsPane: View {
     @EnvironmentObject var app: AppState
     @AppStorage(MotionPreference.key) private var motionLimited = false
     @AppStorage(BuiltInVocabulary.enabledKey) private var builtInVocabulary = true
-    /// The look (Verbose style or Native), until the look switch retires.
-    @AppStorage(AppLook.key, store: AppLook.store) private var lookRaw = AppLook.verbose.rawValue
     @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
-    /// The refined look's palette (DESIGN.md §13), stored with the look.
-    @AppStorage(AppPalette.key, store: AppLook.store) private var palette: AppPalette = .full
+    /// The palette (DESIGN.md §13), stored with the other appearance settings.
+    @AppStorage(AppPalette.key, store: AppearanceStore.defaults) private var palette: AppPalette = .full
 
     var body: some View {
         SettingsPane(tab: .personalization) {
             SettingsGroup {
-                // The look as a plain row with the system's pop-up: the switching card shows, then every window
-                // rebuilds behind it (LookSwitch.swift). It retires with the look switch.
-                SettingsRow("general.look") {
-                    Picker("Look", selection: Binding(get: { AppLook(rawValue: lookRaw) ?? .verbose },
-                                                      set: { l in if l.rawValue != lookRaw { LookSwitch.shared.pick(l) } })) {
-                        ForEach(AppLook.allCases) { Text($0.label).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
-                    .onAppear { LookSwitch.prewarm() }
-                }
                 SettingsRow("general.palette") {
                     Picker("Palette", selection: $palette) {
                         ForEach(AppPalette.allCases) { Text($0.label).tag($0) }
@@ -211,7 +199,7 @@ struct DictationForm: View {
             SettingsGroup(title: "Permissions and pasting") {
                 SettingsRow("dictate.accessibility") {
                     HStack(spacing: 8) {
-                        StatusText(text: trusted ? "Allowed" : "Needed", tone: trusted ? .kept : .danger, check: trusted)
+                        RefinedStatus(text: trusted ? "Allowed" : "Needed", tone: trusted ? .kept : .danger, check: trusted)
                         if !trusted {
                             Button("Allow…") { dictation.requestAccessibility() }.buttonStyle(.settingsPrimaryPill)
                             Button("Open System Settings") { dictation.openAccessibilitySettings() }.buttonStyle(.settingsPill)

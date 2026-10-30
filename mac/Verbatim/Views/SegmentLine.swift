@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// One turn of a transcript in the refined look (DESIGN.md §13), in both look settings: the speaker's chip when the
+/// One turn of a transcript in the refined look (DESIGN.md §13): the speaker's chip when the
 /// speaker changes (click it to move the line to someone else or rename them) and the time (click to play from
 /// there), with a small accent mark on a bookmarked or marked line, over the serif reading text. The line being played
 /// takes the sage `playing` wash, a selected line (a note links to it) the neutral wash with an accent bar, and a

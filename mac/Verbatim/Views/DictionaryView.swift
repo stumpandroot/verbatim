@@ -1,6 +1,6 @@
 import SwiftUI
 
-// The Dictionary on the refined kit (DESIGN.md §13) in both look settings: the large serif title with the count, the
+// The Dictionary on the refined kit (DESIGN.md §13): the large serif title with the count, the
 // search field, Add word and the CSV menu; suggestions in a card; the words in a table on a card, the preferred
 // spelling in semibold, and a switch per word.
 
@@ -194,7 +194,7 @@ struct DictionaryRow: View {
                 HStack(spacing: 8) {
                     Text(entry.learnedFrom).refinedFont(.rowTitle).foregroundStyle(Refined.dim).lineLimit(1)
                     if let project {
-                        KindColorChip(title: "Only in \(project.name)", hue: RefinedRules.projectHue(project.colorIndex))
+                        KindChip(title: "Only in \(project.name)", hue: RefinedRules.projectHue(project.colorIndex))
                             .layoutPriority(1)
                     }
                 }

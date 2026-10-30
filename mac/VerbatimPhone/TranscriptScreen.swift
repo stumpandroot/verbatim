@@ -306,7 +306,7 @@ struct TranscriptScreen: View {
                     KindPickerChip(kind: t.kind, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
                 }
                 if let project {
-                    KindColorChip(title: project.name, hue: RefinedRules.projectHue(project.colorIndex))
+                    KindChip(title: project.name, hue: RefinedRules.projectHue(project.colorIndex))
                         .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
                         .accessibilityLabel("Project: \(project.name)")
                 }

@@ -3,7 +3,7 @@ import AppKit
 import os
 
 // The You page (sidebar › You; it replaced Activity, and keeps its screen key "activity" so links still land) in the
-// refined look (DESIGN.md §13), one layout in both look settings: who you are, About me, cleanup, your voice, your
+// refined look (DESIGN.md §13): who you are, About me, cleanup, your voice, your
 // week or month of dictation, and where you dictate, websites by domain only. Counted on this Mac; nothing here
 // leaves it.
 
@@ -70,7 +70,6 @@ struct YouView: View {
     @AppStorage(CloudCleanup.enabledKey) private var cloudCleanup = false
     @Environment(\.openSettings) private var openSettings
     @Environment(\.limitMotion) private var limitMotion
-    @Environment(\.look) private var look
     @State private var span: YouRange.Span = .week
     @State private var anchor = Date()
     @State private var confirmReset = false
@@ -79,11 +78,11 @@ struct YouView: View {
     @State private var nameDraft = ""
     @State private var collapsed: Set<String> = []
     @FocusState private var nameFocused: Bool
-    /// The looks the refined You page is on screen in (the self-test checks each look draws this one layout).
-    static var onScreen = Set<AppLook>()
+    /// How many You pages are on screen (the self-test checks the page is there).
+    static var onScreen = 0
 
     var body: some View {
-        let _ = LookSwitch.mark("you")
+        let _ = NavMarks.mark("you")
         let cal = Calendar.current
         let range = YouRange.interval(span, containing: anchor, calendar: cal)
         // Once per range and per change to Activity or its websites (YouSummary), not on every render: You re-renders on
@@ -114,8 +113,8 @@ struct YouView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Refined.paper)
-        .onAppear { LookSwitch.mark("you-appear"); Self.onScreen.insert(look); log.seedIfNeeded(from: app.store.live); voice.refresh() }
-        .onDisappear { Self.onScreen.remove(look) }
+        .onAppear { NavMarks.mark("you-appear"); Self.onScreen += 1; log.seedIfNeeded(from: app.store.live); voice.refresh() }
+        .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
         .sheet(isPresented: $editingAbout) { AboutMeSheet() }
         .confirmationDialog("Reset activity?", isPresented: $confirmReset) {
             Button("Reset activity", role: .destructive) { log.reset(); sites.reset() }

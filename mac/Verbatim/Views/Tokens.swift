@@ -7,7 +7,7 @@ import UIKit
 typealias PColor = UIColor
 #endif
 
-// Shared by the Mac and iPhone apps: palette, type roles, motion. Mac-only components stay in Theme.swift.
+// Shared by the Mac and iPhone apps: palette, type roles, motion. Mac-only controls are in Controls.swift.
 
 /// The palette: Verbatim brand, "The Idea Archive" (BRAND_GUIDE.md, October 2026).
 /// Paper surfaces, ink structure, persimmon focal moments; pink, butter, and sage for feature cards and notes.
@@ -149,22 +149,11 @@ enum Ink {
     #endif
 
     static func dyn(_ light: UInt32, _ dark: UInt32) -> Color {
-        make { isDark, hc in
-            #if os(macOS)
-            // Mac Native look (NativeLook.swift): resolved for this appearance, once, then cached.
-            if let native = NativeSwap.color(light: light, dark: isDark, increased: hc) { return native }
-            #endif
-            return isDark ? PColor(hex: dark) : PColor(hex: light)
-        }
+        make { isDark, _ in isDark ? PColor(hex: dark) : PColor(hex: light) }
     }
     /// Like `dyn`, with stronger values when Increase Contrast is on.
     static func dynC(_ light: UInt32, _ dark: UInt32, _ hcLight: UInt32, _ hcDark: UInt32) -> Color {
-        make { isDark, hc in
-            #if os(macOS)
-            if let native = NativeSwap.color(light: light, dark: isDark, increased: hc) { return native }
-            #endif
-            return isDark ? PColor(hex: hc ? hcDark : dark) : PColor(hex: hc ? hcLight : light)
-        }
+        make { isDark, hc in isDark ? PColor(hex: hc ? hcDark : dark) : PColor(hex: hc ? hcLight : light) }
     }
     /// A color resolved per appearance (dark?) and contrast setting (increased?), on Mac and iPhone.
     static func make(_ f: @escaping (Bool, Bool) -> PColor) -> Color {
@@ -185,17 +174,11 @@ enum Ink {
 extension Ink {
     /// Editorial serif: Home headline, section titles, document titles. Never transcript body text.
     static func serif(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        #if os(macOS)
-        if NativeSwap.on { return NativeSwap.serif(size, weight: weight) }   // Mac Native look: SF Pro
-        #endif
-        return .system(size: size, weight: weight, design: .serif)
+        .system(size: size, weight: weight, design: .serif)
     }
     /// Monospaced data: timestamps, durations, dates, indexes. Tabular digits.
     static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        #if os(macOS)
-        if NativeSwap.on { return .system(size: size, weight: weight).monospacedDigit() }   // Mac Native look
-        #endif
-        return .system(size: size, weight: weight, design: .monospaced).monospacedDigit()
+        .system(size: size, weight: weight, design: .monospaced).monospacedDigit()
     }
     /// The wordmark (DESIGN.md §4): lowercase "verbose" in the serif with a persimmon period. The period is a mark,
     /// so it uses the text-safe persimmon (`accentText`, 5.1:1 on paper); the bright fill measures 2.5:1 on paper.
@@ -418,8 +401,8 @@ enum RefinedHex {
 }
 // refined-table end
 
-/// The refined look's colors (DESIGN.md §13), built once from `RefinedHex`. They never turn into the Mac's Native
-/// system colors: the kit draws only the refined look. Palette-dependent fills come from `RefinedRules`.
+/// The refined look's colors (DESIGN.md §13), built once from `RefinedHex`. Palette-dependent fills come from
+/// `RefinedRules`.
 enum Refined {
     static func color(_ t: RefinedHex.Tone) -> Color {
         Ink.make { dark, hc in PColor(hex: t.value(dark: dark, increased: hc)) }
@@ -474,17 +457,6 @@ enum Refined {
         UIColor { tc in PColor(hex: t.value(dark: tc.userInterfaceStyle == .dark, increased: tc.accessibilityContrast == .high)) }
     }
     #endif
-}
-
-// MARK: - Look switch card
-
-/// Verbose style's paper, card, ink, and hard shadow, which never turn into Native's system colors on the Mac (`dyn`
-/// does, under NativeSwap). The look-switch card (LookSwitch.swift) draws Verbose style while Native is still stored.
-extension Ink {
-    static let paperVerbose = make { dark, _ in PColor(hex: dark ? 0x18241F : paperHex) }
-    static let cardVerbose = make { dark, _ in PColor(hex: dark ? 0x202F28 : readerHex) }
-    static let inkVerbose = make { dark, _ in PColor(hex: dark ? 0xF5F0E6 : inkHex) }
-    static let hardVerbose = make { dark, _ in PColor(hex: dark ? 0x0C1310 : inkHex) }
 }
 
 extension View {

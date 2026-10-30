@@ -15,9 +15,8 @@ struct ContentView: View {
 
     var body: some View {
         if UITest.enabled { Log.note("UITEST render screen=\(screenKey) nav=\(app.navCount)") }
-        LookSwitch.mark("main")
-        // Only the main content rebuilds when the look changes (LookRebuild); the sheets below stay open.
-        return main.environmentObject(windowNav).lookRebuild()
+        NavMarks.mark("main")
+        return main.environmentObject(windowNav)
         // The "link added" card, in this view's coordinate space so its tile can fly from the content into the
         // sidebar's Queue item (anchored by the sidebar; no flight when the sidebar is hidden).
         .overlayPreferenceValue(QueueItemAnchor.self) { anchor in
@@ -76,11 +75,11 @@ struct ContentView: View {
         // The chrome takes the accent (DESIGN.md §13): toolbar buttons, menus, and selection. Mac switches take
         // `macSwitch` where they're drawn (`refinedSwitchTint()`).
         .tint(Refined.accentText)
-        .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app).lookRoot() }
+        .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app) }
     }
 
     /// The window (MacChrome.swift): the split view with the refined sidebar, one toolbar with Back and Forward, Record,
-    /// the screen's items, and the search field, and one inspector, in both look settings.
+    /// the screen's items, and the search field, and one inspector.
     private var main: some View {
         MacWindow(nav: windowNav, columns: $columns) { detail }
             .searchable(text: $app.search, placement: .toolbar, prompt: "Search or ask")
@@ -106,7 +105,7 @@ struct ContentView: View {
                     // Each screen change is timed from the click to here: a "Navigate" signpost always, and a
                     // UITEST TIMING line in the self-test.
                     .onAppear {
-                        LookSwitch.mark("screen-appear")
+                        NavMarks.mark("screen-appear")
                         app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt, window: app.mainWindow) }
                     }
                     .screenRootMarker(screenKey)
@@ -147,7 +146,7 @@ struct ContentView: View {
     @ViewBuilder private var screen: some View {
         switch app.screen {
         case .home: HomeView()
-        // One Library in both looks (DESIGN.md §6.8).
+        // The Library (DESIGN.md §6.8).
         case .library: LibraryView()
         case .queue: QueueView()
         case .trash: TrashView()
@@ -178,7 +177,7 @@ struct ContentView: View {
 /// A transcript's short entrance: the screen starts `x` points over and settles in 150 ms, ease-out, opaque all the way
 /// (no fade). It runs from the screen's own `onAppear`, in a transaction of its own, so the navigation's transaction
 /// stays unanimated and the outgoing screen is gone at once. Until it appears the screen takes no clicks (what
-/// `ScreenSlide` did for a lingering screen; nothing lingers now). A look switch's rebuild doesn't slide.
+/// `ScreenSlide` did for a lingering screen; nothing lingers now).
 struct ScreenEntrance: ViewModifier {
     /// Where the screen starts, taken once when the screen is made (a later change of direction or Limit Motion
     /// doesn't move a screen that's already there).
@@ -191,7 +190,6 @@ struct ScreenEntrance: ViewModifier {
             .allowsHitTesting(x == 0)
             .onAppear {
                 guard x != 0 else { return }
-                if LookSwitch.rebuilding { x = 0; return }
                 withAnimation(.easeOut(duration: 0.15)) { x = 0 }
             }
     }
@@ -220,9 +218,9 @@ extension View {
         if UITest.enabled { background(ScreenRootMarker(key: key)) } else { self }
     }
 
-    /// A navigation mark (`LookSwitch.mark`) once this view has been measured: a reader in its background is sized after
+    /// A navigation mark (`NavMarks.mark`) once this view has been measured: a reader in its background is sized after
     /// it. For the self-test's per-step marks; adds nothing outside the self-test.
     @ViewBuilder func navMarkWhenLaidOut(_ name: String) -> some View {
-        if UITest.enabled { background(GeometryReader { _ in let _ = LookSwitch.mark(name); Color.clear }) } else { self }
+        if UITest.enabled { background(GeometryReader { _ in let _ = NavMarks.mark(name); Color.clear }) } else { self }
     }
 }

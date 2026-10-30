@@ -1,7 +1,7 @@
 import SwiftUI
 
-// Pieces of the templates screens shared by the Mac and the iPhone (Model/Templates.swift): each template's icon in
-// both looks, and a result's sections drawn as headings, paragraphs, bullets, and checklist lines.
+// Pieces of the templates screens shared by the Mac and the iPhone (Model/Templates.swift): each template's icon,
+// and a result's sections drawn as headings, paragraphs, bullets, and checklist lines.
 
 extension TranscriptTemplate {
     /// The template's line icon in Verbose style.
@@ -21,30 +21,6 @@ extension TranscriptTemplate {
         }
     }
 }
-
-// brand: native begin
-extension TranscriptTemplate {
-    /// The template's SF Symbol in the Native look.
-    var nativeSymbol: String {
-        switch glyph {
-        case TemplateGlyph.plan: return "checklist"
-        case TemplateGlyph.journal: return "book"
-        case TemplateGlyph.draft: return "square.and.pencil"
-        case TemplateGlyph.study: return "graduationcap"
-        case TemplateGlyph.keyPoints: return "quote.opening"
-        case TemplateGlyph.meeting: return "person.2"
-        case TemplateGlyph.oneOnOne: return "person.line.dotted.person"
-        case TemplateGlyph.client: return "briefcase"
-        case TemplateGlyph.interview: return "mic"
-        case TemplateGlyph.lecture: return "doc.richtext"
-        case TemplateGlyph.sermon: return "book.closed"
-        case TemplateGlyph.brainstorm: return "lightbulb"
-        case TemplateGlyph.reflection: return "sun.horizon"
-        default: return "doc.text"
-        }
-    }
-}
-// brand: native end
 
 /// "Meeting *notes*": a name with its last word in italic, where the look has the serif.
 enum TemplateTitle {

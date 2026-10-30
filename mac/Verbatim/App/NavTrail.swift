@@ -1,12 +1,12 @@
 import SwiftUI
 import AppKit
 
-// Back and Forward for the main window, in both looks, and the places screens come back to.
+// Back and Forward for the main window, and the places screens come back to.
 //
 // One history (`NavTrail`) records every navigation in `AppState.go`: going somewhere new (a sidebar click, opening a
 // transcript) starts a new trail from where you are, as a browser or Finder does, and Back and Forward walk it: the
 // toolbar's Back and Forward (MacChrome.swift), View › Back and Forward (⌘[ and ⌘]), the mouse's back and forward
-// buttons, and the trackpad's swipe between pages, in both looks.
+// buttons, and the trackpad's swipe between pages.
 //
 // A screen leaves the window the moment you navigate away (ContentView), so what it should come back to lives here
 // (`ScreenPlaces`): each scroll view's offset, the Library's selected row, and By day's day. None of it is published:
@@ -27,7 +27,7 @@ final class NavTrail: ObservableObject {
     static let shared = NavTrail()
 
     private var history = NavHistory<NavStop>()
-    /// Only whether Back and Forward can go is published, and only when that changes (the menu, Native's toolbar).
+    /// Only whether Back and Forward can go is published, and only when that changes (the menu, the toolbar).
     @Published private(set) var canGoBack = false
     @Published private(set) var canGoForward = false
     /// True for a navigation made by Back or Forward, until the next one. Home puts its scroll back only then.
@@ -139,7 +139,7 @@ final class NavTrail: ObservableObject {
     }
 }
 
-/// View › Back and Forward (⌘[ and ⌘]) for the main window in both looks, as AppKit menu items. Builds 222 and 224
+/// View › Back and Forward (⌘[ and ⌘]) for the main window, as AppKit menu items. Builds 222 and 224
 /// drew them as SwiftUI commands, first observing NavTrail and then a focused scene value; the menu bar didn't
 /// refresh from either, so Forward stayed off after going back and ⌘] did nothing. AppKit validates these when the
 /// menu opens and when a key equivalent is looked up, reading the trail then, whichever window is in front.
@@ -211,8 +211,8 @@ final class NavMenuItems: NSObject, NSMenuItemValidation {
 
 // MARK: - Places
 
-/// What each screen comes back to: scroll offsets (per screen and look), the Library's selected row (per project),
-/// Native's table selection, and By day's day and month. Plain storage, never observed.
+/// What each screen comes back to: scroll offsets (per screen), the Library's selected row (per project), the
+/// Library table's selection, and By day's day and month. Plain storage, never observed.
 @MainActor
 final class ScreenPlaces {
     static let shared = ScreenPlaces()
@@ -228,8 +228,8 @@ final class ScreenPlaces {
     private(set) var lastRestore: (key: String, offset: CGFloat, early: Bool)?
 
     static func libraryKey(_ project: UUID?) -> String { "library|\(project?.uuidString ?? "-")" }
-    /// A scroll view's key: the screen's (the Library's carries its project) and the look.
-    static func scrollKey(_ screen: String, look: AppLook) -> String { "\(screen)|\(look == .native ? "native" : "verbose")" }
+    /// A scroll view's key: the screen's (the Library's carries its project).
+    static func scrollKey(_ screen: String) -> String { screen }
 
     func offset(_ key: String) -> CGFloat? { offsets[key] }
     func setOffset(_ key: String, _ y: CGFloat) { offsets[key] = y }
@@ -238,7 +238,7 @@ final class ScreenPlaces {
     func setDay(_ kind: RecordingKind, day: Date?, month: Date?) { days[kind] = (day, month) }
 
     /// AppState.go, before the screen changes: the Library remembers the row you opened (or the row selected as you
-    /// left), and its selection comes back with the Library, in both looks (one Library, DESIGN.md §6.8).
+    /// left), and its selection comes back with the Library (DESIGN.md §6.8).
     func navigating(from: Screen, to next: Screen, app: AppState) {
         let nav = WindowNav.shared
         if from == .library {

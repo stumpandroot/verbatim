@@ -380,7 +380,7 @@ struct LibraryScreen: View {
     }
 
     @ViewBuilder private func passagesSection(_ passages: [LibrarySearch.PassageHit]) -> some View {
-        SerifSectionTitle("Passages")
+        SectionTitle("Passages")
             .modifier(PageRow(top: 18, bottom: 6))
         ForEach(passages) { hit in
             PhonePassageCard(transcript: hit.transcript, lines: hit.lines, count: hit.count, query: search)
@@ -407,7 +407,7 @@ struct LibraryScreen: View {
 
     @ViewBuilder private func daySection(_ day: (label: String, items: [Transcript])) -> some View {
         if !day.label.isEmpty {
-            SerifSectionTitle(day.label)
+            SectionTitle(day.label)
                 .modifier(PageRow(top: 22, bottom: 8))
         }
         ForEach(Array(day.items.enumerated()), id: \.element.id) { i, t in

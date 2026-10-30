@@ -1,7 +1,7 @@
 import SwiftUI
 
 // The Mac's small recording surfaces on the refined kit (DESIGN.md §6.10; mockup "Verbose Refined Look", MacRecorder,
-// October 28, 2026), one design in both look settings: the toolbar's live timer capsule while you record or capture an
+// October 28, 2026): the toolbar's live timer capsule while you record or capture an
 // app's audio, and the menu bar panel's recording card. Home's recording card is `HomeRecordingCard` (HomeView.swift);
 // the meeting panel, the Thought bubble, Live captions, and the meeting banner draw the kit in their own files.
 
