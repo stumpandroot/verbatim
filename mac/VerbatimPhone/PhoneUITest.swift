@@ -1705,6 +1705,15 @@ enum PhoneUITest {
             app.openKind("meeting")
             await settle()
             check("a meetings link opens the Meetings tab when it's in the bar", app.tab == .meetings && app.path(.meetings).isEmpty)
+            // The longest titles in a full bar: five tabs, two of them two words.
+            app.setTabBar([.library, .interviews, .brainDumps, .audioOnly])
+            app.tab = .brainDumps
+            await settle()
+            await show("p14d-tab-five\(suffix)")
+            check("a full bar holds five tabs", app.tabBar.tabs == [.home, .library, .interviews, .brainDumps, .audioOnly])
+            titles([.home, .library, .interviews, .brainDumps, .audioOnly], "the system tab bar shows Brain dumps and Audio only in full")
+            app.tab = .home
+            await settle()
         }
         app.setTabBar(PhoneTabBar.defaultMiddle)
         app.tab = .home
