@@ -1907,8 +1907,10 @@ enum PhoneUITest {
         await show("p15j-unlock-sheet-over-settings")
         check("the sheet opens over Settings", UnlockSheet.onScreen > 0 && app.showSettings)
         await unlock.startTrial()
-        await settle()
-        check("Try it free starts the trial and closes the sheet", unlock.state.isTrial && unlock.request == nil && UnlockSheet.onScreen == 0)
+        // A sheet closing over another sheet can take longer than one settle on a busy simulator (build 259).
+        let closed = await waitFor(4) { UnlockSheet.onScreen == 0 }
+        check("Try it free starts the trial and closes the sheet (trial \(unlock.state.isTrial), request \(unlock.request == nil ? "cleared" : "open"), sheet closed in \(closed.ms) ms)",
+              unlock.state.isTrial && unlock.request == nil && closed.ok)
         app.closeSettings()
         await settle()
 
