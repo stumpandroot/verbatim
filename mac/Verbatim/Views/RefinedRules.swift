@@ -348,6 +348,11 @@ enum RefinedRules {
         case "projects": return .folderTab
         case "thoughtPad": return .bubbles
         case "dictations": return .dictationLines
+        // The kinds' tiles share the pattern of what they're like: a meeting or an interview is voices taking turns
+        // (Live captions' lines), a talk one voice (Dictate's waves), and Audio only the sound (What's playing's circles).
+        case "meeting", "interview": return .captionLines
+        case "talk": return .waves
+        case "audioOnly": return .offsetCircles
         default: return nil
         }
     }

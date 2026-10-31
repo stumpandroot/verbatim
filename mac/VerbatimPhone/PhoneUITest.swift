@@ -1527,6 +1527,35 @@ enum PhoneUITest {
         try? await Task.sleep(nanoseconds: 1_200_000_000)
         check("Reset puts Home back", store.layout == HomeLayout.defaults(.phone)
               && Set(HomeProbe.sections.keys) == Set(HomeSpacing.drawn(store.layout).map(\.section)))
+        // Each kind as a tile and a section (October 31, 2026). The kind tiles start their kind through Record as's entry
+        // point, which the tray tour's stand-in records instead of starting; Recent meetings shows the seeded meeting,
+        // Audio only its one-line empty state, and See all opens the Library on meetings.
+        let tray = RecordTray.shared
+        var picked: [RecordChoice] = []
+        tray.override = { picked.append($0) }
+        store.update { l in
+            l.tiles = [.meeting, .interview, .talk, .audioOnly]
+            l.setVisible(.meetings, true)
+            l.setVisible(.audioOnly, true)
+        }
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-meetings")
+        await show("p13f-home-kinds\(suffix)")
+        check("the kind tiles reach Home", [HomeTile.meeting, .interview, .talk, .audioOnly].allSatisfy { HomeProbe.tiles.contains($0) })
+        for t in HomeTile.recordsKind { HomeTileAction.run(t, app) }
+        tray.override = nil
+        check("each kind tile starts its kind, as Record as does (\(picked.map(\.id).joined(separator: ", ")))",
+              picked == HomeTile.recordsKind.compactMap { $0.kindRaw.flatMap(RecordingKind.init(rawValue:)) }.map { RecordChoice.kind($0) })
+        check("Recent meetings and Audio only render on Home", HomeProbe.sections[.meetings] == .large && HomeProbe.sections[.audioOnly] == .large)
+        app.openKind("meeting")
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        check("See all opens the Library on meetings", app.tab == app.tabBar.host(for: .library) && LibraryScreen.shownKind == "meeting")
+        app.libraryFilterRequest = "all"
+        app.libraryPath = NavigationPath()
+        app.homePath = NavigationPath()
+        app.tab = .home
+        store.reset()
+        try? await Task.sleep(nanoseconds: 700_000_000)
         // The same screen from Settings › Personalization › Customize Home (SettingsPages.swift).
         app.openSettings()
         SettingsPage.open("customizeHome")
@@ -1654,6 +1683,28 @@ enum PhoneUITest {
             await settle()
             check("with no Library tab, a Library link opens inside Home", app.tab == .home && app.homePath.count == 1)
             app.homePath = NavigationPath()
+            // A kind's tab (October 31, 2026): the Library on its kind as the tab's root, titled for the tab, and Record
+            // there starts that kind (through Record as's entry point; the tray tour's stand-in records it).
+            app.setTabBar([.library, .meetings])
+            app.tab = .meetings
+            await settle()
+            await show("p14c-tab-meetings\(suffix)")
+            check("Meetings joins the bar after Library", app.tabBar.tabs == [.home, .library, .meetings])
+            titles([.home, .library, .meetings], "the system tab bar shows Meetings")
+            check("the Meetings tab opens the Library on meetings as its root, titled Meetings",
+                  LibraryScreen.shownKind == "meeting" && LibraryScreen.shownTitle == "Meetings" && app.path(.meetings).isEmpty && visibleStackDepth() == 1)
+            let quick = TabRecordDefault.forTab(app.tab)
+            let tray = RecordTray.shared
+            var picked: [RecordChoice] = []
+            tray.override = { picked.append($0) }
+            AccessoryRecordButton.start(quick, app)
+            tray.override = nil
+            check("Record on the Meetings tab starts a meeting (\(quick.subtitle))", quick == .meeting && picked == [.kind(.meeting)])
+            app.tab = .home
+            await settle()
+            app.openKind("meeting")
+            await settle()
+            check("a meetings link opens the Meetings tab when it's in the bar", app.tab == .meetings && app.path(.meetings).isEmpty)
         }
         app.setTabBar(PhoneTabBar.defaultMiddle)
         app.tab = .home

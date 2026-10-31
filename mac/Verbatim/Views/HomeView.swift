@@ -8,7 +8,8 @@ import CoreAudio
 /// default: the persimmon Record card across the column (a click records a voice note, ⌥⇧R from anywhere;
 /// right-click for Record As and the microphone), the four tiles in a row with their shortcuts, then Recent recordings
 /// in a card beside This week. While you record, the Record card turns into the recording card (the clock, the live
-/// waveform, your words, Mark moment, Pause, and Stop and transcribe). Today's thoughts and Journal when you show them.
+/// waveform, your words, Mark moment, Pause, and Stop and transcribe). Today's thoughts, Journal, and a kind's newest
+/// three (Recent meetings, …) when you show them.
 /// One column, at most 860 pt wide; two Large neighbors that can pair share a band (two thirds and one third), and a
 /// narrow window stacks them. Edit Home's button closes the page; editing outlines each section and opens the inspector on the right (EditHome.swift). Sections arrive at once and keep their identity when the layout
 /// changes.
@@ -146,6 +147,7 @@ struct HomeView: View {
         case .recent: recentCard(item.size)
         case .thoughts: HomeThoughtsMac(size: item.size)
         case .journal: HomeJournalMac(size: item.size)
+        case .meetings, .interviews, .talks, .brainDumps, .audioOnly: kindCard(item)
         }
     }
 
@@ -246,6 +248,9 @@ struct HomeView: View {
         case .newThought: ThoughtCapture.shared.toggle()
         case .journal: HomeDayPages.openJournal(app)
         case .brainDump: DayNote.open()
+        // A kind's tile starts that kind, as File › Record As does (Meeting is the meeting capture, consent sheet first).
+        case .meeting, .interview, .talk, .audioOnly:
+            if let k = t.kindRaw.flatMap(RecordingKind.init(rawValue:)) { app.startRecordChoice(.kind(k)) }
         case .whatsPlaying: break
         }
     }
@@ -299,6 +304,10 @@ struct HomeView: View {
         case .newThought: return "Records a thought for today's page without leaving Home. Click again to stop."
         case .journal: return "Opens Journal by day."
         case .brainDump: return "Opens today's note. Hold your dictation keys and talk, then plan your day."
+        case .meeting: return "Records a meeting, filed as a Meeting. The consent sheet comes first."
+        case .interview: return "Records an interview, with every voice kept."
+        case .talk: return "Records a talk, with every voice kept."
+        case .audioOnly: return "Records the sound only, with no transcript."
         case .whatsPlaying: return ""
         }
     }
@@ -442,6 +451,39 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         .animation(Motion.settle, value: items.map(\.id))
+    }
+
+    /// A kind's section (Recent meetings, Recent interviews, Recent talks, Recent brain dumps, Audio only), drawn like
+    /// Recent: the serif title with See all, which opens the Library on the kind, then the kind's three newest with
+    /// Recent's rows, or one line when there are none yet.
+    private func kindCard(_ item: HomeLayout.Item) -> some View {
+        let raw = item.section.kindRaw ?? ""
+        let store = app.store
+        let items = store.memo("home.kind|\(raw)") { () -> [Transcript] in
+            Array(store.live.filter { !$0.isDictation && $0.kind?.rawValue == raw }.sorted { $0.createdAt > $1.createdAt }.prefix(3))
+        }
+        return VStack(alignment: .leading, spacing: 0) {
+            SectionTitle(item.section.title, link: "See all") {
+                app.projectFilter = nil
+                app.libraryFilter = .all
+                app.libraryKind = RecordingKind(rawValue: raw)
+                app.go(.library)
+            }
+            .padding(.horizontal, 16).padding(.top, 2)
+            if items.isEmpty {
+                Text(item.section.emptyLine).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+                    .padding(.horizontal, 16).padding(.bottom, 14)
+            } else {
+                ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
+                    if i > 0 { PaperDivider(leading: 16, trailing: 16) }
+                    recentRow(t)
+                }
+            }
+        }
+        .padding(.bottom, 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        .uiTarget("home-\(item.section.rawValue)")
     }
 
     /// A recent recording: the row is the button that opens it; Clean up sits beside it, never inside it (macOS 26

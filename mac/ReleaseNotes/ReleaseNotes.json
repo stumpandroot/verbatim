@@ -6,6 +6,21 @@
       "items": [
         {
           "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Home can show a tile or a section for each kind of recording, like Meeting or Audio only.",
+          "detail": "Choose them in Edit Home. A kind's tile starts that kind of recording, and its section lists the three newest, with See all."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Meetings, Interviews, Talks, Brain dumps, and Audio only can each be a tab.",
+          "detail": "Each tab opens your library on that kind, and Record there starts one. Choose them in Settings › Personalization and preferences › Tab bar."
+        },
+        {
+          "platforms": [
             "iphone"
           ],
           "text": "Record as shows each way to record on its own card, and the cards rise in one by one.",

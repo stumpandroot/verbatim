@@ -26,6 +26,8 @@ final class PhoneState: ObservableObject {
     @Published var journalPath = NavigationPath()
     @Published var dictationsPath = NavigationPath()
     @Published var projectsPath = NavigationPath()
+    /// The kinds' tabs (Meetings, Interviews, …), each with its own stack, by tab.
+    @Published var kindTabPaths: [PhoneTab: NavigationPath] = [:]
     /// Settings › Personalization and preferences › Tab bar: which tabs follow Home, on this iPhone.
     let tabBarStore = PhoneTabBarStore.shared
     var tabBar: PhoneTabBar { tabBarStore.bar }

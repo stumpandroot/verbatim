@@ -387,7 +387,7 @@ struct HomeWeekDots: View {
 // MARK: - Edit Home (HomeLayout.swift)
 
 extension HomeTile {
-    /// The tile's line icon.
+    /// The tile's line icon. A tile that records a kind takes that kind's glyph in Record as (`RecordChoice.art`).
     var art: BrandArt {
         switch self {
         case .dictate, .dictations: return .iconDictations
@@ -400,6 +400,10 @@ extension HomeTile {
         case .newThought: return .iconThought
         case .journal: return .iconNotes
         case .brainDump: return .iconBrainDump
+        case .meeting: return .iconSpeakers
+        case .interview: return .iconQuote
+        case .talk: return .iconVoice
+        case .audioOnly: return .iconAudio
         }
     }
 }

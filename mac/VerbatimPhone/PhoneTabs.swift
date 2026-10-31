@@ -4,13 +4,15 @@ import SwiftUI
 // four you pick, each with its own navigation stack. Settings isn't a tab: it opens as a sheet (`openSettings`). A screen asked for whose tab isn't in
 // the bar (Home's Journal tile with no Journal tab) opens pushed inside Library, or inside Home when Library isn't in the
 // bar either, rather than failing. Moments became the Library's Marked filter in the consolidation (October 28, 2026).
+// A kind's tab (Meetings, Interviews, Talks, Brain dumps, Audio only; October 31, 2026) is the Library already on its kind.
 
 /// The Library pushed inside another tab: when Library isn't in the bar, or a project from the Projects tab. `request`
 /// is a `libraryFilterRequest` ("working", "project:<id>", or a kind's raw value).
 struct LibraryRoute: Hashable { var request: String? = nil }
 
 extension PhoneTab {
-    /// The tab's fine-line glyph in the tab bar. Journal is the Mac sidebar's journal glyph.
+    /// The tab's fine-line glyph in the tab bar. Journal is the Mac sidebar's journal glyph; a kind's tab takes its
+    /// kind's glyph in Record as (`RecordChoice.art`).
     var art: BrandArt {
         switch self {
         case .home: return .iconHome
@@ -19,6 +21,11 @@ extension PhoneTab {
         case .journal: return .iconNotes
         case .dictations: return .iconDictations
         case .projects: return .iconProject
+        case .meetings: return .iconSpeakers
+        case .interviews: return .iconQuote
+        case .talks: return .iconVoice
+        case .brainDumps: return .iconBrainDump
+        case .audioOnly: return .iconAudio
         }
     }
 
@@ -36,6 +43,7 @@ extension PhoneState {
         case .journal: return journalPath
         case .dictations: return dictationsPath
         case .projects: return projectsPath
+        case .meetings, .interviews, .talks, .brainDumps, .audioOnly: return kindTabPaths[t] ?? NavigationPath()
         }
     }
 
@@ -47,6 +55,7 @@ extension PhoneState {
         case .journal: journalPath = p
         case .dictations: dictationsPath = p
         case .projects: projectsPath = p
+        case .meetings, .interviews, .talks, .brainDumps, .audioOnly: kindTabPaths[t] = p
         }
     }
 
@@ -108,6 +117,12 @@ extension PhoneState {
     /// consolidation).
     func openMarked() { go(.library, filter: "source:" + LibrarySource.marked.rawValue) }
 
+    /// A kind's recordings (Home's Recent meetings › See all): the kind's tab when it's in the bar, otherwise the
+    /// Library on the kind (`libraryFilterRequest` with its raw value).
+    func openKind(_ raw: String) {
+        if let t = PhoneTab.forKind(raw) { go(t) } else { go(.library, filter: raw) }
+    }
+
     /// Opens a tab's screen: the tab itself when it's in the bar; otherwise its screen pushed inside Library, or Home.
     /// `filter` opens the Library on a chip (`libraryFilterRequest`).
     func go(_ t: Tab, filter: String? = nil) {
@@ -141,6 +156,9 @@ extension PhoneState {
             let host = bar.host(for: .journal)
             if host == .journal { journalPath = NavigationPath() } else { push(ByDayRoute(kind: .journal), on: host) }
             tab = host
+        case .meetings, .interviews, .talks, .brainDumps, .audioOnly:
+            // Its own tab, back at its root; without it, the Library on the kind.
+            if bar.contains(t) { setPath(t, NavigationPath()); tab = t } else { go(.library, filter: t.kindRaw) }
         }
     }
 }

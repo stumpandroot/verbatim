@@ -4,7 +4,8 @@ import AVFoundation
 /// Home in the refined look (DESIGN.md §6 and §13; mockup "Verbose Refined Look", Main): the date over the large serif
 /// greeting, then the sections Edit Home lists (HomeLayout.swift), in its order and sizes. By default: the persimmon
 /// Record card (a tap records a voice note; touch and hold opens Record as), the four tiles in the colors of what they
-/// do, a slim This week, and Recent recordings in a card; Today's thoughts and Journal when you show them. Record's
+/// do, a slim This week, and Recent recordings in a card; Today's thoughts, Journal, and a kind's newest three (Recent
+/// meetings, …) when you show them. Record's
 /// tab bar accessory steps aside on Home while the card is there. Edit Home's button closes the page. Whatever you record here shows up on your Mac. Sections arrive at once: no entrance animation, and a layout
 /// change re-renders them in place.
 struct HomeScreen: View {
@@ -82,6 +83,7 @@ struct HomeScreen: View {
         case .recent: recent(item.size).id("home-recent")
         case .thoughts: HomeThoughtsSection(size: item.size).id("home-thoughts")
         case .journal: HomeJournalSection(size: item.size, now: now).id("home-journal")
+        case .meetings, .interviews, .talks, .brainDumps, .audioOnly: kindRecent(item).id("home-\(item.section.rawValue)")
         }
     }
 
@@ -96,6 +98,14 @@ struct HomeScreen: View {
     /// P-15). Worked out once per library change.
     static func recentRecordings(_ store: Store) -> [Transcript] {
         store.memo("phone.home.recent") { store.live.filter { !$0.isDictation }.sorted { $0.createdAt > $1.createdAt } }
+    }
+
+    /// One kind's recordings, newest first, for its section on Home (Recent meetings, …). Worked out once per library
+    /// change.
+    static func recentRecordings(_ store: Store, kind raw: String) -> [Transcript] {
+        store.memo("phone.home.recent|\(raw)") {
+            store.live.filter { !$0.isDictation && $0.kind?.rawValue == raw }.sorted { $0.createdAt > $1.createdAt }
+        }
     }
 
     /// Whether anything is transcribing. One pass, without copying the library.
@@ -251,6 +261,28 @@ struct HomeScreen: View {
                 PaperList(items, id: \.id, inset: large ? 60 : 34) { t in recentRow(t, large: large) }
             }
         }
+    }
+
+    /// A kind's section (Recent meetings, Recent interviews, Recent talks, Recent brain dumps, Audio only), drawn like
+    /// Recent: the serif title with See all, which opens the Library on the kind (its tab when it's in the bar), then the
+    /// kind's three newest in a card with Recent's rows and sizes. With none of the kind yet, one line in the card.
+    private func kindRecent(_ item: HomeLayout.Item) -> some View {
+        let raw = item.section.kindRaw ?? ""
+        let items = Array(Self.recentRecordings(app.store, kind: raw).prefix(3))
+        let large = item.size == .large
+        return VStack(alignment: .leading, spacing: 6) {
+            SectionTitle(item.section.title, link: "See all") { app.openKind(raw) }
+            if items.isEmpty {
+                PaperCard {
+                    Text(item.section.emptyLine).refinedFont(.body).foregroundStyle(Refined.dim).lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14).padding(.vertical, 14)
+                }
+            } else {
+                PaperList(items, id: \.id, inset: large ? 60 : 34) { t in recentRow(t, large: large) }
+            }
+        }
+        .accessibilityIdentifier("home.\(item.section.rawValue)")
     }
 
     private func recentRow(_ t: Transcript, large: Bool) -> some View {

@@ -27,8 +27,9 @@ check("Mac: the Record card, tiles, then Recent recordings beside This week",
 check("Mac: every section Large", mv.shown.allSatisfy { $0.size == .large })
 check("Mac starts with the Record card shown", mv.isVisible(.record))
 // The consolidation (October 28, 2026): eleven sections down to six.
-check("Home's sections: Record, tiles, This week, Recent recordings, Today's thoughts, and Journal",
-      HomeSection.allCases.map(\.rawValue) == ["record", "tiles", "week", "recent", "thoughts", "journal"])
+check("Home's sections: Record, tiles, This week, Recent recordings, Today's thoughts, Journal, then the kinds'",
+      HomeSection.allCases.map(\.rawValue) == ["record", "tiles", "week", "recent", "thoughts", "journal",
+                                               "meetings", "interviews", "talks", "brainDumps", "audioOnly"])
 check("Queue, Projects, Moments, Last dictation, and Stats left", HomeSection.retired == ["stats", "lastDictation", "projects", "moments", "queue"]
       && HomeSection.retired.allSatisfy { HomeSection(rawValue: $0) == nil })
 check("every default lists each available section once", [(pv, HomePlatform.phone), (mv, .mac)].allSatisfy { l, p in
@@ -281,7 +282,9 @@ check("removing the selected tab goes to Home", tim.selection(keeping: .dictatio
 check("a screen whose tab is in the bar opens in its tab", tim.host(for: .thoughts) == .thoughts && fresh.host(for: .library) == .library)
 check("a Dictations link without the Dictations tab opens inside Library", tim.host(for: .dictations) == .library)
 check("without Library either, inside Home", PhoneTabBar(middle: [.thoughts]).host(for: .dictations) == .home && PhoneTabBar(middle: [.thoughts]).host(for: .library) == .home)
-check("the pickable tabs, in order", PhoneTab.pickable == [.library, .thoughts, .journal, .dictations, .projects])
+check("the pickable tabs, in order: the pages, then the kinds", PhoneTab.pickable == [.library, .thoughts, .journal, .dictations, .projects,
+                                                                                    .meetings, .interviews, .talks, .brainDumps, .audioOnly]
+      && PhoneTab.pickable == PhoneTab.pages + PhoneTab.kinds)
 check("Journal is offered once it's on in Record as or there's an entry", !PhoneTab.offered(showJournal: false, in: [.library]).contains(.journal)
       && PhoneTab.offered(showJournal: true, in: [.library]).contains(.journal))
 check("a Journal tab you have stays offered", PhoneTab.offered(showJournal: false, in: [.journal]).contains(.journal))
@@ -406,10 +409,97 @@ check("record tap: a thought on Thoughts and a journal entry on Journal, since y
 check("record tap: a voice note on every other tab",
       [PhoneTab.home, .library, .dictations, .projects].allSatisfy { TabRecordDefault.forTab($0) == .voiceNote })
 check("record tap: the accessory's second line names what a tap starts",
-      TabRecordDefault.allCases.map(\.subtitle) == ["Voice note", "Thought", "Journal entry"])
+      TabRecordDefault.allCases.map(\.subtitle) == ["Voice note", "Thought", "Journal entry", "Meeting", "Interview", "Talk", "Brain dump", "Audio only"])
 check("record tap: VoiceOver's hint says what a tap starts, and that touch and hold has the rest",
       TabRecordDefault.journal.hint.hasPrefix("Starts a journal entry. Touch and hold")
       && TabRecordDefault.voiceNote.hint.hasPrefix("Starts a voice note.") && !TabRecordDefault.allCases.contains { $0.hint.contains("!") })
+
+
+// MARK: Each kind as a tile, a section, and a tab (October 31, 2026)
+
+// Tiles: Meeting, Interview, Talk, and Audio only join Brain dump; offered on both apps, never picked by default.
+check("kind tiles: the new raw values", [HomeTile.meeting, .interview, .talk, .audioOnly].map(\.rawValue) == ["meeting", "interview", "talk", "audioOnly"])
+check("kind tiles: names", [HomeTile.meeting, .interview, .talk, .audioOnly].map(\.title) == ["Meeting", "Interview", "Talk", "Audio only"])
+check("kind tiles: each records its kind, in Record as's order",
+      HomeTile.recordsKind.compactMap(\.kindRaw) == ["meeting", "interview", "talk", "brainDump", "audio"]
+      && HomeTile.allCases.filter { $0.kindRaw != nil }.count == HomeTile.recordsKind.count)
+check("kind tiles: offered on both apps", [HomePlatform.phone, .mac].allSatisfy { p in HomeTile.recordsKind.allSatisfy { HomeTile.available(on: p).contains($0) } })
+check("kind tiles: never picked by default, and the four defaults are unchanged",
+      [pv, mv].allSatisfy { l in !l.tiles.contains { $0.kindRaw != nil } }
+      && pv.tiles == [.dictate, .importMedia, .whatsPlaying, .newThought] && mv.tiles == [.dictate, .importMedia, .appAudio, .newThought])
+check("kind tiles: a stored pick of them is kept", HomeLayout.decode(json(#"{"tiles":["meeting","audioOnly","interview","talk"]}"#), .phone)?.tiles
+      == [.meeting, .audioOnly, .interview, .talk])
+check("kind tiles: an older build's unknown tile is still dropped", HomeLayout.decode(json(#"{"tiles":["meeting","hologram"]}"#), .mac)?.tiles
+      == [.meeting, .dictate, .importMedia, .appAudio])
+check("kind tiles wear their kind's hue: Interview and Talk sage, Audio only petal",
+      HomeTile.interview.hue == .sage && HomeTile.talk.hue == .sage && HomeTile.audioOnly.hue == .petal)
+check("the Meeting tile is the card: persimmon stays Record's", HomeTile.meeting.hue == nil)
+check("the cap still holds with kind tiles: three colored at most", HomeTile.hues([.interview, .audioOnly, .talk, .dictate]) == [.sage, .petal, .sage, nil]
+      && HomeTile.hues([.meeting, .newThought, .audioOnly, .talk]) == [nil, nil, .petal, .sage])
+
+// Sections: Recent meetings, interviews, talks, brain dumps, and Audio only; offered on both apps, hidden by default.
+check("kind sections: the new raw values", HomeSection.kinds.map(\.rawValue) == ["meetings", "interviews", "talks", "brainDumps", "audioOnly"])
+check("kind sections: titles in sentence case", HomeSection.kinds.map(\.title) == ["Recent meetings", "Recent interviews", "Recent talks", "Recent brain dumps", "Audio only"])
+check("kind sections: each lists its kind", HomeSection.kinds.compactMap(\.kindRaw) == ["meeting", "interview", "talk", "brainDump", "audio"]
+      && HomeSection.allCases.filter { $0.kindRaw != nil } == HomeSection.kinds)
+check("kind sections: a one-line empty state each, with no exclamation point",
+      HomeSection.kinds.allSatisfy { !$0.emptyLine.isEmpty && !$0.emptyLine.contains("!") && !$0.emptyLine.contains("\n") })
+check("kind sections: hidden by default on both apps, at Large, after Journal", [pv, mv].allSatisfy { l in
+    HomeSection.kinds.allSatisfy { l.item($0) != nil && !l.isVisible($0) && l.size($0) == .large }
+    && Array(names(l.items).suffix(5)) == ["meetings", "interviews", "talks", "brainDumps", "audioOnly"] })
+check("kind sections: the shown defaults are unchanged", names(pv.shown) == ["record", "tiles", "week", "recent"] && names(mv.shown) == ["record", "tiles", "recent", "week"])
+check("kind sections: titled in both sizes, like Recent", HomeSection.kinds.allSatisfy { s in
+    HomeLayout.Item(section: s, visible: true, size: .compact).headed && HomeLayout.Item(section: s, visible: true, size: .large).headed })
+check("kind sections: Large pairs on the Mac", HomeRows.pairable(HomeLayout.Item(section: .meetings, visible: true, size: .large))
+      && !HomeRows.pairable(HomeLayout.Item(section: .meetings, visible: true, size: .compact)))
+// The layout every device stored before them: they join hidden, after Journal, and nothing shown moves.
+let beforeKinds = json(#"{"version":1,"items":[{"section":"record","visible":true,"size":"large"},{"section":"tiles","visible":true,"size":"compact"},{"section":"recent","visible":true,"size":"large"},{"section":"week","visible":false,"size":"compact"},{"section":"journal","visible":true,"size":"compact"},{"section":"thoughts","visible":false,"size":"large"}],"tiles":["brainDump","dictate","import","whatsPlaying"]}"#)
+let bk = HomeLayout.decode(beforeKinds, .phone)
+check("an older layout keeps what it showed, in its order and sizes", bk.map { names($0.shown) } == ["record", "tiles", "recent", "journal"]
+      && bk?.size(.tiles) == .compact && bk?.size(.journal) == .compact, "\(bk.map { names($0.items) } ?? [])")
+check("and gets the kinds' sections hidden, after the section before them in the defaults", bk.map { l in
+    let n = names(l.items)
+    guard let j = n.firstIndex(of: "journal") else { return false }
+    return Array(n[(j + 1)...].prefix(5)) == ["meetings", "interviews", "talks", "brainDumps", "audioOnly"] && HomeSection.kinds.allSatisfy { !l.isVisible($0) }
+} == true, "\(bk.map { names($0.items) } ?? [])")
+check("and keeps its tiles", bk?.tiles == [.brainDump, .dictate, .importMedia, .whatsPlaying])
+var withKinds = pv
+withKinds.setVisible(.meetings, true)
+withKinds.setVisible(.audioOnly, true)
+withKinds.setSize(.audioOnly, .compact)
+check("showing kind sections puts them at the end of Home", names(withKinds.shown).suffix(2) == ["meetings", "audioOnly"])
+check("and the layout round-trips with them", withKinds.encoded().flatMap { HomeLayout.decode($0, .phone) } == withKinds)
+check("an older build reading it skips what it doesn't know (the stored form is strings)",
+      withKinds.encoded().flatMap { try? JSONDecoder().decode(HomeLayout.Record.self, from: $0) }?.items?.contains { $0.section == "meetings" } == true)
+
+// Tabs: Meetings, Interviews, Talks, Brain dumps, and Audio only, each the Library on its kind.
+check("kind tabs: the new raw values", PhoneTab.kinds.map(\.rawValue) == ["meetings", "interviews", "talks", "brainDumps", "audioOnly"])
+check("kind tabs: titles name the kind", PhoneTab.kinds.map(\.title) == ["Meetings", "Interviews", "Talks", "Brain dumps", "Audio only"])
+check("kind tabs: each opens the Library on its kind", PhoneTab.kinds.compactMap(\.kindRaw) == ["meeting", "interview", "talk", "brainDump", "audio"]
+      && PhoneTab.pages.allSatisfy { $0.kindRaw == nil } && PhoneTab.home.kindRaw == nil)
+check("kind tabs: found by their kind", PhoneTab.forKind("meeting") == .meetings && PhoneTab.forKind("audio") == .audioOnly
+      && PhoneTab.forKind("journal") == nil && PhoneTab.forKind("idea") == nil)
+check("kind tabs: the default bar is unchanged", PhoneTabBar.default.tabs == [.home, .library, .thoughts])
+check("kind tabs: a stored bar with them decodes and round-trips", PhoneTabBar.decode(["meetings", "library", "audioOnly"]).middle == [.meetings, .library, .audioOnly]
+      && PhoneTabBar.decode(PhoneTabBar(middle: [.talks, .brainDumps]).stored).middle == [.talks, .brainDumps])
+check("kind tabs: an older build's bar decodes as before, and a newer build's unknown tab is ignored",
+      PhoneTabBar.decode(["library", "thoughts"]).middle == [.library, .thoughts] && PhoneTabBar.decode(["podcasts", "interviews"]).middle == [.interviews])
+check("kind tabs: still four after Home at most", PhoneTabBar.maxMiddle == 4
+      && PhoneTabBar(middle: [.meetings, .interviews, .talks, .brainDumps, .audioOnly]).middle == [.meetings, .interviews, .talks, .brainDumps])
+check("kind tabs: picked and unpicked like any tab", PhoneTabBar.toggle(.meetings, in: [.library]) == [.library, .meetings]
+      && PhoneTabBar.toggle(.meetings, in: [.library, .meetings]) == [.library])
+check("kind tabs: always offered (Journal's rule is Journal's own)", PhoneTab.kinds.allSatisfy { PhoneTab.offered(showJournal: false, in: []).contains($0) })
+let kindBar = PhoneTabBar(middle: [.meetings, .thoughts])
+check("kind tabs: a Library link with a kind tab but no Library tab opens inside Home", kindBar.host(for: .library) == .home && kindBar.host(for: .meetings) == .meetings)
+check("kind tabs: a kind tab that isn't in the bar opens inside Library", tim.host(for: .talks) == .library)
+check("record tap: on a kind's tab, that kind", PhoneTab.kinds.map { TabRecordDefault.forTab($0) } == [.meeting, .interview, .talk, .brainDump, .audio])
+check("record tap: the kind a tap records matches the tab's kind", PhoneTab.kinds.allSatisfy { TabRecordDefault.forTab($0).kindRaw == $0.kindRaw }
+      && TabRecordDefault.journal.kindRaw == "journal" && TabRecordDefault.voiceNote.kindRaw == nil && TabRecordDefault.thought.kindRaw == nil)
+check("record tap: VoiceOver's hint takes the right article",
+      TabRecordDefault.meeting.hint.hasPrefix("Starts a meeting.") && TabRecordDefault.interview.hint.hasPrefix("Starts an interview.")
+      && TabRecordDefault.audio.hint.hasPrefix("Starts an Audio only recording.") && TabRecordDefault.brainDump.hint.hasPrefix("Starts a brain dump."))
+check("record chrome: a kind's tab shows Record like any tab", PhoneTab.kinds.allSatisfy {
+    !RC.hidden(tab: $0, homeAtRoot: true, recordCardShown: true, readingTranscript: false, recording: false) })
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

@@ -95,6 +95,9 @@ struct PhoneRoot: View {
         case .journal: ByDayScreen(kind: .journal, fixed: true)
         case .dictations: DictationsListScreen()
         case .projects: ProjectsScreen()
+        // A kind's tab: the Library already on its kind, titled for the tab ("Meetings").
+        case .meetings, .interviews, .talks, .brainDumps, .audioOnly:
+            LibraryScreen(route: LibraryRoute(request: t.kindRaw), tabTitle: t.title)
         }
     }
 

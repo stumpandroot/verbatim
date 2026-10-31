@@ -33,6 +33,15 @@ enum HomeTileAction {
     /// The self-test swaps in a simulated thought (no microphone in the simulator).
     @MainActor static var startThought: @MainActor (PhoneState) -> Void = { $0.requestThought() }
 
+    /// How a kind's tile (Meeting, Interview, Talk, Brain dump, Audio only) starts its recording: through Record as's
+    /// own entry point (`RecordTray.perform`), so it runs exactly as choosing the kind in Record as does, with the same
+    /// checks (the free 10 minutes, the consent notice, the microphone), and the self-test's stand-in sees it.
+    @MainActor static func startKind(_ kind: RecordingKind, _ app: PhoneState) {
+        let tray = RecordTray.shared
+        if tray.app == nil { tray.app = app }
+        tray.perform(.kind(kind))
+    }
+
     /// What a tile does on iPhone. Import is a menu (HomeTileButton); the Mac's tiles aren't offered here.
     @MainActor static func run(_ tile: HomeTile, _ app: PhoneState) {
         switch tile {
@@ -46,7 +55,8 @@ enum HomeTileAction {
         case .dictionary: app.homePath.append(HomeDictionaryRoute())
         case .newThought: startThought(app)
         case .journal: app.go(.journal)
-        case .brainDump: app.startRecordChoice(.kind(.brainDump))
+        case .brainDump, .meeting, .interview, .talk, .audioOnly:
+            if let k = tile.kindRaw.flatMap(RecordingKind.init(rawValue:)) { startKind(k, app) }
         case .appAudio, .thoughtPad: break
         }
     }
@@ -63,6 +73,10 @@ enum HomeTileAction {
         case .newThought: return "Records a thought for today's page."
         case .journal: return "Opens your journal, by day."
         case .brainDump: return "Records a brain dump. Plan my day sorts it into a plan when it finishes."
+        case .meeting: return "Records a meeting, with every voice kept."
+        case .interview: return "Records an interview, with every voice kept."
+        case .talk: return "Records a talk, with every voice kept."
+        case .audioOnly: return "Records the sound only, with no transcript."
         case .appAudio, .thoughtPad: return ""
         }
     }

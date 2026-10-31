@@ -16,6 +16,9 @@ import Combine
 /// A tab the iPhone's bar can show.
 enum PhoneTab: String, CaseIterable, Hashable, Sendable {
     case home, library, thoughts, journal, dictations, projects
+    /// A kind's tab (October 31, 2026): the Library already filtered to that kind as the tab's root, with its own
+    /// navigation stack, and Record in the accessory starting that kind there (`TabRecordDefault`). In Record as's order.
+    case meetings, interviews, talks, brainDumps, audioOnly
 
     /// The Moments tab's stored value, from builds before the consolidation.
     static let retiredMoments = "moments"
@@ -28,8 +31,29 @@ enum PhoneTab: String, CaseIterable, Hashable, Sendable {
         case .journal: return "Journal"
         case .dictations: return "Dictations"
         case .projects: return "Projects"
+        case .meetings: return "Meetings"
+        case .interviews: return "Interviews"
+        case .talks: return "Talks"
+        case .brainDumps: return "Brain dumps"
+        case .audioOnly: return "Audio only"
         }
     }
+
+    /// The recording kind a kind's tab lists (`RecordingKind`'s raw value, the Library's filter request), or nil for
+    /// the other tabs.
+    var kindRaw: String? {
+        switch self {
+        case .meetings: return "meeting"
+        case .interviews: return "interview"
+        case .talks: return "talk"
+        case .brainDumps: return "brainDump"
+        case .audioOnly: return "audio"
+        case .home, .library, .thoughts, .journal, .dictations, .projects: return nil
+        }
+    }
+
+    /// The kind's tab for a kind's raw value ("meeting" is Meetings), or nil when the kind has no tab of its own.
+    static func forKind(_ raw: String) -> PhoneTab? { kinds.first { $0.kindRaw == raw } }
 
     /// The picker's second line for a tab.
     var detail: String {
@@ -40,11 +64,20 @@ enum PhoneTab: String, CaseIterable, Hashable, Sendable {
         case .journal: return "Your journal, by day"
         case .dictations: return "Everything you dictated"
         case .projects: return "Each project and what's in it"
+        case .meetings: return "Your meetings, and Record starts a meeting"
+        case .interviews: return "Your interviews, and Record starts an interview"
+        case .talks: return "Your talks, and Record starts a talk"
+        case .brainDumps: return "Your brain dumps, and Record starts a brain dump"
+        case .audioOnly: return "Your Audio only recordings, and Record keeps the sound"
         }
     }
 
-    /// The tabs you can pick for the middle of the bar, in the picker's order.
-    static let pickable: [PhoneTab] = [.library, .thoughts, .journal, .dictations, .projects]
+    /// The picker's two groups: Pages (screens of their own) and Kinds (the Library on one kind).
+    static let pages: [PhoneTab] = [.library, .thoughts, .journal, .dictations, .projects]
+    static let kinds: [PhoneTab] = [.meetings, .interviews, .talks, .brainDumps, .audioOnly]
+
+    /// The tabs you can pick for the middle of the bar, in the picker's order: the pages, then the kinds.
+    static let pickable: [PhoneTab] = pages + kinds
 
     /// The tabs the picker offers: Journal only once Journal entry is on in Record as or there's a journal entry
     /// (consolidation, October 28, 2026; `RecordAsRows.showsJournal`), or while it's already in the bar.
@@ -158,31 +191,61 @@ enum RecordChromeRule {
     }
 }
 
-/// What a tap on Record in the tab bar's accessory starts: on Thoughts a thought and on Journal a journal entry, since
-/// you're already there; a voice note on every other tab. Touch and hold still opens Record as everywhere.
+/// What a tap on Record in the tab bar's accessory starts: on Thoughts a thought, on Journal a journal entry, and on a
+/// kind's tab that kind (a meeting on Meetings), since you're already there; a voice note on every other tab. Touch and
+/// hold still opens Record as everywhere. The kinds' raw values are `RecordingKind`'s (`kindRaw`).
 enum TabRecordDefault: String, CaseIterable, Sendable {
     case voiceNote, thought, journal
+    case meeting, interview, talk, brainDump, audio
 
     static func forTab(_ tab: PhoneTab) -> TabRecordDefault {
         switch tab {
         case .thoughts: return .thought
         case .journal: return .journal
-        default: return .voiceNote
+        case .meetings: return .meeting
+        case .interviews: return .interview
+        case .talks: return .talk
+        case .brainDumps: return .brainDump
+        case .audioOnly: return .audio
+        case .home, .library, .dictations, .projects: return .voiceNote
         }
     }
 
-    /// The accessory's second line under "Record".
+    /// The kind a tap records as (`RecordingKind`'s raw value): nil for a voice note (Verbose picks the kind) and for a
+    /// thought (New thought, not a recording of the Thoughts kind).
+    var kindRaw: String? {
+        switch self {
+        case .voiceNote, .thought: return nil
+        case .journal, .meeting, .interview, .talk, .brainDump, .audio: return rawValue
+        }
+    }
+
+    /// The accessory's second line under "Record": the name Record as gives it.
     var subtitle: String {
         switch self {
         case .voiceNote: return "Voice note"
         case .thought: return "Thought"
         case .journal: return "Journal entry"
+        case .meeting: return "Meeting"
+        case .interview: return "Interview"
+        case .talk: return "Talk"
+        case .brainDump: return "Brain dump"
+        case .audio: return "Audio only"
+        }
+    }
+
+    /// What a tap starts, for VoiceOver: "a voice note", "an interview", "an Audio only recording".
+    var noun: String {
+        switch self {
+        case .interview: return "an interview"
+        case .audio: return "an Audio only recording"
+        default: return "a \(subtitle.lowercased())"
         }
     }
 
     /// VoiceOver's hint for Record.
     var hint: String {
-        "Starts a \(subtitle.lowercased()). Touch and hold for more ways to record, and for Dictate, Live captions, and Import."
+        "Starts \(noun). Touch and hold for more ways to record, and for Dictate, Live captions, and Import."
     }
 }
 

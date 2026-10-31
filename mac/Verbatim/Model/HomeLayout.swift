@@ -30,15 +30,22 @@ enum HomeCardSize: String, CaseIterable, Sendable {
 
 /// A section of Home. The header (greeting and date) and the What's new note aren't sections: they always lead.
 ///
-/// The consolidation (October 28, 2026) took Home from eleven sections to these six. Queue (the sidebar's Queue row on
+/// The consolidation (October 28, 2026) took Home from eleven sections to six, before the kinds' sections. Queue (the sidebar's Queue row on
 /// the Mac, the tab badge on iPhone), Projects (the sidebar and the Library), Moments (the Library's Marked filter),
 /// Last dictation (Dictations and Recall), and the Mac's Stats (This week and You) left. A stored layout that
 /// names them is read without them (`HomeLayout.from` skips what it doesn't know), so nothing else changes.
 enum HomeSection: String, CaseIterable, Sendable {
     case record, tiles, week, recent, thoughts, journal
+    /// A kind's newest three (October 31, 2026), drawn like Recent recordings, with See all opening the Library on the
+    /// kind: Recent meetings, Recent interviews, Recent talks, Recent brain dumps, and Audio only, in Record as's order.
+    /// Offered in Edit Home on both apps, hidden until you show them.
+    case meetings, interviews, talks, brainDumps, audioOnly
 
     /// The raw values of the sections that left, for the tests and for reading an older layout.
     static let retired: Set<String> = ["stats", "lastDictation", "projects", "moments", "queue"]
+
+    /// The sections that each show one kind's recordings, in Record as's order.
+    static let kinds: [HomeSection] = [.meetings, .interviews, .talks, .brainDumps, .audioOnly]
 
     var title: String {
         switch self {
@@ -48,6 +55,35 @@ enum HomeSection: String, CaseIterable, Sendable {
         case .recent: return "Recent recordings"
         case .thoughts: return "Today's thoughts"
         case .journal: return "Journal"
+        case .meetings: return "Recent meetings"
+        case .interviews: return "Recent interviews"
+        case .talks: return "Recent talks"
+        case .brainDumps: return "Recent brain dumps"
+        case .audioOnly: return "Audio only"
+        }
+    }
+
+    /// The recording kind a kind's section lists (`RecordingKind`'s raw value), or nil for the other sections.
+    var kindRaw: String? {
+        switch self {
+        case .meetings: return "meeting"
+        case .interviews: return "interview"
+        case .talks: return "talk"
+        case .brainDumps: return "brainDump"
+        case .audioOnly: return "audio"
+        case .record, .tiles, .week, .recent, .thoughts, .journal: return nil
+        }
+    }
+
+    /// A kind's section with none of its kind yet: one line in place of the rows.
+    var emptyLine: String {
+        switch self {
+        case .meetings: return "No meetings yet."
+        case .interviews: return "No interviews yet."
+        case .talks: return "No talks yet."
+        case .brainDumps: return "No brain dumps yet."
+        case .audioOnly: return "No Audio only recordings yet."
+        case .record, .tiles, .week, .recent, .thoughts, .journal: return ""
         }
     }
 
@@ -66,6 +102,11 @@ enum HomeSection: String, CaseIterable, Sendable {
         case .recent: return "Your latest recordings"
         case .thoughts: return "Today's last few thoughts, with New thought"
         case .journal: return "Your latest entry and this week's days"
+        case .meetings: return "Your three newest meetings"
+        case .interviews: return "Your three newest interviews"
+        case .talks: return "Your three newest talks"
+        case .brainDumps: return "Your three newest brain dumps"
+        case .audioOnly: return "Your three newest Audio only recordings"
         }
     }
 }
@@ -81,6 +122,10 @@ enum HomeTile: String, CaseIterable, Sendable {
     /// Brain dump (October 27, 2026): records one on iPhone, opens the Brain dump window on the Mac. Offered in Edit
     /// Home, never picked by default.
     case brainDump
+    /// Meeting, Interview, Talk, and Audio only (October 31, 2026): a tap starts that kind of recording, as choosing it
+    /// in Record as does, on both apps (the Mac's Meeting is the meeting capture, consent sheet first). Offered in Edit
+    /// Home, never picked by default.
+    case meeting, interview, talk, audioOnly
 
     var title: String {
         switch self {
@@ -96,6 +141,25 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .newThought: return "New thought"
         case .journal: return "Journal"
         case .brainDump: return "Brain dump"
+        case .meeting: return "Meeting"
+        case .interview: return "Interview"
+        case .talk: return "Talk"
+        case .audioOnly: return "Audio only"
+        }
+    }
+
+    /// The tiles that start a recording of a kind, in Record as's order.
+    static let recordsKind: [HomeTile] = [.meeting, .interview, .talk, .brainDump, .audioOnly]
+
+    /// The kind a tile records (`RecordingKind`'s raw value), or nil for a tile that does something else.
+    var kindRaw: String? {
+        switch self {
+        case .meeting: return "meeting"
+        case .interview: return "interview"
+        case .talk: return "talk"
+        case .brainDump: return "brainDump"
+        case .audioOnly: return "audio"
+        default: return nil
         }
     }
 
@@ -114,6 +178,10 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .newThought: return "Record one now"
         case .journal: return "Your journal, by day"
         case .brainDump: return "Talk through your day"
+        case .meeting: return "Record a meeting"
+        case .interview: return "Record an interview"
+        case .talk: return "Record a talk"
+        case .audioOnly: return "Keeps the sound, no transcript"
         }
     }
 
@@ -133,13 +201,18 @@ enum HomeTile: String, CaseIterable, Sendable {
     static func available(on platform: HomePlatform) -> [HomeTile] { allCases.filter { $0.isAvailable(on: platform) } }
 
     /// The capture mode's hue a tile wears, by what it does, never by its slot (DESIGN.md §1, review P-14): Dictate
-    /// butter, Import sage, What's playing and App audio petal. Everything else (Live captions, New thought, Journal,
-    /// the tools) is the card. The views map it to the palette (`HomeTile.refinedHues`, Views/HomeKit.swift).
+    /// butter, Import sage, What's playing and App audio petal. A tile that records a kind wears its kind's hue (as on
+    /// Record as's icon squares, `RefinedRules.kindHue`): Interview and Talk sage, Audio only petal. Meeting's kind is
+    /// persimmon, the one saturated fill, which Record keeps (§1), so its tile is the card. Everything else (Live
+    /// captions, New thought, Journal, Brain dump, the tools) is the card. The views map it to the palette
+    /// (`HomeTile.refinedHues`, Views/HomeKit.swift).
     var hue: HomeTileHue? {
         switch self {
         case .dictate: return .butter
         case .importMedia: return .sage
         case .whatsPlaying, .appAudio: return .petal
+        case .interview, .talk: return .sage
+        case .audioOnly: return .petal
         default: return nil
         }
     }
@@ -181,7 +254,8 @@ struct HomeLayout: Equatable, Sendable {
         /// Sections with a title of their own get more room above them on both apps.
         var headed: Bool {
             switch section {
-            case .recent: return true
+            // A kind's section is drawn like Recent recordings: its title in both sizes.
+            case .recent, .meetings, .interviews, .talks, .brainDumps, .audioOnly: return true
             case .thoughts, .journal: return size == .large
             default: return false
             }
@@ -197,20 +271,21 @@ struct HomeLayout: Equatable, Sendable {
 
     /// Home as a new install (or Reset) starts it (DESIGN.md §13, October 28, 2026), as its mockup draws it. iPhone:
     /// the Record card, the four tiles, a slim This week, and Recent recordings. Mac: the Record card, the four tiles in
-    /// a row, then Recent recordings beside This week. Today's thoughts and Journal start hidden. A layout a device
-    /// already stored keeps its sections, order, and sizes (the Record card aside, turned on once by
-    /// `HomeRefinedMigration`).
+    /// a row, then Recent recordings beside This week. Today's thoughts, Journal, and the kinds' sections start hidden.
+    /// A layout a device already stored keeps its sections, order, and sizes (the Record card aside, turned on once by
+    /// `HomeRefinedMigration`); a section new to it joins hidden (`from`).
     static func defaults(_ platform: HomePlatform) -> HomeLayout {
         func on(_ s: HomeSection, _ size: HomeCardSize) -> Item { Item(section: s, visible: true, size: size) }
         func off(_ s: HomeSection, _ size: HomeCardSize) -> Item { Item(section: s, visible: false, size: size) }
+        let kinds = HomeSection.kinds.map { off($0, .large) }
         let items: [Item]
         switch platform {
         case .phone:
             items = [on(.record, .large), on(.tiles, .large), on(.week, .compact), on(.recent, .large),
-                     off(.thoughts, .large), off(.journal, .large)]
+                     off(.thoughts, .large), off(.journal, .large)] + kinds
         case .mac:
             items = [on(.record, .large), on(.tiles, .large), on(.recent, .large), on(.week, .large),
-                     off(.thoughts, .large), off(.journal, .large)]
+                     off(.thoughts, .large), off(.journal, .large)] + kinds
         }
         return HomeLayout(items: items, tiles: defaultTiles(platform))
     }
@@ -501,8 +576,9 @@ struct HomeRow: Identifiable, Equatable, Sendable {
 }
 
 enum HomeRows {
-    /// Large sections that make sense beside another: Recent recordings, This week, Today's thoughts, and Journal. The
-    /// Record card and the tiles always run across the column, and a Compact section is a strip across it.
+    /// Large sections that make sense beside another: Recent recordings, This week, Today's thoughts, Journal, and the
+    /// kinds' sections. The Record card and the tiles always run across the column, and a Compact section is a strip
+    /// across it.
     static func pairable(_ item: HomeLayout.Item) -> Bool {
         item.size == .large && item.section != .record && item.section != .tiles
     }

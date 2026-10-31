@@ -24,6 +24,9 @@ struct LibraryScreen: View {
     /// Pushed inside another tab (Library isn't in the bar, or a project from the Projects tab), opened on this filter.
     /// Nil for the Library tab itself.
     var route: LibraryRoute? = nil
+    /// A kind's tab (Meetings, …; PhoneApp's `rootScreen`): the tab's name, the title while the Library is on the tab's
+    /// kind. Nil elsewhere.
+    var tabTitle: String? = nil
     @State private var routeApplied = false
     /// Select recordings (More), the selection, and the pushes from More and the Projects row.
     @State private var selecting = false
@@ -33,6 +36,9 @@ struct LibraryScreen: View {
 
     /// How many Libraries are on screen (the self-test checks there's one).
     static var onScreen = 0
+    /// For the self-test: the kind the Library last shown is on (its raw value; nil for any other filter), and its title.
+    static var shownKind: String?
+    static var shownTitle: String?
 
     /// A filter besides the type: a kind, Pinned, In progress, or a project. A type and these don't combine: choosing
     /// one clears the other.
@@ -139,15 +145,17 @@ struct LibraryScreen: View {
         .background(Refined.paper.ignoresSafeArea())
         .modifier(LibraryScrollEdge())
         .scrollDismissesKeyboard(.immediately)
-        .navigationTitle("Library")
+        .navigationTitle(tabTitle ?? "Library")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
         .navigationDestination(isPresented: $showTrash) { TrashScreen() }
         .navigationDestination(isPresented: $showProjects) { ProjectsScreen() }
         .onChange(of: search) { _, v in if route == nil { LibraryKeep.librarySearch = v } }
         .onChange(of: filter) { _, v in if route == nil { LibraryKeep.libraryFilter = v } }
+        .onChange(of: filter) { _, _ in noteShown() }
         .onAppear {
             Self.onScreen += 1
+            defer { noteShown() }
             // Pushed: starts on its own filter and an empty search, once.
             guard let route, !routeApplied else { return }
             routeApplied = true
@@ -220,10 +228,18 @@ struct LibraryScreen: View {
         }
     }
 
-    /// The project's name in a project, otherwise "Library".
+    /// The project's name in a project, the tab's name on a kind's tab while it's on that kind ("Meetings"), otherwise
+    /// "Library".
     private var title: String {
         if case .project(let p) = filter, let name = app.store.projects.first(where: { $0.id == p })?.name { return name }
+        if let tabTitle, case .kind(let k) = filter, k.rawValue == route?.request { return tabTitle }
         return "Library"
+    }
+
+    /// Notes the filter and title on screen, for the self-test.
+    private func noteShown() {
+        if case .kind(let k) = filter { Self.shownKind = k.rawValue } else { Self.shownKind = nil }
+        Self.shownTitle = title
     }
 
     /// "47 recordings", or with a filter on, how many it shows ("8 meetings", "3 pinned").

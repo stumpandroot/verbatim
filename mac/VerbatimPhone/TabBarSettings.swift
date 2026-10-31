@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Settings › Personalization and preferences › Tab bar (and Edit Home's Tab bar…): a live preview of the bar, then
-/// every tab you can add. Check up to four; drag the checked ones to reorder. Home stays first. Settings isn't a tab: it
-/// opens from the round button beside Home's date.
+/// every tab you can add, in two groups: Pages (Library, Thoughts, Journal, Dictations, Projects) and Kinds (Meetings,
+/// Interviews, Talks, Brain dumps, Audio only: the Library on one kind). Check up to four; drag the checked ones to
+/// reorder. Home stays first. Settings isn't a tab: it opens from the round button beside Home's date.
 /// Changes reach the bar at once and are kept on this iPhone (PhoneTabBar.swift). On the refined kit (DESIGN.md §13)
 ///: the large serif title, the preview with Record above the tabs, and the rows in cards.
 struct TabBarSettingsScreen: View {
@@ -20,6 +21,8 @@ struct TabBarSettingsScreen: View {
         // Journal is offered once Journal entry is on in Record as or you have an entry (consolidation, item 16).
         let offered = PhoneTab.offered(showJournal: recordAs.rows.showsJournal(hasEntries: app.store.hasJournalEntries), in: bar.middle)
         let more = offered.filter { !bar.middle.contains($0) }
+        let groups = [TabGroup(title: "Pages", tabs: more.filter { PhoneTab.pages.contains($0) }),
+                      TabGroup(title: "Kinds", tabs: more.filter { PhoneTab.kinds.contains($0) })].filter { !$0.tabs.isEmpty }
         List {
             Section {
                 intro
@@ -37,13 +40,14 @@ struct TabBarSettingsScreen: View {
                     .onMove { from, to in animate { app.setTabBar(PhoneTabBar.move(bar.middle, fromOffsets: from, toOffset: to)) } }
             }
             .listSectionSeparator(.hidden)
-            if !more.isEmpty {
+            // The tabs you can add, as Pages and Kinds; the note about the four sits under the last group.
+            ForEach(Array(groups.enumerated()), id: \.element.title) { g, group in
                 Section {
-                    RefinedListHeading("More tabs")
-                    ForEach(Array(more.enumerated()), id: \.element) { i, t in
-                        row(t, picked: false, room: bar.middle.count < PhoneTabBar.maxMiddle, first: i == 0, last: i == more.count - 1)
+                    RefinedListHeading(group.title)
+                    ForEach(Array(group.tabs.enumerated()), id: \.element) { i, t in
+                        row(t, picked: false, room: bar.middle.count < PhoneTabBar.maxMiddle, first: i == 0, last: i == group.tabs.count - 1)
                     }
-                    if bar.middle.count >= PhoneTabBar.maxMiddle {
+                    if g == groups.count - 1, bar.middle.count >= PhoneTabBar.maxMiddle {
                         Text(Self.fullNote).refinedFont(.meta).foregroundStyle(Refined.mute)
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 6, leading: 34, bottom: 0, trailing: 34))
@@ -89,6 +93,12 @@ struct TabBarSettingsScreen: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 4).padding(.bottom, 6)
+    }
+
+    /// A heading and the tabs under it that you can add.
+    private struct TabGroup {
+        var title: String
+        var tabs: [PhoneTab]
     }
 
     private func inBar(_ bar: PhoneTabBar) -> String { "In the bar · \(bar.middle.count) of \(PhoneTabBar.maxMiddle)" }
