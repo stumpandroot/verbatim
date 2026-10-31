@@ -1,0 +1,1 @@
+Build 260's DMG is over GitHub's file size limit for git. Download it from https://github.com/stumpandroot/verbose-updates/releases/download/beta-latest/Verbose.dmg

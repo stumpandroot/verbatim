@@ -1,0 +1,3 @@
+Build 260 from 853fcc2 (main)
+Mac self-test: 994 passed, 0 failed, finished: yes
+Logs, CPU samples, and crash reports: the mac-diagnostics-260 artifact on the workflow run (7 days).
