@@ -291,7 +291,7 @@ struct MacPlanResult: View {
                     if DayPlan.allSent(plan, sent: sent) {
                         Text("\u{2713} " + (DayPlan.sentStatus(plan, sent: sent) ?? "")).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
                     } else {
-                        Button("Send to Reminders") { open(plan, sent, only: nil) }
+                        Button(TaskApps.buttonTitle) { open(plan, sent, only: nil) }
                             .buttonStyle(RefinedActionStyle(kind: .strong))
                             .uiTarget("result-send-reminders")
                         if let s = DayPlan.sentStatus(plan, sent: sent) { Text(s).refinedFont(.meta).foregroundStyle(Refined.mute) }

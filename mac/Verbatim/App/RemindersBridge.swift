@@ -183,6 +183,12 @@ final class SendToReminders: ObservableObject {
     }
 
     var checkedCount: Int { (plan.tasks + plan.ideas).filter { selection.contains($0.key) && sent[$0.key] == nil }.count }
+    /// The checked items as drafts, for Things, OmniFocus, and the share sheet (Send tasks, TaskSend.swift).
+    var checkedDrafts: [DayPlan.ReminderDraft] {
+        DayPlan.drafts(plan, selected: selection, sent: sent, recordedAt: recordedAt, source: source, anchorLabel: anchorLabel)
+    }
+    /// The share sheet's first line: "Plan from Brain dump, Tue, Nov 3".
+    var checklistTitle: String { "Plan from \(source), \(DayPlan.shortDay(recordedAt))" }
     /// "Add 9 to Reminders".
     var addTitle: String { checkedCount == 0 ? "Add to Reminders" : "Add \(checkedCount) to Reminders" }
     /// The list row's value before access is given: Reminders' own default.
@@ -235,6 +241,41 @@ final class SendToReminders: ObservableObject {
             problem = "Couldn\u{2019}t add to Reminders: \(error.localizedDescription)"
             return nil
         }
+    }
+}
+
+/// Send tasks' other apps (TaskSend.swift): which are installed, where you sent last, and opening their links.
+enum TaskApps {
+    /// Installed: its scheme opens something. iPhone asks with `canOpenURL` (the schemes are in project.yml's
+    /// LSApplicationQueriesSchemes); the Mac asks Launch Services. Reminders and the share sheet are always there.
+    @MainActor static func isInstalled(_ d: TaskDestination) -> Bool {
+        guard let s = d.scheme, let u = URL(string: s + "://") else { return true }
+        #if os(iOS)
+        return UIApplication.shared.canOpenURL(u)
+        #else
+        return NSWorkspace.shared.urlForApplication(toOpen: u) != nil
+        #endif
+    }
+
+    /// The To menu's choices.
+    @MainActor static var offered: [TaskDestination] { TaskDestination.offered(installed: isInstalled) }
+
+    /// Where you sent last.
+    static var last: TaskDestination? {
+        get { UserDefaults.standard.string(forKey: TaskDestination.lastKey).flatMap(TaskDestination.init(rawValue:)) }
+        set { UserDefaults.standard.set(newValue?.rawValue, forKey: TaskDestination.lastKey) }
+    }
+
+    /// The plan's button: "Send to Things" after a send there, otherwise "Send tasks".
+    @MainActor static var buttonTitle: String { TaskDestination.buttonTitle(last: last, offered: offered) }
+
+    /// Opens Things' or OmniFocus's link. False when nothing opened it.
+    @MainActor static func open(_ url: URL) async -> Bool {
+        #if os(iOS)
+        return await UIApplication.shared.open(url)
+        #else
+        return NSWorkspace.shared.open(url)
+        #endif
     }
 }
 

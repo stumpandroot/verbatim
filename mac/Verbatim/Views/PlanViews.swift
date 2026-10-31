@@ -133,7 +133,7 @@ private struct PlanItemAccessibility: ViewModifier {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(label)
             .accessibilityAction(named: "Play that line") { onJump?(item) }
-            .accessibilityAction(named: "Send to Reminders") { if !sent { onSend?(item) } }
+            .accessibilityAction(named: "Send this task") { if !sent { onSend?(item) } }
     }
 
     private var label: String {

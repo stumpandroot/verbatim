@@ -84,7 +84,7 @@ struct PhonePlanResult: View {
                     Label { Text(DayPlan.sentStatus(plan, sent: sent) ?? "") } icon: { Image(systemName: "checkmark") }
                         .refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText)
                 } else {
-                    Button { open(plan, only: nil) } label: { Text("Send to Reminders") }
+                    Button { open(plan, only: nil) } label: { Text(TaskApps.buttonTitle) }
                         .buttonStyle(RefinedActionStyle(kind: .strong))
                         .accessibilityIdentifier("plan.sendToReminders")
                     if let status = DayPlan.sentStatus(plan, sent: sent) {
@@ -148,16 +148,26 @@ struct PhoneSentToast: View {
     }
 }
 
-// MARK: - Send to Reminders
+// MARK: - Send tasks
 
-/// The sheet, on the paper with its rows in cards: the list (a menu row), every task checked and the ideas unchecked, each with its due date ("Today", "Wed, Oct 28", or "No date"), and Add. A task gets a due date only when
-/// you said a day. The first add asks for Reminders access; if you say no, the sheet says how to turn it on.
+/// Send tasks (approved mockup "Verbose Send Tasks", October 31, 2026; it was Send to Reminders), on the paper with its
+/// rows in cards: To (Reminders, Things and OmniFocus when installed, or Another app, the share sheet; TaskSend.swift),
+/// the Reminders list when it goes to Reminders, every task checked and the ideas unchecked, each with its due date
+/// ("Today", "Wed, Oct 28", or "No date"), and Add. A task gets a due date only when you said a day. The first add to
+/// Reminders asks for access; if you say no, the sheet says how to turn it on. Only Reminders marks tasks as sent.
 struct PhoneRemindersSheet: View {
     @EnvironmentObject var app: PhoneState
     @ObservedObject var model: SendToReminders
     var onSent: ([String: String], String, String) -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
+    /// Where the checked tasks go; it starts where you sent last.
+    @State private var destination: TaskDestination = .reminders
+    @State private var offered: [TaskDestination] = [.reminders, .share]
+    /// The checklist for the share sheet, while it's open.
+    @State private var shareText: String? = nil
+    /// A link that didn't open.
+    @State private var openProblem: String? = nil
 
     /// For the self-test: the sheet on screen.
     static weak var shown: SendToReminders? = nil
@@ -166,6 +176,30 @@ struct PhoneRemindersSheet: View {
         NavigationStack {
             List {
                 Section {
+                    Menu {
+                        Picker("To", selection: $destination) {
+                            ForEach(offered) { d in
+                                // A second Text is the menu item's subtitle ("Todoist, TickTick, Notes, and more").
+                                VStack(alignment: .leading) {
+                                    Text(d.title)
+                                    if let sub = d.subtitle { Text(sub) }
+                                }
+                                .tag(d)
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text("To").refinedFont(.body).foregroundStyle(Refined.ink)
+                            Spacer()
+                            Text(destination == .share ? "Another app" : destination.title).refinedFont(.body).foregroundStyle(Refined.mute).lineLimit(1)
+                            Image(systemName: "chevron.up.chevron.down").font(.footnote).foregroundStyle(Refined.mute)   // brand: system surface (menu)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("To")
+                    .accessibilityValue(destination.title)
+                    .accessibilityIdentifier("sendTasks.to")
+                    if destination == .reminders {
                     Menu {
                         ForEach(model.lists) { l in
                             Button { model.pick(l) } label: {
@@ -184,6 +218,7 @@ struct PhoneRemindersSheet: View {
                     .disabled(model.lists.isEmpty)
                     .accessibilityLabel("List")
                     .accessibilityValue(model.listTitle)
+                    }
                 }
                 .listRowBackground(Refined.card)
                 let tasks = model.plan.tasks
@@ -198,7 +233,9 @@ struct PhoneRemindersSheet: View {
                     .listRowBackground(Refined.card)
                 }
                 Section {
-                    if let p = model.problem {
+                    if let p = openProblem {
+                        Text(p).refinedFont(.hint).foregroundStyle(Refined.ink)
+                    } else if destination == .reminders, let p = model.problem {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(p).refinedFont(.hint).foregroundStyle(Refined.ink)
                             if model.access == .denied {
@@ -206,19 +243,19 @@ struct PhoneRemindersSheet: View {
                             }
                         }
                     }
-                } footer: { Text("A task gets a due date only when you said a day.").foregroundStyle(Refined.mute) }
+                } footer: { Text(destination.footer).foregroundStyle(Refined.mute) }
                 .listRowBackground(Refined.card)
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .background(Refined.paper)
             .listRowSeparatorTint(Refined.separator)
-            .navigationTitle("Send to Reminders")
+            .navigationTitle("Send tasks")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(model.addTitle) { send() }
+                    Button(destination.actionTitle(count: model.checkedCount)) { send() }
                         .disabled(model.sending || model.checkedCount == 0)
                         .accessibilityIdentifier("reminders.add")
                 }
@@ -226,7 +263,15 @@ struct PhoneRemindersSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .onAppear { Self.shown = model }
+        .sheet(isPresented: Binding(get: { shareText != nil }, set: { if !$0 { shareText = nil } })) {
+            ShareSheet(items: [shareText ?? ""])
+        }
+        .onChange(of: destination) { _, _ in openProblem = nil }
+        .onAppear {
+            Self.shown = model
+            offered = TaskApps.offered
+            destination = TaskDestination.starting(last: TaskApps.last, offered: offered)
+        }
         .onDisappear { if Self.shown === model { Self.shown = nil } }
     }
 
@@ -260,11 +305,33 @@ struct PhoneRemindersSheet: View {
     }
 
     private func send() {
-        Task { @MainActor in
-            guard let r = await model.send() else { Haptics.play(.failed); return }
-            Haptics.play(.sentToReminders)
-            onSent(r.added, r.message, r.list)
-            dismiss()
+        openProblem = nil
+        switch destination {
+        case .reminders:
+            Task { @MainActor in
+                guard let r = await model.send() else { Haptics.play(.failed); return }
+                TaskApps.last = .reminders
+                Haptics.play(.sentToReminders)
+                onSent(r.added, r.message, r.list)
+                dismiss()
+            }
+        case .share:
+            TaskApps.last = .share
+            shareText = TaskSend.checklist(model.checkedDrafts, title: model.checklistTitle, now: Date())
+        case .things, .omnifocus:
+            let d = destination
+            let drafts = model.checkedDrafts
+            guard let url = TaskSend.url(for: d, drafts: drafts, today: Date()) else { return }
+            Task { @MainActor in
+                guard await TaskApps.open(url) else {
+                    openProblem = "Couldn\u{2019}t open \(d.title). Check that it\u{2019}s installed."
+                    Haptics.play(.failed); return
+                }
+                TaskApps.last = d
+                Haptics.play(.sentToReminders)
+                app.say(d.sentMessage(count: drafts.count))
+                dismiss()
+            }
         }
     }
 }
@@ -401,7 +468,7 @@ struct ThoughtsPlanScreen: View {
                     if DayPlan.allSent(plan, sent: r.sent) {
                         Text(DayPlan.sentStatus(plan, sent: r.sent) ?? "").refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText)
                     } else {
-                        Button("Send to Reminders") { openSheet(plan, r, only: nil) }.buttonStyle(RefinedActionStyle(kind: .strong))
+                        Button(TaskApps.buttonTitle) { openSheet(plan, r, only: nil) }.buttonStyle(RefinedActionStyle(kind: .strong))
                             .accessibilityIdentifier("thoughtsPlan.send")
                     }
                     Button { DayPlanCenter.shared.organize(day: day, thoughts: thoughts, store: app.store) } label: { Text("Run again") }

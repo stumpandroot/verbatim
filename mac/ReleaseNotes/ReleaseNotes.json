@@ -6,6 +6,14 @@
       "items": [
         {
           "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Send tasks from a plan to Things, OmniFocus, or any app, as well as Reminders.",
+          "detail": "The button names where you sent last. Things and OmniFocus show when they're installed; Another app opens the share sheet with a checklist."
+        },
+        {
+          "platforms": [
             "iphone"
           ],
           "text": "Verbose is free on iPhone, with a 7-day free trial that starts when you tap it.",

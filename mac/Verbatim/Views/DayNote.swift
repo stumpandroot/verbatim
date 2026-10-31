@@ -190,7 +190,7 @@ struct MacPlanPanel: View {
                     if DayPlan.allSent(plan, sent: r.sent) {
                         Text("\u{2713} " + (DayPlan.sentStatus(plan, sent: r.sent) ?? "")).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
                     } else {
-                        Button("Send to Reminders") { open(plan, r, only: nil) }
+                        Button(TaskApps.buttonTitle) { open(plan, r, only: nil) }
                             .buttonStyle(RefinedActionStyle(kind: .strong))
                             .uiTarget("plan-send-reminders")
                     }
@@ -266,13 +266,20 @@ struct MacPlanPanel: View {
     }
 }
 
-/// Send to Reminders on the Mac (a sheet): the list pop-up, each task with a checkbox and its due date, the ideas
-/// unchecked, and Add as the default button.
+/// Send tasks on the Mac (a sheet; approved mockup "Verbose Send Tasks", October 31, 2026; it was Send to Reminders):
+/// the To pop-up (Reminders, Things and OmniFocus when installed, or Share…, TaskSend.swift), the Reminders list when
+/// it goes there, each task with a checkbox and its due date, the ideas unchecked, and Add (or Share) as the default
+/// button. Only Reminders marks tasks as sent.
 struct MacRemindersSend: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var model: SendToReminders
     var onSent: ([String: String], String) -> Void
     var onCancel: () -> Void
+    /// Where the checked tasks go; it starts where you sent last.
+    @State private var destination: TaskDestination = .reminders
+    @State private var offered: [TaskDestination] = [.reminders, .share]
+    /// A link that didn't open.
+    @State private var openProblem: String? = nil
 
     /// On screen, for the self-test.
     static weak var shown: SendToReminders? = nil
@@ -280,10 +287,19 @@ struct MacRemindersSend: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Send \(DayPages.count(model.plan.tasks.count, "task", "tasks")) to Reminders").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
+                Text("Send \(DayPages.count(model.plan.tasks.count, "task", "tasks"))").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
-                Text("Each task keeps the day you said as its due date.").refinedFont(.meta).foregroundStyle(Refined.mute)
+                Text(destination.footer).refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
             }
+            HStack {
+                Text("To").refinedFont(.rowTitle).foregroundStyle(Refined.ink)
+                Picker("To", selection: $destination) {
+                    ForEach(offered) { d in Text(d == .share ? "Share\u{2026}" : d.title).tag(d) }
+                }
+                .labelsHidden().fixedSize()
+                .uiTarget("send-tasks-to")
+            }
+            if destination == .reminders {
             HStack {
                 Text("List").refinedFont(.rowTitle).foregroundStyle(Refined.ink)
                 Picker("List", selection: Binding(get: { model.list?.id ?? "" }, set: { id in if let l = model.lists.first(where: { $0.id == id }) { model.pick(l) } })) {
@@ -292,6 +308,7 @@ struct MacRemindersSend: View {
                 }
                 .labelsHidden().fixedSize()
                 .disabled(model.lists.isEmpty)
+            }
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -313,21 +330,32 @@ struct MacRemindersSend: View {
                 }
             }
             .frame(maxHeight: 300)
-            if let p = model.problem {
+            if let p = openProblem {
+                Text(p).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
+            } else if destination == .reminders, let p = model.problem {
                 HStack(spacing: 8) {
                     Text(p).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink).fixedSize(horizontal: false, vertical: true)
                     if model.access == .denied { Button("Open Settings") { RemindersBridge.openSettings() } }
                 }
             }
             HStack(spacing: 8) {
-                Text("Due dates only where you said a day.").refinedFont(.meta).foregroundStyle(Refined.mute)
+                if destination == .reminders { Text("Due dates only where you said a day.").refinedFont(.meta).foregroundStyle(Refined.mute) }
                 Spacer()
                 Button("Cancel") { onCancel() }.keyboardShortcut(.cancelAction)
-                Button(model.checkedCount == 0 ? "Add" : "Add \(model.checkedCount)") { send() }
-                    .keyboardShortcut(.defaultAction)
+                if destination == .share {
+                    ShareLink(item: TaskSend.checklist(model.checkedDrafts, title: model.checklistTitle, now: Date())) {
+                        Text(destination.actionTitle(count: model.checkedCount))
+                    }
                     .buttonStyle(.borderedProminent)
-                    .disabled(model.sending || model.checkedCount == 0)
-                    .uiTarget("reminders-add")
+                    .disabled(model.checkedCount == 0)
+                    .simultaneousGesture(TapGesture().onEnded { TaskApps.last = .share })
+                } else {
+                    Button(model.checkedCount == 0 ? "Add" : "Add \(model.checkedCount)") { send() }
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.sending || model.checkedCount == 0)
+                        .uiTarget("reminders-add")
+                }
             }
             .controlSize(.large)
         }
@@ -335,7 +363,12 @@ struct MacRemindersSend: View {
         .frame(width: 460)
         .background(Refined.paper)
         .tint(Refined.accentText)
-        .onAppear { Self.shown = model }
+        .onAppear {
+            Self.shown = model
+            offered = TaskApps.offered
+            destination = TaskDestination.starting(last: TaskApps.last, offered: offered)
+        }
+        .onChange(of: destination) { _, _ in openProblem = nil }
         .onDisappear { if Self.shown === model { Self.shown = nil } }
     }
 
@@ -354,9 +387,28 @@ struct MacRemindersSend: View {
     }
 
     private func send() {
-        Task { @MainActor in
-            guard let r = await model.send() else { return }
-            onSent(r.added, r.message)
+        openProblem = nil
+        let d = destination
+        switch d {
+        case .reminders:
+            Task { @MainActor in
+                guard let r = await model.send() else { return }
+                TaskApps.last = .reminders
+                onSent(r.added, r.message)
+            }
+        case .share:
+            break   // ShareLink sends
+        case .things, .omnifocus:
+            let drafts = model.checkedDrafts
+            guard let url = TaskSend.url(for: d, drafts: drafts, today: Date()) else { return }
+            Task { @MainActor in
+                guard await TaskApps.open(url) else {
+                    openProblem = "Couldn\u{2019}t open \(d.title). Check that it\u{2019}s installed."; return
+                }
+                TaskApps.last = d
+                app.toast = Toast(d.sentMessage(count: drafts.count))
+                onCancel()
+            }
         }
     }
 }

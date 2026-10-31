@@ -547,6 +547,43 @@ check("plans merge like the other synced lists", SyncMerge.merge(local: [rec1], 
 check("day keys", DayPlanRecord.dayKey(recorded, calendar: greg) == "2026-10-27" && DayPlanRecord.date("2026-10-27", calendar: greg).map { greg.component(.day, from: $0) } == 27)
 
 // The checks both self-tests run (TemplateChecks.swift), here too.
+// Send tasks (TaskSend.swift): Things, OmniFocus, and the share sheet's checklist.
+do {
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "America/New_York")!
+    let today = cal.date(from: DateComponents(year: 2026, month: 11, day: 3, hour: 9))!
+    let drafts = [
+        DayPlan.ReminderDraft(key: "a", title: "Send the bakery invoice & receipt", due: DateComponents(year: 2026, month: 11, day: 3), notes: "From Verbose · Brain dump, Tue, Nov 3, 0:04"),
+        DayPlan.ReminderDraft(key: "b", title: "Email kim@studio.co", due: DateComponents(year: 2026, month: 11, day: 5), notes: ""),
+        DayPlan.ReminderDraft(key: "c", title: "Call the print shop", due: nil, notes: "From Verbose"),
+    ]
+    let items = TaskSend.thingsItems(drafts, today: today, calendar: cal)
+    let a0 = items[0]["attributes"] as? [String: Any] ?? [:]
+    let a1 = items[1]["attributes"] as? [String: Any] ?? [:]
+    let a2 = items[2]["attributes"] as? [String: Any] ?? [:]
+    check("things: a task due today is When Today with a deadline", a0["when"] as? String == "today" && a0["deadline"] as? String == "2026-11-03")
+    check("things: a later day is a deadline, not When", a1["when"] == nil && a1["deadline"] as? String == "2026-11-05")
+    check("things: no date, no When or deadline; the notes come along", a2["when"] == nil && a2["deadline"] == nil && a2["notes"] as? String == "From Verbose")
+    let tu = TaskSend.thingsURL(drafts, today: today, calendar: cal)?.absoluteString ?? ""
+    check("things: one json link that reveals, with & encoded", tu.hasPrefix("things:///json?data=") && tu.hasSuffix("&reveal=true") && !tu.dropLast(12).contains("&") && tu.contains("%26"))
+    check("things: nothing to send is no link", TaskSend.thingsURL([], today: today) == nil)
+    let tp = TaskSend.taskPaper(drafts)
+    check("omnifocus: TaskPaper with due dates and indented notes",
+          tp.hasPrefix("- Send the bakery invoice & receipt @due(2026-11-03)\n\tFrom Verbose") && tp.contains("- Call the print shop\n\tFrom Verbose"))
+    check("omnifocus: a task's @ isn't read as a tag", tp.contains("- Email kim at studio.co @due(2026-11-05)"))
+    check("omnifocus: one paste link into the Inbox", (TaskSend.omniFocusURL(drafts)?.absoluteString ?? "").hasPrefix("omnifocus:///paste?target=inbox&content=-%20Send"))
+    let list = TaskSend.checklist(drafts, title: "Plan for Tue, Nov 3", now: today, calendar: cal, locale: Locale(identifier: "en_US"))
+    check("share: a checklist with the day in parentheses",
+          list == "Plan for Tue, Nov 3\n- [ ] Send the bakery invoice & receipt (Today)\n- [ ] Email kim@studio.co (Thu, Nov 5)\n- [ ] Call the print shop", list)
+    let all = TaskDestination.allCases
+    check("menu: Things and OmniFocus only when installed", TaskDestination.offered(installed: { _ in false }) == [.reminders, .share] && TaskDestination.offered(installed: { _ in true }) == all)
+    check("button: names the last app while it's offered", TaskDestination.buttonTitle(last: .things, offered: all) == "Send to Things"
+          && TaskDestination.buttonTitle(last: .things, offered: [.reminders, .share]) == "Send tasks"
+          && TaskDestination.buttonTitle(last: .share, offered: all) == "Send tasks" && TaskDestination.buttonTitle(last: nil, offered: all) == "Send tasks")
+    check("sheet: starts where you sent last, else Reminders", TaskDestination.starting(last: .omnifocus, offered: all) == .omnifocus
+          && TaskDestination.starting(last: .omnifocus, offered: [.reminders, .share]) == .reminders)
+    check("sheet: the confirm button", TaskDestination.reminders.actionTitle(count: 4) == "Add 4 to Reminders" && TaskDestination.things.actionTitle(count: 1) == "Add 1 to Things" && TaskDestination.share.actionTitle(count: 2) == "Share 2")
+}
+
 TemplateChecks.run { check("self-test: " + $0, $1) }
 PlanChecks.run { check("self-test: " + $0, $1) }
 

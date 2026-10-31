@@ -548,6 +548,8 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         # The keyboard session's Live Activity (KeyboardSession.swift, VerbatimWidgets).
         NSSupportsLiveActivities: true
+        # Send tasks (TaskSend.swift) offers Things and OmniFocus only when they're installed (canOpenURL).
+        LSApplicationQueriesSchemes: [things, omnifocus]
         # verbatim://session?start=1… opens the app from the Verbatim keyboard to start a session.
         CFBundleURLTypes:
           - CFBundleURLName: co.stumpandroot.verbatim.ios

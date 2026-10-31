@@ -460,3 +460,13 @@ Verbose is free to download on iPhone, with a 7-day free trial you start with a 
 8. **Settings' row** (`UnlockSettingsRow`), under the search field and above the You card and the groups: a card with a 44 pt `IconSquare` (an open padlock on persimmon), the title, a line, the price, and a chevron. Free: "Try it free for 7 days". The trial: "Free trial · 5 days left" ("ends today" on the last day). After the trial: "Verbose Unlock". Unlocked: a check on sage, "Verbose Unlock" and "Thank you. Everything is unlocked.", no price or chevron, and it opens nothing. Restore Purchases is a row in Account and plan. Both are in Settings search.
 9. **The welcome tour's last step** offers the trial once (`UnlockTourOffer`): a card with the padlock on butter, "Try everything free for 7 days", what it adds and that it's free and doesn't renew, then Start free trial (strong) and Not now (quiet). The step scrolls when the card makes it run long.
 10. **Glyphs.** `iconUnlock` (an open padlock), `iconUnlocked` (a check), and `iconRestore` (two arrows in a circle), on the icon set's 24-unit grid with its 1.5 stroke, outside the generated block (UnlockViews.swift).
+
+## 22. Send tasks
+
+Approved mockup "Verbose Send Tasks", October 31, 2026 (`Model/TaskSend.swift`, `App/RemindersBridge.swift`'s `TaskApps`, `VerbatimPhone/PhonePlanViews.swift`, `Views/DayNote.swift`).
+
+1. **Send to Reminders became Send tasks.** A plan's button names where you sent last ("Send to Things"), or reads "Send tasks" the first time and after Another app.
+2. **One sheet, a To choice.** Reminders (built in; the List row shows only for it), Things and OmniFocus when they're installed, and Another app (the share sheet on iPhone, Share… on the Mac). It starts where you sent last.
+3. **How each app gets them.** Things: every checked task in one `things:///json` link, into the Inbox, with When Today for a task due today and a deadline when you said a day, and the recording in the notes. OmniFocus: TaskPaper in one `omnifocus:///paste` link into the Inbox, with due dates. Another app: a checklist, one task per line, with the day in parentheses.
+4. **Only Reminders marks tasks as sent**, since Verbose can't confirm another app saved them. It stays free, like Plan my day.
+
