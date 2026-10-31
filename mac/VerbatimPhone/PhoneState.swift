@@ -549,6 +549,8 @@ final class PhoneState: ObservableObject {
 
     /// Home's Live captions. Captions record the room too, so the one-time consent notice comes first.
     func requestCaptions() {
+        // Part of Verbose Unlock: while locked, the unlock sheet opens instead (Unlock.swift).
+        guard allow(.liveCaptions) else { return }
         if recordingActive { askToFinishRecording(for: "live captions"); return }
         if PhoneUITest.enabled { captions.seedForScreenshots(); showCaptions = true; return }
         if !UserDefaults.standard.bool(forKey: Self.consentNoticeKey) { pendingCaptions = true; showConsentNotice = true; return }

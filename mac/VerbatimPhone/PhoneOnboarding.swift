@@ -3,7 +3,8 @@ import AVFoundation
 
 /// The welcome tour on iPhone: what Verbatim does, the microphone, the ways to record, the keyboard, and transcription
 /// quality with iCloud status (the two middle steps: mockup "Verbose Tour Steps", October 30, 2026). Drawn
-/// on the refined kit (DESIGN.md §13): the step count, the large serif title, cards, and the kit's strong action.
+/// on the refined kit (DESIGN.md §13): the step count, the large serif title, cards, and the kit's strong action. The
+/// last step offers Verbose Unlock's free trial once (`UnlockTourOffer`, DESIGN.md §21), so it scrolls when it runs long.
 struct PhoneOnboarding: View {
     @EnvironmentObject var app: PhoneState
     @State private var step: Int
@@ -28,7 +29,7 @@ struct PhoneOnboarding: View {
                 case 1: microphone
                 case 2: ways
                 case 3: keyboard
-                default: quality
+                default: ScrollView { quality }.scrollBounceBehavior(.basedOnSize)
                 }
             }
             .id(step)
@@ -193,6 +194,8 @@ struct PhoneOnboarding: View {
             .clipShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
             .padding(.top, 22)
             sync.padding(.top, 16)
+            // Verbose Unlock's free trial, offered once with Not now (Tim's decision, October 31, 2026).
+            UnlockTourOffer().padding(.top, 16)
         }
     }
 

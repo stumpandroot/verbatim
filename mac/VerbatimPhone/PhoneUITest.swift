@@ -443,6 +443,8 @@ enum PhoneUITest {
             await tabBarTour(app, suffix: "")
             await homeThoughtsTour(app, suffix: "")
             app.appearance = "light"
+            // Verbose Unlock: the sheet, the recorder's 9:00 chip, Home's cards, Settings' row, and the tour's offer.
+            await unlockTour(app)
             // The welcome tour: the welcome, the microphone, the ways to record, the keyboard, and the last step.
             for (i, name) in [(0, "p10-onboarding"), (1, "p11-onboarding"), (2, "p11a-onboarding-ways"), (3, "p11b-onboarding-keyboard"), (4, "p12-onboarding")] {
                 onboardingStep = i
@@ -1703,6 +1705,161 @@ enum PhoneUITest {
         app.tab = .home
         store.reset()
         try? await Task.sleep(nanoseconds: 700_000_000)
+    }
+
+    // MARK: Verbose Unlock
+
+    /// Verbose Unlock (DESIGN.md §21; Unlock.swift and UnlockViews.swift), with the stand-in store (`StubPurchases`):
+    /// the self-test runs unlocked until here, so the tours before this one keep working. Free: Import, Live captions,
+    /// and What's playing open the sheet (the trial first), Cloud cleanup returns nothing, Plan my day still runs, and
+    /// shared files wait in the inbox until the unlock imports them. After the trial: Unlock alone. A free recording at
+    /// 9:12 shows the chip, unlocking removes it, and a recording started in the trial keeps going after it ends.
+    /// Home's cards (Saved the first 10 minutes, ends tomorrow, ended, shared items waiting), Settings' row in each
+    /// state, the sheet over Settings with Try it free starting the trial, and the welcome tour's offer. Checks log as
+    /// `UITEST PASS|FAIL unlock: …`; light only. It ends unlocked, as it started.
+    private static func unlockTour(_ app: PhoneState) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") unlock: \(name)") }
+        func settle(_ ms: UInt64 = 700) async { try? await Task.sleep(nanoseconds: ms * 1_000_000) }
+        let unlock = UnlockStore.shared
+        let keepCards = unlock.cards
+        let day: TimeInterval = 86_400
+        let now = Date()
+        func trial(_ start: Date) -> PurchaseRecord { PurchaseRecord(productID: UnlockProduct.trial, purchaseDate: start, transactionID: "tour-trial") }
+        let bought = PurchaseRecord(productID: UnlockProduct.unlock, purchaseDate: now.addingTimeInterval(-day), transactionID: "tour-unlock")
+        let ended = [trial(now.addingTimeInterval(-10 * day))]
+        check("the self-test runs unlocked until here", unlock.state == .unlocked && FeatureGate.hasEverything)
+        app.tab = .home
+        app.homePath = NavigationPath()
+        NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-top")
+        await settle()
+
+        // The free version: what's locked, and what isn't.
+        unlock.useForSelfTest([], cards: UnlockCardMemory(), sharedWaiting: 0)
+        check("free: the trial is offered and locked features are refused", unlock.state == .free && !FeatureGate.allows(.importMedia)
+              && !FeatureGate.allows(.exportFormats) && CloudCleanup.current == nil)
+        check("free: Plan my day still runs, other templates don't", FeatureGate.allowsTemplate(TemplateLibrary.planMyDayID)
+              && !FeatureGate.allowsTemplate(TemplateLibrary.scenarios[0].id))
+        HomeTileAction.run(.importMedia, app)
+        await show("p15a-unlock-sheet")
+        check("Home's Import opens the unlock sheet, the trial first, and not the file picker",
+              UnlockSheet.onScreen > 0 && UnlockSheet.lastOffersTrial == true && unlock.request?.feature == .importMedia && !app.showImporter)
+        unlock.request = nil
+        await settle()
+        app.requestCaptions()
+        check("Live captions asks first", !app.showCaptions && unlock.request?.feature == .liveCaptions)
+        unlock.request = nil
+        await settle()
+        app.requestWhatsPlaying()
+        check("What's playing asks first", !app.showPlayingSheet && unlock.request?.feature == .appAudio)
+        unlock.request = nil
+        await settle()
+        // Shared files wait in the inbox, untouched, then import once unlocked.
+        seedInbox()
+        app.importInbox()
+        await settle(400)
+        let waiting = VerbatimInbox.inbox.map { VerbatimInbox.pending(in: $0).count } ?? 0
+        check("free: a shared file waits in the inbox (\(unlock.sharedWaiting) counted, \(waiting) there)", unlock.sharedWaiting > 0 && waiting > 0)
+        unlock.useForSelfTest([bought])
+        await settle(2_400)
+        check("unlocking imports what waited", unlock.sharedWaiting == 0 && (VerbatimInbox.inbox.map { VerbatimInbox.pending(in: $0).isEmpty } ?? true))
+        app.linkCardImport = nil
+        app.tab = .home
+        await settle()
+
+        // After the trial: Unlock alone.
+        unlock.useForSelfTest(ended)
+        unlock.ask(nil)
+        await show("p15b-unlock-sheet-trial-used")
+        check("after the trial the sheet shows Unlock alone", UnlockSheet.onScreen > 0 && UnlockSheet.lastOffersTrial == false)
+        unlock.request = nil
+        await settle()
+
+        // A free recording at 9:12: the chip; unlocking removes it.
+        app.previewRecording = true
+        app.recordingWords.seedForScreenshots()
+        app.recorder.live.setElapsed(552)
+        app.openRecorder()
+        await show("p15c-unlock-recorder-chip")
+        check("a free recording shows the chip from 9:00", unlock.capPhase == .warning && RecordingLimitChip.visible)
+        unlock.useForSelfTest(ended + [bought])
+        app.recorder.live.setElapsed(553)
+        await settle(600)
+        check("unlocking mid-recording removes the limit", unlock.capPhase == .none)
+        app.minimizeRecorder()
+        app.previewRecording = false
+        app.recordingWords.clearScreenshots()
+        app.recorder.live.reset()
+        await settle()
+        // A recording started during the trial keeps going after it ends.
+        unlock.useForSelfTest([trial(now.addingTimeInterval(-2 * day))])
+        app.previewRecording = true
+        app.recorder.live.setElapsed(30)
+        await settle(200)
+        unlock.useForSelfTest(ended)
+        app.recorder.live.setElapsed(560)
+        await settle(200)
+        check("a recording started in the trial keeps going after it ends", unlock.capPhase == .none)
+        app.previewRecording = false
+        app.recorder.live.reset()
+        await settle()
+
+        // Home's cards.
+        var memory = UnlockCardMemory()
+        memory.trialEndedDismissed = true
+        unlock.useForSelfTest(ended, cards: UnlockCards.capped(memory, noun: "meeting", transcribes: true))
+        await show("p15d-unlock-saved-ten")
+        check("Home: Saved the first 10 minutes", UnlockHomeCard.shown == .savedFirstTen(noun: "meeting", transcribes: true))
+        let cal = Calendar.current
+        let tomorrowNoon = cal.date(byAdding: .hour, value: 12, to: cal.startOfDay(for: cal.date(byAdding: .day, value: 1, to: now) ?? now)) ?? now
+        unlock.useForSelfTest([trial(tomorrowNoon.addingTimeInterval(-7 * day))], cards: UnlockCardMemory())
+        await show("p15e-unlock-trial-ending")
+        check("Home: the day before the trial ends", UnlockHomeCard.shown == .trialEndsSoon(today: false))
+        unlock.useForSelfTest(ended, cards: UnlockCardMemory())
+        await show("p15f-unlock-trial-ended")
+        check("Home: the trial ended", UnlockHomeCard.shown == .trialEnded)
+        unlock.dismiss(.trialEnded)
+        await settle()
+        check("OK hides the ended card for good", UnlockHomeCard.shown == nil && unlock.homeCard == nil)
+        unlock.useForSelfTest(ended, sharedWaiting: 2)
+        await settle()
+        check("Home: shared items waiting", UnlockHomeCard.shown == .sharedWaiting(count: 2))
+        unlock.useForSelfTest(ended, cards: UnlockCardMemory(), sharedWaiting: 0)
+
+        // Settings' row in each state, then the sheet over Settings.
+        unlock.useForSelfTest([])
+        app.openSettings()
+        NotificationCenter.default.post(name: .verbatimSettingsScroll, object: "settings-top")
+        await show("p15g-unlock-settings-free")
+        check("Settings: the free row offers the trial", UnlockRowContent.make(unlock.state, price: unlock.price).title == UnlockCopy.tryFree)
+        unlock.useForSelfTest([trial(now.addingTimeInterval(-2 * day))])
+        await show("p15h-unlock-settings-trial")
+        check("Settings: the trial's row counts its days", UnlockRowContent.make(unlock.state, price: nil).title == UnlockCopy.trialRowTitle(daysLeft: 5))
+        unlock.useForSelfTest([bought])
+        await show("p15i-unlock-settings-unlocked")
+        check("Settings: the thank-you row once unlocked", UnlockRowContent.make(unlock.state, price: nil).thanks)
+        unlock.useForSelfTest([])
+        unlock.ask(nil)
+        await show("p15j-unlock-sheet-over-settings")
+        check("the sheet opens over Settings", UnlockSheet.onScreen > 0 && app.showSettings)
+        await unlock.startTrial()
+        await settle()
+        check("Try it free starts the trial and closes the sheet", unlock.state.isTrial && unlock.request == nil && UnlockSheet.onScreen == 0)
+        app.closeSettings()
+        await settle()
+
+        // The welcome tour's last step offers the trial once.
+        unlock.useForSelfTest([])
+        UserDefaults.standard.removeObject(forKey: UnlockStore.tourOfferKey)
+        onboardingStep = 4
+        app.showOnboarding = true
+        await show("p15k-unlock-onboarding-offer")
+        app.showOnboarding = false
+        onboardingStep = 0
+        UserDefaults.standard.removeObject(forKey: UnlockStore.tourOfferKey)
+        await settle()
+
+        unlock.useForSelfTest(StubPurchases.unlocked().stored, cards: keepCards, sharedWaiting: 0)
+        check("the self-test ends unlocked", unlock.state == .unlocked && FeatureGate.hasEverything)
     }
 
     private static func layoutCheck(_ name: String, _ ok: Bool) {

@@ -4,6 +4,9 @@ import UIKit
 /// The iPhone export sheet: the Mac sheet's options as a list (format first; SRT and VTT show subtitle settings), a
 /// preview of the actual output, then Copy and Share. Changes are saved for the next export; Copy text on the
 /// transcript keeps its own defaults (the tab you're on). On the refined kit (DESIGN.md §13).
+///
+/// Every format beyond plain text is part of Verbose Unlock (DESIGN.md §21): the formats stay in the picker, and
+/// picking one while locked opens the unlock sheet over this one and keeps plain text.
 struct PhoneExportSheet: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss
@@ -12,6 +15,10 @@ struct PhoneExportSheet: View {
     @State private var options = ExportOptions.saved
     @State private var preview = ""
     @State private var shareItems: [Any]? = nil
+    @ObservedObject private var unlock = UnlockStore.shared
+
+    /// Plain text is free; the other formats need the trial or Verbose Unlock.
+    private func allowed(_ f: ExportFormat) -> Bool { f == .txt || unlock.hasEverything }
 
     private var transcripts: [Transcript] { ids.compactMap { app.store.transcript($0) }.filter { $0.status == .ready } }
 
@@ -24,7 +31,7 @@ struct PhoneExportSheet: View {
                         ForEach(ExportFormat.allCases) { Text($0.short).tag($0) }
                     }
                 } footer: {
-                    Text(format.note).foregroundStyle(Refined.mute)
+                    Text(unlock.hasEverything ? format.note : format.note + ". " + UnlockCopy.exportLocked).foregroundStyle(Refined.mute)
                 }
                 .listRowBackground(Refined.card)
                 Section("Options") {
@@ -68,9 +75,18 @@ struct PhoneExportSheet: View {
         }
         // Values and Cancel in the accent; the Options switches take the kit's switch tint (above).
         .tint(Refined.accentText)
-        .onAppear(perform: refresh)
+        .onAppear {
+            // A format saved during the trial falls back to plain text once it ends.
+            if !allowed(format) { format = .txt }
+            refresh()
+        }
         .onChange(of: options) { _, o in o.save(); refresh() }
-        .onChange(of: format) { _, f in ExportOptions.savedFormat = f; refresh() }
+        .onChange(of: format) { _, f in
+            guard allowed(f) else { format = .txt; UnlockStore.shared.ask(.exportFormats); return }
+            ExportOptions.savedFormat = f; refresh()
+        }
+        // The unlock sheet opens over this sheet.
+        .unlockSheetHost()
         .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) { ShareSheet(items: shareItems ?? []) }
     }
 

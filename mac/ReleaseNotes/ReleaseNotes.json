@@ -8,6 +8,27 @@
           "platforms": [
             "iphone"
           ],
+          "text": "Verbose is free on iPhone, with a 7-day free trial that starts when you tap it.",
+          "detail": "Verbose Unlock, one in-app purchase with no subscription, adds long recordings, imports, app audio, templates, Ask, and every export."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "A free recording saves at 10 minutes and transcribes, instead of stopping cold.",
+          "detail": "At 9:00 the recorder says so. Unlocking while you record removes the limit, and nothing you made ever locks."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Settings shows your free trial's days left, and has Restore Purchases.",
+          "detail": "Restore Purchases is on the unlock sheet too, for a new iPhone or after you reinstall Verbose."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
           "text": "Send to Reminders works from Plan my day.",
           "detail": "Verbose asks for access to Reminders the first time you send a plan's tasks. Before, it closed instead."
         },

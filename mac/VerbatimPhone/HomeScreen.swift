@@ -42,6 +42,9 @@ struct HomeScreen: View {
                 .id("home-top")
                 // After an update: "What's new in build N", once (WhatsNewScreen.swift).
                 WhatsNewBanner(top: 14) { Self.openWhatsNew(app) }
+                // Verbose Unlock's one card: the trial ends tomorrow or ended, a free recording saved its first 10
+                // minutes, or shared items wait for Import (UnlockViews.swift).
+                UnlockHomeCard(top: 14)
                 // Only the shown sections, each keeping its identity (its section) when the layout changes.
                 ForEach(Array(drawn.enumerated()), id: \.element.section) { i, item in
                     section(item, tiles: layout.tiles)

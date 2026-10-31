@@ -37,8 +37,9 @@ enum HomeTileAction {
     @MainActor static func run(_ tile: HomeTile, _ app: PhoneState) {
         switch tile {
         case .dictate: app.homePath.append(DictationsRoute())
-        case .importMedia: app.showImporter = true
-        case .whatsPlaying: app.showPlayingSheet = true
+        // Import and What's playing are part of Verbose Unlock: while locked, a tap opens the unlock sheet.
+        case .importMedia: if app.allow(.importMedia) { app.showImporter = true }
+        case .whatsPlaying: app.requestWhatsPlaying()
         case .captions: app.requestCaptions()
         case .projects: app.go(.projects)
         case .dictations: app.go(.dictations)
@@ -70,15 +71,17 @@ enum HomeTileAction {
 /// Pushes the dictionary from Home's Dictionary tile.
 struct HomeDictionaryRoute: Hashable {}
 
-/// A tile's button: Import opens its menu (Photos, files, or a link); every other tile runs its action.
+/// A tile's button: Import opens its menu (Photos, files, or a link); every other tile runs its action. While Import is
+/// locked (Verbose Unlock), its tile is a plain button that opens the unlock sheet.
 struct HomeTileButton<Face: View>: View {
     @EnvironmentObject var app: PhoneState
     var tile: HomeTile
     @ViewBuilder var label: () -> Face
+    @ObservedObject private var unlock = UnlockStore.shared
 
     var body: some View {
         Group {
-            if tile == .importMedia {
+            if tile == .importMedia && unlock.hasEverything {
                 Menu {
                     Button("Choose from Photos") { app.showPhotoPicker = true }
                     Button("Choose files…") { app.showImporter = true }

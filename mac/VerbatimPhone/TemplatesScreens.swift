@@ -132,14 +132,18 @@ struct TemplateDetailScreen: View {
                     if i > 0 { SettingsDivider() }
                     SettingsToggleRow(title: k.label,
                                       subtitle: other(k, t).map { "Now runs \($0)" },
-                                      isOn: Binding(get: { auto.settings.template(for: k) == t.id }, set: { on in auto.set(on ? t.id : nil, for: k) }))
+                                      isOn: Binding(get: { auto.settings.template(for: k) == t.id }, set: { on in
+                                          // Templates other than Plan my day are part of Verbose Unlock (DESIGN.md §21).
+                                          if on && !FeatureGate.allowsTemplate(t.id, ask: true) { return }
+                                          auto.set(on ? t.id : nil, for: k)
+                                      }))
                         .accessibilityIdentifier("template.kind.\(k.rawValue)")
                 }
             }
             SettingsPageGroup(footer: TemplateCopy.onDevice("iPhone")) {
                 Menu {
                     if recent.isEmpty { Text("No recordings yet") }
-                    ForEach(Array(recent)) { r in Button(r.title) { tryOn = TemplateTryOn(template: t, transcript: r.id) } }
+                    ForEach(Array(recent)) { r in Button(r.title) { if FeatureGate.allowsTemplate(t.id, ask: true) { tryOn = TemplateTryOn(template: t, transcript: r.id) } } }
                 } label: {
                     SettingsRow(hue: .sage, art: .iconPlay, title: "Try on a recording", subtitle: "See the result; nothing is saved") {
                         SettingsMenuMark()
@@ -262,7 +266,7 @@ struct TemplatesAutoScreen: View {
     }
 
     @ViewBuilder private func choice(_ t: TranscriptTemplate, _ k: RecordingKind, _ current: TranscriptTemplate?) -> some View {
-        Button { auto.set(t.id, for: k) } label: {
+        Button { if FeatureGate.allowsTemplate(t.id, ask: true) { auto.set(t.id, for: k) } } label: {
             if current?.id == t.id { Label(t.name, systemImage: "checkmark") } else { Text(t.name) }
         }
     }
@@ -342,13 +346,15 @@ struct PhoneTemplateEditor: View {
                     Menu("Try on a recording") {
                         let recent = app.store.live.filter { $0.status == .ready && !$0.isDictation && !$0.segments.isEmpty }
                             .sorted { $0.createdAt > $1.createdAt }.prefix(12)
-                        ForEach(Array(recent)) { r in Button(r.title) { tryOn = TemplateTryOn(template: draft, transcript: r.id) } }
+                        ForEach(Array(recent)) { r in Button(r.title) { if FeatureGate.allowsTemplate(draft.id, ask: true) { tryOn = TemplateTryOn(template: draft, transcript: r.id) } } }
                     }
                 }
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focused = false } }
             }
             .sheet(item: $tryOn) { x in PhoneTemplateTryOnSheet(template: x.template, transcriptID: x.transcript).environmentObject(app) }
         }
+        // Try on is part of Verbose Unlock: its sheet opens over the editor.
+        .unlockSheetHost()
     }
 
     private func field<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {

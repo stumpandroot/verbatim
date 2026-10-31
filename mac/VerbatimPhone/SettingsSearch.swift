@@ -191,6 +191,10 @@ enum SettingsSearchIndex {
         // Account and plan
         .init(id: "yourName", section: account, label: "Your name", keywords: ["name", "profile", "greeting", "sign-off", "you"],
               description: "Greets you on Home; edited in About me", target: .page(.aboutMe)),
+        .init(id: "verboseUnlock", section: account, label: "Verbose Unlock", keywords: ["unlock", "purchase", "buy", "trial", "free trial", "upgrade", "pro", "price", "plan"],
+              description: "Recordings of any length, imports, templates, and every export"),
+        .init(id: "restorePurchases", section: account, label: "Restore Purchases", keywords: ["restore", "purchase", "bought", "unlock", "reinstall", "new iphone"],
+              description: "Asks the App Store for your purchases again"),
 
         // Support and feedback
         .init(id: "support", section: support, label: "Contact support", keywords: ["help", "email", "problem", "bug"]),

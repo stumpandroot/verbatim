@@ -551,6 +551,8 @@ struct TranscriptScreen: View {
                 Menu {
                     ForEach(app.store.allTemplates) { tpl in
                         Button(tpl.name) {
+                            // Templates other than Plan my day are part of Verbose Unlock: while locked, the unlock sheet.
+                            if !FeatureGate.allowsTemplate(tpl.id, ask: true) { return }
                             if let why = TemplateCenter.unavailableReason { summaryUnavailable = why }
                             else { TemplateCenter.shared.run(tpl.id, on: t.id, store: app.store); mode = .result }
                         }
@@ -560,6 +562,7 @@ struct TranscriptScreen: View {
                 Menu {
                     Section("From the original transcript") {
                         PhoneActionItems { a in
+                            if !FeatureGate.allowsTemplate(a.id, ask: true) { return }
                             if let why = TranscriptActions.unavailableReason { summaryUnavailable = why } else { runningAction = a }
                         }
                     }
@@ -585,7 +588,8 @@ struct TranscriptScreen: View {
                 Menu {
                     Button { app.exportRequest = ExportRequest(ids: [t.id]) } label: { Label("Export…", systemImage: "square.and.arrow.up") }
                     if let u = app.store.audioURL(for: t) {
-                        Button { shareAudio(u) } label: { Label("Share original audio", systemImage: "waveform") }   // brand: system surface (menu)
+                        // Exporting the audio is part of Verbose Unlock (DESIGN.md §21).
+                        Button { if app.allow(.exportFormats) { shareAudio(u) } } label: { Label("Share original audio", systemImage: "waveform") }   // brand: system surface (menu)
                     }
                     Divider()
                     // The text with a header (title, date, duration, speakers, source, language) for an AI assistant.

@@ -67,6 +67,9 @@ final class TemplateCenter: ObservableObject {
         self.store = store
         // A retired template runs what replaced it (TemplateLibrary.retired); a cut one has nothing to run.
         guard let template = TemplateLibrary.current(template) else { return }
+        // Verbose Unlock on iPhone: templates other than Plan my day open the unlock sheet while locked (FeatureGate,
+        // Model/Entitlement.swift). The Mac never enforces it.
+        guard FeatureGate.allowsTemplate(template, ask: true) else { return }
         failures[id] = nil
         if let why = Self.unavailableReason { failures[id] = why; return }
         queue.removeAll { $0.transcript == id && $0.template == template && !$0.auto }
@@ -99,7 +102,7 @@ final class TemplateCenter: ObservableObject {
         guard automatic else { return }
         for t in store.transcripts where AutoRunRules.resumes(t, device: Device.id) {
             guard let m = t.autoRun, !queue.contains(where: { $0.transcript == t.id && $0.auto }),
-                  let template = TemplateLibrary.current(m.templateId) else { continue }
+                  let template = TemplateLibrary.current(m.templateId), FeatureGate.allowsTemplate(template) else { continue }
             queue.append(Job(transcript: t.id, template: template, auto: true, kind: m.kind))
         }
         if !queue.isEmpty { Log.note("templates: picking up \(queue.count) automatic run(s) from before") }
@@ -123,6 +126,12 @@ final class TemplateCenter: ObservableObject {
             case .waitForKind:
                 continue
             case .run(let template, let kind):
+                // Verbose Unlock on iPhone: while locked, only Plan my day runs on its own (Brain dump's plan stays free).
+                guard FeatureGate.allowsTemplate(template) else {
+                    pending[id] = nil
+                    Log.note("templates: an automatic run waits for Verbose Unlock")
+                    continue
+                }
                 // After the summary (while it's queued or running, and for at most ten minutes).
                 if SummaryCenter.shared.isRunning(id), waited < 600 { continue }
                 pending[id] = nil

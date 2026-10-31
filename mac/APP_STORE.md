@@ -146,11 +146,57 @@ iOS doesn't let an app start recording from the background, so each of these ope
 
 These work in your builds too. A session lasts until its idle timeout (2 hours unless you choose 10 or 30 minutes, 1 or 4 hours, or Until I end it; the 8-hour Live Activity limit always ends it), and a phone or FaceTime call or Siri pauses it instead of ending it.
 
+## In-app purchase
+
+Verbose is free to download on iPhone. A free 7-day trial of everything starts when the person taps "Try it free for 7 days," and one in-app purchase, **Verbose Unlock**, unlocks everything for good. There's no subscription and nothing renews. The design is in `DESIGN.md` §21; the code is `Verbatim/Model/Entitlement.swift` (the rules, checked by `tools/test-entitlement.sh`), `VerbatimPhone/Unlock.swift` (StoreKit 2), and `VerbatimPhone/UnlockViews.swift` (the screens).
+
+### Create the products in App Store Connect
+
+In App Store Connect › Verbose › Monetization › In-App Purchases, create two **non-consumable** in-app purchases:
+
+| Reference name | Product ID | Price | Display name | Description |
+|---|---|---|---|---|
+| 7-day free trial | `co.stumpandroot.verbatim.ios.trial7` | Free (tier 0, $0.00) | 7-day free trial | Everything in Verbose Unlock for 7 days. It's free, and it doesn't renew. |
+| Verbose Unlock | `co.stumpandroot.verbatim.ios.unlock` | $14.99 (US) | Verbose Unlock | Recordings of any length, imports, app audio, templates, and every export. One purchase. |
+
+For each one:
+
+1. Leave **Family Sharing** off. It can be turned on later but never off again.
+1. Add an **App Review screenshot**: the unlock sheet (the self-test's `p15a-unlock-sheet.png`, from CI's `ci-screens-phone` artifact, or a screenshot from a device). App Review needs one per product; the same sheet works for both.
+1. Add review notes: "Starts the 7-day free trial; Verbose counts 7 days from this purchase's date" for the trial, and "Unlocks every feature for good" for Verbose Unlock.
+1. Submit both products with the app version that adds them (App Store Connect asks on the version page, under In-App Purchases and Subscriptions). Products created after the first version ships go with the next version.
+
+The product IDs are fixed in code (`UnlockProduct`). Changing one means changing the code and the StoreKit configuration file too.
+
+### How it works
+
+- **The trial** is a purchase of the free product, so Apple's purchase sheet shows $0.00. Verbose counts 7 days from that transaction's `purchaseDate` (`Transaction.all` and `Transaction.currentEntitlements`), so the trial follows the Apple Account: reinstalling, restoring, or a second purchase never restarts it.
+- **The entitlement comes only from StoreKit on this iPhone,** at launch and from `Transaction.updates` (a refund, Ask to Buy, a purchase on another iPhone). A refunded or revoked purchase reverts. The last state is cached so a launch without a network shows it at once, then StoreKit is asked again. A Mac license never unlocks the iPhone, and nothing unlocks from iCloud sync.
+- **Free:** Dictate, the keyboard and keyboard sessions, recordings up to 10 minutes each, Apple Watch recordings (imported whole: the iPhone can't stop a recording on the watch, and audio is never cut), transcripts, speakers, search, Thoughts, Journal, Plan my day (Brain dump's automatic run and Send to Reminders too), iCloud sync, copy and share as text, and Export everything.
+- **Verbose Unlock (or the trial):** recordings of any length, Import (files, Photos, links, and what's shared in), App audio and Live captions, templates other than Plan my day, Ask, Recipes, Cloud cleanup, and every export format beyond plain text, with Share original audio.
+
+### Test it
+
+- **In Xcode:** the VerbatimPhone scheme runs with `VerbatimPhone/Verbose.storekit` (`storeKitConfiguration` in `project.yml`), so purchases work without App Store Connect. Use Debug › StoreKit › Manage Transactions to refund, delete, or approve a pending purchase, and to start over (delete both transactions). Editor › Time Rate speeds up time to see the trial end.
+- **In TestFlight:** purchases use the sandbox and are free; testers see "[Environment: Sandbox]" on Apple's purchase sheet. The trial and the unlock stay on the tester's account; there's no way to undo a TestFlight purchase, so test the trial's end with a new sandbox account (App Store Connect › Users and Access › Sandbox) or in Xcode.
+- **On a device:** check both products load (the sheet shows "Unlock for $14.99"), Try it free, the 9:00 chip and the stop at 10:00 in a free recording, Restore Purchases after deleting and reinstalling the app, and a refund (Xcode's transaction manager) reverting to the free version.
+- **Self-test:** CI's simulator tour starts unlocked with a stand-in store (`StubPurchases`) and ends with the unlock's own tour, screenshots `p15a-unlock-sheet` to `p15k-unlock-onboarding-offer`, and `UITEST PASS|FAIL unlock:` lines.
+
+### What it satisfies
+
+- **3.1.1, free trials for non-subscription apps:** the trial is a non-consumable at $0 named "7-day free trial" (the "XX-day Trial" naming the guideline asks for). Before it starts, the sheet states its length, that it charges nothing and doesn't renew, and what locks after it ("After 7 days, the features above lock again and Verbose goes back to the free version unless you unlock it"), under the list of what it adds. The welcome tour's offer says the same.
+- **3.1.1, unlocking features in the app:** in-app purchase only. **Restore Purchases** is on the sheet and in Settings › Account and plan.
+- **3.1.1 and 3.1.3, no other ways to pay:** nothing on iPhone links to or mentions the website's prices, Polar, buying outside the App Store, or Mac licenses. The sheet links only Apple's sheet, the Terms of use, and the Privacy policy (`Links.terms`, `Links.privacy`).
+- **3.1.2:** not a subscription, so none of the subscription rules apply.
+- **Nothing made gets locked** (5.1.1 spirit): transcripts, results, and synced items stay readable and shareable as text after the trial; audio is never discarded; shared files wait in the inbox until the unlock.
+
 ## Notes for App Review
 
 Paste this into App Store Connect › App Review Information › Notes (guideline 2.3.1(a)):
 
 > **No account is needed.** Verbose records and transcribes on this iPhone; nothing is uploaded to us. Transcription models download once from Hugging Face the first time you record.
+>
+> **In-app purchase.** Verbose is free. "7-day free trial" is a free non-consumable that starts a trial of everything (guideline 3.1.1); "Verbose Unlock" is a non-consumable that unlocks everything for good. Tap any locked feature (Import, Live captions, a template other than Plan my day) or Settings › Verbose Unlock to see the sheet; Restore Purchases is on it and in Settings › Account and plan.
 >
 > **Background audio.** Verbose uses the audio background mode for two things: a recording keeps going with the screen locked, and a dictation session from the Verbose keyboard keeps the microphone ready so you can dictate into other apps. While a session is on, iOS shows the orange microphone indicator and Verbose shows a Live Activity with an End button. The session ends after its idle timeout (Settings › Keyboard), or when you tap End.
 >

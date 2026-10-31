@@ -86,6 +86,8 @@ enum CloudCleanup {
         let p = provider
         #if os(iOS)
         guard hasConsent(p) else { return nil }
+        // Part of Verbose Unlock on iPhone: nothing goes to the provider while it's locked (Model/Entitlement.swift).
+        guard FeatureGate.allows(.cloudCleanup) else { return nil }
         #endif
         guard let key = CloudKeychain.read(p.keychainAccount), !key.isEmpty else { return nil }
         return Config(provider: p, model: model(for: p), key: key)

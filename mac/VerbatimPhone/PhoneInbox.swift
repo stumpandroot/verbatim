@@ -27,6 +27,10 @@ extension PhoneState {
         // Shared files and links join the library once it has loaded (the app becomes active before it has).
         guard store.isLoaded else { store.whenLoaded { [weak self] in self?.importInbox() }; return }
         guard !InboxRun.busy else { return }
+        // Import (and What's playing) are part of Verbose Unlock. While locked, everything stays in the inbox, nothing
+        // is deleted, and Home's card says how much waits; it imports here once the trial or the purchase allows it.
+        guard FeatureGate.allows(.importMedia) else { holdInbox(); return }
+        UnlockStore.shared.setSharedWaiting(0)
         InboxRun.busy = true
         defer { InboxRun.busy = false }
         let fm = FileManager.default
@@ -100,6 +104,13 @@ extension PhoneState {
         linkBadgeHeld.insert(id)
         libraryFilterRequest = "all"
         linkCardImport = imp
+    }
+
+    /// While Import is locked: counts what waits in the inbox for Home's card, and touches nothing.
+    private func holdInbox() {
+        let waiting = [VerbatimInbox.inbox, VerbatimInbox.broadcasts].compactMap { $0 }.reduce(0) { $0 + VerbatimInbox.pending(in: $1).count }
+        if waiting > 0 { Log.note("inbox: \(waiting) item\(waiting == 1 ? "" : "s") wait for Verbose Unlock") }
+        UnlockStore.shared.setSharedWaiting(waiting)
     }
 
     /// Files left without a manifest (an extension stopped mid-copy or mid-recording) are removed after six hours.

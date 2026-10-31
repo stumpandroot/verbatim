@@ -135,7 +135,7 @@ struct RecordAsMenu: View {
         ControlGroup {
             Button { app.go(.dictations) } label: { Label("Dictate", systemImage: "mic") }   // brand: system surface
             Button { app.requestCaptions() } label: { Label("Live captions", systemImage: "captions.bubble") }   // brand: system surface
-            Button { app.showImportChoices = true } label: { Label("Import", systemImage: "square.and.arrow.down") }   // brand: system surface
+            Button { app.requestImport() } label: { Label("Import", systemImage: "square.and.arrow.down") }   // brand: system surface
         }
         Section("Record as") {
             ForEach(rows.visible) { c in

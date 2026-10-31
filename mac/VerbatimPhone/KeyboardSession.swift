@@ -1677,9 +1677,9 @@ final class KeyboardSession: ObservableObject {
         case .captions:
             app.requestCaptions()
         case .whatsPlaying:
-            // The sheet asks iOS for its broadcast picker as soon as it shows; you tap Start Broadcast.
-            app.playingSheetStartsPicker = true
-            app.showPlayingSheet = true
+            // The sheet asks iOS for its broadcast picker as soon as it shows; you tap Start Broadcast. App audio is part
+            // of Verbose Unlock: while locked, the unlock sheet opens instead.
+            app.requestWhatsPlaying(startPicker: true)
         case .quickCapture:
             // New thought: the recorder opens on a thought (or a running one comes back).
             app.requestThought()

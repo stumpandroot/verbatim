@@ -2,8 +2,11 @@ import SwiftUI
 
 /// Settings › Cloud cleanup (Dictation and keyboard): off by default. Your own Anthropic or OpenAI key, saved in this
 /// iPhone's Keychain only (`CloudCleanup`, `CloudKeychain`). Shown on the Cloud cleanup page (SettingsPages.swift).
+/// Part of Verbose Unlock (DESIGN.md §21): while locked, turning it on opens the unlock sheet, and a switch left on
+/// from the trial says it waits for the unlock (`CloudCleanup.current` returns nothing meanwhile).
 struct CloudCleanupRows: View {
     var searchFlash: String?
+    @ObservedObject private var unlock = UnlockStore.shared
     @AppStorage(CloudCleanup.enabledKey) private var on = false
     @AppStorage(CloudCleanup.providerKey) private var providerRaw = CloudCleanup.Provider.anthropic.rawValue
     @State private var key = ""
@@ -17,7 +20,7 @@ struct CloudCleanupRows: View {
 
     var body: some View {
         SettingsToggleRow(title: "Cloud cleanup",
-                          subtitle: on ? CloudCleanup.privacyNote(provider) : "Off. Cleanup runs on this iPhone. Turning it on asks first.", isOn: onBinding)
+                          subtitle: !unlock.hasEverything ? UnlockCopy.cloudCleanupLocked : on ? CloudCleanup.privacyNote(provider) : "Off. Cleanup runs on this iPhone. Turning it on asks first.", isOn: onBinding)
             .settingsSearchTarget("cloudCleanup", flash: searchFlash)
             .onAppear {
                 // On from a build that didn't ask: off until you say yes (5.1.2(i)).
@@ -89,6 +92,7 @@ struct CloudCleanupRows: View {
     /// The switch: turning it on asks first, until you've said yes to this provider.
     private var onBinding: Binding<Bool> {
         Binding(get: { on }, set: { v in
+            if v && !FeatureGate.allows(.cloudCleanup, ask: true) { return }
             if v && !CloudCleanup.hasConsent(provider) { asking = provider } else { on = v }
         })
     }

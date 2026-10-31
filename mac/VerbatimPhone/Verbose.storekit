@@ -1,0 +1,53 @@
+{
+  "identifier" : "8F3B6C2A-4D1E-4B7A-9C55-2E6A1D0F7B31",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "0",
+      "familyShareable" : false,
+      "internalID" : "6745000001",
+      "localizations" : [
+        {
+          "description" : "Everything in Verbose Unlock for 7 days. It's free, and it doesn't renew.",
+          "displayName" : "7-day free trial",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "co.stumpandroot.verbatim.ios.trial7",
+      "referenceName" : "7-day free trial",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "14.99",
+      "familyShareable" : false,
+      "internalID" : "6745000002",
+      "localizations" : [
+        {
+          "description" : "Recordings of any length, imports, app audio, templates, and every export. One purchase.",
+          "displayName" : "Verbose Unlock",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "co.stumpandroot.verbatim.ios.unlock",
+      "referenceName" : "Verbose Unlock",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

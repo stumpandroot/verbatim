@@ -244,6 +244,8 @@ final class AskCenter: ObservableObject {
     /// Asks a question for the screens: `result` and `phase` follow it. A new question replaces one still running.
     func ask(_ question: String, scope: AskScope) {
         guard let store else { return }
+        // Verbose Unlock on iPhone: while locked, asking opens the unlock sheet (FeatureGate; never on the Mac).
+        guard FeatureGate.allows(.ask, ask: true) else { return }
         let q = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return }
         runID += 1
@@ -503,6 +505,8 @@ final class AskRecipeCenter: ObservableObject {
     /// Runs a recipe now and keeps its answer as a digest.
     func run(_ r: AskRecipe, scheduled: Bool = false) {
         guard let store, !running.contains(r.id) else { return }
+        // Verbose Unlock on iPhone: Run opens the unlock sheet while locked; a scheduled run just waits.
+        guard FeatureGate.allows(.recipes, ask: !scheduled) else { return }
         running.insert(r.id)
         Task { @MainActor in
             let result = await AskCenter.answer(r.question, scope: r.scope, store: store)
@@ -524,7 +528,7 @@ final class AskRecipeCenter: ObservableObject {
 
     /// Runs every recipe owed a scheduled run (once each, however many weeks were missed).
     func runDue(now: Date = Date()) {
-        guard automatic, let store, store.isLoaded else { return }
+        guard automatic, let store, store.isLoaded, FeatureGate.allows(.recipes) else { return }
         let owed = device.pruned(store.recipes).due(store.recipes, now: now)
         for (r, _) in owed where !running.contains(r.id) {
             Log.note("ask: running a scheduled recipe")

@@ -112,6 +112,10 @@ enum PhoneSettingsMap {
         Group(title: account, rows: [
             // Shown on the root, still edited in About me.
             Row(id: "yourNameRow", page: "aboutMe", settings: [Setting("yourName", keys: ["profile.name"])]),
+            // Verbose Unlock (UnlockViews.swift): its row sits above the groups, under search; it stores nothing (the
+            // entitlement comes from StoreKit). Restore Purchases asks the App Store again.
+            Row(id: "verboseUnlock", settings: [Setting("verboseUnlock")]),
+            Row(id: "restorePurchases", settings: [Setting("restorePurchases")]),
         ]),
         Group(title: support, rows: [
             Row(id: "support", settings: [Setting("support")]),

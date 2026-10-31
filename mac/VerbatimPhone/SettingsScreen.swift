@@ -14,7 +14,8 @@ extension Notification.Name {
 }
 
 /// Settings (DESIGN.md §13; mockup "Verbose Refined Look", PhoneSettings): the large serif "Settings", the system search field, the You card (your initial on persimmon, your name,
-/// and what's inside; it opens the You page, YouScreen.swift), then the seven groups of PhoneSettingsMap, each a label
+/// and what's inside; it opens the You page, YouScreen.swift) under Verbose Unlock's row (UnlockViews.swift: the
+/// trial, its days left, or the thank-you row), then the seven groups of PhoneSettingsMap, each a label
 /// over cards: the rows that open a page, run something, or choose from a menu, each with its colored icon square
 /// (persimmon, butter, sage, petal down the card, `RefinedRules.settingsHue`), its value in `mute`, and a chevron;
 /// then the group's switches in a card of their own, with no squares, in the system's green. A destructive row has a
@@ -75,6 +76,8 @@ struct SettingsScreen: View {
     @ObservedObject private var search = SettingsSearchModel.shared
     @State private var searchFlash: String? = nil
     @Environment(\.limitMotion) private var limitMotion
+    /// Verbose Unlock: the row under search, and Restore Purchases in Account and plan (Unlock.swift).
+    @ObservedObject private var unlock = UnlockStore.shared
     /// How many Settings roots are on screen (the self-test checks Settings draws).
     static var onScreen = 0
 
@@ -104,6 +107,9 @@ struct SettingsScreen: View {
                 if search.isActive {
                     SettingsSearchResults(query: search.query, value: { SettingsSearchIndex.value(for: $0, app: app) }) { pickSearchResult($0, proxy) }
                 } else {
+                    // Verbose Unlock's row, under search and above the groups (mockup "Verbose Unlock on iPhone").
+                    UnlockSettingsRow(flash: searchFlash)
+                        .padding(.top, 14)
                     youCard
                         .padding(.top, 14)
                     group(1, PhoneSettingsMap.personalization) { personalization }
@@ -433,6 +439,12 @@ struct SettingsScreen: View {
         let name = profileName.trimmingCharacters(in: .whitespacesAndNewlines)
         PaperCard {
             pageRow("yourNameRow", .aboutMe, 0, art: .iconAboutMe, title: "Your name", value: name.isEmpty ? "Add" : name)
+            squareDivider
+            // Restore Purchases (guideline 3.1.1): for a new iPhone or a reinstall. The unlock sheet has it too.
+            actionRow("restorePurchases", 1, art: .iconRestore, title: UnlockCopy.restore, value: unlock.busy == .restore ? "Restoring\u{2026}" : nil,
+                      hint: "Asks the App Store for your purchases again") {
+                Task { let line = await unlock.restore(); if !line.isEmpty { app.say(line) } }
+            }
         }
     }
 

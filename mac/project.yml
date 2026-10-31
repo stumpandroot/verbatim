@@ -360,11 +360,17 @@ targets:
 
   VerbatimPhone:
     type: application
-    scheme: {}
+    # Running from Xcode uses the local StoreKit configuration (Verbose Unlock's two products; mac/APP_STORE.md, In-app
+    # purchase), so the unlock sheet works without App Store Connect. TestFlight and App Store builds use the real store.
+    scheme:
+      storeKitConfiguration: VerbatimPhone/Verbose.storekit
     platform: iOS
     sources:
       - path: VerbatimPhone
-        excludes: ["Info.plist", "VerbatimPhone.entitlements"]
+        excludes: ["Info.plist", "VerbatimPhone.entitlements", "Verbose.storekit"]
+      # In the project for Xcode's StoreKit editor, never copied into the app.
+      - path: VerbatimPhone/Verbose.storekit
+        buildPhase: none
       - Verbatim/Model
       # What's new (Model/ReleaseNotes.swift): the release notes, shared with the Mac app (ReleaseNotes/README.md).
       - ReleaseNotes/ReleaseNotes.json

@@ -115,6 +115,9 @@ struct PhoneRoot: View {
         .sheet(isPresented: $app.showSettings) {
             SettingsSheet().environmentObject(app)
         }
+        // Verbose Unlock's sheet, from a locked feature or a Home card (UnlockViews.swift). Settings, the recorder, and
+        // the export sheet present it over themselves.
+        .unlockSheetHost(root: true)
         // Record as's Import, from Photos, files, or a link (RecordAccessory.swift).
         .confirmationDialog("Import", isPresented: $app.showImportChoices, titleVisibility: .hidden) {
             Button("Choose from Photos") { app.showPhotoPicker = true }
@@ -136,7 +139,8 @@ struct PhoneRoot: View {
         // Shared files and links, and Transcribe what's playing, come in each time Verbatim is opened (PhoneInbox.swift).
         // Recipes owed a scheduled run since iOS last gave Verbose time run when it opens (AskEngine.swift).
         // The Action button's control is named for the choice in Settings › Action button (ActionButtonScreen.swift).
-        .onChange(of: scenePhase) { _, phase in if phase == .active { app.importInbox(); app.importWatchInbox(); AskRecipeCenter.shared.runDue(); ActionChoiceMirror.sync() } }
+        // Verbose Unlock: the trial's days, and the prices if the App Store hadn't answered (Unlock.swift).
+        .onChange(of: scenePhase) { _, phase in if phase == .active { UnlockStore.shared.becameActive(); app.importInbox(); app.importWatchInbox(); AskRecipeCenter.shared.runDue(); ActionChoiceMirror.sync() } }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {
             Button("Not now", role: .cancel) { app.dismissConsentNotice() }
             Button("Record") { app.acknowledgeConsentNotice() }
@@ -229,7 +233,13 @@ struct PhoneRoot: View {
 @MainActor
 final class PhoneHolder: ObservableObject {
     let app: PhoneState
-    init() { app = PhoneState() }
+    /// Verbose Unlock's store starts first, so `FeatureGate` holds the cached entitlement before anything reads it, then
+    /// follows StoreKit and the recorder (Unlock.swift).
+    init() {
+        _ = UnlockStore.shared
+        app = PhoneState()
+        UnlockStore.shared.attach(app)
+    }
 }
 
 /// The Library's search and filter, kept when its screen is built again (its tab leaves the bar or comes back). In
@@ -311,5 +321,7 @@ struct SettingsSheet: View {
     var body: some View {
         NavigationStack { SettingsScreen(onDone: { app.closeSettings() }) }
             .tint(Refined.accentText)
+            // The unlock sheet opens over Settings: the root can't present over a sheet.
+            .unlockSheetHost()
     }
 }
