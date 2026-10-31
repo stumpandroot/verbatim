@@ -402,7 +402,7 @@ struct LinkSheet: View {
                     }
                     .padding(12)
                     .refinedFieldBox()
-                    Text(Self.linkSheetNote)
+                    Text(HomeScreen.linkSheetNote)
                         .refinedFont(.meta).foregroundStyle(Refined.dim)
                         .fixedSize(horizontal: false, vertical: true)
                     PasteButton(payloadType: String.self) { strings in link = strings.first ?? link }
