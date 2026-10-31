@@ -290,10 +290,11 @@ check "Public link: makes the group once, fills in Test Information, adds and su
   'python3 -I "$share" share-check > /dev/null'
 check "Public link: without the key it fails with a reason" \
   '! env -u ASC_KEY_ID -u ASC_ISSUER_ID -u ASC_KEY_PATH python3 -I "$share" share --build 7.1 --feedback-email a@b.c 2> "$out/share.err" && grep -q "must be set" "$out/share.err"'
-# The workflow shares only the public track, and the public track never carries YouTube on the iPhone (mac/APP_STORE.md).
+# The workflow shares only the public track; the public and store tracks never carry YouTube on the iPhone, only
+# the store track (N.2, for App Review) leaves out the beta unlock (mac/APP_STORE.md).
 wf="$here/../../.github/workflows/build-swift.yml"
-check "Public link: the workflow's public track builds without YOUTUBE_ON_DEVICE, and only it is shared" \
-  'grep -qF "PHONE_CONDITIONS: \${{ matrix.track == '"'public'"' && '"'APP_STORE'"' || '"'APP_STORE YOUTUBE_ON_DEVICE'"' }}" "$wf" && grep -qF "VERBATIM_PHONE_CONDITIONS_YES=\$PHONE_CONDITIONS" "$wf" && grep -qF "if: matrix.track == '"'public'"' && env.HAS_ASC" "$wf"'
+check "Public link: the public track builds without YOUTUBE_ON_DEVICE, the store track without BETA_UNLOCK, and only public is shared" \
+  'grep -qF "PHONE_CONDITIONS: \${{ matrix.track == '"'public'"' && '"'APP_STORE BETA_UNLOCK'"' || (matrix.track == '"'store'"' && '"'APP_STORE'"' || '"'APP_STORE YOUTUBE_ON_DEVICE BETA_UNLOCK'"') }}" "$wf" && grep -qF "VERBATIM_PHONE_CONDITIONS_YES=\$PHONE_CONDITIONS" "$wf" && grep -qF "if: matrix.track == '"'public'"' && env.HAS_ASC" "$wf"'
 
 if [ "$fails" -gt 0 ]; then echo "$fails release notes check(s) failed"; exit 1; fi
 echo "All release notes checks passed."

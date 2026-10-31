@@ -6,6 +6,13 @@
       "items": [
         {
           "platforms": [
+            "iphone"
+          ],
+          "text": "Everything is unlocked in the beta, with no purchase screens.",
+          "detail": "Settings says so where Verbose Unlock will be."
+        },
+        {
+          "platforms": [
             "iphone",
             "mac"
           ],

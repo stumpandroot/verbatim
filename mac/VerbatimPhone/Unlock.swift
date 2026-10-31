@@ -137,6 +137,15 @@ final class UnlockStore: ObservableObject {
     private var capStartedWithEverything = true
     private var capStopping = false
 
+    /// TestFlight builds (CI's internal and public tracks, compiled with BETA_UNLOCK): everything is unlocked with no
+    /// purchase screens, for you and your beta testers, and StoreKit isn't asked. The store track's N.2, the build you
+    /// submit for App Review, leaves the flag out, so the unlock and trial work there (mac/APP_STORE.md).
+    #if BETA_UNLOCK
+    nonisolated static let betaUnlocked = true
+    #else
+    nonisolated static let betaUnlocked = false
+    #endif
+
     var price: String? { prices[UnlockProduct.unlock] }
     var hasEverything: Bool { state.hasEverything }
     /// Home's card now, if any.
@@ -144,7 +153,7 @@ final class UnlockStore: ObservableObject {
 
     private init() {
         // The self-test starts unlocked with a stand-in store, so the tours before its own keep working.
-        if PhoneUITest.enabled {
+        if PhoneUITest.enabled || Self.betaUnlocked {
             let stub = StubPurchases.unlocked()
             backend = stub
             records = stub.stored
@@ -193,7 +202,7 @@ final class UnlockStore: ObservableObject {
     func refresh() async {
         let r = await backend.records()
         records = r
-        if !PhoneUITest.enabled { UnlockCache.save(r) }
+        if !PhoneUITest.enabled && !Self.betaUnlocked { UnlockCache.save(r) }
         recompute()
         if prices.isEmpty { await loadPrices() }
     }

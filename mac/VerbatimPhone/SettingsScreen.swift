@@ -439,11 +439,13 @@ struct SettingsScreen: View {
         let name = profileName.trimmingCharacters(in: .whitespacesAndNewlines)
         PaperCard {
             pageRow("yourNameRow", .aboutMe, 0, art: .iconAboutMe, title: "Your name", value: name.isEmpty ? "Add" : name)
+            if !UnlockStore.betaUnlocked {
             squareDivider
             // Restore Purchases (guideline 3.1.1): for a new iPhone or a reinstall. The unlock sheet has it too.
             actionRow("restorePurchases", 1, art: .iconRestore, title: UnlockCopy.restore, value: unlock.busy == .restore ? "Restoring\u{2026}" : nil,
                       hint: "Asks the App Store for your purchases again") {
                 Task { let line = await unlock.restore(); if !line.isEmpty { app.say(line) } }
+            }
             }
         }
     }

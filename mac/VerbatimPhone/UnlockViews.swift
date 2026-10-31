@@ -248,7 +248,7 @@ struct UnlockSettingsRow: View {
     @ObservedObject private var unlock = UnlockStore.shared
 
     var body: some View {
-        let c = UnlockRowContent.make(unlock.state, price: unlock.price)
+        let c = UnlockRowContent.make(unlock.state, price: unlock.price, beta: UnlockStore.betaUnlocked)
         Group {
             if c.thanks {
                 face(c)

@@ -65,6 +65,10 @@ on:
         description: Run the speech bench too (about 9 more macOS minutes)
         type: boolean
         default: false
+      app_store:
+        description: "Also upload the App Store submission build (N.2, with the paywall on, not shared with testers)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -1048,7 +1052,9 @@ jobs:
       max-parallel: 1
       fail-fast: false
       matrix:
-        track: [internal, public]
+        # store (N.2) only when started by hand with app_store: the build to submit for App Review, with the unlock
+        # and trial working (no BETA_UNLOCK) and not shared with testers (mac/APP_STORE.md).
+        track: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.app_store) && '["internal","public","store"]' || '["internal","public"]') }}
     runs-on: macos-26
     environment: release
     # A TestFlight problem never fails the build.
@@ -1060,9 +1066,10 @@ jobs:
         working-directory: mac
     env:
       HAS_ASC: ${{ secrets.ASC_KEY_ID != '' && secrets.ASC_KEY_P8 != '' }}
-      # The build's CFBundleVersion and the iPhone target's conditions for this track.
-      BUILD_NO: ${{ matrix.track == 'public' && format('{0}.1', github.run_number) || github.run_number }}
-      PHONE_CONDITIONS: ${{ matrix.track == 'public' && 'APP_STORE' || 'APP_STORE YOUTUBE_ON_DEVICE' }}
+      # The build's CFBundleVersion and the iPhone target's conditions for this track. BETA_UNLOCK: TestFlight builds
+      # have everything unlocked with no purchase screens (beta testers and you); the store track's N.2 doesn't.
+      BUILD_NO: ${{ matrix.track == 'public' && format('{0}.1', github.run_number) || (matrix.track == 'store' && format('{0}.2', github.run_number) || github.run_number) }}
+      PHONE_CONDITIONS: ${{ matrix.track == 'public' && 'APP_STORE BETA_UNLOCK' || (matrix.track == 'store' && 'APP_STORE' || 'APP_STORE YOUTUBE_ON_DEVICE BETA_UNLOCK') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: env.HAS_ASC == 'true'
@@ -1102,7 +1109,7 @@ jobs:
           [ -f Local.xcconfig ] || : > Local.xcconfig
           # With the Apple Watch app first; the upload step retries without it if it fails (VERBOSE_WATCH=NO). The
           # public track (the App Store build) leaves YouTubeKit out (VERBOSE_YOUTUBEKIT=NO, App Review AR-05).
-          if [ "${{ matrix.track }}" = public ]; then export VERBOSE_YOUTUBEKIT=NO; fi
+          if [ "${{ matrix.track }}" != internal ]; then export VERBOSE_YOUTUBEKIT=NO; fi
           bash tools/generate-project.sh
           bash tools/package-resolved.sh install
           xcodebuild -resolvePackageDependencies -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" \
@@ -1174,8 +1181,10 @@ jobs:
           # internal build for App Review or external testing. The public track's N.1 builds leave it out.
           if [ "${{ matrix.track }}" = internal ]; then
             echo "::notice::TestFlight build ${BUILD_NO} fetches YouTube on the iPhone. Internal testing only; don't submit it for review."
+          elif [ "${{ matrix.track }}" = store ]; then
+            echo "::notice::TestFlight build ${BUILD_NO} is the App Store submission build: the unlock and trial are on. Submit this one for App Review."
           else
-            echo "::notice::TestFlight build ${BUILD_NO} is the App Store build, for the public link."
+            echo "::notice::TestFlight build ${BUILD_NO} is the public beta, with everything unlocked, for the public link."
           fi
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
@@ -1210,7 +1219,7 @@ jobs:
             local missing=0
             # The App Store build ships no YouTube extractor (App Review AR-05) and asks for Reminders with its key
             # (AR-01).
-            if [ "${{ matrix.track }}" = public ] && [ -n "$(find "$APP" -name 'YouTubeKit*' -print -quit)" ]; then
+            if [ "${{ matrix.track }}" != internal ] && [ -n "$(find "$APP" -name 'YouTubeKit*' -print -quit)" ]; then
               echo "::$level::The public build contains YouTubeKit. Generate the project with VERBOSE_YOUTUBEKIT=NO."; missing=1
             fi
             /usr/libexec/PlistBuddy -c "Print :NSRemindersFullAccessUsageDescription" "$APP/Info.plist" > /dev/null 2>&1 || {
@@ -1244,7 +1253,7 @@ jobs:
           if grep -q "Embed Watch Content" Verbatim.xcodeproj/project.pbxproj; then
             if ! ship warning; then
               echo "::warning::The iPhone app didn't archive or upload with the Apple Watch app in it (the warnings above say why). Trying once more without the watch app."
-              YTK=YES; [ "${{ matrix.track }}" = public ] && YTK=NO
+              YTK=YES; [ "${{ matrix.track }}" != internal ] && YTK=NO
               VERBOSE_WATCH=NO VERBOSE_YOUTUBEKIT=$YTK bash tools/generate-project.sh
               bash tools/package-resolved.sh install
               ship error || exit 1

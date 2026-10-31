@@ -175,10 +175,19 @@ The product IDs are fixed in code (`UnlockProduct`). Changing one means changing
 - **Free:** Dictate, the keyboard and keyboard sessions, recordings up to 10 minutes each, Apple Watch recordings (imported whole: the iPhone can't stop a recording on the watch, and audio is never cut), transcripts, speakers, search, Thoughts, Journal, Plan my day (Brain dump's automatic run and Send to Reminders too), iCloud sync, copy and share as text, and Export everything.
 - **Verbose Unlock (or the trial):** recordings of any length, Import (files, Photos, links, and what's shared in), App audio and Live captions, templates other than Plan my day, Ask, Recipes, Cloud cleanup, and every export format beyond plain text, with Share original audio.
 
+### Beta builds and the build you submit
+
+- **TestFlight builds have everything unlocked.** CI's internal (N) and public (N.1) tracks compile with `BETA_UNLOCK`: no purchase screens, no trial offer, no 10-minute limit, and StoreKit isn't asked. Settings says "Everything is unlocked while you test the beta." You and your testers never see the paywall.
+- **The build to submit for App Review is N.2,** from the store track. It leaves out `BETA_UNLOCK`, so App Review sees the trial and the unlock working (and buys them in the sandbox). It isn't shared with testers. To make one:
+  1. On GitHub, open Actions › Build (Swift) › Run workflow, on `main`.
+  1. Turn on **Also upload the App Store submission build**, and run it.
+  1. When it finishes, build N.2 is in TestFlight. Test the unlock on it yourself (sandbox purchases are free), then pick it on the app version page in App Store Connect and submit.
+- **After launch,** the App Store version has the paywall. To give yourself or a friend the unlock for free, create **offer codes** for Verbose Unlock in App Store Connect (Monetization › In-App Purchases › Verbose Unlock › Offer Codes) and redeem one in the App Store.
+
 ### Test it
 
 - **In Xcode:** the VerbatimPhone scheme runs with `VerbatimPhone/Verbose.storekit` (`storeKitConfiguration` in `project.yml`), so purchases work without App Store Connect. Use Debug › StoreKit › Manage Transactions to refund, delete, or approve a pending purchase, and to start over (delete both transactions). Editor › Time Rate speeds up time to see the trial end.
-- **In TestFlight:** purchases use the sandbox and are free; testers see "[Environment: Sandbox]" on Apple's purchase sheet. The trial and the unlock stay on the tester's account; there's no way to undo a TestFlight purchase, so test the trial's end with a new sandbox account (App Store Connect › Users and Access › Sandbox) or in Xcode.
+- **In TestFlight (the N.2 build):** purchases use the sandbox and are free; you see "[Environment: Sandbox]" on Apple's purchase sheet. The trial and the unlock stay on the tester's account; there's no way to undo a TestFlight purchase, so test the trial's end with a new sandbox account (App Store Connect › Users and Access › Sandbox) or in Xcode.
 - **On a device:** check both products load (the sheet shows "Unlock for $14.99"), Try it free, the 9:00 chip and the stop at 10:00 in a free recording, Restore Purchases after deleting and reinstalling the app, and a refund (Xcode's transaction manager) reverting to the free version.
 - **Self-test:** CI's simulator tour starts unlocked with a stand-in store (`StubPurchases`) and ends with the unlock's own tour, screenshots `p15a-unlock-sheet` to `p15k-unlock-onboarding-offer`, and `UITEST PASS|FAIL unlock:` lines.
 

@@ -126,6 +126,7 @@ check("the trial: days left", UnlockRowContent.make(.trial(ends: t0, daysLeft: 5
       && UnlockRowContent.make(.trial(ends: t0, daysLeft: 1), price: nil).title == "Free trial \u{00B7} ends today")
 check("after the trial: Verbose Unlock with the price", UnlockRowContent.make(.trialEnded(ended: t0), price: "€15,99").title == "Verbose Unlock"
       && UnlockRowContent.make(.trialEnded(ended: t0), price: "€15,99").value == "€15,99")
+check("a TestFlight build says everything is unlocked for the beta, whatever the state", UnlockRowContent.make(.free, price: "$14.99", beta: true) == UnlockRowContent(title: "Verbose Unlock", subtitle: UnlockCopy.betaThanks, value: nil, thanks: true))
 check("unlocked: the quiet thank-you row", UnlockRowContent.make(.unlocked, price: "$14.99") == UnlockRowContent(title: "Verbose Unlock", subtitle: "Thank you. Everything is unlocked.", value: nil, thanks: true))
 
 // MARK: Copy

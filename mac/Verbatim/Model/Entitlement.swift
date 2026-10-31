@@ -300,7 +300,9 @@ struct UnlockRowContent: Equatable {
     /// Unlocked: the quiet thank-you row, which opens nothing.
     var thanks: Bool
 
-    static func make(_ state: EntitlementState, price: String?) -> UnlockRowContent {
+    /// `beta`: a TestFlight build with everything unlocked (BETA_UNLOCK), which says so instead of thanking you.
+    static func make(_ state: EntitlementState, price: String?, beta: Bool = false) -> UnlockRowContent {
+        if beta { return UnlockRowContent(title: UnlockCopy.productName, subtitle: UnlockCopy.betaThanks, value: nil, thanks: true) }
         switch state {
         case .free:
             return UnlockRowContent(title: UnlockCopy.tryFree, subtitle: UnlockCopy.rowPitch, value: price, thanks: false)
@@ -399,6 +401,8 @@ enum UnlockCopy {
     static func trialRowTitle(daysLeft: Int) -> String { "Free trial \u{00B7} " + (daysLeft <= 1 ? "ends today" : "\(daysCount(daysLeft)) left") }
     static let trialRowSubtitle = "Unlock to keep everything."
     static let thanks = "Thank you. Everything is unlocked."
+    /// TestFlight builds (BETA_UNLOCK): the Settings row while everything is unlocked for testing.
+    static let betaThanks = "Everything is unlocked while you test the beta."
 
     // The welcome tour's last step
     static let tourTitle = "Try everything free for 7 days"
