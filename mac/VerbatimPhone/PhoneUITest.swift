@@ -488,6 +488,11 @@ enum PhoneUITest {
         let shownRows = RecordAsStore.shared.visible
         let ys = shownRows.compactMap { tray.rowFrames[$0]?.minY }
         check("touch and hold opens the tray with the rows you show (\(shownRows.count))", tray.isOpen && tray.rowFrames.count == shownRows.count)
+        // Cards, sized to fit (mockup "Record As Cards"): the list is as tall as its cards, with no empty band.
+        let frames = tray.rowFrames.values
+        let span = (frames.map(\.maxY).max() ?? 0) - (frames.map(\.minY).min() ?? 0)
+        check("the list is as tall as its cards (\(Int(tray.listFrame.height)) pt for \(Int(span)) pt of cards)",
+              !frames.isEmpty && abs(tray.listFrame.height - span) <= 2)
         check("the rows keep Record as's order: Voice note, Meeting, Thought, Brain dump, Audio only by default",
               ys.count == shownRows.count && zip(ys, ys.dropFirst()).allSatisfy { $0 < $1 }
               && RecordAsRows().visible.map(\.name) == ["Voice note", "Meeting", "Thought", "Brain dump", "Audio only"]

@@ -11,9 +11,11 @@ import UIKit
 // The kinds, their order, their names, and the line under each come from `RecordChoice` (Model/Templates.swift); the
 // gesture's decisions from `RecordTrayRules`, which the Linux tests check (mac/tools/test-templates.sh).
 //
-// Motion: the tray opens on a critically damped spring (280 ms, no bounce), the highlight jumps to the row under your
-// finger with no animation (a high-frequency action), and the tray leaves in 200 ms, ease-out. Limit animation
-// crossfades it instead. Haptics: a light impact on open, a selection tick on each new row, and the recorder's own
+// Motion: the tray opens on a critically damped spring (280 ms, no bounce), and each kind's card follows 90 ms in, 28 ms
+// after the one above it, rising 10 pt and fading in over 240 ms (approved mockup "Record As Cards", October 31, 2026);
+// nothing waits for it, so a finger can slide to a row while the last ones land. The highlight jumps to the row under
+// your finger with no animation (a high-frequency action), and the tray leaves in 200 ms, ease-out. Limit animation
+// crossfades the tray and its cards together, with no stagger or movement. Haptics: a light impact on open, a selection tick on each new row, and the recorder's own
 // Record haptic when a row starts; like every haptic in Verbose they go through `Haptics` (Haptics.swift), so
 // Settings › Personalization and preferences › Haptics turns them off, and they follow the iPhone's System Haptics.
 
@@ -327,6 +329,8 @@ struct RecordTrayLayer: View {
     /// How far a swipe down has pulled the tray.
     @State private var pull: CGFloat = 0
     @State private var trayHeight: CGFloat = 0
+    /// The cards have come in (false for the first frame of each opening, so they can rise one after another).
+    @State private var cardsIn = false
 
     private var openAnimation: Animation { limitMotion ? Motion.fade : .spring(duration: 0.28, bounce: 0) }
     private var closeAnimation: Animation { .easeOut(duration: 0.2) }
@@ -349,7 +353,17 @@ struct RecordTrayLayer: View {
         .animation(tray.isOpen ? openAnimation : closeAnimation, value: tray.isOpen)
         .allowsHitTesting(tray.isOpen)
         .onAppear { tray.app = app }
-        .onChange(of: tray.isOpen) { _, open in if !open { pull = 0 } }
+        .onChange(of: tray.isOpen) { _, open in
+            if !open {
+                pull = 0
+                // After the tray has left, so the cards don't fade on their own while it goes.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { if !tray.isOpen { cardsIn = false } }
+                return
+            }
+            // The cards start hidden and rise in on the next turn, after the tray is in place.
+            cardsIn = limitMotion
+            if !limitMotion { DispatchQueue.main.async { cardsIn = true } }
+        }
     }
 
     /// The dimmed screen behind the tray: the fixed ink at 32%, the same in light and dark.
@@ -416,24 +430,25 @@ struct RecordTrayLayer: View {
         .padding(.leading, 8).padding(.trailing, 6).padding(.bottom, 12)
     }
 
-    /// The rows in a card; when they're taller than the room (80% of the screen, less the header), they scroll and the
-    /// header stays.
+    /// Each kind on its own card, 6 pt apart (approved mockup "Record As Cards"). The tray is only as tall as its
+    /// cards; when they're taller than the room (80% of the screen, less the header), they scroll and the header stays.
+    /// `CappedHeight` keeps a short list from being stretched to the room, which left empty bands above and below it.
     @ViewBuilder private func rows(maxHeight: CGFloat) -> some View {
         let shown = recordAs.visible
-        let list = VStack(spacing: 0) {
+        let list = VStack(spacing: 6) {
             ForEach(Array(shown.enumerated()), id: \.element) { i, c in
-                TrayRow(choice: c, first: i == 0, highlighted: tray.highlighted == c,
-                        neighborHighlighted: i > 0 && tray.highlighted == shown[i - 1],
+                TrayRow(choice: c, highlighted: tray.highlighted == c,
                         hint: c.hint(settings: auto.settings, templates: app.store.allTemplates)) { tray.choose(c) }
+                    .cardEntrance(index: i, shown: cardsIn, limitMotion: limitMotion)
             }
         }
-        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         let room = max(160, maxHeight - 120)
-        ViewThatFits(in: .vertical) {
-            list.gesture(dismissDrag, including: .all)
-            ScrollView { list.gesture(dismissDrag, including: .subviews) }.frame(maxHeight: room)
+        CappedHeight(max: room) {
+            ViewThatFits(in: .vertical) {
+                list.gesture(dismissDrag, including: .all)
+                ScrollView { list.gesture(dismissDrag, including: .subviews) }
+            }
         }
-        .frame(maxHeight: room)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { tray.listFrame = $0 }
     }
 
@@ -452,6 +467,7 @@ struct RecordTrayLayer: View {
         .buttonStyle(.plain)
         .accessibilityHint("Choose which ways to record show here.")
         .accessibilityIdentifier("tray.editRecordAs")
+        .cardEntrance(index: recordAs.visible.count, shown: cardsIn, limitMotion: limitMotion)
     }
 
     /// Swipe down to close: past a third of the tray's height, or a fast flick. A shorter drag springs back.
@@ -485,11 +501,10 @@ private extension View {
 
 /// One way to record (the refined kit): the kind's glyph on its colored square, its name, and what happens. Under the
 /// finger, the persimmon tint with the record disc; persimmon only ever appears as that tint and the disc's red dot.
+/// One kind on its own card: the card's off-white, or the persimmon tint with the record disc while your finger is on it.
 private struct TrayRow: View {
     var choice: RecordChoice
-    var first: Bool
     var highlighted: Bool
-    var neighborHighlighted: Bool
     var hint: String
     var action: () -> Void
     @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 60
@@ -507,13 +522,10 @@ private struct TrayRow: View {
                 AccessoryRecordDisc(size: 32)
                     .opacity(highlighted ? 1 : 0)
             }
-            .padding(.horizontal, 14).padding(.vertical, 8)
+            .padding(.horizontal, 12).padding(.vertical, 8)
             .frame(minHeight: rowHeight)
-            .background(highlighted ? Refined.persimmonTint : Color.clear)
-            .overlay(alignment: .top) {
-                if !first && !highlighted && !neighborHighlighted { PaperDivider(leading: 56) }
-            }
-            .contentShape(Rectangle())
+            .refinedSurface(highlighted ? Refined.persimmonTint : Refined.card, radius: RefinedPlatform.radius(.card))
+            .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
         }
         .buttonStyle(.plain)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { RecordTray.shared.rowFrames[choice] = $0 }
@@ -567,5 +579,34 @@ struct PhoneRecordAsEditor: View {
         .presentationDragIndicator(.visible)
         .onAppear { Self.visible = true }
         .onDisappear { Self.visible = false }
+    }
+}
+
+// MARK: - Layout and entrance
+
+/// Proposes at most `max` to its content and takes the content's own height, so a short list stays short (a
+/// `.frame(maxHeight:)` grows to the max when there's room, which centered the list in empty space).
+private struct CappedHeight: Layout {
+    var max: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        let height = Swift.min(proposal.height ?? max, max)
+        return child.sizeThatFits(ProposedViewSize(width: proposal.width, height: height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+    }
+}
+
+extension View {
+    /// Record as's cards coming in: 90 ms after the tray starts, 28 ms apart, rising 10 pt and fading in over 240 ms on
+    /// a spring with no bounce. With motion limited they're simply there, fading with the tray.
+    func cardEntrance(index: Int, shown: Bool, limitMotion: Bool) -> some View {
+        self
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || limitMotion ? 0 : 10)
+            .animation(limitMotion ? nil : .spring(duration: 0.24, bounce: 0).delay(0.09 + 0.028 * Double(index)), value: shown)
     }
 }

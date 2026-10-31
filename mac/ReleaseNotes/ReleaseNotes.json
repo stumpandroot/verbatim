@@ -8,6 +8,13 @@
           "platforms": [
             "iphone"
           ],
+          "text": "Record as shows each way to record on its own card, and the cards rise in one by one.",
+          "detail": "The tray is only as tall as its cards, with no empty space above or below them."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
           "text": "Everything is unlocked in the beta, with no purchase screens.",
           "detail": "Settings says so where Verbose Unlock will be."
         },
