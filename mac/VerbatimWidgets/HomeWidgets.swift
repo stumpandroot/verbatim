@@ -211,9 +211,9 @@ private struct MacTap<Label: View>: View {
     @Environment(\.widgetFamily) private var family
     var body: some View {
         if family == .systemSmall {
-            label().widgetURL(link.url)
+            label().widgetURL(link.url(key: WidgetLinkKey.current()))
         } else {
-            Link(destination: link.url) { label() }
+            Link(destination: link.url(key: WidgetLinkKey.current())) { label() }
         }
     }
 }
@@ -686,8 +686,10 @@ struct NewThoughtIntent: AppIntent {
     func perform() async throws -> some IntentResult {
         await MainActor.run {
             if NSRunningApplication.runningApplications(withBundleIdentifier: Self.appBundleID).isEmpty {
-                _ = NSWorkspace.shared.open(WidgetLink.newThought.url)
+                _ = NSWorkspace.shared.open(WidgetLink.newThought.url(key: WidgetLinkKey.current()))
             } else {
+                // The request file proves the notification came from this widget (WidgetLinkKey, MC-02).
+                WidgetLinkKey.writeRequest()
                 DistributedNotificationCenter.default().postNotificationName(Self.request, object: nil, userInfo: nil, deliverImmediately: true)
             }
         }

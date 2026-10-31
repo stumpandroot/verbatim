@@ -68,6 +68,9 @@ settings:
       VERBOSE_SELFTEST: "YES"
     AppStore:
       VERBATIM_APP_STORE: "YES"
+      # App Store and TestFlight builds say "1.0 (N)", not "1.0 beta (N)": betas belong in TestFlight, and the App Store
+      # binary is the same build (guideline 2.2, App Review AR-10). TestFlight marks its builds as betas itself.
+      VERBOSE_CHANNEL: ""
 
 schemes:
   # Product › Archive with this scheme makes an App Store build (the AppStore configuration).
@@ -482,8 +485,13 @@ targets:
         product: WhisperKit
       - package: FluidAudio
         product: FluidAudio
+      # VERBOSE_YOUTUBEKIT=NO bash tools/generate-project.sh drops the marked lines, so App Store builds don't ship
+      # YouTubeKit or its JavaScript bundle (guidelines 2.5.2 and 5.2.3, App Review AR-05). CI's public TestFlight track
+      # uses it. Keep only this dependency between the markers; tools/test-watch.sh checks.
+      # >>> YouTubeKit
       - package: YouTubeKit
         product: YouTubeKit
+      # <<< YouTubeKit
       # The audio-only LGPL FFmpeg, as on the Mac. The app decodes; the share extension only copies files to the inbox.
       - framework: Vendor/ffmpeg/libavutil.xcframework
         embed: true
@@ -521,13 +529,16 @@ targets:
         UIBackgroundModes: [audio, fetch]
         BGTaskSchedulerPermittedIdentifiers: [co.stumpandroot.verbatim.ios.transcribe, co.stumpandroot.verbatim.ios.recipes]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSMicrophoneUsageDescription: "Verbose records voice memos and dictation with your microphone, and keeps it ready for the Verbose keyboard while a session is on. Audio is transcribed on this iPhone and goes to your own iCloud only when you turn on iCloud sync."
         # Live words (Audio/LiveTranscriber.swift), on device only; for the keyboard session's live words later.
         # Also languages outside Parakeet v3's 25 (Transcription/LanguageCheck.swift, AppleSpeech), on device only.
         NSSpeechRecognitionUsageDescription: "Verbose shows your words as you speak, and transcribes languages its own models don't cover, on this iPhone."
         # Dictionary › Suggest names from Contacts (Model/ContactNames.swift): names only, read when you ask.
         NSContactsUsageDescription: "Verbose suggests names from your contacts for your Dictionary, so it spells them correctly. Names stay on this device."
+        # Send to Reminders from Plan my day (App/RemindersBridge.swift, PhonePlanViews.swift): asked the first time you
+        # add a plan's tasks. iOS terminates an app that asks without this key (App Review AR-01, October 31, 2026).
+        NSRemindersFullAccessUsageDescription: "Verbose adds the tasks from a plan you make to the Reminders list you pick. It reads your lists only to show them."
+        NSRemindersUsageDescription: "Verbose adds the tasks from a plan you make to the Reminders list you pick. It reads your lists only to show them."
         ITSAppUsesNonExemptEncryption: false
         # The keyboard session's Live Activity (KeyboardSession.swift, VerbatimWidgets).
         NSSupportsLiveActivities: true
@@ -564,7 +575,7 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"   # iPhone only: no iPad layout yet (App Review AR-08)
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
@@ -617,7 +628,7 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"   # iPhone only: no iPad layout yet (App Review AR-08)
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         APPLICATION_EXTENSION_API_ONLY: true
         CODE_SIGN_STYLE: Automatic
@@ -663,7 +674,7 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"   # iPhone only: no iPad layout yet (App Review AR-08)
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         APPLICATION_EXTENSION_API_ONLY: true
         CODE_SIGN_STYLE: Automatic
@@ -715,7 +726,7 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"   # iPhone only: no iPad layout yet (App Review AR-08)
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         APPLICATION_EXTENSION_API_ONLY: true
         CODE_SIGN_STYLE: Automatic
@@ -755,7 +766,7 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"   # iPhone only: no iPad layout yet (App Review AR-08)
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         APPLICATION_EXTENSION_API_ONLY: true
         CODE_SIGN_STYLE: Automatic

@@ -92,7 +92,7 @@ struct PhonePlanResult: View {
                     }
                 }
                 Spacer(minLength: 0)
-                if !sent.isEmpty {
+                if !sent.isEmpty, RemindersBridge.canOpenReminders {
                     Button("Open Reminders") { RemindersBridge.openReminders() }
                         .refinedFont(.hint).foregroundStyle(Refined.accentText)
                         .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
@@ -134,9 +134,11 @@ struct PhoneSentToast: View {
             Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Refined.accentText)
             Text(message).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(2)
             Spacer(minLength: 6)
-            Button("Open Reminders") { RemindersBridge.openReminders() }
-                .refinedFont(.hint).foregroundStyle(Refined.accentText)
-                .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+            if RemindersBridge.canOpenReminders {
+                Button("Open Reminders") { RemindersBridge.openReminders() }
+                    .refinedFont(.hint).foregroundStyle(Refined.accentText)
+                    .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, 4)
         .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))

@@ -378,6 +378,8 @@ private struct ThoughtIslandWords: View {
                 .font(Refined.serif(16))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Your words: redacted wherever the system hides private content (security review IPH-18).
+        .privacySensitive()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(line)
     }

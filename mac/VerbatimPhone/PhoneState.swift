@@ -724,7 +724,8 @@ final class PhoneState: ObservableObject {
 
     /// Resolves, downloads, and prepares a link transcript's audio, then queues it for transcription.
     private func startLinkFetch(_ id: UUID) {
-        guard let t = store.transcript(id), let link = t.sourceURL ?? t.link?.url, let u = URL(string: link) else { return }
+        // http and https only: a record synced from another device can hold any address (IPH-17).
+        guard let t = store.transcript(id), let link = t.sourceURL ?? t.link?.url, let u = LinkInfo.web(link) else { return }
         linkTasks[id]?.cancel()
         let imp = LinkImport(id: id, url: link, site: PhoneLinkFetcher.siteName(u))
         linkImports[id] = imp
@@ -849,7 +850,7 @@ final class PhoneState: ObservableObject {
             imp.phase = .waitingForMac
             say(LinkFetchError.needsMac.localizedDescription)
         } else {
-            let message = "Verbose can't fetch this link on iPhone yet."
+            let message = "Verbose can't download from this site on iPhone."
             store.update(id) { x in
                 x.status = .failed; x.stage = nil; x.error = message
                 x.processingDevice = nil; x.processingDeviceName = nil
@@ -1055,9 +1056,20 @@ final class PhoneState: ObservableObject {
         store.projects = []
         store.dictionary = []
         store.snippets = []
+        // Day plans and brain dump notes, and your own templates, through the store so the deletions sync (security
+        // review IPH-16, October 31, 2026).
+        store.plans = []
+        store.templates = []
         // Ask's index, recent questions, recipes, and digests (Transcription/AskEngine.swift).
         Task { await AskData.eraseAll() }
         UserDefaults.standard.removeObject(forKey: Profile.aboutMeKey)
+        UserDefaults.standard.removeObject(forKey: Store.profileNameKey)
+        // Voice data: the speakers you named with their voiceprints, the recent voice embeddings, and your own voice
+        // profile (IPH-16).
+        SpeakerVoices.clear()
+        VoiceProfile.reset()
+        // Apple Watch recordings waiting to come in, and the ones kept after a failed import (IPH-16).
+        try? FileManager.default.removeItem(at: WatchInbox.folder)
         // Also files with no transcript in memory, speech models, and local-only copies (Store.removeAllFiles).
         store.removeAllFiles()
         // What the keyboard and the extensions share through the App Group: the Recent row, the last dictation's

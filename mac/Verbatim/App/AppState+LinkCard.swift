@@ -72,7 +72,8 @@ extension AppState {
 
     /// Fetches a link's audio into transcript `id`, reporting to its `LinkImport`, then queues it. `signIn` borrows
     /// a browser's sign-in for a private video (LinkSignIn); without one, a video that needs it asks which browser.
-    func startLinkFetch(_ id: UUID, link: String, keepVideo: Bool, signIn: LinkSignIn.Browser? = nil) {
+    /// `autoSignIn`: on a sign-in error, try the browser Settings names without asking (off for resumed fetches).
+    func startLinkFetch(_ id: UUID, link: String, keepVideo: Bool, signIn: LinkSignIn.Browser? = nil, autoSignIn: Bool = true) {
         guard let imp = linkImports[id] else { return }
         linkTasks[id]?.cancel()
         // Settings › Privacy: logged by host, and refused before it starts while Local Only is on.
@@ -127,7 +128,7 @@ extension AppState {
                 if signIn == .safari, helper.safariAccessDenied {
                     // yt-dlp couldn't read Safari's cookies: Verbatim needs Full Disk Access.
                     askForSignIn(id, link: link, keepVideo: keepVideo, reason: .safariNeedsAccess)
-                } else if signIn == nil, let saved = LinkSignIn.saved(), LinkSignIn.isInstalled(saved) {
+                } else if signIn == nil, autoSignIn, let saved = LinkSignIn.saved(), LinkSignIn.isInstalled(saved) {
                     // Settings names a browser: try its sign-in without asking.
                     startLinkFetch(id, link: link, keepVideo: keepVideo, signIn: saved)
                 } else if let signIn {
@@ -230,14 +231,16 @@ extension AppState {
         return t.deletedAt == nil && t.status == .processing && t.jobIsMine() && !Task.isCancelled
     }
 
-    /// Link downloads that stopped when Verbatim quit start again (no card; they show in Library and Queue).
+    /// Link downloads that stopped when Verbatim quit start again (no card; they show in Library and Queue). A
+    /// resumed fetch passes the same http(s) check as a new one and never tries a browser sign-in on its own, since the
+    /// record could have come from iCloud (security review MC-03, October 31, 2026); a sign-in error asks instead.
     func resumeLinkFetches() {
         for t in store.live where t.source == .link && t.status == .processing && t.audioFileName == nil
             && !t.pendingLink && t.processingDevice == Device.id && !claiming.contains(t.id) && linkTasks[t.id] == nil {
-            guard let link = t.sourceURL ?? t.link?.url, let u = URL(string: link) else { continue }
+            guard let link = t.sourceURL ?? t.link?.url, LinkFetcher.looksLikeLink(link), let u = URL(string: link) else { continue }
             let imp = LinkImport(id: t.id, url: link, site: LinkImport.siteName(u))
             linkImports[t.id] = imp
-            startLinkFetch(t.id, link: link, keepVideo: false)
+            startLinkFetch(t.id, link: link, keepVideo: false, autoSignIn: false)
         }
     }
 

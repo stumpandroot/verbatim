@@ -186,9 +186,23 @@ struct LinkInfo: Codable, Equatable, Hashable {
     var uploadDate: String? = nil    // yyyyMMdd from yt-dlp
     var thumbnailFile: String? = nil // in Paths.thumbs
 
-    /// The page at a given second, where the site supports it.
+    /// The page, only as an http or https address with a host. A synced record can hold any text, and opening a
+    /// file: address or another app's scheme from a button would run or launch it (security review MC-04 and IPH-17,
+    /// October 31, 2026). Open and fetch links through this, never `URL(string: url)`.
+    var webURL: URL? { Self.web(url) }
+
+    /// `s` as an http or https address with a host, or nil.
+    static func web(_ s: String?) -> URL? {
+        guard let s, let u = URL(string: s.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = u.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = u.host, !host.isEmpty else { return nil }
+        return u
+    }
+
+    /// The page at a given second, where the site supports it. Nil unless the page is an http or https address.
     func url(at seconds: Double) -> URL? {
-        guard var c = URLComponents(string: url) else { return URL(string: url) }
+        guard let page = webURL else { return nil }
+        guard var c = URLComponents(string: url) else { return page }
         let s = max(0, Int(seconds))
         let host = (c.host ?? "").lowercased()
         if host.contains("youtube.com") || host.contains("youtu.be") {
@@ -202,9 +216,9 @@ struct LinkInfo: Codable, Equatable, Hashable {
             q.append(URLQueryItem(name: "t", value: "\(s / 3600)h\((s % 3600) / 60)m\(s % 60)s"))
             c.queryItems = q
         } else {
-            return URL(string: url)   // no known way to deep-link; open the page
+            return page   // no known way to deep-link; open the page
         }
-        return c.url
+        return c.url.flatMap { Self.web($0.absoluteString) } ?? page
     }
     var supportsTimestamps: Bool { let u = url.lowercased(); return u.contains("youtube.com") || u.contains("youtu.be") || u.contains("vimeo.com") || u.contains("twitch.tv") }
 

@@ -65,10 +65,28 @@ enum CloudCleanup {
     }
     static func deleteKey(for p: Provider) { CloudKeychain.delete(p.keychainAccount) }
 
-    /// The setup to use now: on, with a saved key for the chosen provider. Nil otherwise.
+    // MARK: Consent (iPhone)
+
+    /// Your explicit OK, per provider, before any words go to it (guideline 5.1.2(i), App Review AR-11, October 31,
+    /// 2026). The iPhone asks when you turn Cloud cleanup on or pick another provider, and `current` needs it there.
+    static func consentKey(_ p: Provider) -> String { "cleanup.cloud.consent." + p.rawValue }
+    static func hasConsent(_ p: Provider) -> Bool { UserDefaults.standard.bool(forKey: consentKey(p)) }
+    static func giveConsent(_ p: Provider) { UserDefaults.standard.set(true, forKey: consentKey(p)) }
+    /// "Send your words to Anthropic?"
+    static func consentTitle(_ p: Provider) -> String { "Send your words to \(p.company)?" }
+    /// What goes, where, and under whose terms. `device` is "iPhone" or "Mac".
+    static func consentMessage(_ p: Provider, device: String) -> String {
+        "When cleanup runs, Verbose sends the text it cleans up to \(p.company) with your own API key: what you dictate, in Verbose and with the Verbose keyboard in any app, the transcripts you clean up, and your Dictionary terms. \(p.company)'s terms and privacy policy apply to what you send. Your audio stays on this \(device)."
+    }
+
+    /// The setup to use now: on, with a saved key for the chosen provider (and, on iPhone, your OK for it). Nil
+    /// otherwise.
     static var current: Config? {
         guard enabled else { return nil }
         let p = provider
+        #if os(iOS)
+        guard hasConsent(p) else { return nil }
+        #endif
         guard let key = CloudKeychain.read(p.keychainAccount), !key.isEmpty else { return nil }
         return Config(provider: p, model: model(for: p), key: key)
     }

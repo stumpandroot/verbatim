@@ -41,6 +41,7 @@ mac/VerbatimWatchWidgets/Info.plist
 mac/VerbatimWatchWidgets/VerbatimWatchWidgets.entitlements
 # Written by tools/generate-project.sh with VERBOSE_WATCH=NO (project.yml without the Apple Watch app).
 mac/.project-nowatch.yml
+mac/.project-noyoutubekit.yml
 
 # Key material and local secrets: never commit these (signing-setup.sh, mac/Updates/README.md, App Store Connect).
 *.p8

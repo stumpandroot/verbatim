@@ -112,6 +112,13 @@ check("transcript link round-trips", WidgetLink(url: WidgetLink.transcript(id).u
 for l in [WidgetLink.record, .dictate, .thought, .newThought] {
     check("\(l) round-trips", WidgetLink(url: l.url) == l)
 }
+// Capture links carry Verbose's link key on the Mac (security review MC-02).
+check("Record, Dictate, and New thought start capture; the others don't",
+      [WidgetLink.record, .dictate, .newThought].allSatisfy(\.startsCapture) && !WidgetLink.thought.startsCapture && !WidgetLink.transcript(id).startsCapture)
+let keyed = WidgetLink.dictate.url(key: "abc123")
+check("a capture link carries the key and still parses", WidgetLink(url: keyed) == .dictate && WidgetLink.key(in: keyed) == "abc123")
+check("a link without a key has none", WidgetLink.key(in: WidgetLink.dictate.url) == nil && WidgetLink.key(in: WidgetLink.dictate.url(key: nil)) == nil)
+check("a transcript link never carries the key", WidgetLink.transcript(id).url(key: "abc123") == WidgetLink.transcript(id).url)
 check("the keyboard's session link isn't a widget link", WidgetLink(url: URL(string: "verbatim://session?start=1&from=widget")!) == nil)
 check("another scheme isn't a widget link", WidgetLink(url: URL(string: "https://transcript/\(id.uuidString)")!) == nil)
 check("a transcript link needs a real ID", WidgetLink(url: URL(string: "verbatim://transcript/../../etc")!) == nil)

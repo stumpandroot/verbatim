@@ -394,7 +394,7 @@ struct LibraryScreen: View {
             Text(searching ? "Search looks at titles and every transcript's words."
                  : project != nil ? "Add transcripts from your library."
                  : filter != .all || typeFilter != .all ? "Choose All to see every recording."
-                 : "Tap Record to start one. Recordings and imports land here, and on your Mac.")
+                 : (app.macSeen ? "Tap Record to start one. Recordings and imports land here, and on your Mac." : "Tap Record to start one. Recordings and imports land here."))
                 .refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 14).padding(.vertical, 14)

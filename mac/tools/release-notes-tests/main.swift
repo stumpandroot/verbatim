@@ -209,5 +209,24 @@ check("rules: no period fails", itemBad(#"{"platforms": ["mac"], "text": "A"}"#)
 check("build number: 250 and the public track's 250.1 are 250", ReleaseNotes.buildNumber("250") == 250 && ReleaseNotes.buildNumber("250.1") == 250)
 check("build number: anything else is nil", [ "", "250.", ".1", "250.x", "1.2.3.4", "beta" ].allSatisfy { ReleaseNotes.buildNumber($0) == nil })
 
+// App Store builds' What's new (App Review AR-09).
+do {
+    let json = """
+    {"notes":[
+      {"build":"next","title":"Next","items":[{"platforms":["iphone"],"text":"Settings opens from Home."}]},
+      {"build":"256","date":"2026-11-01","version":"1.0 beta","title":"A","items":[{"platforms":["iphone"],"text":"Ask works offline."},{"platforms":["iphone"],"text":"YouTube links go to your Mac."}]},
+      {"build":"255","date":"2026-10-31","version":"1.0 beta","title":"B","items":[{"platforms":["iphone"],"text":"Friends join with a TestFlight link."}]},
+      {"build":"254","date":"2026-10-31","version":"1.0 beta","title":"C","items":[{"platforms":["iphone"],"text":"Old beta history."}]}
+    ]}
+    """
+    let notes = try ReleaseNotes.parse(Data(json.utf8))
+    let store = ReleaseNotes.forStore(notes)
+    check("store: builds before the first App Store build stay out", !store.contains { $0.build == "254" })
+    check("store: items about YouTube or TestFlight stay out, and a build left empty goes",
+          store.map(\.build) == ["next", "256"] && store[1].items.map(\.text) == ["Ask works offline."])
+    check("store: the version is named without beta", store[1].version == "1.0")
+} catch { check("store: the sample parses (\(error))", false) }
+
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
+

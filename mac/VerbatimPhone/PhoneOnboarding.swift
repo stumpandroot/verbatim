@@ -225,7 +225,9 @@ struct PhoneOnboarding: View {
         case 1:
             if micAllowed { bigButton("Continue") { step = 2 } }
             else {
-                bigButton("Allow microphone") {
+                // A neutral Continue that always leads to the system's own question, where you decide (guideline
+                // 5.1.1(iv), App Review AR-07). No "Allow" wording and no way past it that skips the question.
+                bigButton("Continue") {
                     AVAudioApplication.requestRecordPermission { ok in
                         DispatchQueue.main.async { micAllowed = ok; step = 2 }
                     }
@@ -247,7 +249,7 @@ struct PhoneOnboarding: View {
     @ViewBuilder private var secondary: some View {
         switch step {
         case 0: quiet("Skip the tour") { done() }
-        case 1: quiet(micAllowed ? "Back" : "Not now") { if micAllowed { step = 0 } else { step = 2 } }
+        case 1: quiet("Back") { step = 0 }
         case 2: quiet("Back") { step = 1 }
         case 3: quiet(openedSettings ? "Back" : "Later") { step = openedSettings ? 2 : 4 }
         default: quiet("Back") { step = 3 }

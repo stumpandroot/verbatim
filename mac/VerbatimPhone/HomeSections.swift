@@ -54,7 +54,7 @@ enum HomeTileAction {
         switch tile {
         case .dictate: return "Opens your dictations and how to use the Verbose keyboard."
         case .importMedia: return "Choose a video from Photos, audio or video files, or paste a link to transcribe."
-        case .whatsPlaying: return "Transcribes sound from TikTok or any app."
+        case .whatsPlaying: return "Transcribes the sound another app plays."
         case .captions: return "Shows what's said in the room as captions."
         case .dictations: return "Opens every dictation."
         case .dictionary: return "Opens your dictionary."

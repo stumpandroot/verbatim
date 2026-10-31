@@ -184,8 +184,8 @@ struct SettingsScreen: View {
             }
         } message: {
             Text(Cloud.enabled
-                 ? "This removes your transcripts, recordings, projects, and Dictionary from this iPhone and from iCloud, so they're gone from your Mac too. It can't be undone."
-                 : "This removes your transcripts, recordings, projects, and Dictionary from this iPhone. It can't be undone.")
+                 ? "This removes everything Verbose keeps: transcripts, recordings, projects, plans, templates, your Dictionary, your name, and your voice profile and the voices you named, from this iPhone and from iCloud, so they're gone from your Mac too. It can't be undone."
+                 : "This removes everything Verbose keeps on this iPhone: transcripts, recordings, projects, plans, templates, your Dictionary, your name, and your voice profile and the voices you named. It can't be undone.")
         }
         .alert(deleteTitle, isPresented: $confirmDeleteFinal) {
             Button("Cancel", role: .cancel) {}

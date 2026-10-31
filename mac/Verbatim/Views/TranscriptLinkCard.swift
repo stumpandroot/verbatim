@@ -16,7 +16,8 @@ struct LinkCard: View {
                     .refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
             }
             Spacer(minLength: 8)
-            Button { if let u = URL(string: info.url) { NSWorkspace.shared.open(u) } } label: { Text("Open video") }
+            Button { if let u = info.webURL { NSWorkspace.shared.open(u) } } label: { Text("Open video") }
+                .disabled(info.webURL == nil)
                 .buttonStyle(RefinedActionStyle())
             KeepButton(transcript: transcript)
             Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(info.url, forType: .string); app.toast = Toast("Link copied") } label: { IconGlyph(art: .iconLinks, size: 14, color: Refined.ink) }

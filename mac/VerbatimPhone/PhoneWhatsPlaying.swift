@@ -22,7 +22,7 @@ struct WhatsPlayingSheet: View {
                         .accessibilityElement(children: .combine)
                         .accessibilityAddTraits(.isHeader)
 
-                    Text("Start, then open TikTok or any app and play videos. Verbose records the sound they play, not your microphone or screen, and transcribes it when you stop.")
+                    Text("Start, then open the app that's playing. Verbose records the sound it plays, not your microphone or screen, and transcribes it when you stop. Record only what you have the right to.")
                         .refinedFont(.body).foregroundStyle(Refined.dim)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
@@ -77,7 +77,7 @@ struct WhatsPlayingSheet: View {
     private var steps: some View {
         VStack(alignment: .leading, spacing: 12) {
             step("1", "Tap Start, then Start Broadcast.")
-            step("2", "Play videos in TikTok or any other app.")
+            step("2", "Play the audio in any app.")
             step("3", "Stop from the red status bar or Control Center. The transcript appears in Library.")
         }
         .padding(16)

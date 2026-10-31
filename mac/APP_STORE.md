@@ -125,7 +125,10 @@ Guideline 4.4.1 says keyboard extensions may not launch apps other than Settings
 | Keyboard reads the host app's bundle ID (`_hostBundleID`, `_hostApplicationBundleIdentifier` in `KeyboardViewController.hostBundleID()`) | On | Compiled out; returns nil. The format chip's Auto infers from the text field instead. |
 | Keyboard opens Verbose to start a session (`openURL:options:completionHandler:` through the responder chain in `KeyboardViewController.openContainingApp`) | On | On (accepted 4.4.1 risk, above). If the link doesn't open, the keyboard shows the three other ways to start a session. |
 | App switches back to the app you came from (`_systemNavigationAction` breadcrumb and `LSApplicationWorkspace.openApplicationWithBundleID:` in `KeyboardSession.returnToHostApp`) | On | Compiled out; returns "not available in App Store builds". The start screen shows how to go back (the coach card). |
-| YouTube audio on the iPhone (`YOUTUBE_ON_DEVICE`, YouTubeKit in `PhoneLinkFetcher`) | On | Not defined. YouTube links go to the Mac's Queue, like any site the iPhone can't fetch. YouTubeKit stays linked, but nothing calls it; remove the package dependency in `project.yml` to drop it from the binary. |
+| YouTube audio on the iPhone (`YOUTUBE_ON_DEVICE`, YouTubeKit in `PhoneLinkFetcher`) | On | Not defined. YouTube links go to the Mac's Queue, like any site the iPhone can't fetch. The public TestFlight track generates the project with `VERBOSE_YOUTUBEKIT=NO`, so YouTubeKit and its JavaScript bundle aren't in the binary; the upload step refuses an archive that contains them. For a local App Store archive, run `VERBOSE_YOUTUBEKIT=NO bash tools/generate-project.sh` first. |
+| Vimeo, and a page's `og:video` or `twitter:player:stream`, on the iPhone (`PhoneLinkFetcher`) | On | Compiled out (guideline 5.2.3). Vimeo links go to the Mac's Queue. The iPhone fetches direct audio and video file links, podcast feeds and Apple Podcasts episodes, Dropbox, Google Drive, OneDrive, and iCloud Drive share links, and a page's `og:audio`. |
+| What's new | Every build's notes | From build 255 on, without items about TestFlight, YouTube, TikTok, or the beta, and with versions named without "beta" (`ReleaseNotes.forStore`). |
+| Version label | "1.0 beta (N)" | "1.0 (N)": the AppStore configuration sets `VERBOSE_CHANNEL` to empty (guideline 2.2). |
 | Settings › Keyboard › Start dictating when you come back | Shown | Shown. The first tap opens Verbose and starts listening, so you can talk as soon as you're back. |
 
 ## Starting a session in App Store builds
@@ -145,14 +148,28 @@ These work in your builds too. A session lasts until its idle timeout (2 hours u
 
 ## Notes for App Review
 
-Paste this into App Store Connect › App Review Information › Notes, so the reviewer can check guideline 4.4.1 (keyboards must work without full network access and without Full Access):
+Paste this into App Store Connect › App Review Information › Notes (guideline 2.3.1(a)):
 
-> The Verbose keyboard types without Full Access: it has a full QWERTY layout with shift, caps lock, numbers, symbols, space, return, delete, and the globe key, and it opens in that layout when Full Access is off. Full Access is needed only for dictation, because the Verbose app passes your words to the keyboard through a shared App Group container. Without it, the keyboard's Dictate key explains this and shows where to turn it on (Settings › Verbose › Keyboards › Allow Full Access). The keyboard makes no network requests.
+> **No account is needed.** Verbose records and transcribes on this iPhone; nothing is uploaded to us. Transcription models download once from Hugging Face the first time you record.
+>
+> **Background audio.** Verbose uses the audio background mode for two things: a recording keeps going with the screen locked, and a dictation session from the Verbose keyboard keeps the microphone ready so you can dictate into other apps. While a session is on, iOS shows the orange microphone indicator and Verbose shows a Live Activity with an End button. The session ends after its idle timeout (Settings › Keyboard), or when you tap End.
+>
+> **Background fetch.** Scheduled questions you save in Ask (Recipes) run on the device with Apple Intelligence. Nothing is sent anywhere.
+>
+> **Broadcast extension.** Transcribe what's playing uses a ReplayKit broadcast extension to capture another app's audio only, never the screen or the microphone. iOS shows its own Start Broadcast sheet each time.
+>
+> **Apple Watch.** The watch app records audio and sends it to the iPhone, which transcribes it.
+>
+> **Cloud cleanup** (Settings › Dictation and keyboard) is optional and off by default. It needs your own Anthropic or OpenAI API key, and Verbose asks for permission before any text is sent. Without a key, cleanup runs on the device.
+>
+> **The Mac app is optional.** Verbose works fully on its own. With the Mac app on the same iCloud account, some sites the iPhone can't download (YouTube, Vimeo) go to the Mac to transcribe; without a Mac, Verbose says the site isn't supported here.
+>
+> **The keyboard (guideline 4.4.1).** The Verbose keyboard types without Full Access: it has a full QWERTY layout with shift, caps lock, numbers, symbols, space, return, delete, and the globe key, and it opens in that layout when Full Access is off. Full Access is needed only for dictation, because the Verbose app passes your words to the keyboard through a shared App Group container. Without it, the keyboard's Dictate key explains this and shows where to turn it on (Settings › Verbose › Keyboards › Allow Full Access). The keyboard makes no network requests. To start dictating, the keyboard opens Verbose for a moment to turn on the microphone, because iOS doesn't let a keyboard use the microphone itself.
 
 What changes without Full Access, in code:
 
 - `KeyboardModel.defaults` returns nil, so nothing reads or writes the App Group. Snippets, Recent (insert your last transcript), the session, and the format chip are hidden.
-- The keyboard opens in typing (`KeyboardSurface.initial`). With Full Access it opens in the view you used last, dictation the first time.
+- The keyboard opens in typing (`KeyboardSurface.opening`). With Full Access it opens in the view you used last, dictation the first time.
 - Key presses play the system input click. Haptics play only with Full Access.
 
 ## App privacy answers
@@ -167,8 +184,8 @@ Why each network use isn't collection. Settings › Privacy lists every one by h
 | What | Where it goes | Why it isn't collected |
 |---|---|---|
 | Model downloads | huggingface.co (Parakeet, Whisper, speaker and speech-detection models); Apple (speech assets, through the system) | A download. Nothing about you or your recordings is sent. |
-| Link downloads | The site you paste (YouTube, Vimeo, Dropbox, and others) and its thumbnail host | You asked for that page's audio. Nothing is sent to the developer. |
-| Cloud cleanup (opt-in, off by default) | api.anthropic.com or api.openai.com, with your own API key | Your words go to your own account with that provider, at your request. The developer never receives them and has no agreement with the provider about your data. |
+| Link downloads | The address you paste (a podcast, an audio or video file, a Dropbox or other cloud share link; YouTube and Vimeo only on the Mac) and its thumbnail host | You asked for that page's audio. Nothing is sent to the developer. |
+| Cloud cleanup (opt-in, off by default, asks first) | api.anthropic.com or api.openai.com, with your own API key | Your words go to your own account with that provider, at your request, after an alert that names the provider and what's sent (guideline 5.1.2(i)). The developer never receives them and has no agreement with the provider about your data. |
 | Update checks (Mac direct download only) | raw.githubusercontent.com (the appcast) | Sparkle sends the app version; system profiling is off. Not part of App Store builds. |
 | iCloud sync | Your own iCloud container | Apple's service. The developer can't read it. |
 

@@ -569,9 +569,12 @@ struct TranscriptScreen: View {
                     if t.audioFileName != nil, t.pendingAppend == nil, !t.isAudioOnly {
                         Button { app.player.stop(); app.continueRecording(t.id) } label: { Label("Continue recording", systemImage: "mic.badge.plus") }   // brand: system surface (menu)
                     }
-                    // Whisper Turbo on the original audio, run by your Mac; and back to the words it replaced.
-                    Button { askTurbo = true } label: { Label(TurboRerun.title + "…", systemImage: "arrow.counterclockwise") }
-                        .disabled(TurboRerun.unavailableReason(t) != nil)
+                    // Whisper Turbo on the original audio, run by your Mac; and back to the words it replaced. Shown only
+                    // when a Mac transcribes for this library, so nothing points elsewhere without one (App Review AR-12).
+                    if app.macCanTranscribe {
+                        Button { askTurbo = true } label: { Label(TurboRerun.title + "…", systemImage: "arrow.counterclockwise") }
+                            .disabled(TurboRerun.unavailableReason(t) != nil)
+                    }
                     if let other = TurboRerun.switchTitle(t) {
                         Button { app.switchTranscriptVersion(t.id) } label: { Label(other, systemImage: "arrow.uturn.backward") }
                     }
@@ -955,8 +958,8 @@ extension View {
 struct PhoneLinkCard: View {
     var info: LinkInfo
     var body: some View {
-        if let u = URL(string: info.url) {
-            // One play target: the whole card opens the video.
+        if let u = info.webURL {
+            // One play target: the whole card opens the video (http and https only: IPH-17).
             Link(destination: u) { card }
                 .buttonStyle(RefinedPress())
                 .accessibilityElement(children: .combine)

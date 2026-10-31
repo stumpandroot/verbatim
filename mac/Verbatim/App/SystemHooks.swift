@@ -49,6 +49,17 @@ enum SystemHooks {
             Log.note("link: ignored a \(url.scheme ?? "?") link")
             return
         }
+        // Record, Dictate, and New thought start the microphone, so they need the key only Verbose's widgets can read
+        // (WidgetLinkKey; security review MC-02, October 31, 2026). Without it, Verbose only comes forward.
+        if link.startsCapture && !WidgetLinkKey.matches(WidgetLink.key(in: url)) {
+            Log.note("link: a capture link without Verbose's key brought Verbose forward without starting the microphone")
+            Task { @MainActor in
+                _ = await waitForApp()
+                NSApp.activate(ignoringOtherApps: true)
+                app?.mainWindow?.makeKeyAndOrderFront(nil)
+            }
+            return
+        }
         Task { @MainActor in
             guard let app = await waitForApp() else { return }
             switch link {
@@ -205,6 +216,8 @@ extension QuitGuard {
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Set early, so a Service that launched Verbatim is delivered (and held until the app's state exists).
         NSApp.servicesProvider = ServiceProvider.shared
+        // The key the desktop widgets' capture links carry (MC-02), made once.
+        WidgetLinkKey.ensure()
     }
 
     /// verbatim:// links from the desktop widgets (SystemHooks.openWidgetLink). Handling them here also keeps

@@ -85,15 +85,22 @@ final class ThoughtCapture: ObservableObject {
     var isRecording: Bool { phase == .recording }
 
     /// The desktop widget's New thought (VerbatimWidgets/HomeWidgets.swift) asks the running app by name, so the
-    /// app you're in stays in front. Any app could post it, as any app can open verbatim://record; the bubble shows
-    /// the recording either way.
+    /// app you're in stays in front. Any app can post a distributed notification, so the widget first writes a request
+    /// in the App Group that only it and Verbose can reach, and a notification without one is ignored (WidgetLinkKey,
+    /// security review MC-02, October 31, 2026).
     static let widgetRequest = Notification.Name("co.stumpandroot.verbatim.newThought")
     private var widgetObserver: NSObjectProtocol?
 
     func attach(_ app: AppState) {
         self.app = app
         widgetObserver = DistributedNotificationCenter.default().addObserver(forName: Self.widgetRequest, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { ThoughtCapture.shared.toggle() }
+            MainActor.assumeIsolated {
+                guard WidgetLinkKey.takeRequest() else {
+                    Log.note("thoughts: ignored a New thought request that didn't come from Verbose's widget")
+                    return
+                }
+                ThoughtCapture.shared.toggle()
+            }
         }
         // Pad pieces become Thoughts once the library has loaded (once only), and the bubble comes up.
         app.store.whenLoaded { [weak self] in

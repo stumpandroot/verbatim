@@ -19,21 +19,24 @@ import sys
 
 BEGIN = "# >>> Apple Watch"
 END = "# <<< Apple Watch"
+# The YouTubeKit switch (App Review AR-05): VERBOSE_YOUTUBEKIT=NO drops the iPhone app's YouTubeKit dependency.
+YT_BEGIN = "# >>> YouTubeKit"
+YT_END = "# <<< YouTubeKit"
 
 
-def block(lines):
+def block(lines, begin=BEGIN, end=END):
     """The (begin, end) line indexes of the marked block. Raises ValueError unless there's exactly one, in order."""
-    begins = [i for i, l in enumerate(lines) if l.strip().startswith(BEGIN)]
-    ends = [i for i, l in enumerate(lines) if l.strip().startswith(END)]
+    begins = [i for i, l in enumerate(lines) if l.strip().startswith(begin)]
+    ends = [i for i, l in enumerate(lines) if l.strip().startswith(end)]
     if len(begins) != 1 or len(ends) != 1 or begins[0] >= ends[0]:
-        raise ValueError(f"project.yml needs one '{BEGIN}' line and then one '{END}' line "
+        raise ValueError(f"project.yml needs one '{begin}' line and then one '{end}' line "
                          f"(found {len(begins)} and {len(ends)})")
     return begins[0], ends[0]
 
 
-def strip(text):
+def strip(text, begin=BEGIN, end=END):
     lines = text.splitlines(keepends=True)
-    b, e = block(lines)
+    b, e = block(lines, begin, end)
     return "".join(lines[:b] + lines[e + 1:])
 
 
@@ -80,14 +83,28 @@ def check(path):
     ok("switch: only the marked lines change", len(stripped.splitlines()) == len(lines) - (e - b + 1))
     ok("switch: the watch app embeds its complications",
        re.search(r"^  VerbatimWatch:\n(?:(?!^  \S).*\n)*?\s+- target: VerbatimWatchWidgets\s*$", text, re.M) is not None)
+    # The YouTubeKit switch.
+    try:
+        yb, ye = block(lines, YT_BEGIN, YT_END)
+    except ValueError as err:
+        ok(f"youtubekit: {err}", False)
+        return 1
+    yinner = [l.strip() for l in lines[yb + 1:ye] if l.strip() and not l.strip().startswith("#")]
+    ok("youtubekit: the marked lines hold only the YouTubeKit dependency", yinner == ["- package: YouTubeKit", "product: YouTubeKit"])
+    yowner = next((m.group(1) for l in reversed(lines[:yb]) for m in [re.match(r"^  ([A-Za-z][A-Za-z0-9_]*):\s*$", l)] if m), None)
+    ok("youtubekit: the marked dependency belongs to VerbatimPhone", yowner == "VerbatimPhone")
+    ystripped = strip(text, YT_BEGIN, YT_END)
+    ok("youtubekit: without it, nothing depends on YouTubeKit", not re.search(r"-\s*package:\s*YouTubeKit\s*$", ystripped, re.M))
+    ok("youtubekit: both switches apply together", target_names(strip(ystripped)) == target_names(text))
     return 1 if fails else 0
 
 
 def main(argv):
-    if len(argv) == 3 and argv[0] == "--strip":
+    if len(argv) == 3 and argv[0] in ("--strip", "--strip-youtubekit"):
         src, dest = argv[1], argv[2]
         with open(src, encoding="utf-8") as f:
-            out = strip(f.read())
+            text = f.read()
+        out = strip(text) if argv[0] == "--strip" else strip(text, YT_BEGIN, YT_END)
         with open(dest, "w", encoding="utf-8") as f:
             f.write(out)
         return 0

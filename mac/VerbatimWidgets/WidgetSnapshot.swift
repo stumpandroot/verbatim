@@ -205,6 +205,28 @@ enum WidgetLink: Equatable {
         }
     }
 
+    /// Record, Dictate, and New thought start the microphone, so on the Mac they carry Verbose's link key
+    /// (`url(key:)`, `WidgetLinkKey`; security review MC-02, October 31, 2026).
+    var startsCapture: Bool {
+        switch self {
+        case .record, .dictate, .newThought: return true
+        case .transcript, .thought: return false
+        }
+    }
+
+    /// The link with Verbose's key (`k=`) on the ones that start the microphone; the others are unchanged.
+    func url(key: String?) -> URL {
+        guard startsCapture, let key, !key.isEmpty,
+              var c = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        c.queryItems = (c.queryItems ?? []) + [URLQueryItem(name: "k", value: key)]
+        return c.url ?? url
+    }
+
+    /// The key a link carries (`k=`), if any.
+    static func key(in url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "k" }?.value
+    }
+
     /// The link a widget opened, or nil for anything else (`verbatim://session` stays the keyboard's).
     init?(url: URL) {
         guard url.scheme?.lowercased() == Self.scheme, let host = url.host?.lowercased() else { return nil }
@@ -254,6 +276,61 @@ enum WidgetSnapshotStore {
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         do { try data.write(to: url, options: [.atomic]) } catch { return false }
         return true
+    }
+}
+
+/// A random key that only Verbose and its widgets can read, in their App Group container (security review MC-02,
+/// October 31, 2026). The desktop widgets' Record, Dictate, and New thought links carry it (`WidgetLink.url(key:)`), and
+/// the widget's New thought writes a fresh request beside it before it asks the running app. Another app or a web page
+/// can open verbatim://dictate or post the request, but without the key Verbose only comes forward; it never starts
+/// the microphone.
+enum WidgetLinkKey {
+    static let keyFile = "link-key"
+    static let requestFile = "thought-request"
+    /// How long the widget's New thought request stays good.
+    static let requestLifetime: TimeInterval = 10
+
+    private static func file(_ name: String) -> URL? {
+        guard let groupID = WidgetSnapshotStore.groupID,
+              let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupID) else { return nil }
+        return dir.appendingPathComponent(name)
+    }
+
+    /// The key, or nil before Verbose has made it.
+    static func current() -> String? {
+        guard let url = file(keyFile), let raw = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return key.count >= 32 ? key : nil
+    }
+
+    /// Makes the key once (Verbose at launch): 256 random bits as hex, from the system's secure generator.
+    static func ensure() {
+        guard current() == nil, let url = file(keyFile) else { return }
+        var rng = SystemRandomNumberGenerator()
+        let key = (0..<4).map { _ in String(format: "%016llx", rng.next() as UInt64) }.joined()
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? key.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// Whether a link's key is Verbose's own.
+    static func matches(_ given: String?) -> Bool {
+        guard let given, let key = current() else { return false }
+        return given == key
+    }
+
+    /// The widget's New thought, just before it asks the running app.
+    static func writeRequest(now: Date = Date()) {
+        guard let url = file(requestFile) else { return }
+        try? String(now.timeIntervalSince1970).write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// True once for a request the widget wrote in the last few seconds. The request is removed either way.
+    static func takeRequest(now: Date = Date()) -> Bool {
+        guard let url = file(requestFile) else { return false }
+        defer { try? FileManager.default.removeItem(at: url) }
+        guard let raw = try? String(contentsOf: url, encoding: .utf8), let t = Double(raw.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
+        let age = now.timeIntervalSince1970 - t
+        return age >= -1 && age <= requestLifetime
     }
 }
 #endif

@@ -2,6 +2,69 @@
   "notes": [
     {
       "build": "next",
+      "title": "Privacy and security fixes",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Send to Reminders works from Plan my day.",
+          "detail": "Verbose asks for access to Reminders the first time you send a plan's tasks. Before, it closed instead."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Cloud cleanup asks before it sends your words to Anthropic or OpenAI.",
+          "detail": "It says which provider and what goes. If you turned it on in an earlier build, turn it on again and say yes."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Delete all data also removes your voice profile, named voices, plans, and templates.",
+          "detail": "It removes your name and any Apple Watch recordings still waiting to come in, too."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "A link from another app opens today's Thoughts page instead of starting a thought.",
+          "detail": "The New thought widget and the Action button still start one."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Links in transcripts open only web pages.",
+          "detail": "A link that names a file or another app no longer opens it."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Privacy policy and Terms of use in Settings open the right pages."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Only Verbose's own widgets can start a recording or dictation through a link.",
+          "detail": "Another app or a web page that opens a Verbose link brings Verbose forward without turning on the microphone."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "The microphone step in the welcome tour leads straight to the system's question."
+        }
+      ]
+    },
+    {
+      "build": "254",
+      "date": "2026-10-31",
+      "version": "1.0 beta",
       "title": "Settings moves out of the way",
       "items": [
         {

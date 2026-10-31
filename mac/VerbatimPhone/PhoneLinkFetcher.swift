@@ -52,7 +52,16 @@ enum PhoneLinkFetcher {
             throw LinkFetchError.needsMac
             #endif
         }
-        if let v = vimeoID(link) { return try await resolveVimeo(link, id: v.id, hash: v.hash) }
+        if let v = vimeoID(link) {
+            // App Store builds don't fetch video sites on the iPhone (guideline 5.2.3, App Review AR-04): Vimeo goes to
+            // the Mac's Queue, like YouTube.
+            #if APP_STORE
+            _ = v
+            throw LinkFetchError.needsMac
+            #else
+            return try await resolveVimeo(link, id: v.id, hash: v.hash)
+            #endif
+        }
         if host == "podcasts.apple.com" || host == "itunes.apple.com" { return try await resolveApplePodcasts(link) }
         return try await probe(link)
     }
@@ -281,7 +290,13 @@ enum PhoneLinkFetcher {
             }
             return nil
         }
-        guard let src = meta(["og:audio:secure_url", "og:audio:url", "og:audio", "og:video:secure_url", "og:video:url", "og:video", "twitter:player:stream"]),
+        // App Store builds read only a page's audio (podcast hosts), never its video (guideline 5.2.3, AR-04).
+        #if APP_STORE
+        let sources = ["og:audio:secure_url", "og:audio:url", "og:audio"]
+        #else
+        let sources = ["og:audio:secure_url", "og:audio:url", "og:audio", "og:video:secure_url", "og:video:url", "og:video", "twitter:player:stream"]
+        #endif
+        guard let src = meta(sources),
               let media = URL(string: src, relativeTo: page)?.absoluteURL else { return nil }
         let ext = media.pathExtension.lowercased()
         if let f = unsupportedFormat(ext: ext, mime: meta(["og:audio:type", "og:video:type"])) { throw LinkFetchError.unsupportedFormat(f) }
@@ -305,6 +320,7 @@ enum PhoneLinkFetcher {
         return (parts[i], hash)
     }
 
+    #if !APP_STORE
     /// The public player config: a progressive MP4 when Vimeo offers one. HLS-only videos need the Mac.
     private static func resolveVimeo(_ link: URL, id: String, hash: String?) async throws -> Resolved {
         var s = "https://player.vimeo.com/video/\(id)/config"
@@ -328,6 +344,7 @@ enum PhoneLinkFetcher {
                         channel: (video?["owner"] as? [String: Any])?["name"] as? String,
                         thumbnail: thumb.flatMap(URL.init(string:)), pageURL: link.absoluteString, ext: "mp4")
     }
+    #endif
 
     // MARK: YouTube
 

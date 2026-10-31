@@ -123,6 +123,14 @@ struct HomeScreen: View {
         HomeGreeting.line(name: HomeGreeting.firstName(storedName), hour: Calendar.current.component(.hour, from: now))
     }
 
+    /// The Add a link sheet's note. App Store builds fetch podcasts, audio and video files, and shared files on the
+    /// iPhone; other sites go to your Mac (guideline 5.2.3, App Review AR-03).
+    #if APP_STORE
+    static let linkSheetNote = "Paste a podcast episode, a link to an audio or video file, or a Dropbox, Google Drive, OneDrive, or iCloud Drive link. Verbose downloads the audio and transcribes it on this iPhone."
+    #else
+    static let linkSheetNote = "Paste a YouTube, Vimeo, or podcast link, or a link to an audio or video file. Verbose downloads the audio and transcribes it on this iPhone."
+    #endif
+
     /// Your profile, the You page in Settings (YouScreen.swift): This week opens it.
     static func openProfile(_ app: PhoneState) { app.openSettings(page: "you") }
 
@@ -231,7 +239,7 @@ struct HomeScreen: View {
                 PaperCard {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Record something new.").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
-                        Text("Recordings and imports land here, and on your Mac.").refinedFont(.meta).foregroundStyle(Refined.mute)
+                        Text(app.macSeen ? "Recordings and imports land here, and on your Mac." : "Recordings and imports land here.").refinedFont(.meta).foregroundStyle(Refined.mute)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.horizontal, 14).padding(.vertical, 14)
@@ -394,7 +402,7 @@ struct LinkSheet: View {
                     }
                     .padding(12)
                     .refinedFieldBox()
-                    Text("Paste a YouTube, Vimeo, or podcast link, or a link to an audio or video file. Verbose downloads the audio and transcribes it on this iPhone.")
+                    Text(Self.linkSheetNote)
                         .refinedFont(.meta).foregroundStyle(Refined.dim)
                         .fixedSize(horizontal: false, vertical: true)
                     PasteButton(payloadType: String.self) { strings in link = strings.first ?? link }

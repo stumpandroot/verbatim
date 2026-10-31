@@ -58,10 +58,20 @@ enum RemindersBridge {
     static let deniedText = "Verbose can\u{2019}t add to Reminders. Turn on access in System Settings \u{203A} Privacy & Security \u{203A} Reminders."
     #endif
 
+    /// Whether Open Reminders shows. iPhone App Store builds leave it out: iOS has no documented way to open Reminders,
+    /// and an undocumented scheme risks guideline 2.5.1 (App Review AR-14). The confirmation says where the tasks went.
+    #if os(iOS) && APP_STORE
+    static let canOpenReminders = false
+    #else
+    static let canOpenReminders = true
+    #endif
+
     /// Opens the Reminders app.
     @MainActor static func openReminders() {
         #if os(iOS)
+        #if !APP_STORE
         if let u = URL(string: "x-apple-reminderkit://") { UIApplication.shared.open(u) }
+        #endif
         #else
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Reminders.app"))
         #endif

@@ -1,18 +1,18 @@
 import Foundation
 
-/// Every outside address the Mac and iPhone apps open, in one place.
-///
-/// PLACEHOLDER: the web pages below don't exist yet. Confirm (or change) `base`, `privacy`, `terms`, and `refunds`
-/// before release; App Review requires a working privacy policy link, and Paddle requires a refund policy.
+/// Every outside address the Mac and iPhone apps open, in one place: the pages on getverbose.app (App Review AR-02,
+/// October 31, 2026; the earlier stumpandroot.co/verbatim addresses never existed).
 enum Links {
-    /// The Verbatim page on the studio site (placeholder; also what Share Verbatim shares).
-    static let base = URL(string: "https://stumpandroot.co/verbatim")!
-    /// Privacy policy (placeholder).
+    /// Verbose's website (also what Share Verbose shares).
+    static let base = URL(string: "https://getverbose.app")!
+    /// Privacy policy.
     static let privacy = base.appendingPathComponent("privacy")
-    /// Terms of use (placeholder).
+    /// Terms of use.
     static let terms = base.appendingPathComponent("terms")
-    /// Refund policy for the Mac app sold directly (placeholder). iPhone refunds go through Apple.
-    static let refunds = base.appendingPathComponent("refunds")
+    /// Refund policy for the Mac app sold directly: a section of the terms. iPhone refunds go through Apple.
+    static let refunds = URL(string: "https://getverbose.app/terms#refunds")!
+    /// Setup steps and fixes.
+    static let support = base.appendingPathComponent("support")
 
     static let supportEmail = "hello@stumpandroot.co"
 

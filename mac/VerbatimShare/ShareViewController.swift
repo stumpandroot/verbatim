@@ -291,7 +291,7 @@ struct ShareCardView: View {
         switch model.outcome {
         case .working: return "Adding to Verbose"
         case .added, .link: return "Added to Verbose"
-        case .tiktok: return "Save the video first"
+        case .tiktok: return "TikTok links can't be added"
         case .failed: return "Couldn't add this"
         }
     }
@@ -308,7 +308,7 @@ struct ShareCardView: View {
         switch model.outcome {
         case .working: return "Copying it to Verbose on this iPhone."
         case .added, .link: return "It transcribes the next time you open Verbose."
-        case .tiktok: return "Verbose can't download TikTok videos. In TikTok, tap Share › Save video, then share the saved video to Verbose. Or use Transcribe what's playing in Verbose."
+        case .tiktok: return "Verbose doesn't download videos from TikTok. You can share audio and video files you have the right to use."
         case .failed(let reason): return reason
         }
     }

@@ -10,19 +10,37 @@ struct CloudCleanupRows: View {
     @State private var model = ""
     @State private var hasKey = false
     @State private var keyNote: String? = nil
+    /// The provider waiting for your OK before Cloud cleanup turns on or switches to it (AR-11).
+    @State private var asking: CloudCleanup.Provider? = nil
 
     private var provider: CloudCleanup.Provider { CloudCleanup.Provider(rawValue: providerRaw) ?? .anthropic }
 
     var body: some View {
         SettingsToggleRow(title: "Cloud cleanup",
-                          subtitle: on ? CloudCleanup.privacyNote(provider) : "Off. Cleanup runs on this iPhone.", isOn: $on)
+                          subtitle: on ? CloudCleanup.privacyNote(provider) : "Off. Cleanup runs on this iPhone. Turning it on asks first.", isOn: onBinding)
             .settingsSearchTarget("cloudCleanup", flash: searchFlash)
-            .onAppear(perform: load)
+            .onAppear {
+                // On from a build that didn't ask: off until you say yes (5.1.2(i)).
+                if on && !CloudCleanup.hasConsent(provider) { on = false }
+                load()
+            }
             .onChange(of: providerRaw) { _, _ in load() }
+            // Explicit permission before any words go to the provider (guideline 5.1.2(i), App Review AR-11).
+            .alert(asking.map(CloudCleanup.consentTitle) ?? "", isPresented: Binding(get: { asking != nil }, set: { if !$0 { asking = nil } }),
+                   presenting: asking) { p in
+                Button("Cancel", role: .cancel) {}
+                Button("Turn on") {
+                    CloudCleanup.giveConsent(p)
+                    providerRaw = p.rawValue
+                    on = true
+                }
+            } message: { p in
+                Text(CloudCleanup.consentMessage(p, device: "iPhone"))
+            }
         if on {
             SettingsDivider()
             Menu {
-                Picker("Provider", selection: $providerRaw) {
+                Picker("Provider", selection: providerBinding) {
                     ForEach(CloudCleanup.Provider.allCases) { p in Text(p.title).tag(p.rawValue) }
                 }
             } label: {
@@ -66,6 +84,21 @@ struct CloudCleanupRows: View {
             .padding(.horizontal, 14).padding(.vertical, 12)
             .settingsSearchTarget("cloudModel", flash: searchFlash)
         }
+    }
+
+    /// The switch: turning it on asks first, until you've said yes to this provider.
+    private var onBinding: Binding<Bool> {
+        Binding(get: { on }, set: { v in
+            if v && !CloudCleanup.hasConsent(provider) { asking = provider } else { on = v }
+        })
+    }
+
+    /// The provider menu: switching to one you haven't said yes to asks first.
+    private var providerBinding: Binding<String> {
+        Binding(get: { providerRaw }, set: { raw in
+            let p = CloudCleanup.Provider(rawValue: raw) ?? .anthropic
+            if on && !CloudCleanup.hasConsent(p) { asking = p } else { providerRaw = raw }
+        })
     }
 
     private func load() {

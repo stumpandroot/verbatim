@@ -117,7 +117,9 @@ enum Exporter {
         doc.aiResults = aiResults(t)
         if let info = t.linkInfo {
             let label = [info.channel, info.site].compactMap { $0 }.joined(separator: " · ").ifEmpty(info.url)
-            doc.sourceLine = (markdown ? "Source: [\(label)](\(info.url))" : "Source: \(info.url)") + (info.uploadDisplay.map { " · \($0)" } ?? "")
+            // A clickable Markdown link only for an http or https page (MC-04); anything else stays plain text.
+            let linked = markdown && info.webURL != nil
+            doc.sourceLine = (linked ? "Source: [\(label)](\(info.url))" : "Source: \(info.url)") + (info.uploadDisplay.map { " · \($0)" } ?? "")
             if markdown, info.supportsTimestamps { doc.link = { info.url(at: $0)?.absoluteString } }
         }
         return doc

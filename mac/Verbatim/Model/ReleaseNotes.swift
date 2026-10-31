@@ -212,12 +212,41 @@ enum ReleaseNotes {
         try JSONDecoder().decode(File.self, from: data).notes
     }
 
-    /// The bundled notes, newest first; empty if the file is missing or broken (What's new then says so).
+    /// The bundled notes, newest first; empty if the file is missing or broken (What's new then says so). App Store
+    /// builds show `forStore(_:)`.
     static let bundled: [ReleaseNote] = {
         guard let url = Bundle.main.url(forResource: "ReleaseNotes", withExtension: "json"),
               let data = try? Data(contentsOf: url), let notes = try? parse(data) else { return [] }
+        #if APP_STORE
+        return forStore(notes)
+        #else
         return notes
+        #endif
     }()
+
+    /// The first build an App Store build's What's new lists. The beta's history before it stays out.
+    static let storeFirstBuild = 255
+    /// Words that mark an item about beta-only builds or features App Store builds don't have.
+    static let storeHiddenWords = ["testflight", "youtube", "tiktok", "beta"]
+
+    /// What an App Store build's What's new shows (App Review AR-09, October 31, 2026): builds from `storeFirstBuild` on
+    /// (and an unstamped "next"), without items that mention TestFlight, YouTube, TikTok, or the beta, and with the
+    /// version named without "beta" (guideline 2.2). A build left with no items goes too.
+    static func forStore(_ notes: [ReleaseNote]) -> [ReleaseNote] {
+        notes.compactMap { note -> ReleaseNote? in
+            if let n = buildNumber(note.build), n < storeFirstBuild { return nil }
+            var out = note
+            out.items = note.items.filter { item in
+                let text = (item.text + " " + (item.detail ?? "")).lowercased()
+                return !storeHiddenWords.contains { text.contains($0) }
+            }
+            guard !out.items.isEmpty else { return nil }
+            if let v = note.version {
+                out.version = v.replacingOccurrences(of: " beta", with: "", options: [.caseInsensitive]).trimmingCharacters(in: .whitespaces)
+            }
+            return out
+        }
+    }
 
     /// This app's build number (CFBundleVersion), when it's a number. The public TestFlight track's "250.1" counts as
     /// 250, whose notes it carries.
