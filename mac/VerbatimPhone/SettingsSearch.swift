@@ -79,7 +79,7 @@ enum SettingsSearchIndex {
         .init(id: "customizeHome", section: personalization, label: "Customize Home", keywords: ["edit home", "home", "sections", "reorder", "tiles", "shortcut tiles", "compact", "large", "hide"],
               description: "Show, hide, reorder, and resize Home's sections", target: .page(.customizeHome)),
         .init(id: "tabBar", section: personalization, label: "Tab bar", keywords: ["tabs", "tab bar", "bottom bar", "thoughts tab", "journal tab", "projects", "dictations", "reorder", "customize"],
-              description: "Choose up to three tabs between Home and Settings", target: .page(.tabBar)),
+              description: "Choose up to four tabs after Home", target: .page(.tabBar)),
         .init(id: "aboutMe", section: personalization, label: "About me", keywords: ["profile", "context", "titles", "summaries", "bio"],
               description: "Context for titles and summaries", target: .page(.aboutMe)),
         .init(id: "voice", section: personalization, label: "Your voice", keywords: ["speaker", "recognize", "me", "voice print", "voice profile"],

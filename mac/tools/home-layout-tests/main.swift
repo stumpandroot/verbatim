@@ -246,7 +246,7 @@ check("a Monday-first calendar starts the week on Monday", mondayWeek.first?.sta
 // MARK: The iPhone's tab bar (PhoneTabBar.swift)
 
 let fresh = PhoneTabBar.decode(nil)
-check("a fresh install's bar is Home, Library, Thoughts, Settings (Moments left)", fresh.tabs == [.home, .library, .thoughts, .settings], "\(fresh.tabs)")
+check("a fresh install's bar is Home, Library, Thoughts (Moments and Settings left)", fresh.tabs == [.home, .library, .thoughts], "\(fresh.tabs)")
 check("the default is Library and Thoughts", PhoneTabBar.default == fresh && PhoneTabBar.defaultMiddle == [.library, .thoughts])
 check("Moments is no longer a tab", PhoneTab(rawValue: "moments") == nil && !PhoneTab.pickable.map(\.rawValue).contains("moments"))
 check("a stored Library and Moments bar becomes Library and Thoughts", PhoneTabBar.decode(["library", "moments"]).middle == [.library, .thoughts])
@@ -254,26 +254,29 @@ check("a stored Moments without Library becomes Library, in its place", PhoneTab
 check("with Library and Thoughts already there, Moments goes", PhoneTabBar.decode(["thoughts", "moments", "library"]).middle == [.thoughts, .library])
 check("Moments alone becomes Library", PhoneTabBar.decode(["moments"]).middle == [.library])
 let tim = PhoneTabBar(middle: [.library, .thoughts, .journal])
-check("Thoughts and Journal: Home, Library, Thoughts, Journal, Settings", tim.tabs == [.home, .library, .thoughts, .journal, .settings])
-check("Home stays first and Settings last whatever is picked", PhoneTabBar(middle: [.home, .settings, .projects]).tabs == [.home, .projects, .settings])
-check("at most three between them", PhoneTabBar(middle: [.library, .thoughts, .journal, .dictations]).middle == [.library, .thoughts, .journal])
+check("Thoughts and Journal: Home, Library, Thoughts, Journal", tim.tabs == [.home, .library, .thoughts, .journal])
+check("Home stays first whatever is picked", PhoneTabBar(middle: [.home, .projects]).tabs == [.home, .projects])
+check("Settings isn't a tab: a stored one from an older picker is ignored", PhoneTab(rawValue: "settings") == nil && PhoneTabBar.decode(["settings", "library"]).middle == [.library])
+check("at most four after Home (five in the bar)", PhoneTabBar.maxMiddle == 4
+      && PhoneTabBar(middle: [.library, .thoughts, .journal, .dictations, .projects]).middle == [.library, .thoughts, .journal, .dictations])
 check("a tab listed twice counts once", PhoneTabBar(middle: [.journal, .journal, .library]).middle == [.journal, .library])
-check("an empty middle leaves Home and Settings", PhoneTabBar(middle: []).tabs == [.home, .settings])
+check("an empty middle leaves Home alone", PhoneTabBar(middle: []).tabs == [.home])
 check("the stored form round-trips", PhoneTabBar.decode(tim.stored) == tim && tim.stored == ["library", "thoughts", "journal"])
 check("unknown tabs from a newer build are ignored", PhoneTabBar.decode(["hologram", "projects", "home", "dictations"]).middle == [.projects, .dictations])
 check("something that isn't a list is the default", PhoneTabBar.decode("library") == .default && PhoneTabBar.decode(42) == .default)
 check("a stored empty list stays empty (not the default)", PhoneTabBar.decode([String]()).middle.isEmpty)
-check("positions run left to right", tim.position(.home) == 0 && tim.position(.journal) == 3 && tim.position(.settings) == 4 && tim.position(.dictations) == nil)
+check("positions run left to right", tim.position(.home) == 0 && tim.position(.journal) == 3 && tim.position(.dictations) == nil)
 var tp: [PhoneTab] = [.library, .dictations]
 tp = PhoneTabBar.toggle(.dictations, in: tp)
 tp = PhoneTabBar.toggle(.thoughts, in: tp)
 tp = PhoneTabBar.toggle(.journal, in: tp)
 check("check Thoughts and Journal after unchecking Dictations", tp == [.library, .thoughts, .journal])
-check("a fourth can't be checked", PhoneTabBar.toggle(.projects, in: tp) == tp)
-check("Home and Settings can't be picked", PhoneTabBar.toggle(.home, in: [.library]) == [.library] && PhoneTabBar.toggle(.settings, in: []) == [])
+check("a fourth can be checked", PhoneTabBar.toggle(.projects, in: tp) == tp + [.projects])
+check("a fifth can't be checked", PhoneTabBar.toggle(.dictations, in: tp + [.projects]) == tp + [.projects])
+check("Home can't be picked", PhoneTabBar.toggle(.home, in: [.library]) == [.library])
 check("drag to reorder (List.onMove offsets)", PhoneTabBar.move(tp, fromOffsets: IndexSet(integer: 2), toOffset: 0) == [.journal, .library, .thoughts]
       && PhoneTabBar.move(tp, fromOffsets: IndexSet(integer: 0), toOffset: 3) == [.thoughts, .journal, .library])
-check("a selected tab that's still there stays selected", tim.selection(keeping: .journal) == .journal && tim.selection(keeping: .settings) == .settings)
+check("a selected tab that's still there stays selected", tim.selection(keeping: .journal) == .journal && tim.selection(keeping: .home) == .home)
 check("removing the selected tab goes to Home", tim.selection(keeping: .dictations) == .home)
 check("a screen whose tab is in the bar opens in its tab", tim.host(for: .thoughts) == .thoughts && fresh.host(for: .library) == .library)
 check("a Dictations link without the Dictations tab opens inside Library", tim.host(for: .dictations) == .library)
@@ -401,7 +404,7 @@ check("record chrome: reading hides the tab bar with nothing recording, and befo
 check("record tap: a thought on Thoughts and a journal entry on Journal, since you're there",
       TabRecordDefault.forTab(.thoughts) == .thought && TabRecordDefault.forTab(.journal) == .journal)
 check("record tap: a voice note on every other tab",
-      [PhoneTab.home, .library, .dictations, .projects, .settings].allSatisfy { TabRecordDefault.forTab($0) == .voiceNote })
+      [PhoneTab.home, .library, .dictations, .projects].allSatisfy { TabRecordDefault.forTab($0) == .voiceNote })
 check("record tap: the accessory's second line names what a tap starts",
       TabRecordDefault.allCases.map(\.subtitle) == ["Voice note", "Thought", "Journal entry"])
 check("record tap: VoiceOver's hint says what a tap starts, and that touch and hold has the rest",

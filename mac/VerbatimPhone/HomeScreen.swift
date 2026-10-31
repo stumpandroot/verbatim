@@ -34,7 +34,12 @@ struct HomeScreen: View {
         let drawn = HomeSpacing.drawn(layout)
         return scroller {
             VStack(alignment: .leading, spacing: 0) {
-                LargeSerifTitle(title: greeting, eyebrow: HomeGreeting.dateLine(now)).id("home-top")
+                HStack(alignment: .top, spacing: 12) {
+                    LargeSerifTitle(title: greeting, eyebrow: HomeGreeting.dateLine(now))
+                    Spacer(minLength: 0)
+                    HomeSettingsButton { app.openSettings() }
+                }
+                .id("home-top")
                 // After an update: "What's new in build N", once (WhatsNewScreen.swift).
                 WhatsNewBanner(top: 14) { Self.openWhatsNew(app) }
                 // Only the shown sections, each keeping its identity (its section) when the layout changes.
@@ -119,16 +124,10 @@ struct HomeScreen: View {
     }
 
     /// Your profile, the You page in Settings (YouScreen.swift): This week opens it.
-    static func openProfile(_ app: PhoneState) {
-        SettingsPage.open("you")
-        app.tab = .settings
-    }
+    static func openProfile(_ app: PhoneState) { app.openSettings(page: "you") }
 
     /// Home's note after an update opens Settings › What's new.
-    static func openWhatsNew(_ app: PhoneState) {
-        SettingsPage.open("whatsNew")
-        app.tab = .settings
-    }
+    static func openWhatsNew(_ app: PhoneState) { app.openSettings(page: "whatsNew") }
 
     /// Puts a dictation's words on the clipboard (a Dictations row). The row itself confirms with a check.
     static func copyDictation(_ text: String) {
@@ -317,7 +316,7 @@ extension Notification.Name {
 }
 
 /// Opens a page inside Settings from elsewhere (Home's This week opens the You page; the keyboard row opens Keyboard).
-/// Kept until Settings reads it, because the Settings tab may not exist yet when Home asks.
+/// Kept until Settings reads it, because the Settings sheet isn't on screen yet when Home asks.
 enum SettingsPage {
     static var pending: String?
     /// The latest page asked for, kept after Settings opens it (for the self-test).
@@ -434,5 +433,23 @@ struct LinkSheet: View {
         } else {
             app.addLink(link); dismiss()
         }
+    }
+}
+
+/// Settings, from Home: a round button beside the date (October 31, 2026, as in Verbose Tasks; Settings left the tab
+/// bar). The card in a 36 pt circle with the fine-line gear, in a 44 pt target. It opens Settings as a sheet.
+struct HomeSettingsButton: View {
+    var action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            IconGlyph(art: .iconSettings, size: 18, color: Refined.ink)
+                .frame(width: 36, height: 36)
+                .background(Refined.card, in: Circle())
+                .frame(width: CGFloat(RefinedRules.minTapTarget), height: CGFloat(RefinedRules.minTapTarget))
+                .contentShape(Circle())
+        }
+        .buttonStyle(RefinedPress())
+        .accessibilityLabel("Settings")
+        .accessibilityIdentifier("home.settings")
     }
 }

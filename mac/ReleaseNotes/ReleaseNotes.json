@@ -1,6 +1,26 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Settings moves out of the way",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Settings opens from the round button beside the date on Home, and no longer takes a tab.",
+          "detail": "It opens as a sheet; tap Done or swipe down to close it. The tab bar has room for one more tab: choose up to four in Settings › Personalization and preferences › Tab bar."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Settings opens from the gear at the end of the sync line in the sidebar.",
+          "detail": "Press ⌘, or choose Verbose › Settings to open it from anywhere."
+        }
+      ]
+    },
+    {
       "build": "252",
       "date": "2026-10-30",
       "version": "1.0 beta",

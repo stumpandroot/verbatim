@@ -24,6 +24,8 @@ extension Notification.Name {
 /// system's.
 struct SettingsScreen: View {
     @EnvironmentObject var app: PhoneState
+    /// Done beside the title closes the sheet Settings opens in (`SettingsSheet`).
+    var onDone: (() -> Void)? = nil
     @Environment(\.openURL) private var openURL
     @AppStorage(Profile.aboutMeKey) private var aboutMe = ""
     @AppStorage(MotionPreference.key) private var motionLimited = false
@@ -43,10 +45,10 @@ struct SettingsScreen: View {
     @ObservedObject private var flow = FlowSettings.shared
     /// The tab bar's picks, for the Tab bar row's value.
     @ObservedObject private var tabBarStore = PhoneTabBarStore.shared
-    /// "Library, Thoughts": the tabs between Home and Settings, or "Home and Settings" with none.
+    /// "Library, Thoughts": the tabs after Home, or "Home only" with none.
     private var tabBarValue: String {
         let m = tabBarStore.bar.middle
-        return m.isEmpty ? "Home and Settings" : m.map(\.title).joined(separator: ", ")
+        return m.isEmpty ? "Home only" : m.map(\.title).joined(separator: ", ")
     }
     /// The page pushed from a root row, a search result, or a request (SettingsPage).
     @State private var page: SettingsSubpage? = nil
@@ -80,9 +82,20 @@ struct SettingsScreen: View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                LargeSerifTitle(title: "Settings")
-                    .padding(.top, 8)
-                    .id("settings-top")
+                HStack(alignment: .firstTextBaseline) {
+                    LargeSerifTitle(title: "Settings")
+                    Spacer(minLength: 12)
+                    if let onDone {
+                        Button("Done", action: onDone)
+                            .refinedFont(.rowTitle, weight: .semibold)
+                            .foregroundStyle(Refined.accentText)
+                            .frame(minWidth: CGFloat(RefinedRules.minTapTarget), minHeight: CGFloat(RefinedRules.minTapTarget))
+                            .contentShape(Rectangle())
+                            .accessibilityIdentifier("settings.done")
+                    }
+                }
+                .padding(.top, 8)
+                .id("settings-top")
                 SystemSearchField(text: $search.query, prompt: "Search settings") {
                     if let first = SettingsSearchIndex.search(search.query).first?.entries.first { pickSearchResult(first, proxy) }
                 }

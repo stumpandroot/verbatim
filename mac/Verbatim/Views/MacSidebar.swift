@@ -4,7 +4,8 @@ import AppKit
 // The main window's sidebar in the refined look (DESIGN.md §13; mockup "Verbose Refined Look", the sidebar on every
 // Mac board): the paper-gray `side` column of the window's split view, SF Pro rows
 // with each place's fine-line glyph in the accent, counts in `mute`, sentence-case group headers (By day, Make,
-// Projects), and the selected row on the persimmon tint in semibold. Settings sits at the foot. The order, hiding,
+// Projects), and the selected row on the persimmon tint in semibold. A quiet gear on the sync line at the foot opens
+// Settings, as ⌘, does (October 31, 2026, as in Verbose Tasks; it was a row). The order, hiding,
 // and Customize sidebar work as before (SidebarLayout.swift); Queue shows only while something works; transcripts
 // dropped on Library or a project move there. With the sidebar focused, the up and down arrows move between places.
 
@@ -106,31 +107,29 @@ struct MacSidebar: View {
         .sheet(isPresented: $customizing) { CustomizeSidebarSheet() }
     }
 
-    /// Where the library lives, one quiet line, then Settings (⌘,).
+    /// Where the library lives, one quiet line, with a gear at its end that opens Settings (⌘, and the app menu do
+    /// too).
     private var foot: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 9) {
             HStack(spacing: 9) {
                 IconGlyph(art: Cloud.enabled ? .iconSync : .iconSyncOff, size: 14, color: Refined.mute)
                 Text(Cloud.enabled ? "Syncing with iCloud" : "On this Mac").refinedFont(.meta).foregroundStyle(Refined.mute)
             }
-            .padding(.horizontal, 10).padding(.vertical, 4)
             .help(Cloud.enabled
                   ? "Transcripts, notes, projects, and the Dictionary sync with your iPhone through your iCloud Drive. Models and recordings in progress stay on this Mac."
                   : "iCloud is off for Verbose, so everything stays in ~/Library/Application Support/Verbatim. Sign in to iCloud with iCloud Drive on, and run a build signed with your team, to sync with your iPhone.")
+            Spacer(minLength: 4)
             SettingsLink {
-                HStack(spacing: 9) {
-                    IconGlyph(art: .iconSettings, size: 16, color: Refined.dim)
-                    Text("Settings").refinedFont(.rowTitle).foregroundStyle(Refined.dim)
-                    Spacer(minLength: 4)
-                    Text("⌘,").refinedFont(.caption).foregroundStyle(Refined.mute).accessibilityHidden(true)
-                }
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .contentShape(Rectangle())
+                IconGlyph(art: .iconSettings, size: 15, color: Refined.dim)
+                    .frame(width: 26, height: 26)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Settings (⌘,)")
+            .accessibilityLabel("Settings")
             .uiTarget("side-settings")
         }
+        .padding(.leading, 10).padding(.trailing, 4).padding(.vertical, 2)
         .padding(.horizontal, 10).padding(.bottom, 12).padding(.top, 4)
     }
 

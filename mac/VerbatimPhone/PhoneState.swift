@@ -8,15 +8,17 @@ import UIKit
 /// transcript, note, bookmark, project, and Dictionary word syncs through iCloud both ways.
 @MainActor
 final class PhoneState: ObservableObject {
-    /// A tab: Home, Settings, and the up to three you pick between them (PhoneTabBar.swift).
+    /// A tab: Home and the up to four you pick after it (PhoneTabBar.swift).
     typealias Tab = PhoneTab
 
     let store = Store()
     let recorder = Recorder()
     let player = Player()
 
-    /// The selected tab. Tabs arrive at once, with no entrance (DESIGN.md §7).
-    @Published var tab: Tab = .home
+    /// The selected tab. Tabs arrive at once, with no entrance (DESIGN.md §7). Going to a tab closes Settings.
+    @Published var tab: Tab = .home { didSet { if tab != oldValue, showSettings { showSettings = false } } }
+    /// Settings, as a sheet (`openSettings`, PhoneTabs.swift).
+    @Published var showSettings = false
     /// Each tab keeps its own navigation stack.
     @Published var homePath = NavigationPath()
     @Published var libraryPath = NavigationPath()
@@ -24,7 +26,7 @@ final class PhoneState: ObservableObject {
     @Published var journalPath = NavigationPath()
     @Published var dictationsPath = NavigationPath()
     @Published var projectsPath = NavigationPath()
-    /// Settings › Personalization and preferences › Tab bar: which tabs sit between Home and Settings, on this iPhone.
+    /// Settings › Personalization and preferences › Tab bar: which tabs follow Home, on this iPhone.
     let tabBarStore = PhoneTabBarStore.shared
     var tabBar: PhoneTabBar { tabBarStore.bar }
     @Published var toast: String? = nil
@@ -332,6 +334,8 @@ final class PhoneState: ObservableObject {
     /// slides its content up 12 pt over 150 ms (RecorderSheet), opaque from its first frame; with Limit animation or
     /// Reduce Motion it appears at once and doesn't move (DESIGN.md §7).
     private func presentRecorder() {
+        // Settings is a sheet too: it closes first (`closeSettings`).
+        if showSettings { closeSettings { [weak self] in self?.presentRecorder() }; return }
         guard recorderSlideIn else { showRecorder = true; return }
         recorderSlideIn = false
         let still = UserDefaults.standard.bool(forKey: MotionPreference.key) || UIAccessibility.isReduceMotionEnabled
@@ -560,6 +564,7 @@ final class PhoneState: ObservableObject {
     }
 
     private func openCaptions() {
+        if showSettings { closeSettings { [weak self] in self?.openCaptions() }; return }
         guard !recorder.isRecording else { askToFinishRecording(for: "live captions"); return }
         // The microphone can serve one of them: live captions end the keyboard session.
         if session.isOn { session.end(reason: "The session ended for live captions. Tap to start a new one.") }

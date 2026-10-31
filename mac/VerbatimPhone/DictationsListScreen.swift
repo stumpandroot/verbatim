@@ -90,8 +90,7 @@ struct DictationsListScreen: View {
     /// The keyboard, explained: a butter card (Dictate) with the keyboard's icon square. Opens the keyboard's settings.
     private var keyboardCard: some View {
         Button {
-            SettingsPage.open("keyboard")
-            app.tab = .settings
+            app.openSettings(page: "keyboard")
         } label: {
             HStack(alignment: .top, spacing: 14) {
                 IconSquare(art: .iconDictations, hue: .butter)

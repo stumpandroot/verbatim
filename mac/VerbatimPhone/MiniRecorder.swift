@@ -289,6 +289,7 @@ extension PhoneState {
     /// The minimized recorder, or Record while a recording exists: the sheet comes back with the same recording.
     func openRecorder() {
         guard recordingActive else { return }
+        if showSettings { closeSettings { [weak self] in self?.setRecorderShown(true) }; return }
         setRecorderShown(true)
     }
 

@@ -3,8 +3,9 @@ import Foundation
 import Combine
 #endif
 
-// The iPhone's tab bar (Settings › Personalization and preferences › Tab bar): Home first and Settings last, and up to
-// three tabs between them that you pick and order. The default is Library and Thoughts: Moments left the bar in the
+// The iPhone's tab bar (Settings › Personalization and preferences › Tab bar): Home first, then up to four tabs that you
+// pick and order. Settings left the bar on October 31, 2026, as in Verbose Tasks: it opens as a sheet from the round
+// button beside Home's date (HomeScreen.swift). The default is Library and Thoughts: Moments left the bar in the
 // consolidation (October 28, 2026) and became the Library's Marked filter, so a stored Moments tab becomes Library, or
 // Thoughts when Library is already there (`PhoneTabBar.replacingMoments`).
 // Kept per device in the App Group, like the palette (`appearance.tabBar`); nothing syncs.
@@ -14,7 +15,7 @@ import Combine
 
 /// A tab the iPhone's bar can show.
 enum PhoneTab: String, CaseIterable, Hashable, Sendable {
-    case home, library, thoughts, journal, dictations, projects, settings
+    case home, library, thoughts, journal, dictations, projects
 
     /// The Moments tab's stored value, from builds before the consolidation.
     static let retiredMoments = "moments"
@@ -27,7 +28,6 @@ enum PhoneTab: String, CaseIterable, Hashable, Sendable {
         case .journal: return "Journal"
         case .dictations: return "Dictations"
         case .projects: return "Projects"
-        case .settings: return "Settings"
         }
     }
 
@@ -40,7 +40,6 @@ enum PhoneTab: String, CaseIterable, Hashable, Sendable {
         case .journal: return "Your journal, by day"
         case .dictations: return "Everything you dictated"
         case .projects: return "Each project and what's in it"
-        case .settings: return "Always last"
         }
     }
 
@@ -54,10 +53,10 @@ enum PhoneTab: String, CaseIterable, Hashable, Sendable {
     }
 }
 
-/// The bar: Home, the picked tabs in order, and Settings.
+/// The bar: Home, then the picked tabs in order.
 struct PhoneTabBar: Equatable, Sendable {
-    /// How many tabs fit between Home and Settings.
-    static let maxMiddle = 3
+    /// How many tabs fit after Home (four, so the bar holds five, the most the system shows without More).
+    static let maxMiddle = 4
     /// The bar a new install starts with, and one that never picked its tabs (Library and Moments before the
     /// consolidation).
     static let defaultMiddle: [PhoneTab] = [.library, .thoughts]
@@ -71,7 +70,7 @@ struct PhoneTabBar: Equatable, Sendable {
     init(middle: [PhoneTab]) { self.middle = Self.clean(middle) }
 
     /// Every tab in the bar, left to right.
-    var tabs: [PhoneTab] { [.home] + middle + [.settings] }
+    var tabs: [PhoneTab] { [.home] + middle }
 
     func contains(_ t: PhoneTab) -> Bool { tabs.contains(t) }
 
@@ -121,7 +120,7 @@ struct PhoneTabBar: Equatable, Sendable {
     var stored: [String] { middle.map(\.rawValue) }
 
     /// The bar from what was stored, ignoring what this build doesn't know. Nothing stored is the default bar; a stored
-    /// empty list is a bar with only Home and Settings.
+    /// empty list is a bar with only Home.
     static func decode(_ stored: Any?) -> PhoneTabBar {
         guard let raw = stored as? [String] else { return .default }
         return PhoneTabBar(middle: replacingMoments(raw).compactMap(PhoneTab.init(rawValue:)))

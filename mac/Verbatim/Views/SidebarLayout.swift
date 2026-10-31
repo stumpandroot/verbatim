@@ -3,8 +3,8 @@ import AppKit
 import UniformTypeIdentifiers
 
 // The sidebar's order and what it hides: drag a row to move it, right-click › Hide from sidebar, or Customize
-// sidebar… for the whole list. Saved in UserDefaults ("sidebar.order", "sidebar.hidden"). Settings always shows
-// and never moves, and at least one item always stays.
+// sidebar… for the whole list. Saved in UserDefaults ("sidebar.order", "sidebar.hidden"). Settings isn't a row: it's
+// the gear on the sync line at the foot (MacSidebar.swift), and at least one item always stays.
 
 /// A main sidebar item. Raw values persist in "sidebar.order" and "sidebar.hidden"; never change them. Links and Moments
 /// left the sidebar in the consolidation (October 28, 2026) for the Library's Links and Marked filters; a stored order
@@ -192,7 +192,7 @@ struct CustomizeSidebarSheet: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Customize sidebar").refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
-                Text("Drag to change the order, and switch off what you don't use. Settings always stays at the bottom.")
+                Text("Drag to change the order, and switch off what you don't use. Settings stays on the gear at the bottom of the sidebar.")
                     .refinedFont(.body).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }

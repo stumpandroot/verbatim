@@ -196,7 +196,8 @@ struct WelcomeTourScreen: View {
     var body: some View {
         SettingsPageScaffold(title: "Welcome tour") {
             SettingsPageGroup(footer: "A short walk through recording, the keyboard, and the Action button.", first: true) {
-                Button { app.showOnboarding = true } label: {
+                // The tour is a full-screen cover from the root, so Settings' sheet closes first.
+                Button { app.closeSettings { app.showOnboarding = true } } label: {
                     SettingsRow(hue: .sage, art: .iconTour, title: "Show Tour") { SettingsChevron() }
                 }
                 .buttonStyle(SettingsRowPress())

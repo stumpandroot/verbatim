@@ -33,8 +33,9 @@ struct VerbatimPhoneApp: App {
     }
 }
 
-/// The tabs in the system tab bar (Liquid Glass on iOS 26, standard before; DESIGN.md §13 and §16): Home, up to three you pick (Library and Thoughts unless you change them in Settings › Personalization
-/// and preferences › Tab bar), and Settings, each with its fine-line glyph, the selected tab in the accent. Paper
+/// The tabs in the system tab bar (Liquid Glass on iOS 26, standard before; DESIGN.md §13 and §16): Home, then up to four you pick (Library and Thoughts unless you change them in Settings › Personalization
+/// and preferences › Tab bar), each with its fine-line glyph, the selected tab in the accent. Settings is a sheet from the
+/// round button beside Home's date (`SettingsSheet`). Paper
 /// underneath. Record sits in the tab bar's bottom accessory on every tab but Home's own screen while its Record card
 /// is there, and the recording rides in it once minimized (RecordAccessory.swift); the recorder is a sheet
 /// (RecorderSheet.swift).
@@ -78,15 +79,10 @@ struct PhoneRoot: View {
 
     /// A tab and its own navigation stack; the paths live in PhoneState. Every stack can push every screen
     /// (`phoneRoutes`), so a screen whose tab isn't in the bar opens inside Library or Home.
-    @ViewBuilder private func tabRoot(_ t: PhoneState.Tab) -> some View {
-        if t == .settings {
-            NavigationStack { SettingsScreen() }
-                .miniRecorderInset(.settings)
-        } else {
-            NavigationStack(path: app.pathBinding(t)) { rootScreen(t).phoneRoutes() }
-                .tint(Refined.accentText)
-                .miniRecorderInset(t)
-        }
+    private func tabRoot(_ t: PhoneState.Tab) -> some View {
+        NavigationStack(path: app.pathBinding(t)) { rootScreen(t).phoneRoutes() }
+            .tint(Refined.accentText)
+            .miniRecorderInset(t)
     }
 
     @ViewBuilder private func rootScreen(_ t: PhoneState.Tab) -> some View {
@@ -99,7 +95,6 @@ struct PhoneRoot: View {
         case .journal: ByDayScreen(kind: .journal, fixed: true)
         case .dictations: DictationsListScreen()
         case .projects: ProjectsScreen()
-        case .settings: SettingsScreen()
         }
     }
 
@@ -115,6 +110,10 @@ struct PhoneRoot: View {
         // recording goes on.
         .sheet(isPresented: $app.showRecorder) {
             RecorderSheet().environmentObject(app)
+        }
+        // Settings, from the round button beside Home's date (October 31, 2026; it was the last tab).
+        .sheet(isPresented: $app.showSettings) {
+            SettingsSheet().environmentObject(app)
         }
         // Record as's Import, from Photos, files, or a link (RecordAccessory.swift).
         .confirmationDialog("Import", isPresented: $app.showImportChoices, titleVisibility: .hidden) {
@@ -132,7 +131,8 @@ struct PhoneRoot: View {
         .overlay { SessionEndedLayer(session: app.session) }
         // Record as: the tray a long press on Record opens, over the tab bar too (RecordTray.swift).
         .overlay { RecordTrayLayer() }
-        .onOpenURL { url in if !app.handleRecorderLink(url) { _ = app.session.handle(url) } }
+        // A link closes Settings first, so what it opens (the recorder, a keyboard session's screens) isn't under it.
+        .onOpenURL { url in app.closeSettings { if !app.handleRecorderLink(url) { _ = app.session.handle(url) } } }
         // Shared files and links, and Transcribe what's playing, come in each time Verbatim is opened (PhoneInbox.swift).
         // Recipes owed a scheduled run since iOS last gave Verbose time run when it opens (AskEngine.swift).
         // The Action button's control is named for the choice in Settings › Action button (ActionButtonScreen.swift).
@@ -300,5 +300,16 @@ extension Cloud {
             || FileManager.default.fileExists(atPath: Paths.local.path)
         d.set(ranBefore, forKey: syncKey)
         Log.note("iCloud sync: no setting yet; " + (ranBefore ? "an earlier install, so it stays on" : "a new install, so it starts off"))
+    }
+}
+
+/// Settings as a sheet (`PhoneState.openSettings`): its own navigation stack for the pages, and Done beside the title.
+/// Swiping down closes it too.
+struct SettingsSheet: View {
+    @EnvironmentObject var app: PhoneState
+
+    var body: some View {
+        NavigationStack { SettingsScreen(onDone: { app.closeSettings() }) }
+            .tint(Refined.accentText)
     }
 }

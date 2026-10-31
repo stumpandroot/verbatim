@@ -121,7 +121,7 @@ struct EditHomeView: View {
             .refinedFont(.hint, weight: .semibold)
             .foregroundStyle(Refined.accentText)
             .accessibilityLabel("Tab bar")
-            .accessibilityHint("Choose up to three tabs between Home and Settings.")
+            .accessibilityHint("Choose up to four tabs after Home.")
             .accessibilityIdentifier("editHome.tabBar")
         }
         .padding(.top, 8).padding(.bottom, 4)

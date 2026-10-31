@@ -1,7 +1,7 @@
 import SwiftUI
 
-// The iPhone's tabs (Settings › Personalization and preferences › Tab bar, PhoneTabBar.swift): Home first, Settings
-// last, and up to three you pick between them, each with its own navigation stack. A screen asked for whose tab isn't in
+// The iPhone's tabs (Settings › Personalization and preferences › Tab bar, PhoneTabBar.swift): Home first, then up to
+// four you pick, each with its own navigation stack. Settings isn't a tab: it opens as a sheet (`openSettings`). A screen asked for whose tab isn't in
 // the bar (Home's Journal tile with no Journal tab) opens pushed inside Library, or inside Home when Library isn't in the
 // bar either, rather than failing. Moments became the Library's Marked filter in the consolidation (October 28, 2026).
 
@@ -19,7 +19,6 @@ extension PhoneTab {
         case .journal: return .iconNotes
         case .dictations: return .iconDictations
         case .projects: return .iconProject
-        case .settings: return .iconSettings
         }
     }
 
@@ -28,7 +27,7 @@ extension PhoneTab {
 extension PhoneState {
     // MARK: Paths
 
-    /// A tab's navigation path. Settings keeps its own (SettingsScreen's pages), so it has none here.
+    /// A tab's navigation path.
     func path(_ t: Tab) -> NavigationPath {
         switch t {
         case .home: return homePath
@@ -37,7 +36,6 @@ extension PhoneState {
         case .journal: return journalPath
         case .dictations: return dictationsPath
         case .projects: return projectsPath
-        case .settings: return NavigationPath()
         }
     }
 
@@ -49,7 +47,6 @@ extension PhoneState {
         case .journal: journalPath = p
         case .dictations: dictationsPath = p
         case .projects: projectsPath = p
-        case .settings: break
         }
     }
 
@@ -60,10 +57,29 @@ extension PhoneState {
         setPath(t, p)
     }
 
-    /// Pushes a screen on the tab on screen. From Settings, it goes where the Library would (Library, else Home).
+    /// Pushes a screen on the tab on screen. From Settings, the sheet closes and it goes where the Library would
+    /// (Library, else Home).
     func pushHere<V: Hashable>(_ value: V) {
-        if tab == .settings { tab = tabBar.host(for: .library) }
+        if showSettings { showSettings = false; tab = tabBar.host(for: .library) }
         push(value, on: tab)
+    }
+
+    // MARK: Settings
+
+    /// Settings, as a sheet over the tab you're on (the round button beside Home's date; October 31, 2026, as in
+    /// Verbose Tasks). `page` opens one of its pages on the way ("you", "keyboard", "whatsNew"); with Settings already
+    /// open, the page opens there.
+    func openSettings(page: String? = nil) {
+        if let page { SettingsPage.open(page) }
+        if !showSettings { showSettings = true }
+    }
+
+    /// Closes Settings, then runs `next` once the sheet has gone: the recorder, live captions, and the welcome tour
+    /// present from the root, which can't show one sheet over another. With Settings closed, `next` runs at once.
+    func closeSettings(then next: (() -> Void)? = nil) {
+        guard showSettings else { next?(); return }
+        showSettings = false
+        if let next { DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: next) }
     }
 
     /// A tab's binding for its NavigationStack.
@@ -73,7 +89,7 @@ extension PhoneState {
 
     // MARK: The bar
 
-    /// Saves the tabs between Home and Settings. A tab that left the bar loses its stack; if it was on screen, Home
+    /// Saves the tabs after Home. A tab that left the bar loses its stack; if it was on screen, Home
     /// comes up.
     func setTabBar(_ middle: [Tab]) {
         let old = tabBar
@@ -95,9 +111,10 @@ extension PhoneState {
     /// Opens a tab's screen: the tab itself when it's in the bar; otherwise its screen pushed inside Library, or Home.
     /// `filter` opens the Library on a chip (`libraryFilterRequest`).
     func go(_ t: Tab, filter: String? = nil) {
+        closeSettings()
         let bar = tabBar
         switch t {
-        case .home, .settings:
+        case .home:
             tab = t
         case .library:
             if bar.contains(.library) {

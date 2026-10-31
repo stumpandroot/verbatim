@@ -58,9 +58,13 @@ enum PhoneUITest {
             Log.note("UITEST TIMING \(name) settled=\(Int(ms.rounded()))")
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
-        for tab in [PhoneState.Tab.library, .thoughts, .settings, .home, .library] {
+        for tab in [PhoneState.Tab.library, .thoughts, .home] {
             await timed("tab-\(tab)") { app.tab = tab }
         }
+        // Settings is a sheet from Home since October 31, 2026.
+        await timed("settings-open") { app.openSettings() }
+        await timed("settings-close") { app.closeSettings() }
+        await timed("tab-library") { app.tab = .library }
         if let big = seeded.first?.id {
             await timed("transcript") { app.libraryPath.append(big) }
             await timed("transcript-back") { app.libraryPath = NavigationPath() }
@@ -348,7 +352,9 @@ enum PhoneUITest {
                 app.openMarked()
                 await show("\(prefix)08-library-marked")
                 app.libraryFilterRequest = "all"
-                app.tab = .settings
+                app.tab = .home
+                // Settings is a sheet from Home's round button (October 31, 2026).
+                app.openSettings()
                 await show("\(prefix)09-settings")
                 if prefix == "p" { layoutCheck("Settings draws its layout", SettingsScreen.onScreen > 0) }
                 // The seven groups run long: the middle (Dictation and keyboard) and the end (Features and the version).
@@ -370,10 +376,10 @@ enum PhoneUITest {
                 try? await Task.sleep(nanoseconds: 700_000_000)
                 // The You page from Home's This week card, then About me from the You page.
                 app.tab = .home
-                try? await Task.sleep(nanoseconds: 500_000_000)
+                try? await Task.sleep(nanoseconds: 700_000_000)
                 HomeScreen.openProfile(app)
                 await show("\(prefix)09f-you")
-                if prefix == "p" { youCheck("This week opens the You page", app.tab == .settings && YouScreen.visible) }
+                if prefix == "p" { youCheck("This week opens the You page", app.showSettings && YouScreen.visible) }
                 if prefix == "p" { youCheck("the You page draws its layout", YouScreen.onScreen > 0) }
                 NotificationCenter.default.post(name: .verbatimYouPage, object: true)
                 await show("\(prefix)09g-you-about-me")
@@ -381,8 +387,11 @@ enum PhoneUITest {
                 NotificationCenter.default.post(name: .verbatimYouPage, object: false)
                 try? await Task.sleep(nanoseconds: 900_000_000)
                 if prefix == "p" { youCheck("the You page closes", !YouScreen.visible && !AboutMeScreen.visible) }
+                // The session screens below draw over the tabs, so Settings' sheet closes first.
+                app.closeSettings()
+                try? await Task.sleep(nanoseconds: 700_000_000)
                 // The recording ribbon: the Session ended screen after a call (made-up last take), then Settings ›
-                // Action button (last, because it stays pushed on the Settings tab).
+                // Action button.
                 app.session.endedNotice = KeyboardSession.EndedNotice(reason: Ribbon.endedReason(call: true),
                                                                       lastTake: "Thursday works. Noon at the usual place?",
                                                                       lastTakeAt: Date().addingTimeInterval(-120))
@@ -401,7 +410,7 @@ enum PhoneUITest {
                 // Settings › Keyboard's Dictate button group with its live preview: the default, then two made-up
                 // choices (the keyboard extension itself isn't in the app, so the preview stands in for it). The
                 // stored choice is put back after.
-                app.tab = .settings
+                app.openSettings()
                 let keepButton = DictateButton.read(KeyboardBridge.defaults)
                 DictateButton.standard.write(KeyboardBridge.defaults)
                 SettingsPage.open("keyboard")
@@ -423,6 +432,8 @@ enum PhoneUITest {
                 UserDefaults.standard.removeObject(forKey: Ribbon.actionChoiceKey)
                 SettingsPage.open("root")
                 try? await Task.sleep(nanoseconds: 800_000_000)
+                app.closeSettings()
+                try? await Task.sleep(nanoseconds: 700_000_000)
             }
             // Record in the tab bar's accessory (DESIGN.md §16).
             await recordAccessoryTour(app, suffix: "")
@@ -1310,7 +1321,7 @@ enum PhoneUITest {
     private static func settingsSearchResolves(_ app: PhoneState) async {
         let name = "settings"
         SettingsSearchModel.shared.query = ""
-        app.tab = .settings
+        app.openSettings()
         SettingsPage.open("root")
         try? await Task.sleep(nanoseconds: 900_000_000)
         var missing: [String] = []
@@ -1356,7 +1367,7 @@ enum PhoneUITest {
         HomeScreen.openWhatsNew(app)
         await show("\(prefix)09n-whats-new\(suffix)")
         if prefix == "p" {
-            Log.note("UITEST \(app.tab == .settings && WhatsNewScreen.visible ? "PASS" : "FAIL") what's new: Home's note opens What's new\(suffix)")
+            Log.note("UITEST \(app.showSettings && WhatsNewScreen.visible ? "PASS" : "FAIL") what's new: Home's note opens What's new\(suffix)")
         }
         // iPhone and Apple Watch first; a line's detail opened, then the "Also on Mac" row.
         WhatsNewScreen.shownForTest = (false, false)
@@ -1388,8 +1399,9 @@ enum PhoneUITest {
         if closed.ms < 800 { try? await Task.sleep(nanoseconds: UInt64(800 - closed.ms) * 1_000_000) }
         WhatsNewBanner.previewBuild = nil
         if let keepSeen { d.set(keepSeen, forKey: ReleaseNotes.lastSeenKey) } else { d.removeObject(forKey: ReleaseNotes.lastSeenKey) }
+        app.closeSettings()
         app.tab = .home
-        try? await Task.sleep(nanoseconds: 500_000_000)
+        try? await Task.sleep(nanoseconds: 700_000_000)
     }
 
     /// Waits up to `seconds` for `done`, checking every 50 ms: whether it came true, and after how long (ms).
@@ -1416,7 +1428,10 @@ enum PhoneUITest {
             for c in vc.children { if let t = tabBar(c) { return t } }
             return nil
         }
-        let start = tabBar(root)?.selectedViewController ?? root
+        // A sheet on top (Settings) is what's on screen; otherwise the selected tab.
+        var top = root
+        while let p = top.presentedViewController, !p.isBeingDismissed { top = p }
+        let start = top === root ? (tabBar(root)?.selectedViewController ?? root) : top
         return find(start)?.viewControllers.count
     }
 
@@ -1506,14 +1521,15 @@ enum PhoneUITest {
         check("Reset puts Home back", store.layout == HomeLayout.defaults(.phone)
               && Set(HomeProbe.sections.keys) == Set(HomeSpacing.drawn(store.layout).map(\.section)))
         // The same screen from Settings › Personalization › Customize Home (SettingsPages.swift).
-        app.tab = .settings
+        app.openSettings()
         SettingsPage.open("customizeHome")
         await show("p13e-settings-customize-home\(suffix)")
         check("Settings › Customize Home opens Edit Home", EditHomeView.visible)
         SettingsPage.open("root")
         try? await Task.sleep(nanoseconds: 800_000_000)
+        app.closeSettings()
         app.tab = .home
-        try? await Task.sleep(nanoseconds: 600_000_000)
+        try? await Task.sleep(nanoseconds: 700_000_000)
         if RecordPlacement.systemAccessory {
             // With the Record card hidden, Record's accessory comes back on Home (DESIGN.md §16).
             store.update { $0.setVisible(.record, false) }
@@ -1559,16 +1575,18 @@ enum PhoneUITest {
         app.homePath = NavigationPath()
         if checks {
             if let fresh = UserDefaults(suiteName: "uitest.tabbar.\(UUID().uuidString)") {
-                check("a fresh install's bar is Home, Library, Thoughts, Settings",
-                      PhoneTabBarStore(defaults: fresh, persist: true).bar.tabs == [.home, .library, .thoughts, .settings])
+                check("a fresh install's bar is Home, Library, Thoughts",
+                      PhoneTabBarStore(defaults: fresh, persist: true).bar.tabs == [.home, .library, .thoughts])
                 fresh.set(["library", "moments"], forKey: PhoneTabBar.key)
                 check("a stored Moments tab becomes Thoughts (Moments left the bar)",
-                      PhoneTabBarStore(defaults: fresh, persist: true).bar.tabs == [.home, .library, .thoughts, .settings])
+                      PhoneTabBarStore(defaults: fresh, persist: true).bar.tabs == [.home, .library, .thoughts])
             }
             check("the self-test starts from the default bar", app.tabBar == .default)
-            titles([.home, .library, .thoughts, .settings], "the default bar")
+            titles([.home, .library, .thoughts], "the default bar")
+            check("Settings isn't in the tab bar (it's a sheet from Home)", !tabBarTitles().contains("Settings"))
         }
-        app.tab = .settings
+        app.tab = .home
+        app.openSettings()
         SettingsPage.open("tabBar")
         await show("p09p-settings-tab-bar\(suffix)")
         if checks { check("Settings › Personalization and preferences › Tab bar opens the picker", TabBarSettingsScreen.visible) }
@@ -1578,11 +1596,11 @@ enum PhoneUITest {
         await settle()
         await show("p09q-settings-tab-bar-thoughts-journal\(suffix)")
         if checks {
-            check("Journal added: Home, Library, Thoughts, Journal, Settings",
-                  app.tabBar.tabs == [.home, .library, .thoughts, .journal, .settings])
+            check("Journal added: Home, Library, Thoughts, Journal",
+                  app.tabBar.tabs == [.home, .library, .thoughts, .journal])
             check("the picker's preview shows the new bar", TabBarPreview.shown == app.tabBar.tabs)
-            check("Settings stays on screen while you change the bar", app.tab == .settings && TabBarSettingsScreen.visible)
-            titles([.home, .library, .thoughts, .journal, .settings], "the system tab bar follows")
+            check("Settings stays on screen while you change the bar", app.showSettings && TabBarSettingsScreen.visible)
+            titles([.home, .library, .thoughts, .journal], "the system tab bar follows")
         }
         SettingsPage.open("root")
         try? await Task.sleep(nanoseconds: 800_000_000)
@@ -1611,8 +1629,8 @@ enum PhoneUITest {
             check("today's page from a widget opens the Thoughts tab", app.tab == .thoughts && app.thoughtsPath.isEmpty && DayPageScreen.shown?.day == app.todayPage)
             app.setTabBar(PhoneTabBar.move(app.tabBar.middle, fromOffsets: IndexSet(integer: 2), toOffset: 0))
             await settle()
-            check("drag to reorder: Home, Journal, Library, Thoughts, Settings", app.tabBar.tabs == [.home, .journal, .library, .thoughts, .settings])
-            titles([.home, .journal, .library, .thoughts, .settings], "the system tab bar follows the new order")
+            check("drag to reorder: Home, Journal, Library, Thoughts", app.tabBar.tabs == [.home, .journal, .library, .thoughts])
+            titles([.home, .journal, .library, .thoughts], "the system tab bar follows the new order")
             app.tab = .journal
             await settle()
             app.setTabBar([.library, .thoughts])
@@ -1635,7 +1653,7 @@ enum PhoneUITest {
         await settle()
         if checks {
             check("back to the default bar", app.tabBar == .default && app.tab == .home)
-            titles([.home, .library, .thoughts, .settings], "the default bar comes back")
+            titles([.home, .library, .thoughts], "the default bar comes back")
         }
     }
 
@@ -1737,8 +1755,9 @@ enum PhoneUITest {
         let tab = app.tab
         HomeScreen.openProfile(app)
         // The page itself opening is checked in the tour ("you: This week opens the You page").
-        check("This week asks Settings for the You page", app.tab == .settings && SettingsPage.lastRequested == "you")
+        check("This week asks Settings for the You page", app.showSettings && SettingsPage.lastRequested == "you")
         _ = SettingsPage.take()
+        app.closeSettings()
         app.tab = tab
         let newest = app.store.live.filter { $0.isDictation }.max { $0.createdAt < $1.createdAt }
         let text = newest.map { HomeDictationText.pasted($0) } ?? "Running ten minutes late, save me a seat."

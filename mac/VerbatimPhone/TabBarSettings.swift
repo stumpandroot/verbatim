@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Settings › Personalization and preferences › Tab bar (and Edit Home's Tab bar…): a live preview of the bar, then
-/// every tab you can add. Check up to three; drag the checked ones to reorder. Home stays first and Settings last.
+/// every tab you can add. Check up to four; drag the checked ones to reorder. Home stays first. Settings isn't a tab: it
+/// opens from the round button beside Home's date.
 /// Changes reach the bar at once and are kept on this iPhone (PhoneTabBar.swift). On the refined kit (DESIGN.md §13)
 ///: the large serif title, the preview with Record above the tabs, and the rows in cards.
 struct TabBarSettingsScreen: View {
@@ -31,10 +32,9 @@ struct TabBarSettingsScreen: View {
             .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
             Section {
                 RefinedListHeading(inBar(bar))
-                fixedRow(.home)
-                ForEach(bar.middle, id: \.self) { t in row(t, picked: true, room: true) }
+                fixedRow(.home, last: bar.middle.isEmpty)
+                ForEach(Array(bar.middle.enumerated()), id: \.element) { i, t in row(t, picked: true, room: true, last: i == bar.middle.count - 1) }
                     .onMove { from, to in animate { app.setTabBar(PhoneTabBar.move(bar.middle, fromOffsets: from, toOffset: to)) } }
-                fixedRow(.settings)
             }
             .listSectionSeparator(.hidden)
             if !more.isEmpty {
@@ -84,7 +84,7 @@ struct TabBarSettingsScreen: View {
     private var intro: some View {
         VStack(alignment: .leading, spacing: 8) {
             LargeSerifTitle(title: "Tab bar")
-            Text("Home stays first and Settings last. Choose up to three tabs to go between them, and drag to reorder.")
+            Text("Home stays first. Choose up to four tabs to follow it, and drag to reorder. Settings opens from the button beside the date on Home.")
                 .refinedFont(.body).foregroundStyle(Refined.dim)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -93,10 +93,10 @@ struct TabBarSettingsScreen: View {
 
     private func inBar(_ bar: PhoneTabBar) -> String { "In the bar · \(bar.middle.count) of \(PhoneTabBar.maxMiddle)" }
 
-    static let fullNote = "Three fit between Home and Settings. Uncheck one to add another."
+    static let fullNote = "Four fit after Home. Uncheck one to add another."
 
-    /// Home or Settings: always in the bar, in place, with no checkbox.
-    private func fixedRow(_ t: PhoneTab) -> some View {
+    /// Home: always first in the bar, in place, with no checkbox. `last` when no tabs follow it.
+    private func fixedRow(_ t: PhoneTab, last: Bool) -> some View {
         HStack(spacing: 12) {
             PhoneTabGlyph(tab: t, size: 22).foregroundStyle(Refined.mute).frame(width: 32)
             VStack(alignment: .leading, spacing: 2) {
@@ -108,12 +108,12 @@ struct TabBarSettingsScreen: View {
         .padding(.vertical, 6)
         .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
         .listRowInsets(EdgeInsets(top: 0, leading: 34, bottom: 0, trailing: 34))
-        .listRowBackground(PaperRowBackground(first: t == .home, last: t == .settings))
-        .listRowSeparator(t == .settings ? .hidden : .automatic, edges: .bottom)
+        .listRowBackground(PaperRowBackground(first: true, last: last))
+        .listRowSeparator(last ? .hidden : .automatic, edges: .bottom)
         .listRowSeparatorTint(Refined.separator)
         .moveDisabled(true)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(t == .home ? "Always first" : "Always last")
+        .accessibilityValue("Always first")
     }
 
     /// A tab you can add: the check (or the plus), the tab's icon, its name, and what it opens. Tap to check or
