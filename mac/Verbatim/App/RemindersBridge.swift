@@ -167,9 +167,6 @@ final class SendToReminders: ObservableObject {
     /// "Brain dump", "Thoughts", or the recording's title, for each reminder's notes.
     let source: String
     let anchorLabel: (DayPlan.Item) -> String?
-    /// The recording the plan came from, for Verbose Tasks' link back to each task's moment. Nil for a plan built
-    /// from several recordings (Thoughts).
-    var recordID: UUID?
     @Published private(set) var sent: [String: String]
     @Published var selection: Set<String>
     @Published private(set) var lists: [ReminderList] = []

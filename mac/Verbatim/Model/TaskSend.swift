@@ -3,8 +3,6 @@ import Foundation
 // Send tasks (approved mockup "Verbose Send Tasks", October 31, 2026): where a plan's checked tasks go. Send to
 // Reminders became Send tasks, with one sheet that picks the app:
 // - Reminders, built in (RemindersBridge.swift), which remembers what it sent.
-// - Verbose Tasks, Verbose's own tasks app, every checked task in one `verbosetasks://import?data=` link, each with the
-//   day you said as its plan and the recording's moment, so Verbose Tasks can play it back (its LinkImport.swift).
 // - Things, every checked task in one `things:///json` link (Things' documented URL scheme; adding needs no token).
 //   Each lands in the Inbox, with When set to Today for a task due today and a deadline when you said a day.
 // - OmniFocus, every checked task as TaskPaper in one `omnifocus:///paste` link, into the Inbox, with due dates.
@@ -15,7 +13,7 @@ import Foundation
 
 /// Where Send tasks sends.
 enum TaskDestination: String, CaseIterable, Identifiable, Sendable {
-    case reminders, verboseTasks, things, omnifocus, share
+    case reminders, things, omnifocus, share
 
     var id: String { rawValue }
 
@@ -23,7 +21,6 @@ enum TaskDestination: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .reminders: return "Reminders"
-        case .verboseTasks: return "Verbose Tasks"
         case .things: return "Things"
         case .omnifocus: return "OmniFocus"
         case .share: return "Another app\u{2026}"
@@ -37,7 +34,6 @@ enum TaskDestination: String, CaseIterable, Identifiable, Sendable {
     /// project.yml). Nil: always offered.
     var scheme: String? {
         switch self {
-        case .verboseTasks: return "verbosetasks"
         case .things: return "things"
         case .omnifocus: return "omnifocus"
         case .reminders, .share: return nil
@@ -69,7 +65,7 @@ enum TaskDestination: String, CaseIterable, Identifiable, Sendable {
     func actionTitle(count: Int) -> String {
         switch self {
         case .reminders: return count == 0 ? "Add to Reminders" : "Add \(count) to Reminders"
-        case .verboseTasks, .things, .omnifocus: return count == 0 ? "Add to \(title)" : "Add \(count) to \(title)"
+        case .things, .omnifocus: return count == 0 ? "Add to \(title)" : "Add \(count) to \(title)"
         case .share: return count == 0 ? "Share" : "Share \(count)"
         }
     }
@@ -78,7 +74,6 @@ enum TaskDestination: String, CaseIterable, Identifiable, Sendable {
     var footer: String {
         switch self {
         case .reminders: return "A task gets a due date only when you said a day."
-        case .verboseTasks: return "Verbose Tasks opens and adds them, planned for the day you said, each with a link back to its moment in this recording."
         case .things: return "Things opens and adds them to your Inbox, with Today for a task due today and a deadline when you said a day. Each one notes the recording it came from."
         case .omnifocus: return "OmniFocus opens and adds them to your Inbox, with a due date when you said a day."
         case .share: return "Opens the share sheet with the checked tasks as a checklist, one per line, for apps like Todoist and TickTick."
@@ -160,37 +155,9 @@ enum TaskSend {
         return ([title] + lines).joined(separator: "\n")
     }
 
-    /// The Verbose Tasks link's JSON: the send's ID (so a resend imports once), the recording, and one task per draft
-    /// with its key, its moment in seconds (the number after the key's "|"), and the day you said as its plan.
-    static func verboseTasksPayload(_ drafts: [DayPlan.ReminderDraft], recordID: UUID?, source: String, recordedAt: Date,
-                                    sendID: UUID = UUID(), now: Date = Date()) -> [String: Any] {
-        let iso = ISO8601DateFormatter()
-        var src: [String: Any] = ["app": "verbose", "title": source, "capturedAt": iso.string(from: recordedAt)]
-        if let recordID { src["recordID"] = recordID.uuidString }
-        let tasks: [[String: Any]] = drafts.map { d in
-            var t: [String: Any] = ["title": d.title, "key": d.key]
-            if let s = d.key.split(separator: "|").last, let at = Double(s) { t["at"] = at }
-            if let day = day(d.due) { t["plan"] = day }
-            return t
-        }
-        return ["v": 1, "id": sendID.uuidString, "sentAt": iso.string(from: now), "source": src, "tasks": tasks]
-    }
-
-    /// `verbosetasks://import?data=…`, or nil with nothing to send.
-    static func verboseTasksURL(_ drafts: [DayPlan.ReminderDraft], recordID: UUID?, source: String, recordedAt: Date,
-                                sendID: UUID = UUID(), now: Date = Date()) -> URL? {
-        guard !drafts.isEmpty,
-              let data = try? JSONSerialization.data(withJSONObject: verboseTasksPayload(drafts, recordID: recordID, source: source, recordedAt: recordedAt, sendID: sendID, now: now), options: [.sortedKeys]),
-              let json = String(data: data, encoding: .utf8) else { return nil }
-        return URL(string: "verbosetasks://import?data=\(encode(json))")
-    }
-
-    /// The link for Verbose Tasks, Things, or OmniFocus; nil for Reminders and the share sheet. Verbose Tasks also
-    /// takes the recording (`recordID`, nil for a plan built from several), its label, and when it was recorded.
-    static func url(for destination: TaskDestination, drafts: [DayPlan.ReminderDraft], today: Date, calendar: Calendar = .current,
-                    recordID: UUID? = nil, source: String = "Verbose", recordedAt: Date? = nil) -> URL? {
+    /// The link for Things or OmniFocus; nil for Reminders and the share sheet.
+    static func url(for destination: TaskDestination, drafts: [DayPlan.ReminderDraft], today: Date, calendar: Calendar = .current) -> URL? {
         switch destination {
-        case .verboseTasks: return verboseTasksURL(drafts, recordID: recordID, source: source, recordedAt: recordedAt ?? today)
         case .things: return thingsURL(drafts, today: today, calendar: calendar)
         case .omnifocus: return omniFocusURL(drafts)
         case .reminders, .share: return nil

@@ -398,9 +398,9 @@ struct MacRemindersSend: View {
             }
         case .share:
             break   // ShareLink sends
-        case .verboseTasks, .things, .omnifocus:
+        case .things, .omnifocus:
             let drafts = model.checkedDrafts
-            guard let url = TaskSend.url(for: d, drafts: drafts, today: Date(), recordID: model.recordID, source: model.source, recordedAt: model.recordedAt) else { return }
+            guard let url = TaskSend.url(for: d, drafts: drafts, today: Date()) else { return }
             Task { @MainActor in
                 guard await TaskApps.open(url) else {
                     openProblem = "Couldn\u{2019}t open \(d.title). Check that it\u{2019}s installed."; return
