@@ -112,3 +112,4 @@ Where to look each month:
 | Patch | Vocabulary | Contents |
 |---|---|---|
 | 1 (October 2026) | Version 2, 824 terms | New names, names and places, film and video, business, four general terms (HIPAA, COVID-19, per se, bona fide), and 72 everyday fixes. The research is in `research/2026-10/`. |
+| 2 (November 2026) | Version 3, 838 terms | Fall 2026 AI models (GPT-6, GPT-6.1, GPT-6.1 Terra, Gemini 4, Gemini 4 Argon, Claude Fable, Claude Mythos), Apple devices (iPhone 18 Pro, iPhone 18 Pro Max, Apple Watch Series 12, Apple Watch Ultra 4), Rickroll, and a fix that keeps Grok's version number. The research is in `research/2026-11/`. |
