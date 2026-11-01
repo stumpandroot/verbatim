@@ -108,6 +108,14 @@ enum WordsCalendar {
         var busiestHour: Int? = nil
     }
 
+    /// Whether `date` falls in `interval`, its end left out (midnight on the 1st belongs to the new month).
+    static func within(_ interval: DateInterval, _ date: Date) -> Bool { date >= interval.start && date < interval.end }
+
+    /// The month holding `date`, its end left out.
+    static func monthInterval(_ date: Date, calendar: Calendar = .current) -> DateInterval {
+        calendar.dateInterval(of: .month, for: date) ?? DateInterval(start: calendar.startOfDay(for: date), duration: 86_400)
+    }
+
     /// Entries by the start of their day.
     static func byDay(_ entries: [WordsEntry], calendar: Calendar) -> [Date: [WordsEntry]] {
         Dictionary(grouping: entries) { calendar.startOfDay(for: $0.date) }
@@ -126,14 +134,16 @@ enum WordsCalendar {
 
     /// The month holding `date`: its days, totals, best day, longest run of days talked, and your rhythm.
     static func month(containing date: Date, entries: [WordsEntry], now: Date = Date(), calendar: Calendar = .current) -> Month {
-        let interval = calendar.dateInterval(of: .month, for: date) ?? DateInterval(start: calendar.startOfDay(for: date), duration: 86_400)
-        let inMonth = entries.filter { interval.contains($0.date) }
+        let interval = monthInterval(date, calendar: calendar)
+        let inMonth = entries.filter { within(interval, $0.date) }
         let grouped = byDay(inMonth, calendar: calendar)
         var days: [Day] = []
         var d = calendar.startOfDay(for: interval.start)
         while d < interval.end {
             days.append(day(d, grouped[d] ?? [], now: now, calendar: calendar))
-            guard let next = calendar.date(byAdding: .day, value: 1, to: d) else { break }
+            // Back to the start of the day each time: where a clock change skips midnight, adding a day to 1:00 AM
+            // would land on 1:00 AM every day after.
+            guard let next = calendar.date(byAdding: .day, value: 1, to: d).map(calendar.startOfDay) else { break }
             d = next
         }
         let first = calendar.component(.weekday, from: interval.start)

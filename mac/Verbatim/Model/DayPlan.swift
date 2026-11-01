@@ -190,50 +190,78 @@ struct DayPlan: Equatable {
     static func tidyTask(_ raw: String) -> String {
         var t = normalized(raw)
         // The first sentence only: what comes after is the speaker thinking out loud.
-        if let r = t.range(of: #"[.!?]\s+(?=\S)"#, options: .regularExpression), t[..<r.lowerBound].split(separator: " ").count >= 2 {
-            t = String(t[..<r.lowerBound])
-        }
+        if let cut = firstSentenceEnd(t) { t = String(t[..<cut]) }
         t = removeFiller(t)
         // "I need to", "make sure that I", "I might as well even", "also", "and then" at the front, as often as they come.
-        let leads = [
-            #"^(and|also|then|so|okay|ok|well|but|plus|oh|now)\b,?\s*"#,
-            #"^(i|we)\s+(also\s+|really\s+|still\s+|probably\s+|definitely\s+|just\s+)*(need|needs|want|have|has|got|would like|plan|hope|am going|'m going)\s+to\s+"#,
-            #"^(i|we)\s+(also\s+|really\s+|still\s+|probably\s+|definitely\s+|just\s+)*(gotta|wanna|should|must|will|'m gonna|am gonna)\s+"#,
-            #"^(i'd|we'd)\s+like\s+to\s+"#,
-            #"^(i'll|we'll)\s+"#,
-            #"^(i\s+)?might as well\s+(even\s+)?"#,
-            #"^(make sure|remember|don't forget|do not forget)\s+(that\s+)?(to\s+)?(i\s+|we\s+)?"#,
-            #"^(need|want|have|got|going)\s+to\s+"#,
-            #"^(gotta|gonna|wanna)\s+"#,
-            #"^(also|maybe|probably|definitely|really|even|still|actually)\s+"#,
-            #"^to\s+"#,
-        ]
+        // Never when what's left starts with "the", "a", "my"…: "Remember the milk" and "Going to the bank" stay whole.
         var changed = true
         while changed {
             changed = false
             for p in leads {
-                if let r = t.range(of: p, options: [.regularExpression, .caseInsensitive]), !r.isEmpty, t[r.upperBound...].split(separator: " ").count >= 2 {
-                    t.removeSubrange(r); changed = true
-                }
+                guard let r = TidyRE.range(of: p, in: t), !r.isEmpty else { continue }
+                let rest = t[r.upperBound...].split(separator: " ")
+                guard rest.count >= 2, let first = rest.first, !determiners.contains(first.lowercased()) else { continue }
+                t.removeSubrange(r); changed = true
             }
         }
         // The reason: "because they never paid…", ", so that's on him".
-        if let r = t.range(of: #"(,?\s+(because|cause|'cause|since|so that)\b|,\s+so\b).*$"#, options: [.regularExpression, .caseInsensitive]),
+        if let r = TidyRE.range(of: #"(,?\s+(because|cause|'cause|since|so that)\b|,\s+so\b).*$"#, in: t),
            t[..<r.lowerBound].split(separator: " ").count >= 2 {
             t.removeSubrange(r)
         }
         // Still long: drop what's chained on after "and then", then cut at the first comma.
-        if t.count > 60, let r = t.range(of: #"\s+(and then|and also)\b.*$"#, options: [.regularExpression, .caseInsensitive]),
+        if t.count > 60, let r = TidyRE.range(of: #"\s+(and then|and also)\b.*$"#, in: t),
            t[..<r.lowerBound].split(separator: " ").count >= 3 {
             t.removeSubrange(r)
         }
-        if t.count > 70, let r = t.range(of: #",\s.*$"#, options: .regularExpression), t[..<r.lowerBound].split(separator: " ").count >= 3 {
+        if t.count > 70, let r = TidyRE.range(of: #",\s.*$"#, in: t), t[..<r.lowerBound].split(separator: " ").count >= 3 {
             t.removeSubrange(r)
         }
         t = trimEnds(t, dangling: true)
         let out = capitalizedFirst(t)
         return out.count >= 2 ? out : capitalizedFirst(trimEnds(normalized(raw), dangling: false))
     }
+
+    /// What a task's front can lose, in order, again and again.
+    private static let leads = [
+        #"^(and|also|then|so|okay|ok|well|but|oh|now|like)\b,?\s*"#,
+        #"^(i|we)\s+(also\s+|really\s+|still\s+|probably\s+|definitely\s+|just\s+)*(need|needs|want|have|has|got|would like|plan|hope|am going|'m going)\s+to\s+"#,
+        #"^(i|we)\s+(also\s+|really\s+|still\s+|probably\s+|definitely\s+|just\s+)*(gotta|wanna|should|must|will|'m gonna|am gonna)\s+"#,
+        #"^(i'd|we'd)\s+like\s+to\s+"#,
+        #"^(i'll|we'll)\s+"#,
+        #"^(i\s+)?might as well\s+(even\s+)?"#,
+        #"^(make sure|remember|don't forget|do not forget)\s+(that\s+)?(to\s+)?(i\s+|we\s+)?"#,
+        #"^(need|want|have|got|going)\s+to\s+"#,
+        #"^(gotta|gonna|wanna)\s+"#,
+        #"^(also|maybe|probably|definitely|really|actually)\s+"#,
+        #"^to\s+"#,
+    ]
+
+    /// Words a task never starts with after its front is taken off: the front was part of it ("Remember the milk").
+    private static let determiners: Set<String> = ["the", "a", "an", "my", "our", "your", "his", "her", "their", "this", "that", "these", "those", "some", "any"]
+
+    /// Where the first sentence ends, when something follows it: a period, question mark, or exclamation point, then a
+    /// capital. Not after a title or a short form ("Dr. Smith", "St. John's", "the U.S. embassy") or an initial ("J. R.").
+    static func firstSentenceEnd(_ t: String) -> String.Index? {
+        var from = t.startIndex
+        while let r = TidyRE.range(of: #"[.!?]\s+(?=\S)"#, in: t, from: from, caseInsensitive: false) {
+            from = r.upperBound
+            let before = t[..<r.lowerBound]
+            guard before.split(separator: " ").count >= 2, let next = t[r.upperBound...].first, next.isUppercase || next.isNumber else { continue }
+            if t[r.lowerBound] == "." {
+                let word = before.split(separator: " ").last.map(String.init) ?? ""
+                let letters = word.trimmingCharacters(in: CharacterSet.letters.inverted)
+                if letters.count == 1 || word.contains(".") || shortForms.contains(letters.lowercased()) { continue }
+            }
+            return r.lowerBound
+        }
+        return nil
+    }
+
+    private static let shortForms: Set<String> = [
+        "dr", "mr", "mrs", "ms", "mx", "st", "jr", "sr", "inc", "co", "corp", "ltd", "vs", "etc", "mt", "ft", "no",
+        "approx", "dept", "ave", "blvd", "rd", "prof", "gen", "sgt", "capt", "est", "fig"
+    ]
 
     /// An idea in the speaker's words, without the filler and repeats.
     static func tidyIdea(_ raw: String) -> String {
@@ -243,24 +271,27 @@ struct DayPlan: Equatable {
 
     /// Curly apostrophes as straight ones (so the patterns match) and single spaces.
     private static func normalized(_ s: String) -> String {
-        s.replacingOccurrences(of: "\u{2019}", with: "'")
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        TidyRE.replacing(#"\s+"#, in: s.replacingOccurrences(of: "\u{2019}", with: "'"), with: " ")
             .trimmingCharacters(in: .whitespaces)
     }
 
-    /// "um", "uh", "you know", "I mean", "just", "so like", and words said twice ("a a", "make a to make a").
+    /// "um", "uh", ", you know,", ", I mean,", "just", "so like", and words said twice ("a a", "make a to make a").
+    /// Numbers and capitalized words said twice stay ("555 555 1234", "Walla Walla"), and so does "Just" before a name
+    /// ("Just Salad"). "You know", "I mean", "kind of", and "sort of" go only as asides, with a comma after.
     private static func removeFiller(_ s: String) -> String {
         var t = s
-        t = t.replacingOccurrences(of: #"\bso like\b"#, with: "like", options: [.regularExpression, .caseInsensitive])
-        t = t.replacingOccurrences(of: #",?\s*\b(um+|uh+|uhm+|erm+|hmm+|you know|i mean|kind of|sort of|basically|literally|just)\b,?"#,
-                                   with: " ", options: [.regularExpression, .caseInsensitive])
-        t = t.replacingOccurrences(of: #"\b(like|so),\s"#, with: " ", options: [.regularExpression, .caseInsensitive])
-        t = t.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        t = TidyRE.replacing(#"\bso like\b"#, in: t, with: "like")
+        t = TidyRE.replacing(#",?\s*\b(um+|uh+|uhm+|erm+|hmm+|basically|literally)\b,?"#, in: t, with: " ")
+        t = TidyRE.replacing(#",?\s*\b(you know|i mean|kind of|sort of),"#, in: t, with: " ")
+        t = TidyRE.replacing(#",?\s*\bjust\b(?!\s+[A-Z]),?"#, in: t, with: " ", caseInsensitive: false)
+        t = TidyRE.replacing(#",?\s*\b(like|so),\s"#, in: t, with: " ")
+        t = TidyRE.replacing(#"\s+"#, in: t, with: " ")
         // Up to three words said twice ("a a"), and a restart of two or three words with "to" between ("make a to
         // make a"). One word with "to" between stays, for "day to day" and "back to back".
+        let word = #"(?-i:[a-z])[a-z']*"#
         for _ in 0..<3 {
-            var next = t.replacingOccurrences(of: #"\b(\w+(?:\s+\w+){0,2})\s+\1\b"#, with: "$1", options: [.regularExpression, .caseInsensitive])
-            next = next.replacingOccurrences(of: #"\b(\w+\s+\w+(?:\s+\w+)?)\s+to\s+\1\b"#, with: "$1", options: [.regularExpression, .caseInsensitive])
+            var next = TidyRE.replacing(#"\b(\#(word)(?:\s+[a-z']+){0,2})\s+\1\b"#, in: t, with: "$1")
+            next = TidyRE.replacing(#"\b(\#(word)\s+[a-z']+(?:\s+[a-z']+)?)\s+to\s+\1\b"#, in: next, with: "$1")
             if next == t { break }
             t = next
         }
@@ -273,8 +304,7 @@ struct DayPlan: Equatable {
         let edge = CharacterSet.whitespaces.union(CharacterSet(charactersIn: ",.;:!?\u{2013}\u{2014}-"))
         var t = s.trimmingCharacters(in: edge)
         guard dangling else { return t }
-        while let r = t.range(of: #"\s+(in|and|so|to|for|with|of|the|a|an|at|on|but|or|about|from|that|like|um|uh|then|also)$"#,
-                              options: [.regularExpression, .caseInsensitive]),
+        while let r = TidyRE.range(of: #"\s+(in|and|so|to|for|with|of|the|a|an|at|on|but|or|about|from|like|um|uh|then|also)$"#, in: t),
               t[..<r.lowerBound].split(separator: " ").count >= 2 {
             t.removeSubrange(r)
             t = t.trimmingCharacters(in: edge)
@@ -546,4 +576,32 @@ struct DayPlanRecord: Codable, Equatable, Identifiable, SyncEntry {
 
     /// Thoughts added to the day since the plan was made ("2 new thoughts since 3:20 PM").
     func newThoughts(in page: [UUID]) -> Int { hasPlan ? page.filter { !thoughtIDs.contains($0) }.count : 0 }
+}
+
+/// The tidy rules' patterns, compiled once each (they run on every line of every plan).
+enum TidyRE {
+    private static let lock = NSLock()
+    private static var cache: [String: NSRegularExpression] = [:]
+
+    static func regex(_ pattern: String, caseInsensitive: Bool = true) -> NSRegularExpression? {
+        let key = (caseInsensitive ? "i:" : "c:") + pattern
+        lock.lock(); defer { lock.unlock() }
+        if let r = cache[key] { return r }
+        let r = try? NSRegularExpression(pattern: pattern, options: caseInsensitive ? [.caseInsensitive] : [])
+        cache[key] = r
+        return r
+    }
+
+    static func range(of pattern: String, in s: String, from: String.Index? = nil, caseInsensitive: Bool = true) -> Range<String.Index>? {
+        guard let re = regex(pattern, caseInsensitive: caseInsensitive) else { return nil }
+        let start = from ?? s.startIndex
+        let ns = NSRange(start..<s.endIndex, in: s)
+        guard let m = re.firstMatch(in: s, range: ns) else { return nil }
+        return Range(m.range, in: s)
+    }
+
+    static func replacing(_ pattern: String, in s: String, with template: String, caseInsensitive: Bool = true) -> String {
+        guard let re = regex(pattern, caseInsensitive: caseInsensitive) else { return s }
+        return re.stringByReplacingMatches(in: s, range: NSRange(s.startIndex..., in: s), withTemplate: template)
+    }
 }

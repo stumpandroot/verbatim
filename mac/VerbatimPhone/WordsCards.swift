@@ -8,7 +8,8 @@ import SwiftUI
 
 extension WordsEntry {
     /// A dictation (its pasted words, its time talking, what cleanup took out, and where it went) or a recording you
-    /// made (a dot on its day). Imports, links, and anything deleted or still transcribing don't count.
+    /// made (a dot on its day, ready or not: it was recorded that day). Imports, links, anything deleted, and dictations
+    /// still transcribing don't count. A recording's words are read only for the day you open (`Store.wordsDay`).
     static func from(_ t: Transcript) -> WordsEntry? {
         guard t.deletedAt == nil else { return nil }
         if t.isDictation {
@@ -20,17 +21,75 @@ extension WordsEntry {
                               raw: t.flow?.raw ?? "", said: said, place: place)
         }
         guard t.source == .voiceMemo else { return nil }
-        // Words you said most counts recordings only you speak in.
-        let solo: Bool = { switch t.kind { case nil, .note?, .idea?, .brainDump?, .journal?: return true; default: return false } }()
         let rec = WordsRecording(id: t.id, title: t.title, kind: RecordingKind.refinedName(t.kind),
                                  tone: (t.kind?.refinedHue ?? RefinedRules.kindHue(nil)).wordsTone, duration: t.duration)
-        return WordsEntry(date: t.createdAt, said: solo ? t.segments.map(\.text).joined(separator: " ") : "", recording: rec)
+        return WordsEntry(date: t.createdAt, recording: rec)
     }
+
+    /// Words you said most counts recordings only you speak in.
+    static func isSolo(_ kind: RecordingKind?) -> Bool {
+        switch kind { case nil, .note?, .idea?, .brainDump?, .journal?: return true; default: return false }
+    }
+}
+
+/// What the cards under a month show, worked out once per month and day (`Store.wordsExtras`).
+struct WordsExtras {
+    var fillers: [(word: String, count: Int)] = []
+    var paces: [Int?] = []
+    var longest: WordsEntry? = nil
+    var timeOfDay: (share: Double, bins: [Int], leader: WordsCalendar.TalkTime, leaderShare: Double)? = nil
+    var kinds: [(kind: String, tone: WordsRecording.Tone, count: Int)] = []
+    var isEmpty = true
 }
 
 extension Store {
     /// Every dictation and recording as the words calendar counts them, kept until the library changes.
     var wordsEntries: [WordsEntry] { memo("words-entries") { live.compactMap(WordsEntry.from) } }
+
+    private static func wordsKey(_ what: String, _ start: Date, _ now: Date) -> String {
+        "words-\(what)|\(Int(start.timeIntervalSinceReferenceDate))|\(dayKey(now))"
+    }
+
+    /// The month holding `date`, kept until the library changes or the day turns.
+    func wordsMonth(_ date: Date, now: Date) -> WordsCalendar.Month {
+        let start = WordsCalendar.monthInterval(date).start
+        return memo(Self.wordsKey("month", start, now)) { WordsCalendar.month(containing: date, entries: wordsEntries, now: now) }
+    }
+
+    /// The year holding `date`, kept the same way.
+    func wordsYear(_ date: Date, now: Date) -> WordsCalendar.Year {
+        let start = Calendar.current.dateInterval(of: .year, for: date)?.start ?? date
+        return memo(Self.wordsKey("year", start, now)) { WordsCalendar.year(containing: date, entries: wordsEntries, now: now) }
+    }
+
+    /// The cards under the month holding `date`: its entries so far, and pace for the five weeks up to its end (or today).
+    func wordsExtras(_ date: Date, now: Date) -> WordsExtras {
+        let interval = WordsCalendar.monthInterval(date)
+        return memo(Self.wordsKey("extras", interval.start, now)) {
+            let all = wordsEntries
+            let list = all.filter { WordsCalendar.within(interval, $0.date) && $0.date <= now }
+            guard !list.isEmpty else { return WordsExtras() }
+            return WordsExtras(fillers: WordsCalendar.fillersRemoved(list),
+                               paces: WordsCalendar.weeklyPace(all, now: min(now, interval.end.addingTimeInterval(-1))),
+                               longest: WordsCalendar.longest(list), timeOfDay: WordsCalendar.timeOfDay(list),
+                               kinds: WordsCalendar.kindCounts(list), isEmpty: false)
+        }
+    }
+
+    /// A day opened from the calendar, with the words of its recordings only you speak in.
+    func wordsDay(_ day: Date, now: Date) -> WordsCalendar.DayDetail {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: day)
+        return memo(Self.wordsKey("day", start, now)) {
+            let list = wordsEntries.filter { cal.isDate($0.date, inSameDayAs: start) }.map { e -> WordsEntry in
+                guard let r = e.recording, let t = transcript(r.id), WordsEntry.isSolo(t.kind) else { return e }
+                var e = e
+                e.said = t.segments.map(\.text).joined(separator: " ")
+                return e
+            }
+            return WordsCalendar.detail(start, entries: list, now: now, calendar: cal)
+        }
+    }
 }
 
 extension RefinedHue {
@@ -157,19 +216,13 @@ struct WordsSpines: View {
 
 /// Cards A to F (the mockup's letters, not shown): each shows only when there's something to say.
 struct WordsFunCards: View {
-    var entries: [WordsEntry]
-    var allEntries: [WordsEntry]
+    var extras: WordsExtras
     var words: Int
     var seconds: Double
     var typingWPM: Int
-    var now: Date
 
     var body: some View {
-        let fillers = WordsCalendar.fillersRemoved(entries)
-        let paces = WordsCalendar.weeklyPace(allEntries, now: now)
-        let longest = WordsCalendar.longest(entries)
-        let tod = WordsCalendar.timeOfDay(entries)
-        let kinds = WordsCalendar.kindCounts(entries)
+        let fillers = extras.fillers, paces = extras.paces, longest = extras.longest, tod = extras.timeOfDay, kinds = extras.kinds
         VStack(alignment: .leading, spacing: 12) {
             if !fillers.isEmpty { cleanedUp(fillers) }
             if words > 0 { typingCard }
@@ -204,7 +257,7 @@ struct WordsFunCards: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Cleaned up: \(total) filler words taken out. " + list.prefix(5).map { "\($0.word), \($0.count)" }.joined(separator: "; "))
+        .accessibilityLabel("Cleaned up: \(total) \(total == 1 ? "filler word" : "filler words") taken out. " + list.prefix(5).map { "\($0.word), \($0.count)" }.joined(separator: "; "))
     }
 
     // B: Talking versus typing.

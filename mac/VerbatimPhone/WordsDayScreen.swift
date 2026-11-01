@@ -12,10 +12,10 @@ struct WordsDayScreen: View {
     static var onScreen = 0
 
     var body: some View {
-        let entries = app.store.wordsEntries
-        let cal = Calendar.current
-        let d = WordsCalendar.detail(day, entries: entries, calendar: cal)
-        let month = WordsCalendar.month(containing: day, entries: entries, calendar: cal)
+        let store = app.store
+        let now = Date()
+        let d = store.wordsDay(day, now: now)
+        let month = store.wordsMonth(day, now: now)
         let isBest = month.best?.start == d.day.start && d.day.words > 0
         let saved = WordsCalendar.typingVersusTalking(words: d.day.words, seconds: d.day.seconds, typingWPM: flow.typingWPM).saved
         ScrollView {
@@ -27,7 +27,7 @@ struct WordsDayScreen: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(d.day.words.formatted()).font(.system(size: 40, weight: .bold)).monospacedDigit().foregroundStyle(Refined.ink)
-                    Text(d.day.words == 1 ? "word" : "words" + (isBest ? ", your best day this month" : ""))
+                    Text((d.day.words == 1 ? "word" : "words") + (isBest ? ", your best day this month" : ""))
                         .refinedFont(.hint).foregroundStyle(Refined.dim)
                 }
                 .accessibilityElement(children: .combine)
@@ -43,7 +43,7 @@ struct WordsDayScreen: View {
                 if !d.recordings.isEmpty { recordings(d) }
                 if !d.places.isEmpty { places(d) }
                 if !d.topWords.isEmpty { topWords(d) }
-                monthAgo(entries: entries, cal: cal)
+                monthAgo(now: now)
             }
             .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 40)
         }
@@ -87,7 +87,8 @@ struct WordsDayScreen: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Through the day: " + d.marks.map { m in
-            let c = DateComponents(hour: Int(m.hour), minute: Int((m.hour - Double(Int(m.hour))) * 60))
+            let minutes = Int((m.hour * 60).rounded())
+            let c = DateComponents(hour: minutes / 60, minute: minutes % 60)
             let time = Calendar.current.date(from: c).map { Formats.pattern("h:mm a").string(from: $0) } ?? ""
             return m.tone == nil ? "\(time), dictation, \(WordsText.words(m.words))" : "\(time), recording"
         }.joined(separator: "; "))
@@ -203,10 +204,10 @@ struct WordsDayScreen: View {
         }
     }
 
-    private func monthAgo(entries: [WordsEntry], cal: Calendar) -> some View {
+    private func monthAgo(now: Date) -> some View {
         Group {
-            if let back = cal.date(byAdding: .month, value: -1, to: day) {
-                let b = WordsCalendar.detail(back, entries: entries, calendar: cal).day
+            if let back = Calendar.current.date(byAdding: .month, value: -1, to: day) {
+                let b = app.store.wordsDay(back, now: now).day
                 if b.talked {
                     WordsCard {
                         Text("A month ago, \(Formats.pattern("MMMM d").string(from: back))").refinedFont(.meta).foregroundStyle(Refined.mute)

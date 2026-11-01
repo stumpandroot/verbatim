@@ -96,6 +96,19 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
     /// A mark was made, or its "Marked 4:12" ran out: the Island and the Lock Screen catch up at once.
     func marked() { update(quiet: true) }
 
+    /// The recording became a thought, or stopped being one (Change kind while recording): a Live Activity's layout,
+    /// title, and page are fixed when it starts, so it starts again as the new kind, with the same elapsed time. Any
+    /// other change of kind only updates it.
+    func kindChanged() {
+        guard let app, let a = activity, activityIsThought != app.recordingThought else { update(quiet: true); return }
+        activity = nil
+        activityIsThought = false
+        thoughtTicker?.invalidate(); thoughtTicker = nil
+        Task { await a.end(nil, dismissalPolicy: .immediate) }
+        startActivity()
+        Log.note("recording presence: started again as \(app.recordingThought ? "a thought" : "a recording")")
+    }
+
     /// Starts the recording's Live Activity. True when one is running afterward.
     @discardableResult
     private func startActivity() -> Bool {

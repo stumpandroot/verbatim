@@ -222,8 +222,8 @@ extension PhoneState {
     /// Changes what the recording running is filed as, from the recorder's title (DESIGN.md §6.10, Change kind while
     /// recording; mockup "Verbose words calendar", boards 5 and 6). It applies to the whole recording, from its start,
     /// and the recording keeps going: the title, the line under it, and the Live Activity follow at once, and Stop files
-    /// it as the new kind and runs that kind's template. Thought marks the recording so a crash still files it on its
-    /// day; Audio only stops the live words (the sound is kept as it's being recorded); leaving Audio only starts them.
+    /// it as the new kind and runs that kind's template. Thought marks the recording from when it began so a crash
+    /// still files it on that day, and the Live Activity starts again as a thought's (and back); Audio only stops the live words (the sound is kept as it's being recorded); leaving Audio only starts them.
     /// The crash marker beside the recording follows too. "Now a brain dump" says so.
     func switchRecordingKind(to choice: RecordChoice) {
         guard canSwitchRecordingKind, choice != recordingChoice else { return }
@@ -232,8 +232,9 @@ extension PhoneState {
         if choice == .thought {
             recordKind = nil
             recordingThought = true
-            thoughtStartedAt = Date().addingTimeInterval(-recorder.elapsed)
-            if let url { Store.markThought(url) }
+            let began = recordingStartedAt ?? Date().addingTimeInterval(-recorder.elapsed)
+            thoughtStartedAt = began
+            if let url { Store.markThought(url, startedAt: began) }
         } else {
             if recordingThought, let url { Store.clearThoughtMark(url) }
             recordingThought = false
@@ -241,6 +242,8 @@ extension PhoneState {
             recordKind = choice.kind
         }
         if let url { Store.clearKindMark(url); Store.markKind(url, recordKind) }
+        // A thought shown in the Dynamic Island keeps its live words going in the background; a voice note doesn't.
+        recordingWords.keepInBackground = recordingThought && ThoughtRules.islandWords()
         if choice.isAudioOnly && !wasAudio {
             recordingWords.end()
         } else if wasAudio && !choice.isAudioOnly {
@@ -248,7 +251,7 @@ extension PhoneState {
             recordingWords.begin()
         }
         Haptics.play(.picked)
-        RecordingPresence.shared.marked()
+        RecordingPresence.shared.kindChanged()
         say(Self.switchedNote(choice))
         Log.note("recorder: now \(choice.id)")
     }

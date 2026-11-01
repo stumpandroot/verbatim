@@ -339,6 +339,8 @@ struct PhoneRemindersSheet: View {
             }
             Task { @MainActor in
                 guard await TaskApps.open(VerboseTasksHandoff.openURL) else {
+                    // Not left for Verbose Tasks to pick up later, after "couldn't" was said.
+                    VerboseTasksHandoff.cancel(id)
                     openProblem = "Couldn\u{2019}t open Verbose Tasks. Check that it\u{2019}s installed."
                     Haptics.play(.failed); return
                 }

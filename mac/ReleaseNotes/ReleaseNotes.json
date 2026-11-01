@@ -31,6 +31,14 @@
           ],
           "text": "Send tasks can send to Verbose Tasks when it's installed.",
           "detail": "Tasks arrive planned for the day you said, and Play in Verbose Tasks opens the recording at that moment. Verbose says what was saved when you come back."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Tidied tasks keep names, numbers, and short forms like \"Dr.\" as you said them.",
+          "detail": "\"Email Dr. Smith\" no longer stops at \"Dr\", a phone number keeps every digit, and \"Remember the milk\" keeps its first word."
         }
       ]
     },

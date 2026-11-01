@@ -91,6 +91,9 @@ final class PhoneState: ObservableObject {
     /// The kind picked in the Record as tray (Record a meeting, an interview, …): the new transcript takes it as
     /// yours, so AutoLabel never replaces it and Run automatically uses it (Templates.swift). The recorder's chip shows it.
     @Published var recordKind: RecordingKind? = nil
+    /// When the recording running started, by the clock (pauses included): a switch to Thought partway files the thought
+    /// on the day it began (`switchRecordingKind`).
+    var recordingStartedAt: Date? = nil
     /// The next recorder to open was started from the Record as tray: it slides in 12 pt over 150 ms, opaque from its
     /// first frame, instead of the system's presentation (RecordTray.swift).
     var recorderSlideIn = false
@@ -305,6 +308,7 @@ final class PhoneState: ObservableObject {
             // the Action button, a widget, or Siri, iOS plays nothing; the Live Activity shows the start instead.)
             Haptics.play(.recordStart)
             try recorder.start(to: url)
+            recordingStartedAt = Date()
             if !soundOnly { recordingWords.begin() }
             // Audio only or a Brain dump: if Verbose is closed mid-recording, recovery files it as that kind.
             if pendingContinue == nil { Store.markKind(url, recordKind) }
@@ -434,6 +438,7 @@ final class PhoneState: ObservableObject {
         continuing = nil
         let kind = recordKind
         recordKind = nil
+        recordingStartedAt = nil
         let thoughtStart = recordingThought ? (thoughtStartedAt ?? Date()) : nil
         recordingThought = false
         thoughtStartedAt = nil

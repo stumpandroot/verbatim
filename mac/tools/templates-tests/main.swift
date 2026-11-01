@@ -507,11 +507,33 @@ let tidyCases: [(String, String)] = [
     ("plan the day to day schedule", "Plan the day to day schedule"),
     ("Send the bakery invoice", "Send the bakery invoice"),
     ("I\u{2019}ll call the print shop", "Call the print shop"),
+    // Review, November 1, 2026: short forms, numbers, names, and fronts that belong to the task stay.
+    ("Email Dr. Smith about the results", "Email Dr. Smith about the results"),
+    ("Call Mr. Jones", "Call Mr. Jones"),
+    ("Email St. John's office", "Email St. John's office"),
+    ("Call the U.S. embassy about the permit", "Call the U.S. embassy about the permit"),
+    ("Visit Washington D.C. with the kids", "Visit Washington D.C. with the kids"),
+    ("Call J. R. about it", "Call J. R. about it"),
+    ("Call Dana at 555 555 1234", "Call Dana at 555 555 1234"),
+    ("Meet at 10 10 tomorrow", "Meet at 10 10 tomorrow"),
+    ("Plan the Walla Walla trip", "Plan the Walla Walla trip"),
+    ("Remember the milk", "Remember the milk"),
+    ("Make sure the door is locked", "Make sure the door is locked"),
+    ("Going to the bank", "Going to the bank"),
+    ("Even out the frame", "Even out the frame"),
+    ("Still life photo shoot prep", "Still life photo shoot prep"),
+    ("Plus one the invite", "Plus one the invite"),
+    ("So like book the venue", "Book the venue"),
+    ("Finish the logo for Just Salad", "Finish the logo for Just Salad"),
+    ("Ask Jo what she meant by that", "Ask Jo what she meant by that"),
+    ("Remember to call the bank", "Call the bank"),
 ]
 for (said, want) in tidyCases {
     let got = DayPlan.tidyTask(said)
     check("tidy: \(said.prefix(40))", got == want, "got \"\(got)\"")
 }
+check("tidy: an idea keeps \"I mean\" and \"like\" when they're words, not asides",
+      DayPlan.tidyIdea("I mean it") == "I mean it" && DayPlan.tidyIdea("a podcast about, like, barns") == "A podcast about barns", DayPlan.tidyIdea("a podcast about, like, barns"))
 check("tidy: an idea keeps its words, without the filler", DayPlan.tidyIdea("um a mug with the barn logo, you know, for the kits") == "A mug with the barn logo for the kits", DayPlan.tidyIdea("um a mug with the barn logo, you know, for the kits"))
 let messy = DayPlan.item("make a to make a call with Rob about the props in [03:22]", section: .week)
 let clean = DayPlan.item("Make a call with Rob about the props [03:22]", section: .week)
@@ -634,6 +656,10 @@ do {
     check("verbose tasks: format 1, tasks only, from this recording", vt["formatVersion"] as? Int == 1 && vt["transferID"] as? String == tid.uuidString
           && (vt["destination"] as? [String: Any])?["tasksOnly"] != nil && (vt["source"] as? [String: Any])?["recordID"] as? String == rid.uuidString
           && (vt["source"] as? [String: Any])?["app"] as? String == "verbose" && (vt["sentAt"] as? String)?.hasSuffix("Z") == true)
+    let noRecord = TaskSend.handoffTransfer(id: tid, sentAt: today, tasks: vtTasks, recordID: nil, capturedAt: today, sourceTitle: "Today's thoughts")
+        .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    check("verbose tasks: no moments without a recording (today's thoughts)", ((noRecord["tasks"] as? [[String: Any]]) ?? []).allSatisfy { $0["at"] == nil }
+          && (noRecord["source"] as? [String: Any])?["recordID"] == nil)
     check("verbose tasks: nothing to send is no transfer", TaskSend.handoffTransfer(id: tid, sentAt: today, tasks: [], recordID: nil, capturedAt: today, sourceTitle: "x") == nil)
     if let out = ProcessInfo.processInfo.environment["VERBOSE_TASKS_TRANSFER_OUT"], let vtData { try? vtData.write(to: URL(fileURLWithPath: out)) }
     func receipt(_ status: String, added: Int, had: Int) -> Data {
@@ -644,7 +670,9 @@ do {
           && TaskSend.handoffMessage(receipt: receipt("saved", added: 0, had: 3)) == "Verbose Tasks already has these tasks."
           && TaskSend.handoffMessage(receipt: receipt("alreadySaved", added: 4, had: 0)) == "Verbose Tasks already has these tasks."
           && TaskSend.handoffMessage(receipt: receipt("needsUpdate", added: 0, had: 0)) == "Update Verbose Tasks to add these tasks."
-          && TaskSend.handoffMessage(receipt: Data("nope".utf8)) == nil)
+          && TaskSend.handoffMessage(receipt: Data("nope".utf8)) == nil
+          && TaskSend.handoffMessage(receipt: receipt("failed", added: 0, had: 0)) == nil
+          && TaskSend.handoffMessage(receipt: receipt("savedAsNewNote", added: 2, had: 0)) == "Saved 2 tasks to Verbose Tasks")
 }
 
 TemplateChecks.run { check("self-test: " + $0, $1) }

@@ -119,8 +119,9 @@ extension Store {
         recording.deletingLastPathComponent().appendingPathComponent(".\(recording.deletingPathExtension().lastPathComponent).thought")
     }
 
-    static func markThought(_ recording: URL) {
-        try? Data(ISO8601DateFormatter().string(from: Date()).utf8).write(to: thoughtMarker(for: recording), options: .atomic)
+    /// `startedAt`: when the thought began (a recording switched to a thought partway began before the switch).
+    static func markThought(_ recording: URL, startedAt: Date = Date()) {
+        try? Data(ISO8601DateFormatter().string(from: startedAt).utf8).write(to: thoughtMarker(for: recording), options: .atomic)
     }
 
     static func clearThoughtMark(_ recording: URL) {

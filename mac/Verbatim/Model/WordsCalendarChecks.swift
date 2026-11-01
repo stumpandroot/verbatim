@@ -53,6 +53,19 @@ enum WordsCalendarChecks {
         let mondayFirst = WordsCalendar.month(containing: at(10, 15), entries: [], now: now, calendar: monday)
         check("words calendar: a Monday-first region", mondayFirst.leading == 3 && mondayFirst.weekdayInitials.first == "M")
 
+        // A clock change at midnight (Havana, March 8, 2026: midnight doesn't happen) keeps every day after it.
+        var havana = Calendar(identifier: .gregorian)
+        havana.timeZone = TimeZone(identifier: "America/Havana")!
+        havana.firstWeekday = 1
+        let march = (1...31).compactMap { havana.date(from: DateComponents(year: 2026, month: 3, day: $0, hour: 12)) }.map { dict($0, 100) }
+        let hm = WordsCalendar.month(containing: march[14].date, entries: march, now: march[30].date.addingTimeInterval(3600), calendar: havana)
+        check("words calendar: a clock change at midnight keeps the days after it", hm.days.count == 31 && hm.words == 3100 && hm.daysTalked == 31)
+        // Midnight on the 1st belongs to the new month.
+        let midnight = cal.date(from: DateComponents(year: 2026, month: 11, day: 1))!
+        let edge = WordsCalendar.month(containing: at(10, 15), entries: [dict(midnight, 500)], now: now.addingTimeInterval(86_400 * 3), calendar: cal)
+        check("words calendar: midnight on the 1st isn't last month's", edge.words == 0 && edge.busiestHour == nil
+              && !WordsCalendar.within(WordsCalendar.monthInterval(at(10, 15), calendar: cal), midnight))
+
         // A day opened.
         let dayEntries: [WordsEntry] = [
             dict(at(10, 30, 8, 24), 120, said: "Send the invoice to the print shop", place: "Mail"),

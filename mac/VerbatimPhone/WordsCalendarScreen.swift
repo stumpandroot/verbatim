@@ -37,7 +37,7 @@ struct WordsCalendarScreen: View {
     static var showing: Span = .month
 
     var body: some View {
-        let entries = app.store.wordsEntries
+        let store = app.store
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -48,9 +48,10 @@ struct WordsCalendarScreen: View {
                     if let m = milestone {
                         WordsMilestoneCard(book: m.book, on: m.on) { span = .year }
                     }
-                    WordsMonthView(entries: entries, anchor: $anchor, now: now, typingWPM: flow.typingWPM) { openDay = $0 }
+                    WordsMonthView(month: store.wordsMonth(anchor, now: now), extras: store.wordsExtras(anchor, now: now),
+                                   anchor: $anchor, now: now, typingWPM: flow.typingWPM) { openDay = $0 }
                 } else {
-                    WordsYearView(entries: entries, anchor: $anchor, now: now) { month in anchor = month; span = .month }
+                    WordsYearView(year: store.wordsYear(anchor, now: now), anchor: $anchor, now: now) { month in anchor = month; span = .month }
                 }
             }
             .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 40)
@@ -73,16 +74,14 @@ struct WordsCalendarScreen: View {
         .onAppear {
             Self.onScreen += 1
             now = Date()
+            // Shown once: marked seen as soon as it's found, and kept on screen for this visit.
             if !checkedMilestone {
                 checkedMilestone = true
-                milestone = WordsCalendar.milestone(entries, seen: milestoneSeen)
+                milestone = WordsCalendar.milestone(store.wordsEntries, seen: milestoneSeen)
+                if let m = milestone { milestoneSeen = max(milestoneSeen, m.book.words) }
             }
         }
-        .onDisappear {
-            Self.onScreen = max(0, Self.onScreen - 1)
-            // Shown once: leaving the calendar marks it seen.
-            if let m = milestone, openDay == nil { milestoneSeen = max(milestoneSeen, m.book.words) }
-        }
+        .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
         .onChange(of: span) { _, s in Self.showing = s }
         .onReceive(Self.minute) { now = $0 }
     }
@@ -91,7 +90,8 @@ struct WordsCalendarScreen: View {
 // MARK: - Month
 
 struct WordsMonthView: View {
-    var entries: [WordsEntry]
+    var month: WordsCalendar.Month
+    var extras: WordsExtras
     @Binding var anchor: Date
     var now: Date
     var typingWPM: Int
@@ -100,9 +100,7 @@ struct WordsMonthView: View {
     private var cal: Calendar { .current }
 
     var body: some View {
-        let m = WordsCalendar.month(containing: anchor, entries: entries, now: now, calendar: cal)
-        let interval = DateInterval(start: m.start, end: cal.date(byAdding: .month, value: 1, to: m.start) ?? m.start)
-        let inMonth = entries.filter { interval.contains($0.date) && $0.date <= now }
+        let m = month
         VStack(alignment: .leading, spacing: 20) {
             header(m)
             totals(m)
@@ -110,17 +108,18 @@ struct WordsMonthView: View {
             stats(m)
             if let w = m.busiestWeekday { rhythm(m, weekday: w) }
             if let line = WordsCalendar.lengthLine(m.words, monthName: WordsText.monthName(m.start)) { length(line, words: m.words) }
-            if !inMonth.isEmpty {
+            if !extras.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionTitle("More about your words").id("words.more")
-                    WordsFunCards(entries: inMonth, allEntries: entries, words: m.words, seconds: m.seconds, typingWPM: typingWPM, now: now)
+                    WordsFunCards(extras: extras, words: m.words, seconds: m.seconds, typingWPM: typingWPM)
                 }
             }
         }
     }
 
     private func header(_ m: WordsCalendar.Month) -> some View {
-        let isCurrent = cal.isDate(m.start, equalTo: now, toGranularity: .month)
+        // No months after this one: there's nothing in them yet.
+        let isCurrent = m.start >= WordsCalendar.monthInterval(now, calendar: cal).start
         return VStack(alignment: .leading, spacing: 4) {
             Text("Your words").refinedFont(.meta).foregroundStyle(Refined.mute)
             HStack(alignment: .center) {
@@ -133,7 +132,7 @@ struct WordsMonthView: View {
         }
     }
 
-    private func step(_ n: Int) { anchor = cal.date(byAdding: .month, value: n, to: anchor) ?? anchor }
+    private func step(_ n: Int) { anchor = min(now, cal.date(byAdding: .month, value: n, to: anchor) ?? anchor) }
 
     private func totals(_ m: WordsCalendar.Month) -> some View {
         let saved = WordsCalendar.typingVersusTalking(words: m.words, seconds: m.seconds, typingWPM: typingWPM).saved
@@ -318,7 +317,7 @@ struct WordsStepButton: View {
 // MARK: - Year
 
 struct WordsYearView: View {
-    var entries: [WordsEntry]
+    var year: WordsCalendar.Year
     @Binding var anchor: Date
     var now: Date
     var openMonth: (Date) -> Void
@@ -326,8 +325,8 @@ struct WordsYearView: View {
     private var cal: Calendar { .current }
 
     var body: some View {
-        let y = WordsCalendar.year(containing: anchor, entries: entries, now: now, calendar: cal)
-        let isCurrent = cal.isDate(y.start, equalTo: now, toGranularity: .year)
+        let y = year
+        let isCurrent = y.start >= (cal.dateInterval(of: .year, for: now)?.start ?? now)
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Your words").refinedFont(.meta).foregroundStyle(Refined.mute)
@@ -335,7 +334,7 @@ struct WordsYearView: View {
                     Text(Formats.pattern("yyyy").string(from: y.start)).refinedFont(.largeTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
                     Spacer(minLength: 8)
                     WordsStepButton(forward: false, label: "Previous year") { anchor = cal.date(byAdding: .year, value: -1, to: anchor) ?? anchor }
-                    WordsStepButton(forward: true, label: "Next year") { anchor = cal.date(byAdding: .year, value: 1, to: anchor) ?? anchor }
+                    WordsStepButton(forward: true, label: "Next year") { anchor = min(now, cal.date(byAdding: .year, value: 1, to: anchor) ?? anchor) }
                         .disabled(isCurrent).opacity(isCurrent ? 0.4 : 1)
                 }
             }

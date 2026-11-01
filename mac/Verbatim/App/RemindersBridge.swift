@@ -323,22 +323,38 @@ enum VerboseTasksHandoff {
         return true
     }
 
+    /// Takes back a transfer Verbose Tasks couldn't be opened for: its file and its wait for a receipt.
+    static func cancel(_ id: UUID) {
+        if let root { try? FileManager.default.removeItem(at: root.appendingPathComponent("Transfers/\(id.uuidString).json")) }
+        var pending = UserDefaults.standard.dictionary(forKey: pendingKey) as? [String: Double] ?? [:]
+        pending[id.uuidString] = nil
+        UserDefaults.standard.set(pending, forKey: pendingKey)
+    }
+
     /// Opens Verbose Tasks on Today, where it imports the transfer.
     static let openURL = URL(string: "verbosetasks://today")!
 
     /// The receipts that arrived since the last look, as the lines to show, oldest first. Each receipt is read once and
-    /// removed. A send with no receipt after a day is forgotten, and its transfer removed if Verbose Tasks never read it.
+    /// removed with its transfer. A send with no receipt after a day is forgotten, and its transfer removed if Verbose
+    /// Tasks never read it. A receipt nothing waits for (its send was forgotten) goes after a day too.
     static func takeReceipts(now: Date = Date()) -> [String] {
         guard let root else { return [] }
         var pending = UserDefaults.standard.dictionary(forKey: pendingKey) as? [String: Double] ?? [:]
-        guard !pending.isEmpty else { return [] }
         let fm = FileManager.default
+        let receipts = root.appendingPathComponent("Receipts", isDirectory: true)
+        for f in (try? fm.contentsOfDirectory(at: receipts, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        where f.pathExtension == "json" && pending[f.deletingPathExtension().lastPathComponent] == nil {
+            let made = (try? f.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? now
+            if now.timeIntervalSince(made) > 86_400 { try? fm.removeItem(at: f) }
+        }
+        guard !pending.isEmpty else { return [] }
         var lines: [String] = []
         for (id, sent) in pending.sorted(by: { $0.value < $1.value }) {
             let receipt = root.appendingPathComponent("Receipts/\(id).json")
             if let data = try? Data(contentsOf: receipt) {
                 if let line = TaskSend.handoffMessage(receipt: data) { lines.append(line) }
                 try? fm.removeItem(at: receipt)
+                try? fm.removeItem(at: root.appendingPathComponent("Transfers/\(id).json"))
                 pending[id] = nil
             } else if now.timeIntervalSince1970 - sent > 86_400 {
                 try? fm.removeItem(at: root.appendingPathComponent("Transfers/\(id).json"))
@@ -413,6 +429,17 @@ enum RemindersChecks {
         try? receipt?.write(to: root.appendingPathComponent("Receipts/\(tid.uuidString).json"))
         check("verbose tasks: its receipt says what was saved, once", VerboseTasksHandoff.takeReceipts() == ["Saved 9 tasks to Verbose Tasks"]
               && VerboseTasksHandoff.takeReceipts().isEmpty)
+        check("verbose tasks: a receipt takes its transfer with it", !FileManager.default.fileExists(atPath: file.path))
+        let gone = UUID()
+        let goneWrote = vt.handoffTransfer(id: gone).map { VerboseTasksHandoff.write($0, id: gone) } ?? false
+        VerboseTasksHandoff.cancel(gone)
+        check("verbose tasks: a send Verbose Tasks couldn't open for is taken back", goneWrote
+              && !FileManager.default.fileExists(atPath: root.appendingPathComponent("Transfers/\(gone.uuidString).json").path)
+              && (UserDefaults.standard.dictionary(forKey: VerboseTasksHandoff.pendingKey) ?? [:]).isEmpty)
+        let stray = root.appendingPathComponent("Receipts/\(UUID().uuidString).json")
+        try? Data("{}".utf8).write(to: stray)
+        _ = VerboseTasksHandoff.takeReceipts(now: Date().addingTimeInterval(2 * 86_400))
+        check("verbose tasks: a receipt nothing waits for goes after a day", !FileManager.default.fileExists(atPath: stray.path))
         #endif
     }
 }

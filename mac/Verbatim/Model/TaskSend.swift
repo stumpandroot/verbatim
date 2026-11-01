@@ -203,7 +203,8 @@ enum TaskSend {
         if let recordID { source["recordID"] = recordID.uuidString }
         let items: [[String: Any]] = tasks.map { t in
             var o: [String: Any] = ["title": t.title, "key": t.key]
-            if let at = t.at { o["at"] = at }
+            // A moment only means something with the recording it's in (today's thoughts have none).
+            if let at = t.at, recordID != nil { o["at"] = at }
             if let p = t.plan, let y = p.year, let m = p.month, let d = p.day { o["plan"] = ["year": y, "month": m, "day": d] }
             return o
         }
@@ -229,9 +230,11 @@ enum TaskSend {
         switch status {
         case "needsUpdate": return "Update Verbose Tasks to add these tasks."
         case "alreadySaved": return "Verbose Tasks already has these tasks."
-        default:
+        case "saved", "savedAsNewNote":
             if added == 0 { return had > 0 ? "Verbose Tasks already has these tasks." : "Saved to Verbose Tasks" }
             return had > 0 ? "Saved \(tasks(added)) to Verbose Tasks. It already had \(had)." : "Saved \(tasks(added)) to Verbose Tasks"
+        // A status this build doesn't know says nothing, rather than claim the tasks were saved.
+        default: return nil
         }
     }
 }
