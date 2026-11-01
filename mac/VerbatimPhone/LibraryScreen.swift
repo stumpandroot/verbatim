@@ -169,7 +169,9 @@ struct LibraryScreen: View {
             // tab only; a pushed Library has its own (`route`).
             guard let r, route == nil else { return }
             applyRequest(r)
-            app.libraryFilterRequest = nil
+            // `$libraryFilterRequest` publishes before the value is stored, so clearing it here was overwritten by
+            // `r`: the request stayed set, and each later subscription applied it again. Cleared on the next turn.
+            DispatchQueue.main.async { if app.libraryFilterRequest == r { app.libraryFilterRequest = nil } }
         }
         .sheet(isPresented: Binding(get: { app.addFromLibrary != nil }, set: { if !$0 { app.addFromLibrary = nil } })) {
             if let p = app.addFromLibrary { PhoneAddFromLibrarySheet(project: p).environmentObject(app) }
