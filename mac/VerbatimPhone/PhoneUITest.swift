@@ -381,6 +381,7 @@ enum PhoneUITest {
                 await show("\(prefix)09f-you")
                 if prefix == "p" { youCheck("This week opens the You page", app.showSettings && YouScreen.visible) }
                 if prefix == "p" { youCheck("the You page draws its layout", YouScreen.onScreen > 0) }
+                await wordsCalendarTour(app, prefix: prefix)
                 NotificationCenter.default.post(name: .verbatimYouPage, object: true)
                 await show("\(prefix)09g-you-about-me")
                 if prefix == "p" { youCheck("the You page opens About me", AboutMeScreen.visible) }
@@ -575,6 +576,19 @@ enum PhoneUITest {
         app.openRecorder()
         await show("p02k-record-meeting")
         check("the recorder shows the picked kind", app.recordingChoice == .kind(.meeting))
+        // Change kind while recording: the title is a menu, and a pick changes the whole recording as it goes.
+        check("the recorder's title can change the kind while recording", app.canSwitchRecordingKind)
+        app.switchRecordingKind(to: .kind(.brainDump))
+        await show("p02r-record-switched")
+        check("changing kind while recording files it as the new kind and says so",
+              app.recordingChoice == .kind(.brainDump) && app.toast == "Now a brain dump, from the start")
+        app.switchRecordingKind(to: .thought)
+        check("changing to a thought makes it a thought from its start", app.recordingThought && app.recordKind == nil && app.thoughtStartedAt != nil)
+        app.switchRecordingKind(to: .voiceNote)
+        check("and back to a voice note", !app.recordingThought && app.recordKind == nil && app.thoughtStartedAt == nil && app.recordingChoice == .voiceNote)
+        check("the note names each kind", PhoneState.switchedNote(.kind(.interview)) == "Now an interview, from the start"
+              && PhoneState.switchedNote(.kind(.audio)) == "Now audio only, from the start")
+        app.recordKind = .meeting
         app.minimizeRecorder()
         app.recordKind = nil
         try? await Task.sleep(nanoseconds: 700_000_000)
@@ -1934,6 +1948,91 @@ enum PhoneUITest {
     }
 
     /// The You page (YouScreen.swift), checked on screen during the tour.
+    /// Your words calendar from the You page (WordsCalendarScreen.swift): a month of made-up dictations and recordings
+    /// last month, its cards, a day, and the year; then everything seeded is deleted and the milestone forgotten.
+    private static func wordsCalendarTour(_ app: PhoneState, prefix: String) async {
+        let checks = prefix == "p"
+        let seeded = seedWordsMonth(app.store)
+        let key = WordsCalendar.milestoneSeenKey
+        UserDefaults.standard.set(0, forKey: key)
+        NotificationCenter.default.post(name: .verbatimYouPage, object: "calendar")
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        NotificationCenter.default.post(name: .verbatimWordsCalendar, object: WordsCalendarTour.month(seeded.month))
+        await show("\(prefix)09r-words-month")
+        if checks {
+            youCheck("the You page opens your words calendar", WordsCalendarScreen.onScreen > 0)
+            let m = WordsCalendar.month(containing: seeded.month, entries: app.store.wordsEntries)
+            youCheck("the month counts its dictations' words", m.words == seeded.words && m.daysTalked >= 20)
+            youCheck("a recorded day has a dot", m.days.contains { !$0.recordings.isEmpty })
+        }
+        NotificationCenter.default.post(name: .verbatimWordsCalendar, object: WordsCalendarTour.scroll("words.more"))
+        await show("\(prefix)09s-words-cards")
+        NotificationCenter.default.post(name: .verbatimWordsCalendar, object: WordsCalendarTour.day(seeded.best))
+        await show("\(prefix)09t-words-day")
+        if checks { youCheck("a day opens from the calendar", WordsDayScreen.onScreen > 0) }
+        NotificationCenter.default.post(name: .verbatimWordsCalendar, object: WordsCalendarTour.back)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        NotificationCenter.default.post(name: .verbatimWordsCalendar, object: WordsCalendarTour.year)
+        await show("\(prefix)09u-words-year")
+        if checks { youCheck("the calendar shows the year", WordsCalendarScreen.showing == .year) }
+        NotificationCenter.default.post(name: .verbatimWordsCalendar, object: WordsCalendarTour.month(Date()))
+        NotificationCenter.default.post(name: .verbatimYouPage, object: "calendar-close")
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        if checks {
+            youCheck("the calendar closes", WordsCalendarScreen.onScreen == 0)
+            youCheck("a milestone shows once", UserDefaults.standard.integer(forKey: key) >= 20_000)
+        }
+        for id in seeded.ids { if let t = app.store.transcript(id) { app.store.delete(t) } }
+        UserDefaults.standard.set(0, forKey: key)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Made-up dictations (two a day, with the ums cleanup took out) and a few recordings, all in last month, for the
+    /// words calendar's screenshots. Returns that month, its words, its busiest day, and what to delete after.
+    private static func seedWordsMonth(_ store: Store) -> (month: Date, words: Int, best: Date, ids: [UUID]) {
+        let cal = Calendar.current
+        let thisMonth = cal.dateInterval(of: .month, for: Date())?.start ?? Date()
+        let month = cal.date(byAdding: .month, value: -1, to: thisMonth) ?? thisMonth
+        let count = cal.range(of: .day, in: .month, for: month)?.count ?? 30
+        let perDay = [420, 0, 1180, 860, 0, 0, 2310, 1640, 940, 0, 0, 380, 1720, 2050, 1260, 880, 0, 0, 610, 1490, 2780, 1930, 1100, 0, 140, 0, 1350, 1870, 2240, 3120, 960]
+        let pool = ("Send the invoice to the print shop today and copy the studio on it. Book the lighting for the Thursday shoot "
+            + "and confirm the props list. The proofs for the catalog look good, so print the second round. Order more paper "
+            + "for the proofs and ask about the invoice for the shoot. Move the call to Thursday morning and send the props "
+            + "list after lunch.").split(separator: " ").map(String.init)
+        func text(_ n: Int, from start: Int) -> String { (0..<n).map { pool[(start + $0) % pool.count] }.joined(separator: " ") }
+        func raw(_ s: String) -> String {
+            var words = s.split(separator: " ").map(String.init)
+            var i = 6
+            while i < words.count { words.insert(i % 3 == 0 ? "um," : i % 3 == 1 ? "like," : "you know,", at: i); i += 19 }
+            return "Um, " + words.joined(separator: " ")
+        }
+        var ids: [UUID] = [], total = 0, best = month, top = 0
+        for d in 0..<count {
+            guard let day = cal.date(byAdding: .day, value: d, to: month) else { continue }
+            let w = perDay[d % perDay.count]
+            if w > top { top = w; best = day }
+            for (share, hour) in [(0.62, 9), (0.38, 15)] where w > 0 {
+                let n = max(1, Int((Double(w) * share).rounded()))
+                let pasted = text(n, from: d * 7 + hour)
+                var t = Transcript(title: String(pasted.prefix(40)), source: .dictation, sourceLabel: "Dictation", duration: Double(n) / 141 * 60, audioFileName: nil, model: "")
+                t.flow = FlowInfo(app: "Keyboard", bundleID: nil, category: hour == 9 ? .email : .work, style: .casual, level: "light",
+                                  raw: raw(pasted), pasted: pasted, pastedOK: true)
+                t.createdAt = cal.date(bySettingHour: hour, minute: 10 + d % 40, second: 0, of: day) ?? day
+                store.add(t); ids.append(t.id); total += WordsCalendar.count(pasted)
+            }
+            let kinds: [Int: RecordingKind] = [2: .brainDump, 6: .meeting, 13: .journal, 20: .meeting, 26: .journal, 29: .brainDump]
+            if let k = kinds[d] {
+                var r = Transcript(title: k == .brainDump ? "Invoices and shoot prep" : k == .meeting ? "Kickoff with the print shop" : "End of the week",
+                                   source: .voiceMemo, sourceLabel: "Voice memo", duration: k == .meeting ? 1320 : 300, audioFileName: nil, model: "")
+                r.kind = k; r.kindIsAuto = false
+                r.segments = [Segment(start: 0, end: 20, text: text(60, from: d))]
+                r.createdAt = cal.date(bySettingHour: k == .journal ? 21 : k == .meeting ? 13 : 7, minute: 40, second: 0, of: day) ?? day
+                store.add(r); ids.append(r.id)
+            }
+        }
+        return (month, total, best, ids)
+    }
+
     private static func youCheck(_ name: String, _ ok: Bool) {
         Log.note("UITEST \(ok ? "PASS" : "FAIL") you: \(name)")
     }
@@ -2181,6 +2280,7 @@ enum PhoneUITest {
             Log.note("UITEST \(ok ? "PASS" : "FAIL") marks: \(name)")
         }
         MarkChecks.run(check)
+        WordsCalendarChecks.run { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)") }
         app.recordingMoments = []
         check("nothing recording, nothing marked", !app.markMoment(source: .island) && app.recordingMoments.isEmpty)
         app.previewRecording = true

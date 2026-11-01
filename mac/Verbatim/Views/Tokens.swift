@@ -96,6 +96,14 @@ enum RefinedHex {
     /// An icon square with no hue (Settings rows that aren't one of the four).
     static let neutralSquare = Tone(0xE6DFD1, 0x2E3B34)
 
+    // The words calendar's five shades (WordsCalendar.level): a day with no words, then more and more. Day numbers sit
+    // on them in `ink`, except the top shade, which takes `onFill` (it stays light in dark mode).
+    static let heat0 = Tone(0xEFE9DD, 0x26352E)
+    static let heat1 = Tone(0xFDE4DA, 0x3A2A22)
+    static let heat2 = Tone(0xFCC4AF, 0x5A3A2C)
+    static let heat3 = Tone(0xFB9C80, 0x8A4532)
+    static let heat4 = Tone(0xFB7350, 0xF27A57)
+
     // Playback (sage means playback)
     static let played = Tone(0x6E8A58, 0x9DB088)
     static let waveRest = Tone(0xCFC8BA, 0x56665D)
@@ -166,6 +174,8 @@ enum Refined {
     static let sageTint = color(RefinedHex.sageTint)
     static let petalTint = color(RefinedHex.petalTint)
     static let neutralSquare = color(RefinedHex.neutralSquare)
+    /// The words calendar's shades, by `WordsCalendar.level` (0 to 4).
+    static let heat = [color(RefinedHex.heat0), color(RefinedHex.heat1), color(RefinedHex.heat2), color(RefinedHex.heat3), color(RefinedHex.heat4)]
     static let played = color(RefinedHex.played)
     static let waveRest = color(RefinedHex.waveRest)
     static let macSwitch = color(RefinedHex.macSwitch)

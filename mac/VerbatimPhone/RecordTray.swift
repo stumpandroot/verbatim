@@ -206,11 +206,59 @@ extension PhoneState {
         }
     }
 
-    /// What the recording running was started as, for the recorder's chip and the line under its timer.
+    /// What the recording running is filed as, for the recorder's title and the line under it.
     var recordingChoice: RecordChoice {
         if recordingThought { return .thought }
         if let k = recordKind { return .kind(k) }
         return .voiceNote
+    }
+
+    /// Whether the recorder's title can change the kind now: something is recording, it isn't being added to a
+    /// transcript, and it isn't saving.
+    var canSwitchRecordingKind: Bool {
+        (recorder.isRecording || previewRecording) && continuing == nil && !savingRecording
+    }
+
+    /// Changes what the recording running is filed as, from the recorder's title (DESIGN.md §6.10, Change kind while
+    /// recording; mockup "Verbose words calendar", boards 5 and 6). It applies to the whole recording, from its start,
+    /// and the recording keeps going: the title, the line under it, and the Live Activity follow at once, and Stop files
+    /// it as the new kind and runs that kind's template. Thought marks the recording so a crash still files it on its
+    /// day; Audio only stops the live words (the sound is kept as it's being recorded); leaving Audio only starts them.
+    /// The crash marker beside the recording follows too. "Now a brain dump" says so.
+    func switchRecordingKind(to choice: RecordChoice) {
+        guard canSwitchRecordingKind, choice != recordingChoice else { return }
+        let wasAudio = recordingChoice.isAudioOnly
+        let url = recorder.recordingURL
+        if choice == .thought {
+            recordKind = nil
+            recordingThought = true
+            thoughtStartedAt = Date().addingTimeInterval(-recorder.elapsed)
+            if let url { Store.markThought(url) }
+        } else {
+            if recordingThought, let url { Store.clearThoughtMark(url) }
+            recordingThought = false
+            thoughtStartedAt = nil
+            recordKind = choice.kind
+        }
+        if let url { Store.clearKindMark(url); Store.markKind(url, recordKind) }
+        if choice.isAudioOnly && !wasAudio {
+            recordingWords.end()
+        } else if wasAudio && !choice.isAudioOnly {
+            recordingWords.prepare(recorder)
+            recordingWords.begin()
+        }
+        Haptics.play(.picked)
+        RecordingPresence.shared.marked()
+        say(Self.switchedNote(choice))
+        Log.note("recorder: now \(choice.id)")
+    }
+
+    /// "Now a brain dump, from the start", "Now a voice note, from the start".
+    nonisolated static func switchedNote(_ choice: RecordChoice) -> String {
+        let name = choice.name.lowercased()
+        let article = name.first.map { "aeiou".contains($0) } == true ? "an" : "a"
+        if choice.isAudioOnly { return "Now audio only, from the start" }
+        return "Now \(article) \(name), from the start"
     }
 }
 

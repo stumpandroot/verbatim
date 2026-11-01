@@ -2,8 +2,29 @@
   "notes": [
     {
       "build": "next",
-      "title": "Send to Verbose Tasks",
+      "title": "Your words calendar, and change kind while recording",
       "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Your words calendar: every day you talked, shaded by the words you dictated.",
+          "detail": "Open it from You. See a month, a year with your bookshelf, and any day on its own. It counts the days you talked, with no streak to lose."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "More about your words: filler words taken out, your pace, and when you talk most.",
+          "detail": "Cards under each month also show talking versus typing, your longest dictation, and what you recorded. A milestone shows once when you pass one."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Change what a recording is while it records: tap its title.",
+          "detail": "Pick Brain dump, Meeting, or any kind. It applies to the whole recording, which keeps going, and that kind's template runs when you stop."
+        },
         {
           "platforms": [
             "iphone"

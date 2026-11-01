@@ -1380,6 +1380,8 @@ enum UITest {
         TemplateChecks.run { check("templates: " + $0, $1) }
         // Mark a moment (shared with the iPhone's self-test and mac/tools/test-marks.sh), then the Mac's MarkCenter.
         MarkChecks.run { check("marks: " + $0, $1) }
+        // Your words calendar (shared with the iPhone's self-test and mac/tools/test-words-calendar.sh).
+        WordsCalendarChecks.run { check($0, $1) }
         markCenterChecks(check)
         // Ask your library and recipes (shared with the iPhone's self-test and mac/tools/test-ask.sh).
         AskChecks.run { check("ask: " + $0, $1) }

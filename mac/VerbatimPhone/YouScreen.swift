@@ -1,6 +1,6 @@
 import SwiftUI
 
-// The You page on iPhone (Settings › You, and Home's This week card) in the refined look (DESIGN.md §13): who you are, your week of dictation, About me, your voice, and cleanup, built from the kit. The
+// The You page on iPhone (Settings › You, and Home's This week card) in the refined look (DESIGN.md §13): who you are, your week of dictation (it opens your words calendar, WordsCalendarScreen.swift), About me, your voice, and cleanup, built from the kit. The
 // iPhone's keyboard can't tell which app a dictation went to, so there's no "Where you dictate" here (the Mac's You
 // page lists apps and websites), and it keeps no separate activity log, so there's nothing to reset: the week is
 // counted from your dictations, the same as Home's This week card.
@@ -25,6 +25,7 @@ struct YouScreen: View {
     @ObservedObject private var voice = VoiceProfileStatus.shared
     @State private var editingAbout = false
     @State private var showVoice = false
+    @State private var showCalendar = false
     @State private var editingName = false
     @State private var nameDraft = ""
     @FocusState private var nameFocused: Bool
@@ -55,11 +56,14 @@ struct YouScreen: View {
         .toolbar { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
         .navigationDestination(isPresented: $editingAbout) { AboutMeScreen() }
         .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: false) }
+        .navigationDestination(isPresented: $showCalendar) { WordsCalendarScreen() }
         .onAppear { Self.visible = true; Self.onScreen += 1; now = Date(); voice.refresh() }
         .onDisappear { Self.visible = false; Self.onScreen = max(0, Self.onScreen - 1); commitName() }
         .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimYouPage)) { note in
             if note.object as? Bool == true { editingAbout = true }
+            if note.object as? String == "calendar" { commitName(); showCalendar = true }
+            if note.object as? String == "calendar-close" { showCalendar = false }
         }
     }
 
@@ -137,13 +141,28 @@ struct YouScreen: View {
             SectionTitle(title: "Your week") {
                 Text(Self.rangeLabel(week)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1)
             }
-            WeekCard(words: week.words, detail: week.words == 1 ? "word dictated" : "words dictated", saved: "\(saved) saved", days: week.cardDays)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")) dictated, \(saved) saved typing.")
-                // Words by day, as the bars show them (the bars are decorative).
-                .accessibilityValue(week.spokenDays)
-                .accessibilityIdentifier("you.week")
+            // The card opens your words calendar (WordsCalendarScreen.swift).
+            Button { commitName(); showCalendar = true } label: {
+                WeekCard(words: week.words, detail: week.words == 1 ? "word dictated" : "words dictated", saved: "\(saved) saved", days: week.cardDays)
+            }
+            .buttonStyle(RefinedPress())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")) dictated, \(saved) saved typing.")
+            // Words by day, as the bars show them (the bars are decorative).
+            .accessibilityValue(week.spokenDays)
+            .accessibilityHint("Opens your words calendar.")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("you.week")
             PaperCard {
+                Button { commitName(); showCalendar = true } label: {
+                    SettingsRow(hue: RefinedRules.settingsHue(3), art: .iconCalendar, title: "Your words calendar",
+                                subtitle: "Every day you talked, month by month") {
+                        SettingsChevron()
+                    }
+                }
+                .buttonStyle(SettingsRowPress())
+                .accessibilityIdentifier("you.calendar")
+                PaperDivider(leading: 56)
                 Menu {
                     Picker("Your typing speed", selection: $flow.typingWPM) {
                         ForEach(FlowSettings.typingSpeeds(flow.typingWPM), id: \.self) { w in Text("\(w) wpm").tag(w) }

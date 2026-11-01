@@ -184,9 +184,13 @@ struct RecorderSheet: View {
     /// Run automatically will run, or what the kind does.
     private var header: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title).refinedFont(.transcriptTitle).foregroundStyle(Refined.ink)
-                .lineLimit(2).minimumScaleFactor(0.8)
-                .accessibilityAddTraits(.isHeader)
+            if adding == nil && app.canSwitchRecordingKind {
+                kindMenu
+            } else {
+                Text(title).refinedFont(.transcriptTitle).foregroundStyle(Refined.ink)
+                    .lineLimit(2).minimumScaleFactor(0.8)
+                    .accessibilityAddTraits(.isHeader)
+            }
             Text(metaLine).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel(metaLine + ". The recording is written to this iPhone while you talk, and keeps going with the screen locked.")
@@ -201,6 +205,49 @@ struct RecorderSheet: View {
                 .padding(.top, 1)
                 .accessibilityElement(children: .combine)
             }
+        }
+    }
+
+    /// The kind as a menu (DESIGN.md §6.10, Change kind while recording): the title with a chevron opens Record as,
+    /// the rows you show with what each does and a check on the one it is, then More kinds for the rows you hid. Picking
+    /// one changes the whole recording and it keeps going (`PhoneState.switchRecordingKind`). A system menu, like the
+    /// microphone's, so its items carry SF Symbols.
+    private var kindMenu: some View {
+        let current = app.recordingChoice
+        let shown = RecordAsStore.shared.visible
+        let hidden = RecordChoice.all.filter { !shown.contains($0) }
+        return Menu {
+            Section("Record as") {
+                ForEach(shown) { c in kindItem(c, current: current) }
+            }
+            if !hidden.isEmpty {
+                Menu("More kinds") {
+                    ForEach(hidden) { c in kindItem(c, current: current) }
+                }
+            }
+            Text("The recording keeps going.")
+        } label: {
+            HStack(alignment: .center, spacing: 8) {
+                Text(title).refinedFont(.transcriptTitle).foregroundStyle(Refined.ink)
+                    .lineLimit(2).minimumScaleFactor(0.8)
+                Image(systemName: "chevron.down").font(.system(size: 15, weight: .semibold)).foregroundStyle(Refined.mute)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.button).buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityHint("Opens a menu to change what this recording is filed as. The recording keeps going.")
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("recorder.kind")
+    }
+
+    private func kindItem(_ c: RecordChoice, current: RecordChoice) -> some View {
+        Button { app.switchRecordingKind(to: c) } label: {
+            // A menu item's second Text is its subtitle.
+            if c == current { Label(c.name, systemImage: "checkmark") } else { Label(c.name, systemImage: c.menuSymbol) }   // brand: system surface
+            Text(c.recorderLine(settings: auto.settings, templates: app.store.allTemplates))
         }
     }
 

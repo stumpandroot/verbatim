@@ -82,6 +82,9 @@ pair("dim on a segmented track (the options not chosen)", H.dim, .tone(H.track))
 pair("the playing line's time (sage text) on its wash, on paper", H.sageText, .wash(H.playing, over: H.paper))
 pair("the playing line's time (sage text) on its wash, on the card", H.sageText, .wash(H.playing, over: H.card))
 pair("ink reading text on the playing wash", H.ink, .wash(H.playing, over: H.paper))
+// The words calendar (WordsCalendar.swift): a day's number and count on each shade, onFill on the top one.
+for (i, t) in [H.heat0, H.heat1, H.heat2, H.heat3].enumerated() { pair("ink on the words calendar's shade \(i)", H.ink, .tone(t)) }
+pair("onFill on the words calendar's top shade", H.onFill, .tone(H.heat4))
 pair("ink on the player bar without glass", H.ink, .wash(H.glassFallback, over: H.paper))
 pair("dim times on the player bar without glass", H.dim, .wash(H.glassFallback, over: H.paper))
 pair("the accent (selected tab, links) on the player bar without glass", H.accentText, .wash(H.glassFallback, over: H.paper))
