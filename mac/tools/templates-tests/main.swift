@@ -488,6 +488,38 @@ check("plan: the model saying it chose them shows the line; a task listed twice 
 check("plan: an empty brain dump says so", DayPlan.parse("## Top three\nNone stated.").isEmpty && DayPlan.noTasksLine == "No tasks or ideas in what you said.")
 check("plan: Someday's line", DayPlan.somedayLine == "And anything you didn\u{2019}t give a day")
 
+// Tidy (October 31, 2026): tasks the on-device model copied as they were said become short to-dos.
+let tidyCases: [(String, String)] = [
+    ("create a draft of the invoice for Hill fabrication", "Create a draft of the invoice for Hill fabrication"),
+    ("email Dana from Oak and Iron because they never paid a $250 invoice from a while ago", "Email Dana from Oak and Iron"),
+    ("email Sam from Brightline because he said he'd send 400 bucks but never paid it so that's on him", "Email Sam from Brightline"),
+    ("prepare for my photo shoot on Monday for Hill fabrication", "Prepare for my photo shoot on Monday for Hill fabrication"),
+    ("come up with the next meetup plan for the film club because time is running out", "Come up with the next meetup plan for the film club"),
+    ("make a to make a call with Rob about the props in", "Make a call with Rob about the props"),
+    ("call UPS about my Walmart order", "Call UPS about my Walmart order"),
+    ("send out emails to potential partners, so like the Strand Theater as a potential partner for the film club um and then more formal versions to other kinds of places who might want to partner", "Send out emails to potential partners"),
+    ("send a a message about the short film to Jo. Just um, you know, just want to get her read. It's like, look, she said no.", "Send a message about the short film to Jo"),
+    ("Um, I want to make sure that I create a draft of the invoice.", "Create a draft of the invoice"),
+    ("I need to call UPS about my order", "Call UPS about my order"),
+    ("I might as well even email Sam", "Email Sam"),
+    ("And then I need to come up with the next meetup plan", "Come up with the next meetup plan"),
+    ("have lunch with Sam", "Have lunch with Sam"),
+    ("plan the day to day schedule", "Plan the day to day schedule"),
+    ("Send the bakery invoice", "Send the bakery invoice"),
+    ("I\u{2019}ll call the print shop", "Call the print shop"),
+]
+for (said, want) in tidyCases {
+    let got = DayPlan.tidyTask(said)
+    check("tidy: \(said.prefix(40))", got == want, "got \"\(got)\"")
+}
+check("tidy: an idea keeps its words, without the filler", DayPlan.tidyIdea("um a mug with the barn logo, you know, for the kits") == "A mug with the barn logo for the kits", DayPlan.tidyIdea("um a mug with the barn logo, you know, for the kits"))
+let messy = DayPlan.item("make a to make a call with Rob about the props in [03:22]", section: .week)
+let clean = DayPlan.item("Make a call with Rob about the props [03:22]", section: .week)
+check("tidy: the plan shows the tidy words; the key stays the model's words, so what was sent stays sent",
+      messy.text == "Make a call with Rob about the props" && messy.said == "make a to make a call with Rob about the props in"
+      && messy.key == DayPlan.key("make a to make a call with Rob about the props in", 202) && clean.said == nil && messy.anchor == 202)
+check("tidy: the instruction asks for short to-dos", TemplateLibrary.planMyDayInstruction.contains("short to-do that starts with the action"))
+
 // Send to Reminders (no EventKit here: the drafts are what the app hands it).
 var sel = DayPlan.defaultSelection(plan, sent: [:])
 check("reminders: every task checked, ideas unchecked", sel.count == 9 && !sel.contains(plan.ideas[0].key))
@@ -575,13 +607,44 @@ do {
     check("share: a checklist with the day in parentheses",
           list == "Plan for Tue, Nov 3\n- [ ] Send the bakery invoice & receipt (Today)\n- [ ] Email kim@studio.co (Thu, Nov 5)\n- [ ] Call the print shop", list)
     let all = TaskDestination.allCases
-    check("menu: Things and OmniFocus only when installed", TaskDestination.offered(installed: { _ in false }) == [.reminders, .share] && TaskDestination.offered(installed: { _ in true }) == all)
+    check("menu: Verbose Tasks, Things, and OmniFocus only when installed", TaskDestination.offered(installed: { _ in false }) == [.reminders, .share] && TaskDestination.offered(installed: { _ in true }) == all)
     check("button: names the last app while it's offered", TaskDestination.buttonTitle(last: .things, offered: all) == "Send to Things"
           && TaskDestination.buttonTitle(last: .things, offered: [.reminders, .share]) == "Send tasks"
           && TaskDestination.buttonTitle(last: .share, offered: all) == "Send tasks" && TaskDestination.buttonTitle(last: nil, offered: all) == "Send tasks")
     check("sheet: starts where you sent last, else Reminders", TaskDestination.starting(last: .omnifocus, offered: all) == .omnifocus
           && TaskDestination.starting(last: .omnifocus, offered: [.reminders, .share]) == .reminders)
     check("sheet: the confirm button", TaskDestination.reminders.actionTitle(count: 4) == "Add 4 to Reminders" && TaskDestination.things.actionTitle(count: 1) == "Add 1 to Things" && TaskDestination.share.actionTitle(count: 2) == "Share 2")
+
+    // Verbose Tasks (October 31, 2026): first when installed, and the transfer its TasksCore reads.
+    check("verbose tasks: first in the menu when installed, and where the sheet starts", all.first == .verboseTasks
+          && TaskDestination.starting(last: nil, offered: all) == .verboseTasks && TaskDestination.starting(last: nil, offered: [.reminders, .share]) == .reminders
+          && TaskDestination.verboseTasks.scheme == "verbosetasks" && TaskDestination.verboseTasks.actionTitle(count: 3) == "Add 3 to Verbose Tasks"
+          && TaskDestination.buttonTitle(last: .verboseTasks, offered: all) == "Send to Verbose Tasks")
+    let vtPlan = DayPlan.parse(PlanChecks.samplePlan)
+    let vtSel = DayPlan.defaultSelection(vtPlan, sent: [:])
+    let vtTasks = TaskSend.handoffTasks(vtPlan, selected: vtSel, sent: [:], recordedAt: today, calendar: cal)
+    let rid = UUID(uuidString: "6B1F3C2A-0D4E-4F5A-9B8C-7D6E5F4A3B2C")!, tid = UUID(uuidString: "0F1E2D3C-4B5A-4968-8776-655443322110")!
+    let vtData = TaskSend.handoffTransfer(id: tid, sentAt: today, tasks: vtTasks, recordID: rid, capturedAt: today, sourceTitle: "Brain dump")
+    let vt = vtData.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    let vtItems = vt["tasks"] as? [[String: Any]] ?? []
+    let firstPlan = vtItems.first?["plan"] as? [String: Int]
+    check("verbose tasks: every checked task, with its key, moment, and the day said as its plan date",
+          vtTasks.count == vtSel.count && vtItems.count == vtTasks.count && vtItems.first?["key"] as? String == vtPlan.top[0].key
+          && vtItems.first?["at"] as? Double == vtPlan.top[0].anchor && firstPlan?["year"] != nil && vtItems.contains { $0["plan"] == nil }, "\(vtItems.first ?? [:])")
+    check("verbose tasks: format 1, tasks only, from this recording", vt["formatVersion"] as? Int == 1 && vt["transferID"] as? String == tid.uuidString
+          && (vt["destination"] as? [String: Any])?["tasksOnly"] != nil && (vt["source"] as? [String: Any])?["recordID"] as? String == rid.uuidString
+          && (vt["source"] as? [String: Any])?["app"] as? String == "verbose" && (vt["sentAt"] as? String)?.hasSuffix("Z") == true)
+    check("verbose tasks: nothing to send is no transfer", TaskSend.handoffTransfer(id: tid, sentAt: today, tasks: [], recordID: nil, capturedAt: today, sourceTitle: "x") == nil)
+    if let out = ProcessInfo.processInfo.environment["VERBOSE_TASKS_TRANSFER_OUT"], let vtData { try? vtData.write(to: URL(fileURLWithPath: out)) }
+    func receipt(_ status: String, added: Int, had: Int) -> Data {
+        try! JSONSerialization.data(withJSONObject: ["transferID": tid.uuidString, "status": status, "taskIDs": (0..<added).map { _ in UUID().uuidString }, "alreadyHad": had, "savedAt": "2026-10-31T12:00:00Z"])
+    }
+    check("verbose tasks: the line after its receipt", TaskSend.handoffMessage(receipt: receipt("saved", added: 4, had: 0)) == "Saved 4 tasks to Verbose Tasks"
+          && TaskSend.handoffMessage(receipt: receipt("saved", added: 1, had: 2)) == "Saved 1 task to Verbose Tasks. It already had 2."
+          && TaskSend.handoffMessage(receipt: receipt("saved", added: 0, had: 3)) == "Verbose Tasks already has these tasks."
+          && TaskSend.handoffMessage(receipt: receipt("alreadySaved", added: 4, had: 0)) == "Verbose Tasks already has these tasks."
+          && TaskSend.handoffMessage(receipt: receipt("needsUpdate", added: 0, had: 0)) == "Update Verbose Tasks to add these tasks."
+          && TaskSend.handoffMessage(receipt: Data("nope".utf8)) == nil)
 }
 
 TemplateChecks.run { check("self-test: " + $0, $1) }

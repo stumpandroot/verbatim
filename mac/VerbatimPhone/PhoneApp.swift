@@ -143,7 +143,7 @@ struct PhoneRoot: View {
         // Recipes owed a scheduled run since iOS last gave Verbose time run when it opens (AskEngine.swift).
         // The Action button's control is named for the choice in Settings › Action button (ActionButtonScreen.swift).
         // Verbose Unlock: the trial's days, and the prices if the App Store hadn't answered (Unlock.swift).
-        .onChange(of: scenePhase) { _, phase in if phase == .active { UnlockStore.shared.becameActive(); app.importInbox(); app.importWatchInbox(); AskRecipeCenter.shared.runDue(); ActionChoiceMirror.sync() } }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { UnlockStore.shared.becameActive(); app.importInbox(); app.importWatchInbox(); app.takeVerboseTasksReceipts(); AskRecipeCenter.shared.runDue(); ActionChoiceMirror.sync() } }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {
             Button("Not now", role: .cancel) { app.dismissConsentNotice() }
             Button("Record") { app.acknowledgeConsentNotice() }

@@ -8,18 +8,25 @@ import Foundation
 // - OmniFocus, every checked task as TaskPaper in one `omnifocus:///paste` link, into the Inbox, with due dates.
 // - Another app: a checklist through the share sheet (Todoist, TickTick, Notes, Drafts, and others read it with their
 //   share extensions). Their own links add one task at a time, so the share sheet is the way to send several.
-// Things and OmniFocus are offered only when they're installed. Verbose can't confirm the other app saved anything, so
-// only Reminders marks tasks as sent. Plain Foundation, so tools/test-templates.sh checks it on Linux.
+// - Verbose Tasks, Stump & Root's own tasks app (stumpandroot/verbose-tasks, October 31, 2026), first when it's
+//   installed: a transfer file in the App Group both apps share (`group.co.stumpandroot.handoff`), then Verbose Tasks
+//   opens and imports it once. It writes a receipt back, and Verbose says "Saved to Verbose Tasks" only after reading
+//   it. Each task keeps its key, so a second send never adds it twice, and its moment, so Play opens the recording
+//   there (verbatim://transcript/<id>?t=<seconds>). iPhone only: the Mac app isn't released.
+// Things, OmniFocus, and Verbose Tasks are offered only when they're installed. Verbose can't confirm Things or
+// OmniFocus saved anything, so only Reminders marks tasks as sent. Plain Foundation, so tools/test-templates.sh checks
+// it on Linux.
 
 /// Where Send tasks sends.
 enum TaskDestination: String, CaseIterable, Identifiable, Sendable {
-    case reminders, things, omnifocus, share
+    case verboseTasks, reminders, things, omnifocus, share
 
     var id: String { rawValue }
 
     /// The To menu's name.
     var title: String {
         switch self {
+        case .verboseTasks: return "Verbose Tasks"
         case .reminders: return "Reminders"
         case .things: return "Things"
         case .omnifocus: return "OmniFocus"
@@ -36,6 +43,7 @@ enum TaskDestination: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .things: return "things"
         case .omnifocus: return "omnifocus"
+        case .verboseTasks: return "verbosetasks"
         case .reminders, .share: return nil
         }
     }
@@ -55,17 +63,18 @@ enum TaskDestination: String, CaseIterable, Identifiable, Sendable {
         allCases.filter { $0.scheme == nil || installed($0) }
     }
 
-    /// Where the sheet starts: the last place you sent to while it's still offered, otherwise Reminders.
+    /// Where the sheet starts: the last place you sent to while it's still offered, otherwise Verbose Tasks when it's
+    /// installed, otherwise Reminders.
     static func starting(last: TaskDestination?, offered: [TaskDestination]) -> TaskDestination {
         if let last, offered.contains(last) { return last }
-        return .reminders
+        return offered.contains(.verboseTasks) ? .verboseTasks : .reminders
     }
 
     /// The sheet's confirm button: "Add 4 to Reminders", "Add 4 to Things", "Share 4".
     func actionTitle(count: Int) -> String {
         switch self {
         case .reminders: return count == 0 ? "Add to Reminders" : "Add \(count) to Reminders"
-        case .things, .omnifocus: return count == 0 ? "Add to \(title)" : "Add \(count) to \(title)"
+        case .verboseTasks, .things, .omnifocus: return count == 0 ? "Add to \(title)" : "Add \(count) to \(title)"
         case .share: return count == 0 ? "Share" : "Share \(count)"
         }
     }
@@ -74,6 +83,7 @@ enum TaskDestination: String, CaseIterable, Identifiable, Sendable {
     var footer: String {
         switch self {
         case .reminders: return "A task gets a due date only when you said a day."
+        case .verboseTasks: return "Verbose Tasks opens and adds them, planned for the day you said, each with a link back to its moment. A task already there isn\u{2019}t added again."
         case .things: return "Things opens and adds them to your Inbox, with Today for a task due today and a deadline when you said a day. Each one notes the recording it came from."
         case .omnifocus: return "OmniFocus opens and adds them to your Inbox, with a due date when you said a day."
         case .share: return "Opens the share sheet with the checked tasks as a checklist, one per line, for apps like Todoist and TickTick."
@@ -160,7 +170,68 @@ enum TaskSend {
         switch destination {
         case .things: return thingsURL(drafts, today: today, calendar: calendar)
         case .omnifocus: return omniFocusURL(drafts)
-        case .reminders, .share: return nil
+        case .verboseTasks, .reminders, .share: return nil
+        }
+    }
+
+    // MARK: Verbose Tasks
+
+    /// One task for Verbose Tasks: its tidy words, its key (`DayPlan.Item.key`, how Verbose Tasks knows it already has
+    /// it), its moment in seconds, and the day you said, as its plan date.
+    struct HandoffTask: Equatable {
+        var title: String
+        var key: String
+        var at: Double?
+        var plan: DateComponents?
+    }
+
+    /// The checked items as Verbose Tasks' tasks, in the plan's order.
+    static func handoffTasks(_ plan: DayPlan, selected: Set<String>, sent: [String: String], recordedAt: Date,
+                             calendar: Calendar = .current) -> [HandoffTask] {
+        (plan.tasks + plan.ideas).filter { selected.contains($0.key) && sent[$0.key] == nil }.map {
+            HandoffTask(title: $0.text, key: $0.key, at: $0.anchor, plan: DayPlan.due($0, recordedAt: recordedAt, calendar: calendar))
+        }
+    }
+
+    /// The transfer Verbose Tasks reads (its TasksCore `TransferPackage`, format 1, destination "tasks only": they were
+    /// reviewed here). Dates are ISO 8601 and keys sorted. Nil with nothing to send.
+    static func handoffTransfer(id: UUID, sentAt: Date, tasks: [HandoffTask], recordID: UUID?, capturedAt: Date,
+                                sourceTitle: String) -> Data? {
+        guard !tasks.isEmpty else { return nil }
+        let iso = ISO8601DateFormatter()
+        var source: [String: Any] = ["app": "verbose", "excerpt": sourceTitle, "capturedAt": iso.string(from: capturedAt), "title": sourceTitle]
+        if let recordID { source["recordID"] = recordID.uuidString }
+        let items: [[String: Any]] = tasks.map { t in
+            var o: [String: Any] = ["title": t.title, "key": t.key]
+            if let at = t.at { o["at"] = at }
+            if let p = t.plan, let y = p.year, let m = p.month, let d = p.day { o["plan"] = ["year": y, "month": m, "day": d] }
+            return o
+        }
+        let package: [String: Any] = [
+            "formatVersion": 1,
+            "transferID": id.uuidString,
+            "sentAt": iso.string(from: sentAt),
+            "source": source,
+            "destination": ["tasksOnly": [String: Any]()],
+            "text": tasks.map(\.title).joined(separator: "\n"),
+            "title": sourceTitle,
+            "tasks": items,
+        ]
+        return try? JSONSerialization.data(withJSONObject: package, options: [.sortedKeys])
+    }
+
+    /// What Verbose Tasks wrote back (`Receipts/<id>.json`), as the line Verbose shows. Nil when it can't be read.
+    static func handoffMessage(receipt data: Data) -> String? {
+        guard let o = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any], let status = o["status"] as? String else { return nil }
+        let added = (o["taskIDs"] as? [Any])?.count ?? 0
+        let had = (o["alreadyHad"] as? Int) ?? 0
+        func tasks(_ n: Int) -> String { n == 1 ? "1 task" : "\(n) tasks" }
+        switch status {
+        case "needsUpdate": return "Update Verbose Tasks to add these tasks."
+        case "alreadySaved": return "Verbose Tasks already has these tasks."
+        default:
+            if added == 0 { return had > 0 ? "Verbose Tasks already has these tasks." : "Saved to Verbose Tasks" }
+            return had > 0 ? "Saved \(tasks(added)) to Verbose Tasks. It already had \(had)." : "Saved \(tasks(added)) to Verbose Tasks"
         }
     }
 }

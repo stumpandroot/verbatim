@@ -47,11 +47,14 @@ struct DayPlan: Equatable {
         var anchor: Double?
         var weekday: Int?
         var section: Section
+        /// The words as the model wrote them, before `tidyTask` or `tidyIdea`, when tidying changed them.
+        var said: String? = nil
         var id: String { key }
         var isIdea: Bool { section == .ideas }
 
-        /// Matches a task across Run again and a second send: its words, folded, and its line.
-        var key: String { DayPlan.key(text, anchor) }
+        /// Matches a task across Run again and a second send: its words as the model wrote them, folded, and its line.
+        /// The untidied words, so a plan sent before tidying (October 31, 2026) still knows what it sent.
+        var key: String { DayPlan.key(said ?? text, anchor) }
     }
 
     var top: [Item] = []
@@ -171,7 +174,117 @@ struct DayPlan: Equatable {
             text.removeSubrange(m)
         }
         text = text.trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "–—-:;,")))
-        return Item(text: text, anchor: anchor, weekday: weekday, section: section)
+        let tidy = section == .ideas ? tidyIdea(text) : tidyTask(text)
+        return Item(text: tidy, anchor: anchor, weekday: weekday, section: section, said: tidy == text ? nil : text)
+    }
+
+    // MARK: Tidy (October 31, 2026)
+    //
+    // The on-device model often copies a brain dump's words into a task as they were said: "make a to make a call with
+    // Manny about the props in", "email Dana because they never paid…". Each task becomes a short to-do that starts with
+    // the action: no filler or false starts, no "I need to", no reason clause, no dangling last word, a capital first
+    // letter and no closing period. The words a task came from stay a tap away (its time plays the line). Ideas keep
+    // the speaker's words, with only the filler and repeats taken out.
+
+    /// A task as a short to-do: "Make a call with Manny about the props".
+    static func tidyTask(_ raw: String) -> String {
+        var t = normalized(raw)
+        // The first sentence only: what comes after is the speaker thinking out loud.
+        if let r = t.range(of: #"[.!?]\s+(?=\S)"#, options: .regularExpression), t[..<r.lowerBound].split(separator: " ").count >= 2 {
+            t = String(t[..<r.lowerBound])
+        }
+        t = removeFiller(t)
+        // "I need to", "make sure that I", "I might as well even", "also", "and then" at the front, as often as they come.
+        let leads = [
+            #"^(and|also|then|so|okay|ok|well|but|plus|oh|now)\b,?\s*"#,
+            #"^(i|we)\s+(also\s+|really\s+|still\s+|probably\s+|definitely\s+|just\s+)*(need|needs|want|have|has|got|would like|plan|hope|am going|'m going)\s+to\s+"#,
+            #"^(i|we)\s+(also\s+|really\s+|still\s+|probably\s+|definitely\s+|just\s+)*(gotta|wanna|should|must|will|'m gonna|am gonna)\s+"#,
+            #"^(i'd|we'd)\s+like\s+to\s+"#,
+            #"^(i'll|we'll)\s+"#,
+            #"^(i\s+)?might as well\s+(even\s+)?"#,
+            #"^(make sure|remember|don't forget|do not forget)\s+(that\s+)?(to\s+)?(i\s+|we\s+)?"#,
+            #"^(need|want|have|got|going)\s+to\s+"#,
+            #"^(gotta|gonna|wanna)\s+"#,
+            #"^(also|maybe|probably|definitely|really|even|still|actually)\s+"#,
+            #"^to\s+"#,
+        ]
+        var changed = true
+        while changed {
+            changed = false
+            for p in leads {
+                if let r = t.range(of: p, options: [.regularExpression, .caseInsensitive]), !r.isEmpty, t[r.upperBound...].split(separator: " ").count >= 2 {
+                    t.removeSubrange(r); changed = true
+                }
+            }
+        }
+        // The reason: "because they never paid…", ", so that's on him".
+        if let r = t.range(of: #"(,?\s+(because|cause|'cause|since|so that)\b|,\s+so\b).*$"#, options: [.regularExpression, .caseInsensitive]),
+           t[..<r.lowerBound].split(separator: " ").count >= 2 {
+            t.removeSubrange(r)
+        }
+        // Still long: drop what's chained on after "and then", then cut at the first comma.
+        if t.count > 60, let r = t.range(of: #"\s+(and then|and also)\b.*$"#, options: [.regularExpression, .caseInsensitive]),
+           t[..<r.lowerBound].split(separator: " ").count >= 3 {
+            t.removeSubrange(r)
+        }
+        if t.count > 70, let r = t.range(of: #",\s.*$"#, options: .regularExpression), t[..<r.lowerBound].split(separator: " ").count >= 3 {
+            t.removeSubrange(r)
+        }
+        t = trimEnds(t, dangling: true)
+        let out = capitalizedFirst(t)
+        return out.count >= 2 ? out : capitalizedFirst(trimEnds(normalized(raw), dangling: false))
+    }
+
+    /// An idea in the speaker's words, without the filler and repeats.
+    static func tidyIdea(_ raw: String) -> String {
+        let t = capitalizedFirst(trimEnds(removeFiller(normalized(raw)), dangling: false))
+        return t.count >= 2 ? t : raw
+    }
+
+    /// Curly apostrophes as straight ones (so the patterns match) and single spaces.
+    private static func normalized(_ s: String) -> String {
+        s.replacingOccurrences(of: "\u{2019}", with: "'")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// "um", "uh", "you know", "I mean", "just", "so like", and words said twice ("a a", "make a to make a").
+    private static func removeFiller(_ s: String) -> String {
+        var t = s
+        t = t.replacingOccurrences(of: #"\bso like\b"#, with: "like", options: [.regularExpression, .caseInsensitive])
+        t = t.replacingOccurrences(of: #",?\s*\b(um+|uh+|uhm+|erm+|hmm+|you know|i mean|kind of|sort of|basically|literally|just)\b,?"#,
+                                   with: " ", options: [.regularExpression, .caseInsensitive])
+        t = t.replacingOccurrences(of: #"\b(like|so),\s"#, with: " ", options: [.regularExpression, .caseInsensitive])
+        t = t.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        // Up to three words said twice ("a a"), and a restart of two or three words with "to" between ("make a to
+        // make a"). One word with "to" between stays, for "day to day" and "back to back".
+        for _ in 0..<3 {
+            var next = t.replacingOccurrences(of: #"\b(\w+(?:\s+\w+){0,2})\s+\1\b"#, with: "$1", options: [.regularExpression, .caseInsensitive])
+            next = next.replacingOccurrences(of: #"\b(\w+\s+\w+(?:\s+\w+)?)\s+to\s+\1\b"#, with: "$1", options: [.regularExpression, .caseInsensitive])
+            if next == t { break }
+            t = next
+        }
+        return t.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Spaces and punctuation off both ends, and with `dangling`, a last word that leaves the task hanging ("about
+    /// the props in").
+    private static func trimEnds(_ s: String, dangling: Bool) -> String {
+        let edge = CharacterSet.whitespaces.union(CharacterSet(charactersIn: ",.;:!?\u{2013}\u{2014}-"))
+        var t = s.trimmingCharacters(in: edge)
+        guard dangling else { return t }
+        while let r = t.range(of: #"\s+(in|and|so|to|for|with|of|the|a|an|at|on|but|or|about|from|that|like|um|uh|then|also)$"#,
+                              options: [.regularExpression, .caseInsensitive]),
+              t[..<r.lowerBound].split(separator: " ").count >= 2 {
+            t.removeSubrange(r)
+            t = t.trimmingCharacters(in: edge)
+        }
+        return t
+    }
+
+    private static func capitalizedFirst(_ s: String) -> String {
+        guard let f = s.first else { return s }
+        return f.uppercased() + s.dropFirst()
     }
 
     /// "0:04", "1:06", "1:02:14": a line's time, as the plan shows it.

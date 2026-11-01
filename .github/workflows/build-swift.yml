@@ -1254,20 +1254,38 @@ jobs:
             fi
             return 0
           }
+          # Regenerates the project: gen <VERBOSE_WATCH> <VERBOSE_HANDOFF>, with this track's YouTubeKit switch.
+          gen() {
+            local ytk=YES; [ "${{ matrix.track }}" != internal ] && ytk=NO
+            VERBOSE_WATCH="$1" VERBOSE_HANDOFF="$2" VERBOSE_YOUTUBEKIT=$ytk bash tools/generate-project.sh
+            bash tools/package-resolved.sh install
+          }
           # The Apple Watch app goes in first. If anything fails with it in (a new bundle ID that doesn't sign, most
           # likely), the iPhone app ships without it: the project is generated again with VERBOSE_WATCH=NO and the
           # archive and upload run once more (mac/APP_STORE.md, "Apple Watch").
+          shipped=""; nowatch=""
           if grep -q "Embed Watch Content" Verbatim.xcodeproj/project.pbxproj; then
-            if ! ship warning; then
+            if ship warning; then shipped=1; else
               echo "::warning::The iPhone app didn't archive or upload with the Apple Watch app in it (the warnings above say why). Trying once more without the watch app."
-              YTK=YES; [ "${{ matrix.track }}" != internal ] && YTK=NO
-              VERBOSE_WATCH=NO VERBOSE_YOUTUBEKIT=$YTK bash tools/generate-project.sh
-              bash tools/package-resolved.sh install
-              ship error || exit 1
-              echo "::warning::TestFlight build ${BUILD_NO} was uploaded without the Apple Watch app, which failed to archive, sign, or upload with it. See mac/APP_STORE.md, \"Apple Watch\"."
+              gen NO YES; nowatch=1
             fi
-          else
-            ship error || exit 1
+          fi
+          # Then the App Group shared with Verbose Tasks (Send tasks, mac/APP_STORE.md "Verbose Tasks"). If signing
+          # doesn't have it yet, the build ships without it, and Send tasks leaves Verbose Tasks out of its menu.
+          if [ -z "$shipped" ]; then
+            if grep -rq "group.co.stumpandroot.handoff" VerbatimPhone/VerbatimPhone.entitlements 2>/dev/null; then
+              if ship warning; then shipped=1; else
+                echo "::warning::The iPhone app didn't archive or upload with the Verbose Tasks App Group (the warnings above say why). Trying once more without it."
+                gen NO NO; nowatch=1
+                ship error || exit 1
+                echo "::warning::TestFlight build ${BUILD_NO} was uploaded without the Verbose Tasks App Group, so Send tasks can't offer Verbose Tasks. Add group.co.stumpandroot.handoff to the co.stumpandroot.verbatim.ios App ID; see mac/APP_STORE.md, \"Verbose Tasks\"."
+              fi
+            else
+              ship error || exit 1
+            fi
+          fi
+          if [ -n "$nowatch" ]; then
+            echo "::warning::TestFlight build ${BUILD_NO} was uploaded without the Apple Watch app, which failed to archive, sign, or upload with it. See mac/APP_STORE.md, \"Apple Watch\"."
           fi
           echo "::notice::iPhone build ${BUILD_NO} uploaded to TestFlight"
 

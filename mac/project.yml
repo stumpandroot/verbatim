@@ -548,8 +548,8 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         # The keyboard session's Live Activity (KeyboardSession.swift, VerbatimWidgets).
         NSSupportsLiveActivities: true
-        # Send tasks (TaskSend.swift) offers Things and OmniFocus only when they're installed (canOpenURL).
-        LSApplicationQueriesSchemes: [things, omnifocus]
+        # Send tasks (TaskSend.swift) offers Verbose Tasks, Things, and OmniFocus only when they're installed (canOpenURL).
+        LSApplicationQueriesSchemes: [verbosetasks, things, omnifocus]
         # verbatim://session?start=1… opens the app from the Verbatim keyboard to start a session.
         CFBundleURLTypes:
           - CFBundleURLName: co.stumpandroot.verbatim.ios
@@ -563,7 +563,11 @@ targets:
         com.apple.developer.icloud-services: [CloudDocuments]
         com.apple.developer.ubiquity-container-identifiers: [iCloud.co.stumpandroot.verbatim]
         # Shared with the keyboard (KeyboardBridge.appGroup). Xcode's automatic signing registers the group.
-        com.apple.security.application-groups: [group.co.stumpandroot.verbatim.ios]
+        com.apple.security.application-groups:
+          - group.co.stumpandroot.verbatim.ios
+          # >>> Verbose Tasks: Send tasks hands tasks to Verbose Tasks through this group (VerboseTasksHandoff). VERBOSE_HANDOFF=NO leaves it out.
+          - group.co.stumpandroot.handoff
+          # <<< Verbose Tasks
     settings:
       base:
         SWIFT_OBJC_BRIDGING_HEADER: Verbatim/Bridging.h

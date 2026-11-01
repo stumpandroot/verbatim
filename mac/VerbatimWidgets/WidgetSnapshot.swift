@@ -222,6 +222,13 @@ enum WidgetLink: Equatable {
         return c.url ?? url
     }
 
+    /// The moment a transcript link opens at (`t=` seconds, as Verbose Tasks' Play sends it), if any.
+    static func moment(in url: URL) -> Double? {
+        guard let v = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "t" })?.value,
+              let t = Double(v), t.isFinite, t >= 0 else { return nil }
+        return t
+    }
+
     /// The key a link carries (`k=`), if any.
     static func key(in url: URL) -> String? {
         URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "k" }?.value
