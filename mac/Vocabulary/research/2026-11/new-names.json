@@ -1,0 +1,220 @@
+{
+ "area": "new-names",
+ "candidates": [
+  {
+   "term": "GPT-6",
+   "category": "AI",
+   "heard": [
+    "gpt 6",
+    "gpt six",
+    "g p t 6",
+    "gpt-six"
+   ],
+   "confidence": "medium",
+   "why": "OpenAI's current ChatGPT model family (GPT-6 Astra, Luna, and Sol, September 2026). Same shape as the existing GPT-5 entry; the guard leaves 'gpt 6.1' to the longer form.",
+   "sources": [
+    "https://help.openai.com/en/articles/20001354-gpt-6-and-other-models-in-chatgpt",
+    "https://developers.openai.com/api/docs/guides/latest-model",
+    "https://www.nocode.mba/ai-release-tracker"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "GPT-6.1",
+   "category": "AI",
+   "heard": [
+    "gpt 6.1",
+    "gpt 6 point 1",
+    "gpt six point one"
+   ],
+   "confidence": "medium",
+   "why": "GPT-6.1 Sol (September 29) and GPT-6.1 Terra (October 26). Without it, 'gpt 6.1' stays unhyphenated.",
+   "sources": [
+    "https://openai.com/index/introducing-gpt-6-1-terra/",
+    "https://releasebot.io/updates/openai"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "GPT-6.1 Terra",
+   "category": "AI",
+   "heard": [
+    "gpt 6.1 terra",
+    "gpt 6 point 1 terra",
+    "gpt six point one terra"
+   ],
+   "confidence": "medium",
+   "why": "Released October 26, 2026 in ChatGPT Work, Codex, and the API. Every form starts with 'gpt', so none is ordinary English.",
+   "sources": [
+    "https://openai.com/index/introducing-gpt-6-1-terra/",
+    "https://developers.openai.com/api/docs/models/gpt-6.1-terra",
+    "https://cybersecuritynews.com/openai-unveils-gpt-6-1-terra/"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "Gemini 4",
+   "category": "AI",
+   "heard": [
+    "gemini 4"
+   ],
+   "confidence": "medium",
+   "why": "Google's new model family. Bare 'gemini' stays context-only; with the digit it's always this name (or NASA's Gemini 4, which is spelled the same).",
+   "sources": [
+    "https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-4-argon/"
+   ],
+   "risk": "low: 'Gemini four' in astrology talk, so the spelled-out form is left out"
+  },
+  {
+   "term": "Gemini 4 Argon",
+   "category": "AI",
+   "heard": [
+    "gemini 4 argon",
+    "gemini four argon"
+   ],
+   "confidence": "medium",
+   "why": "Generally available October 13, 2026 in the Gemini app and API.",
+   "sources": [
+    "https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-4-argon/",
+    "https://ai.google.dev/gemini-api/docs/models/gemini-4-argon",
+    "https://jetstream.blog/en/gemini-drops-october-2026/"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "Claude Fable",
+   "category": "AI",
+   "heard": [
+    "claude fable",
+    "claud fable"
+   ],
+   "confidence": "medium",
+   "why": "Anthropic model line (Claude Fable 5.1, September 1, 2026). 'fable' alone is English, so it's paired with claude.",
+   "sources": [
+    "https://www.anthropic.com/claude/fable",
+    "https://www.anthropic.com/claude-fable-and-mythos-5-1"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "Claude Mythos",
+   "category": "AI",
+   "heard": [
+    "claude mythos",
+    "claud mythos"
+   ],
+   "confidence": "medium",
+   "why": "Anthropic model line (Claude Mythos 5.1, September 1, 2026; restricted access).",
+   "sources": [
+    "https://www.anthropic.com/claude/mythos",
+    "https://en.wikipedia.org/wiki/Claude_Mythos"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "Grok 3",
+   "category": "AI",
+   "heard": [
+    "grok 3"
+   ],
+   "existing": true,
+   "confidence": "high",
+   "why": "Fix: these forms were under 'Grok', so 'grok 3' became 'Grok' and lost its number. Moved to its own term.",
+   "sources": [
+    "https://x.ai/news/grok-3"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "Grok 4",
+   "category": "AI",
+   "heard": [
+    "grok 4"
+   ],
+   "existing": true,
+   "confidence": "high",
+   "why": "Fix: 'grok 4' became 'Grok'. Moved to its own term. Grok 4.7 (September 21, 2026) is left alone by the decimal guard.",
+   "sources": [
+    "https://x.ai/news/grok-4",
+    "https://www.nocode.mba/ai-release-tracker"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "iPhone 18 Pro",
+   "category": "Devices",
+   "heard": [
+    "iphone 18 pro",
+    "i phone 18 pro",
+    "iphone eighteen pro"
+   ],
+   "confidence": "medium",
+   "why": "In stores September 18, 2026. The iPhone rule wrote 'iPhone 18 pro' with a lowercase p.",
+   "sources": [
+    "https://www.apple.com/newsroom/2026/09/the-latest-iphone-apple-watch-and-airpods-lineups-arrive-in-stores-worldwide/",
+    "https://www.apple.com/newsroom/2026/09/get-ready-to-experience-iphone-18-pro-the-new-apple-watch-lineup-and-airpods-5/"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "iPhone 18 Pro Max",
+   "category": "Devices",
+   "heard": [
+    "iphone 18 pro max",
+    "i phone 18 pro max",
+    "iphone eighteen pro max"
+   ],
+   "confidence": "medium",
+   "why": "Same release; fixes 'pro max' casing.",
+   "sources": [
+    "https://www.apple.com/newsroom/2026/09/the-latest-iphone-apple-watch-and-airpods-lineups-arrive-in-stores-worldwide/"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "Apple Watch Series 12",
+   "category": "Devices",
+   "heard": [
+    "apple watch series 12",
+    "apple watch series twelve"
+   ],
+   "confidence": "medium",
+   "why": "Fixes 'series' casing after the Apple Watch rule.",
+   "sources": [
+    "https://www.apple.com/newsroom/2026/09/the-latest-iphone-apple-watch-and-airpods-lineups-arrive-in-stores-worldwide/",
+    "https://www.apple.com/in/newsroom/2026/09/introducing-apple-watch-series-12-with-the-all-new-health-sensing-system/"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "Apple Watch Ultra 4",
+   "category": "Devices",
+   "heard": [
+    "apple watch ultra 4",
+    "apple watch ultra four"
+   ],
+   "confidence": "medium",
+   "why": "Fixes 'ultra' casing after the Apple Watch rule.",
+   "sources": [
+    "https://www.apple.com/newsroom/2026/09/the-latest-iphone-apple-watch-and-airpods-lineups-arrive-in-stores-worldwide/",
+    "https://www.apple.com/sg/newsroom/2026/09/apple-unveils-apple-watch-ultra-4/"
+   ],
+   "risk": "none"
+  },
+  {
+   "term": "Rickroll",
+   "category": "General",
+   "heard": [
+    "rickroll",
+    "rick-roll"
+   ],
+   "confidence": "low",
+   "why": "Added to Merriam-Webster September 15, 2026 with a capital R. Both forms are non-words; 'rick roll' (spaced) is left out because Rick is a name. Inflections like 'rickrolled' stay as dictated.",
+   "sources": [
+    "https://www.merriam-webster.com/dictionary/Rickroll",
+    "https://www.merriam-webster.com/wordplay/new-words-in-the-dictionary"
+   ],
+   "risk": "none"
+  }
+ ]
+}

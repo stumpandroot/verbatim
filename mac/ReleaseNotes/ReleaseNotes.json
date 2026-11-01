@@ -18,6 +18,14 @@
           ],
           "text": "Send tasks can send to Verbose Tasks when it's installed.",
           "detail": "Tasks arrive planned for the day you said, and Play in Verbose Tasks opens the recording at that moment. Verbose says what was saved when you come back."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Built-in vocabulary spells this fall's new names, like GPT-6.1 Terra and iPhone 18 Pro.",
+          "detail": "Also Gemini 4 Argon, Claude Fable, Claude Mythos, and Apple Watch Ultra 4. \"grok 4\" now becomes \"Grok 4\" instead of losing its number."
         }
       ]
     },

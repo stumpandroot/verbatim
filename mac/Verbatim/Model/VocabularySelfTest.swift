@@ -49,6 +49,15 @@ enum VocabularySelfTest {
         check("vocabulary: look-alike names change next to their context words", fixes("We drove to Pittsburg PA.", "We drove to Pittsburgh PA.")
               && fixes("Send it to my Kofi page.", "Send it to my Ko-fi page."))
 
+        // Word patch 2 (version 3): fall 2026 names, and Grok keeps its version number.
+        check("vocabulary: patch 2 is in the list", BuiltInVocabulary.terms.contains { $0.term == "GPT-6.1 Terra" }
+              && BuiltInVocabulary.terms.contains { $0.term == "Apple Watch Ultra 4" })
+        check("vocabulary: fall 2026 names", fixes("Try gpt 6.1 terra, then gemini 4 argon.", "Try GPT-6.1 Terra, then Gemini 4 Argon.")
+              && fixes("Ask claude fable on my iphone 18 pro max.", "Ask Claude Fable on my iPhone 18 Pro Max.")
+              && fixes("Compare grok 3 and grok 4.", "Compare Grok 3 and Grok 4."))
+        check("vocabulary: patch 2 look-alikes stay", same("Claude read the kids a fable about a fox.")
+              && same("We got rickrolled at the party."))
+
         // Everyday fixes: every example in the file becomes its fix, every "keep" stays, and a few more.
         let everyday = EverydayFixes.fixes
         func mended(_ s: String) -> String { EverydayFixes.apply(s, fixes: everyday) }

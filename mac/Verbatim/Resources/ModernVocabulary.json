@@ -1,5 +1,5 @@
 {
- "version": 2,
+ "version": 3,
  "about": "Built-in modern vocabulary. heard: replaced in any case. exact: replaced only when written exactly so. context: replaced only next to a context word or capitalized mid-sentence. after: extra context words for this term. boost: false keeps a term out of recognition boosting.",
  "terms": [
   {
@@ -179,6 +179,14 @@
    ],
    "context": [
     "cloud code"
+   ]
+  },
+  {
+   "term": "Claude Fable",
+   "category": "AI",
+   "heard": [
+    "claude fable",
+    "claud fable"
    ]
   },
   {
@@ -686,6 +694,22 @@
    ]
   },
   {
+   "term": "Apple Watch Series 12",
+   "category": "Devices",
+   "heard": [
+    "apple watch series 12",
+    "apple watch series twelve"
+   ]
+  },
+  {
+   "term": "Apple Watch Ultra 4",
+   "category": "Devices",
+   "heard": [
+    "apple watch ultra 4",
+    "apple watch ultra four"
+   ]
+  },
+  {
    "term": "Apple Pencil",
    "category": "Devices",
    "heard": [
@@ -1142,6 +1166,34 @@
     "gpt five",
     "g p t 5",
     "gpt-five"
+   ]
+  },
+  {
+   "term": "GPT-6",
+   "category": "AI",
+   "heard": [
+    "gpt 6",
+    "gpt six",
+    "g p t 6",
+    "gpt-six"
+   ]
+  },
+  {
+   "term": "GPT-6.1",
+   "category": "AI",
+   "heard": [
+    "gpt 6.1",
+    "gpt 6 point 1",
+    "gpt six point one"
+   ]
+  },
+  {
+   "term": "GPT-6.1 Terra",
+   "category": "AI",
+   "heard": [
+    "gpt 6.1 terra",
+    "gpt 6 point 1 terra",
+    "gpt six point one terra"
    ]
   },
   {
@@ -5114,9 +5166,21 @@
    "category": "AI",
    "heard": [
     "grok ai",
-    "grok 3",
-    "grok 4",
     "grock ai"
+   ]
+  },
+  {
+   "term": "Grok 3",
+   "category": "AI",
+   "heard": [
+    "grok 3"
+   ]
+  },
+  {
+   "term": "Grok 4",
+   "category": "AI",
+   "heard": [
+    "grok 4"
    ]
   },
   {
@@ -5156,6 +5220,14 @@
    "heard": [
     "claude haiku",
     "claud haiku"
+   ]
+  },
+  {
+   "term": "Claude Mythos",
+   "category": "AI",
+   "heard": [
+    "claude mythos",
+    "claud mythos"
    ]
   },
   {
@@ -5460,6 +5532,21 @@
     "gemini cli",
     "gemini c l i",
     "gemini c.l.i."
+   ]
+  },
+  {
+   "term": "Gemini 4",
+   "category": "AI",
+   "heard": [
+    "gemini 4"
+   ]
+  },
+  {
+   "term": "Gemini 4 Argon",
+   "category": "AI",
+   "heard": [
+    "gemini 4 argon",
+    "gemini four argon"
    ]
   },
   {
@@ -6145,6 +6232,24 @@
    "heard": [
     "iphone air",
     "i phone air"
+   ]
+  },
+  {
+   "term": "iPhone 18 Pro",
+   "category": "Devices",
+   "heard": [
+    "iphone 18 pro",
+    "i phone 18 pro",
+    "iphone eighteen pro"
+   ]
+  },
+  {
+   "term": "iPhone 18 Pro Max",
+   "category": "Devices",
+   "heard": [
+    "iphone 18 pro max",
+    "i phone 18 pro max",
+    "iphone eighteen pro max"
    ]
   },
   {
@@ -7569,6 +7674,14 @@
    "category": "General",
    "heard": [
     "bonafide"
+   ]
+  },
+  {
+   "term": "Rickroll",
+   "category": "General",
+   "heard": [
+    "rickroll",
+    "rick-roll"
    ]
   },
   {
