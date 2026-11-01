@@ -3,7 +3,7 @@ import SwiftUI
 /// What's new (the version at the foot of Settings, search, and Home's note): every build's
 /// notes, newest first, from the bundled ReleaseNotes.json (Verbatim/Model/ReleaseNotes.swift), grouped under version
 /// headers ("Version 1.0 beta"): the newest version open, older ones closed until tapped. On the refined kit (DESIGN.md
-/// §13): the large serif title, then one card per build. The newest build's card leads with the butter hero
+/// §13): the large serif title, then one card per build. The newest build's card leads with the persimmon hero
 /// (WhatsNewSheet.swift); the others show the build and date in the meta style ("Build 203 · Oct 25") over the title in
 /// the section serif. Each change is a row with its icon in a colored square and its headline (`WhatsNewItemRow`),
 /// smaller in older builds. The items for this iPhone lead (iPhone, then Apple Watch, labeled only when both have

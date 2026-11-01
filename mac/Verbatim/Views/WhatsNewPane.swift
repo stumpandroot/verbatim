@@ -77,7 +77,7 @@ struct WhatsNewVersionHeader: View {
 }
 
 /// One build: a card with its build line, its title in the serif, and its items, each beside its icon in a colored
-/// square (WhatsNewSheet.swift). The newest build's card leads with the butter hero instead of the build line.
+/// square (WhatsNewSheet.swift). The newest build's card leads with the persimmon hero instead of the build line.
 struct WhatsNewCard: View {
     var note: ReleaseNote
     var newest = false

@@ -2,10 +2,10 @@ import SwiftUI
 
 // What's new, the picture version (DESIGN.md §13, "What's new"), shared by the Mac and iPhone apps. After an update to
 // a build marked big (ReleaseNotes.json, `ReleaseNotes.popup`), the sheet opens once by itself: the build's title in
-// the serif on a butter hero with a line-art gift, each of this device's changes beside its icon in a colored square
-// (butter, sage, persimmon, petal in turn), one line for the other devices' changes, Continue, and See every update.
-// Quieter builds keep Home's note. The What's new list (WhatsNewScreen.swift, WhatsNewPane.swift) uses the same hero
-// for the newest build and the same rows for every build.
+// the serif on a persimmon hero (the Record card's color) with a line-art gift, each of this device's changes beside
+// its icon in a colored square (persimmon, butter, sage, petal in turn), one line for the other devices' changes,
+// Continue, and See every update. Quieter builds keep Home's note. The What's new list (WhatsNewScreen.swift,
+// WhatsNewPane.swift) uses the same hero for the newest build and the same rows for every build.
 
 extension BrandArt {
     /// The line icon for a release item's `icon` name (`ReleaseNotes.icons`); "notes" and anything unknown draw the
@@ -59,7 +59,7 @@ extension BrandArt {
 
 enum WhatsNewLook {
     /// The squares' colors in turn, so a build's changes read as separate things.
-    static let hues: [RefinedHue] = [.butter, .sage, .persimmon, .petal]
+    static let hues: [RefinedHue] = [.persimmon, .butter, .sage, .petal]
     static func hue(_ index: Int) -> RefinedHue { hues[((index % hues.count) + hues.count) % hues.count] }
 
     /// "Your words calendar · Change kind while recording": the other devices' changes on one line, by headline, or
@@ -92,7 +92,7 @@ struct WhatsNewGiftArt: Shape {
     }
 }
 
-/// The butter hero: a small bold line ("What's new · Build 266") over the title in the serif, the gift in the corner.
+/// The persimmon hero, in the Record card's color: a small bold line ("What's new · Build 266") over the title in the serif, the gift in the corner.
 /// Compact is the list's size.
 struct WhatsNewHero: View {
     var eyebrow: String
@@ -114,7 +114,7 @@ struct WhatsNewHero: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
         }
-        .foregroundStyle(Refined.onFill(.butter, palette))
+        .foregroundStyle(Refined.onFill(.persimmon, palette))
         .padding(.horizontal, 20).padding(.vertical, 18)
         .frame(maxWidth: .infinity, minHeight: compact ? 128 : (mac ? 160 : 176), alignment: .bottomLeading)
         .background(alignment: .topTrailing) {
@@ -124,7 +124,7 @@ struct WhatsNewHero: View {
                 .offset(x: 22, y: -28)
                 .accessibilityHidden(true)
         }
-        .refinedSurface(Refined.fill(.butter, palette), radius: radius)
+        .refinedSurface(Refined.fill(.persimmon, palette), radius: radius)
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         .accessibilityElement(children: .combine)
     }
