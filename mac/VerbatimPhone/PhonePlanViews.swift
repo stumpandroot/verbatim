@@ -109,6 +109,7 @@ struct PhonePlanResult: View {
     private func open(_ plan: DayPlan, only: DayPlan.Item?) {
         let model = SendToReminders(plan: plan, sent: sent, recordedAt: transcript.createdAt, source: transcript.kind == .brainDump ? "Brain dump" : transcript.title,
                                     anchorLabel: { $0.anchor.map(DayPlan.clock) })
+        model.recordID = transcript.id
         if let only { model.selection = [only.key] }
         sheet = model
     }
@@ -318,10 +319,10 @@ struct PhoneRemindersSheet: View {
         case .share:
             TaskApps.last = .share
             shareText = TaskSend.checklist(model.checkedDrafts, title: model.checklistTitle, now: Date())
-        case .things, .omnifocus:
+        case .verboseTasks, .things, .omnifocus:
             let d = destination
             let drafts = model.checkedDrafts
-            guard let url = TaskSend.url(for: d, drafts: drafts, today: Date()) else { return }
+            guard let url = TaskSend.url(for: d, drafts: drafts, today: Date(), recordID: model.recordID, source: model.source, recordedAt: model.recordedAt) else { return }
             Task { @MainActor in
                 guard await TaskApps.open(url) else {
                     openProblem = "Couldn\u{2019}t open \(d.title). Check that it\u{2019}s installed."

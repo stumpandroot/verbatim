@@ -312,6 +312,7 @@ struct MacPlanResult: View {
     private func open(_ plan: DayPlan, _ sent: [String: String], only: DayPlan.Item?) {
         let m = SendToReminders(plan: plan, sent: sent, recordedAt: transcript.createdAt,
                                 source: transcript.kind == .brainDump ? "Brain dump" : transcript.title, anchorLabel: { $0.anchor.map(DayPlan.clock) })
+        m.recordID = transcript.id
         if let only { m.selection = [only.key] }
         model = m
     }

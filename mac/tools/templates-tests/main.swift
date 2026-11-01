@@ -575,7 +575,12 @@ do {
     check("share: a checklist with the day in parentheses",
           list == "Plan for Tue, Nov 3\n- [ ] Send the bakery invoice & receipt (Today)\n- [ ] Email kim@studio.co (Thu, Nov 5)\n- [ ] Call the print shop", list)
     let all = TaskDestination.allCases
-    check("menu: Things and OmniFocus only when installed", TaskDestination.offered(installed: { _ in false }) == [.reminders, .share] && TaskDestination.offered(installed: { _ in true }) == all)
+    let vt = TaskSend.verboseTasksURL(drafts, recordID: UUID(uuidString: "6F9A3C1E-0000-4000-8000-0000000000AA"), source: "Brain dump", recordedAt: today,
+                                      sendID: UUID(uuidString: "6F9A3C1E-0000-4000-8000-0000000000BB")!, now: today)?.absoluteString ?? ""
+    let vtJSON = vt.components(separatedBy: "data=").last?.removingPercentEncoding ?? ""
+    check("verbose tasks: one import link with the send's ID and the recording", vt.hasPrefix("verbosetasks://import?data=") && vtJSON.contains("6F9A3C1E-0000-4000-8000-0000000000BB") && vtJSON.contains("\"recordID\":\"6F9A3C1E-0000-4000-8000-0000000000AA\""), vtJSON)
+    check("verbose tasks: nothing to send is no link", TaskSend.verboseTasksURL([], recordID: nil, source: "x", recordedAt: today) == nil)
+    check("menu: Verbose Tasks, Things, and OmniFocus only when installed", TaskDestination.offered(installed: { _ in false }) == [.reminders, .share] && TaskDestination.offered(installed: { _ in true }) == all)
     check("button: names the last app while it's offered", TaskDestination.buttonTitle(last: .things, offered: all) == "Send to Things"
           && TaskDestination.buttonTitle(last: .things, offered: [.reminders, .share]) == "Send tasks"
           && TaskDestination.buttonTitle(last: .share, offered: all) == "Send tasks" && TaskDestination.buttonTitle(last: nil, offered: all) == "Send tasks")
