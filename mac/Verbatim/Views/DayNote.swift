@@ -396,8 +396,8 @@ struct MacRemindersSend: View {
                 TaskApps.last = .reminders
                 onSent(r.added, r.message)
             }
-        case .share:
-            break   // ShareLink sends
+        case .share, .verboseTasks:
+            break   // ShareLink sends; Verbose Tasks is iPhone only (TaskApps.isInstalled).
         case .things, .omnifocus:
             let drafts = model.checkedDrafts
             guard let url = TaskSend.url(for: d, drafts: drafts, today: Date()) else { return }

@@ -22,6 +22,10 @@ END = "# <<< Apple Watch"
 # The YouTubeKit switch (App Review AR-05): VERBOSE_YOUTUBEKIT=NO drops the iPhone app's YouTubeKit dependency.
 YT_BEGIN = "# >>> YouTubeKit"
 YT_END = "# <<< YouTubeKit"
+# The Verbose Tasks switch: VERBOSE_HANDOFF=NO drops the iPhone app's second App Group (group.co.stumpandroot.handoff),
+# for a TestFlight upload whose signing doesn't have it yet.
+HO_BEGIN = "# >>> Verbose Tasks"
+HO_END = "# <<< Verbose Tasks"
 
 
 def block(lines, begin=BEGIN, end=END):
@@ -96,15 +100,30 @@ def check(path):
     ystripped = strip(text, YT_BEGIN, YT_END)
     ok("youtubekit: without it, nothing depends on YouTubeKit", not re.search(r"-\s*package:\s*YouTubeKit\s*$", ystripped, re.M))
     ok("youtubekit: both switches apply together", target_names(strip(ystripped)) == target_names(text))
+    # The Verbose Tasks switch.
+    try:
+        hb, he = block(lines, HO_BEGIN, HO_END)
+    except ValueError as err:
+        ok(f"verbose tasks: {err}", False)
+        return 1
+    hinner = [l.strip() for l in lines[hb + 1:he] if l.strip() and not l.strip().startswith("#")]
+    ok("verbose tasks: the marked lines hold only the handoff App Group", hinner == ["- group.co.stumpandroot.handoff"])
+    howner = next((m.group(1) for l in reversed(lines[:hb]) for m in [re.match(r"^  ([A-Za-z][A-Za-z0-9_]*):\s*$", l)] if m), None)
+    ok("verbose tasks: the marked App Group belongs to VerbatimPhone", howner == "VerbatimPhone")
+    hstripped = strip(text, HO_BEGIN, HO_END)
+    ok("verbose tasks: without it, no target has the handoff group and the app keeps its own",
+       "group.co.stumpandroot.handoff" not in hstripped.replace(HO_BEGIN, "") and "- group.co.stumpandroot.verbatim.ios" in hstripped)
+    ok("verbose tasks: all three switches apply together", target_names(strip(strip(hstripped), YT_BEGIN, YT_END)) == target_names(text))
     return 1 if fails else 0
 
 
 def main(argv):
-    if len(argv) == 3 and argv[0] in ("--strip", "--strip-youtubekit"):
+    if len(argv) == 3 and argv[0] in ("--strip", "--strip-youtubekit", "--strip-handoff"):
         src, dest = argv[1], argv[2]
         with open(src, encoding="utf-8") as f:
             text = f.read()
-        out = strip(text) if argv[0] == "--strip" else strip(text, YT_BEGIN, YT_END)
+        marks = {"--strip": (BEGIN, END), "--strip-youtubekit": (YT_BEGIN, YT_END), "--strip-handoff": (HO_BEGIN, HO_END)}[argv[0]]
+        out = strip(text, *marks)
         with open(dest, "w", encoding="utf-8") as f:
             f.write(out)
         return 0

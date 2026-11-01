@@ -2,7 +2,29 @@
   "notes": [
     {
       "build": "next",
-      "title": "Privacy and security fixes",
+      "title": "Tidy brain dump tasks, and Send to Verbose Tasks",
+      "items": [
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Plan my day writes each task as a short to-do, without the ums, repeats, and reasons.",
+          "detail": "\"make a to make a call with Rob about the props in\" becomes \"Make a call with Rob about the props\". Plans you already made are tidied too."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Send tasks can send to Verbose Tasks when it's installed.",
+          "detail": "Tasks arrive planned for the day you said, and Play in Verbose Tasks opens the recording at that moment. Verbose says what was saved when you come back."
+        }
+      ]
+    },
+    {
+      "build": "260",
+      "date": "2026-10-31",
+      "title": "Send tasks, the free trial, and kinds on Home",
       "items": [
         {
           "platforms": [

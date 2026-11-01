@@ -199,6 +199,18 @@ The product IDs are fixed in code (`UnlockProduct`). Changing one means changing
 - **3.1.2:** not a subscription, so none of the subscription rules apply.
 - **Nothing made gets locked** (5.1.1 spirit): transcripts, results, and synced items stay readable and shareable as text after the trial; audio is never discarded; shared files wait in the inbox until the unlock.
 
+## Verbose Tasks
+
+Send tasks hands tasks to Verbose Tasks (DESIGN.md §22) through an App Group both apps share, `group.co.stumpandroot.handoff`. Verbose Tasks registered the group when it was first signed; the iPhone app (`co.stumpandroot.verbatim.ios`) adds it in `project.yml`, between the `# >>> Verbose Tasks` markers.
+
+The TestFlight job archives with the group first. If signing fails with it, the job generates the project again with `VERBOSE_HANDOFF=NO` and uploads without it, with a warning; that build leaves Verbose Tasks out of Send tasks. To fix it:
+
+1. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list), open the identifier `co.stumpandroot.verbatim.ios`.
+2. Under **App Groups**, choose **Configure**, check `group.co.stumpandroot.handoff` as well as `group.co.stumpandroot.verbatim.ios`, and save.
+3. Run the build again. The cloud-managed profiles pick up the group on the next export.
+
+App Review: nothing to declare. The group holds only the transfer and its receipt, both on the device.
+
 ## Notes for App Review
 
 Paste this into App Store Connect › App Review Information › Notes (guideline 2.3.1(a)):

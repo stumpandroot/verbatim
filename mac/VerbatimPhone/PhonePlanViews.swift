@@ -109,6 +109,7 @@ struct PhonePlanResult: View {
     private func open(_ plan: DayPlan, only: DayPlan.Item?) {
         let model = SendToReminders(plan: plan, sent: sent, recordedAt: transcript.createdAt, source: transcript.kind == .brainDump ? "Brain dump" : transcript.title,
                                     anchorLabel: { $0.anchor.map(DayPlan.clock) })
+        model.recordID = transcript.id
         if let only { model.selection = [only.key] }
         sheet = model
     }
@@ -149,6 +150,16 @@ struct PhoneSentToast: View {
 }
 
 // MARK: - Send tasks
+
+extension PhoneState {
+    /// Back from Verbose Tasks: what it saved, from its receipt ("Saved 4 tasks to Verbose Tasks").
+    func takeVerboseTasksReceipts() {
+        let lines = VerboseTasksHandoff.takeReceipts()
+        guard let last = lines.last else { return }
+        Log.note("verbose tasks: \(lines.count) receipt(s) read")
+        say(last)
+    }
+}
 
 /// Send tasks (approved mockup "Verbose Send Tasks", October 31, 2026; it was Send to Reminders), on the paper with its
 /// rows in cards: To (Reminders, Things and OmniFocus when installed, or Another app, the share sheet; TaskSend.swift),
@@ -318,6 +329,23 @@ struct PhoneRemindersSheet: View {
         case .share:
             TaskApps.last = .share
             shareText = TaskSend.checklist(model.checkedDrafts, title: model.checklistTitle, now: Date())
+        case .verboseTasks:
+            // The transfer, then Verbose Tasks opens and imports it. "Saved to Verbose Tasks" waits for its receipt
+            // (PhoneState.takeVerboseTasksReceipts, when Verbose is back).
+            let id = UUID()
+            guard let data = model.handoffTransfer(id: id), VerboseTasksHandoff.write(data, id: id) else {
+                openProblem = "Couldn\u{2019}t hand the tasks to Verbose Tasks. Try again, or choose another app."
+                Haptics.play(.failed); return
+            }
+            Task { @MainActor in
+                guard await TaskApps.open(VerboseTasksHandoff.openURL) else {
+                    openProblem = "Couldn\u{2019}t open Verbose Tasks. Check that it\u{2019}s installed."
+                    Haptics.play(.failed); return
+                }
+                TaskApps.last = .verboseTasks
+                Haptics.play(.sentToReminders)
+                dismiss()
+            }
         case .things, .omnifocus:
             let d = destination
             let drafts = model.checkedDrafts

@@ -182,7 +182,14 @@ final class SendToReminders: ObservableObject {
         loadLists()
     }
 
+    /// The recording the plan came from, for Verbose Tasks' link back to it. Nil for today's thoughts.
+    var recordID: UUID? = nil
     var checkedCount: Int { (plan.tasks + plan.ideas).filter { selection.contains($0.key) && sent[$0.key] == nil }.count }
+    /// The checked items as Verbose Tasks' transfer (TaskSend.swift), or nil with nothing checked.
+    func handoffTransfer(id: UUID, now: Date = Date()) -> Data? {
+        TaskSend.handoffTransfer(id: id, sentAt: now, tasks: TaskSend.handoffTasks(plan, selected: selection, sent: sent, recordedAt: recordedAt),
+                                 recordID: recordID, capturedAt: recordedAt, sourceTitle: source)
+    }
     /// The checked items as drafts, for Things, OmniFocus, and the share sheet (Send tasks, TaskSend.swift).
     var checkedDrafts: [DayPlan.ReminderDraft] {
         DayPlan.drafts(plan, selected: selection, sent: sent, recordedAt: recordedAt, source: source, anchorLabel: anchorLabel)
@@ -251,8 +258,12 @@ enum TaskApps {
     @MainActor static func isInstalled(_ d: TaskDestination) -> Bool {
         guard let s = d.scheme, let u = URL(string: s + "://") else { return true }
         #if os(iOS)
+        // Verbose Tasks also needs the App Group both apps share; a build signed without it leaves it out.
+        if d == .verboseTasks, !VerboseTasksHandoff.available { return false }
         return UIApplication.shared.canOpenURL(u)
         #else
+        // Verbose Tasks on the Mac isn't released, and the Mac app doesn't share its App Group.
+        if d == .verboseTasks { return false }
         return NSWorkspace.shared.urlForApplication(toOpen: u) != nil
         #endif
     }
@@ -278,6 +289,67 @@ enum TaskApps {
         #endif
     }
 }
+
+#if os(iOS)
+/// Send tasks to Verbose Tasks (TaskSend.swift): the transfer goes into the App Group both apps share
+/// (`group.co.stumpandroot.handoff`, mac/project.yml) as `Transfers/<id>.json`, then Verbose Tasks opens and imports it
+/// once. When you come back, Verbose reads `Receipts/<id>.json` and says what was saved; until then it says nothing,
+/// since the tasks aren't saved until Verbose Tasks has read them.
+enum VerboseTasksHandoff {
+    static let groupID = "group.co.stumpandroot.handoff"
+    /// Sends waiting for a receipt: transfer ID to when it was sent (seconds since 1970).
+    static let pendingKey = "verboseTasks.pending"
+    /// For the self-test: a folder in place of the App Group.
+    nonisolated(unsafe) static var testRoot: URL? = nil
+
+    static var root: URL? { testRoot ?? FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupID) }
+    /// This build was signed with the App Group (a TestFlight build falls back to signing without it; build-swift.yml).
+    static var available: Bool { root != nil }
+
+    /// Writes the transfer where Verbose Tasks looks, last and in one step, and remembers it until its receipt.
+    static func write(_ data: Data, id: UUID) -> Bool {
+        guard let root else { return false }
+        let dir = root.appendingPathComponent("Transfers", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try data.write(to: dir.appendingPathComponent("\(id.uuidString).json"), options: .atomic)
+        } catch {
+            Log.note("verbose tasks: couldn't write the transfer (\(error.localizedDescription))")
+            return false
+        }
+        var pending = UserDefaults.standard.dictionary(forKey: pendingKey) as? [String: Double] ?? [:]
+        pending[id.uuidString] = Date().timeIntervalSince1970
+        UserDefaults.standard.set(pending, forKey: pendingKey)
+        return true
+    }
+
+    /// Opens Verbose Tasks on Today, where it imports the transfer.
+    static let openURL = URL(string: "verbosetasks://today")!
+
+    /// The receipts that arrived since the last look, as the lines to show, oldest first. Each receipt is read once and
+    /// removed. A send with no receipt after a day is forgotten, and its transfer removed if Verbose Tasks never read it.
+    static func takeReceipts(now: Date = Date()) -> [String] {
+        guard let root else { return [] }
+        var pending = UserDefaults.standard.dictionary(forKey: pendingKey) as? [String: Double] ?? [:]
+        guard !pending.isEmpty else { return [] }
+        let fm = FileManager.default
+        var lines: [String] = []
+        for (id, sent) in pending.sorted(by: { $0.value < $1.value }) {
+            let receipt = root.appendingPathComponent("Receipts/\(id).json")
+            if let data = try? Data(contentsOf: receipt) {
+                if let line = TaskSend.handoffMessage(receipt: data) { lines.append(line) }
+                try? fm.removeItem(at: receipt)
+                pending[id] = nil
+            } else if now.timeIntervalSince1970 - sent > 86_400 {
+                try? fm.removeItem(at: root.appendingPathComponent("Transfers/\(id).json"))
+                pending[id] = nil
+            }
+        }
+        UserDefaults.standard.set(pending, forKey: pendingKey)
+        return lines
+    }
+}
+#endif
 
 /// Send to Reminders with the stand-in (`MockReminders`), for both self-tests: never touches your Reminders.
 enum RemindersChecks {
@@ -315,5 +387,32 @@ enum RemindersChecks {
         let denied = SendToReminders(plan: plan, sent: [:], recordedAt: recorded, source: "Brain dump", anchorLabel: { _ in nil })
         let none = await denied.send()
         check("reminders: without access, nothing is added and the sheet says how to turn it on", none == nil && denied.problem == RemindersBridge.deniedText)
+        #if os(iOS)
+        // Verbose Tasks, with a folder in place of the App Group: the transfer is written, nothing is said until its
+        // receipt, then the receipt's line once.
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("vt-check-\(UUID().uuidString)", isDirectory: true)
+        let savedRoot = VerboseTasksHandoff.testRoot
+        let savedPending = UserDefaults.standard.dictionary(forKey: VerboseTasksHandoff.pendingKey)
+        VerboseTasksHandoff.testRoot = root
+        UserDefaults.standard.removeObject(forKey: VerboseTasksHandoff.pendingKey)
+        defer {
+            VerboseTasksHandoff.testRoot = savedRoot
+            UserDefaults.standard.set(savedPending, forKey: VerboseTasksHandoff.pendingKey)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let vt = SendToReminders(plan: plan, sent: [:], recordedAt: recorded, source: "Brain dump", anchorLabel: { _ in nil })
+        vt.recordID = UUID()
+        let tid = UUID()
+        let wrote = vt.handoffTransfer(id: tid).map { VerboseTasksHandoff.write($0, id: tid) } ?? false
+        let file = root.appendingPathComponent("Transfers/\(tid.uuidString).json")
+        check("verbose tasks: Send writes the transfer where Verbose Tasks reads it", wrote && FileManager.default.fileExists(atPath: file.path))
+        check("verbose tasks: nothing is said before Verbose Tasks writes its receipt", VerboseTasksHandoff.takeReceipts().isEmpty)
+        try? FileManager.default.createDirectory(at: root.appendingPathComponent("Receipts"), withIntermediateDirectories: true)
+        let receipt = try? JSONSerialization.data(withJSONObject: ["transferID": tid.uuidString, "status": "saved",
+                                                                   "taskIDs": (0..<9).map { _ in UUID().uuidString }, "alreadyHad": 0, "savedAt": "2026-10-31T12:00:00Z"])
+        try? receipt?.write(to: root.appendingPathComponent("Receipts/\(tid.uuidString).json"))
+        check("verbose tasks: its receipt says what was saved, once", VerboseTasksHandoff.takeReceipts() == ["Saved 9 tasks to Verbose Tasks"]
+              && VerboseTasksHandoff.takeReceipts().isEmpty)
+        #endif
     }
 }
