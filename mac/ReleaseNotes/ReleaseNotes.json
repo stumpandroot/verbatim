@@ -1,7 +1,9 @@
 {
   "notes": [
     {
-      "build": "next",
+      "build": "269",
+      "date": "2026-11-01",
+      "version": "1.0 beta",
       "title": "What's new, with pictures",
       "big": true,
       "items": [
