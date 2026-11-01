@@ -424,6 +424,8 @@ targets:
       # The page parts the remaining screens share: headers, empty states, row buttons, groups, statuses, checkboxes.
       - Verbatim/Views/RefinedPages.swift
       - Verbatim/Views/Brand.swift
+      # What's new's sheet after a bigger update, its hero, and its rows (shared with the Mac).
+      - Verbatim/Views/WhatsNewSheet.swift
       - Verbatim/Views/ThumbCache.swift
       - Verbatim/Views/HomeKit.swift
       - Verbatim/Views/LinkAddedCard.swift

@@ -186,7 +186,7 @@ check "check: an empty version fails" '! python3 -I "$py" check "$out/badversion
 
 # The item rules. bad_item <item as JSON>: true when check rejects a "next" entry holding that item.
 bad_item() { printf '{"notes": [{"build": "next", "title": "A", "items": [%s]}]}\n' "$1" > "$out/item.json"; ! python3 -I "$py" check "$out/item.json" > /dev/null 2>&1; }
-A90="$(printf 'a%.0s' $(seq 90))"; A89="$(printf 'a%.0s' $(seq 89))"; A200="$(printf 'a%.0s' $(seq 200))"; A199="$(printf 'a%.0s' $(seq 199))"
+A90="$(printf 'a%.0s' $(seq 90))"; A89="$(printf 'a%.0s' $(seq 89))"; A200="$(printf 'a%.0s' $(seq 200))"; A199="$(printf 'a%.0s' $(seq 199))"; A33="$(printf 'a%.0s' $(seq 33))"
 check "check: a good object item passes" '! bad_item "{\"platforms\": [\"iphone\", \"mac\"], \"text\": \"Tap Record.\", \"detail\": \"Touch and hold opens Record as.\"}"'
 check "check: a string item in next fails" 'bad_item "\"iPhone: tap Record.\""'
 check "check: missing, empty, unknown, or repeated platforms fail" \
@@ -199,6 +199,14 @@ check "check: a Mac:-style prefix, an em dash, an exclamation point, or no perio
   'bad_item "{\"platforms\": [\"mac\"], \"text\": \"Mac: press it.\"}" && bad_item "{\"platforms\": [\"mac\"], \"text\": \"A \\u2014 b.\"}" && bad_item "{\"platforms\": [\"mac\"], \"text\": \"Wow!\"}" && bad_item "{\"platforms\": [\"mac\"], \"text\": \"A\"}"'
 check "check: an empty detail or an unknown key fails" \
   'bad_item "{\"platforms\": [\"mac\"], \"text\": \"A.\", \"detail\": \"\"}" && bad_item "{\"platforms\": [\"mac\"], \"text\": \"A.\", \"note\": \"x\"}"'
+check "check: a head and an icon pass; a long or dotted head, or an unknown icon, fails" \
+  '! bad_item "{\"platforms\": [\"mac\"], \"head\": \"Tidier tasks\", \"icon\": \"tidy\", \"text\": \"A.\"}" && bad_item "{\"platforms\": [\"mac\"], \"head\": \"$A33\", \"text\": \"A.\"}" && bad_item "{\"platforms\": [\"mac\"], \"head\": \"New.\", \"text\": \"A.\"}" && bad_item "{\"platforms\": [\"mac\"], \"icon\": \"rocket\", \"text\": \"A.\"}"'
+printf '{"notes": [{"build": "next", "title": "A", "big": "yes", "items": [{"platforms": ["mac"], "text": "A."}]}]}\n' > "$out/big.json"
+check "check: big must be true or false" '! python3 -I "$py" check "$out/big.json" > /dev/null 2>&1'
+# The apps and the script take the same icon names.
+swift_icons="$(sed -n '/static let icons = \[/,/\]/p' "$here/../Verbatim/Model/ReleaseNotes.swift" | grep -o '"[a-z]*"' | tr -d '"' | tr '\n' ' ')"
+py_icons="$(python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import release_notes; print(" ".join(release_notes.ICONS))' "$here/../ReleaseNotes")"
+check "the apps and release_notes.py list the same icons" '[ "$(echo $swift_icons)" = "$(echo $py_icons)" ]'
 printf '{"notes": [{"build": "3", "date": "2026-01-01", "title": "C", "items": ["Mac: z."]}]}\n' > "$out/old.json"
 check "check: strings stay valid in numbered builds" 'python3 -I "$py" check "$out/old.json" > /dev/null'
 

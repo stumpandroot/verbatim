@@ -33,7 +33,7 @@ struct WhatsNewSettingsPane: View {
                         if toggled.contains(version.id) { toggled.remove(version.id) } else { toggled.insert(version.id) }
                     }
                     if open {
-                        ForEach(version.notes) { WhatsNewCard(note: $0, detailTarget: $0.id == detailTarget, alsoTarget: $0.id == alsoTarget) }
+                        ForEach(version.notes) { WhatsNewCard(note: $0, newest: i == 0 && $0.id == version.notes.first?.id, detailTarget: $0.id == detailTarget, alsoTarget: $0.id == alsoTarget) }
                     }
                 }
             }
@@ -76,9 +76,11 @@ struct WhatsNewVersionHeader: View {
     }
 }
 
-/// One build: a card with its build line, its title in the serif, and its items.
+/// One build: a card with its build line, its title in the serif, and its items, each beside its icon in a colored
+/// square (WhatsNewSheet.swift). The newest build's card leads with the butter hero instead of the build line.
 struct WhatsNewCard: View {
     var note: ReleaseNote
+    var newest = false
     /// The UI self-test opens this card's first detail, or its "Also on" row (`ReleaseNotes.showForTest`).
     var detailTarget = false
     var alsoTarget = false
@@ -88,32 +90,48 @@ struct WhatsNewCard: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            VStack(alignment: .leading, spacing: 8) {
-                Text(note.heading).font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(note.spokenHeading)
-                content
+            Group {
+                if newest {
+                    VStack(alignment: .leading, spacing: 0) {
+                        WhatsNewHero(eyebrow: note.heading, title: note.title, compact: true)
+                            .accessibilityLabel(note.spokenHeading + ", " + note.title)
+                        content(title: false)
+                            .padding(.horizontal, 20).padding(.vertical, 16)
+                    }
+                    .settingsCard()
+                    .clipShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(note.heading).font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(note.spokenHeading)
+                        content(title: true)
+                    }
+                    .padding(.horizontal, 20).padding(.vertical, 16)
+                    .settingsCard()
+                }
             }
-            .padding(.horizontal, 20).padding(.vertical, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .settingsCard()
             .onReceive(NotificationCenter.default.publisher(for: ReleaseNotes.showForTest)) { n in
                 showForTest(n.object as? String, proxy: proxy)
             }
         }
     }
 
-    private var content: some View {
+    private func content(title: Bool) -> some View {
         let sum = ReleaseNotes.summary(note.items, for: .mac)
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(note.title)
-                .font(.system(size: 20, design: .serif))
-                .foregroundStyle(Refined.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
+        let starts = sum.sections.indices.map { k in sum.sections[..<k].reduce(0) { $0 + $1.items.count } }
+        let ownCount = sum.sections.reduce(0) { $0 + $1.items.count }
+        return VStack(alignment: .leading, spacing: newest ? 12 : 9) {
+            if title {
+                Text(note.title)
+                    .font(.system(size: 20, design: .serif))
+                    .foregroundStyle(Refined.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+            }
             ForEach(Array(sum.sections.enumerated()), id: \.element.id) { k, section in
-                platformLabel(section.title).padding(.top, k == 0 ? 0 : 6)
-                lines(section.items, part: section.id)
+                if sum.sections.count > 1 { platformLabel(section.title).padding(.top, k == 0 ? 0 : 6) }
+                lines(section.items, part: section.id, start: starts[k])
             }
             if !sum.also.isEmpty {
                 alsoRow(title: sum.alsoTitle, count: sum.alsoCount)
@@ -122,7 +140,7 @@ struct WhatsNewCard: View {
                 if alsoOpen {
                     ForEach(sum.also) { section in
                         if sum.also.count > 1 { platformLabel(section.title) }
-                        lines(section.items, part: "also-" + section.id)
+                        lines(section.items, part: "also-" + section.id, start: ownCount)
                     }
                 }
             }
@@ -164,63 +182,48 @@ struct WhatsNewCard: View {
         .help(alsoOpen ? "Hide these changes" : "Show the changes for your other devices")
     }
 
-    private func lines(_ items: [ReleaseItem], part: String) -> some View {
-        return VStack(alignment: .leading, spacing: 6) {
+    private func lines(_ items: [ReleaseItem], part: String, start: Int) -> some View {
+        return VStack(alignment: .leading, spacing: newest ? 12 : 9) {
             ForEach(Array(items.enumerated()), id: \.offset) { i, item in
-                line(item, key: "\(part)|\(i)")
+                line(item, key: "\(part)|\(i)", hue: WhatsNewLook.hue(start + i))
             }
         }
     }
 
-    /// One line: a bullet and the text. With a detail, the line is a button with a disclosure triangle that opens the
-    /// detail under it, without movement.
+    /// One change: its icon, headline, and text (`WhatsNewItemRow`, smaller in older builds). With a detail, the row
+    /// is a button with a disclosure chevron that opens the detail under the text, without movement.
     @ViewBuilder
-    private func line(_ item: ReleaseItem, key: String) -> some View {
+    private func line(_ item: ReleaseItem, key: String, hue: RefinedHue) -> some View {
+        let square: CGFloat? = newest ? nil : 26
+        let h = ReleaseNotes.headline(item)
+        let spoken = (h.head.map { $0 + ". " } ?? "") + h.text
         if let detail = item.detail {
             let open = detailsOpen.contains(key)
-            VStack(alignment: .leading, spacing: 3) {
-                Button {
-                    if open { detailsOpen.remove(key) } else { detailsOpen.insert(key) }
-                } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•").foregroundStyle(Refined.mute).accessibilityHidden(true)
-                        Text(item.text).foregroundStyle(Refined.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Refined.mute)
-                            .rotationEffect(.degrees(open ? 90 : 0))
-                            .accessibilityHidden(true)
-                        Spacer(minLength: 0)
-                    }
-                    .font(.system(size: 14))
-                    .lineSpacing(3)
-                    .contentShape(Rectangle())
+            Button {
+                if open { detailsOpen.remove(key) } else { detailsOpen.insert(key) }
+            } label: {
+                HStack(alignment: .top, spacing: 8) {
+                    WhatsNewItemRow(item: item, hue: hue, square: square, showDetail: open)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Refined.mute)
+                        .rotationEffect(.degrees(open ? 90 : 0))
+                        .padding(.top, newest ? 9 : 6)
+                        .accessibilityHidden(true)
                 }
-                .buttonStyle(.plain)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(item.text)
-                .accessibilityHint(open ? "Shows less" : "Shows more")
-                .accessibilityAddTraits(.isButton)
-                .help(open ? "Show less" : "Show more")
-                if open {
-                    Text(detail).font(.system(size: 13)).foregroundStyle(Refined.dim)
-                        .lineSpacing(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                        .padding(.leading, 16)
-                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(open ? spoken + " " + detail : spoken)
+            .accessibilityHint(open ? "Shows less" : "Shows more")
+            .accessibilityAddTraits(.isButton)
+            .help(open ? "Show less" : "Show more")
             .id("\(note.id)|\(key)")
         } else {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("•").foregroundStyle(Refined.mute).accessibilityHidden(true)
-                Text(item.text).foregroundStyle(Refined.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-            }
-            .font(.system(size: 14))
-            .lineSpacing(3)
+            WhatsNewItemRow(item: item, hue: hue, square: square)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(spoken)
         }
     }
 
@@ -253,6 +256,8 @@ struct WhatsNewHomeLine: View {
     @AppStorage(ReleaseNotes.lastSeenKey) private var lastSeen = 0
     /// The UI self-test shows the note for a build of its choosing.
     static var previewBuild: Int? = nil
+    /// The UI self-test asks Home to check for the What's new sheet again, or, with false, closes it as Continue does.
+    static let popupForTest = Notification.Name("whatsNew.popupForTest")
 
     var body: some View {
         if let note = ReleaseNotes.pending(current: Self.previewBuild ?? ReleaseNotes.currentBuild, lastSeen: lastSeen, notes: notes),

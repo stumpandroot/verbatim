@@ -16,7 +16,9 @@
   check <json>
       Fails unless the file is well formed: titles and items present, numbered builds descending, at most one
       "next", and it first; every item in "next" an object with valid platforms, a line of at most 90 characters, an
-      optional detail of at most 200, no "Mac:"-style prefix, and no em dash or exclamation point.
+      optional detail of at most 200, no "Mac:"-style prefix, and no em dash or exclamation point; an optional
+      "head" of at most 32 characters with no period, an optional "icon" from ICONS, and an optional "big": true on
+      a build that opens What's new by itself.
 
 Items are objects, {"platforms": ["iphone", "mac"], "text": "...", "detail": "..."}, or, in numbered entries only,
 strings from before platforms were recorded, whose "Mac:", "iPhone:", "Apple Watch:", or "Mac and iPhone:" style
@@ -43,6 +45,12 @@ NAMES = {"mac": "Mac", "iphone": "iPhone", "watch": "Apple Watch"}
 # section; in each list, an item goes under the first platform it names.
 APPS = {"iphone": (("iphone", "watch"), ("mac",)), "mac": (("mac",), ("iphone", "watch"))}
 TEXT_MAX, DETAIL_MAX = 90, 200
+# An item's optional headline, and the icons it can name (Verbatim/Model/ReleaseNotes.swift's `icons` lists the same).
+HEAD_MAX = 32
+ICONS = ("notes", "calendar", "words", "swap", "tasks", "plan", "tidy", "mic", "voice", "thought", "braindump", "ask",
+         "ai", "import", "play", "share", "export", "copy", "settings", "home", "library", "tabbar", "privacy", "sync",
+         "speakers", "summary", "captions", "film", "links", "dictionary", "widgets", "tour", "feedback", "support",
+         "mark", "language", "accessibility", "appearance", "audio", "project", "quality")
 # TestFlight's What to Test takes 4,000 characters.
 TESTFLIGHT_MAX = 4000
 # A string item's platform prefix: "Mac:", "iPhone:", "Apple Watch:", "Mac and iPhone:", "iPhone and Mac:", or a
@@ -187,6 +195,8 @@ def problems(data):
             out.append("%s: date must be YYYY-MM-DD, not %r" % (where, date))
         if "version" in n and not (isinstance(n["version"], str) and n["version"].strip()):
             out.append("%s: version must be a name such as \"1.0 beta\", not %r" % (where, n["version"]))
+        if "big" in n and not isinstance(n["big"], bool):
+            out.append("%s: big must be true or false" % where)
         if not isinstance(n.get("title"), str) or not n["title"].strip():
             out.append("%s has no title" % where)
         items = n.get("items")
@@ -210,7 +220,7 @@ def item_problems(item, where, in_next):
     if not isinstance(item, dict):
         return ["%s must be an object with platforms and text" % where]
     out = []
-    extra = sorted(k for k in item if k not in ("platforms", "text", "detail"))
+    extra = sorted(k for k in item if k not in ("platforms", "text", "detail", "head", "icon"))
     if extra:
         out.append("%s has unknown keys: %s" % (where, ", ".join(extra)))
     platforms = item.get("platforms")
@@ -235,6 +245,22 @@ def item_problems(item, where, in_next):
             out.append("%s: detail must be a sentence; leave it out when there's nothing to add" % where)
         else:
             out.extend(line_problems(detail, where + "'s detail", DETAIL_MAX))
+    if "head" in item:
+        head = item["head"]
+        if not isinstance(head, str) or not head.strip():
+            out.append("%s: head must be a short headline; leave it out when the text's colon gives one" % where)
+        else:
+            head = head.strip()
+            if len(head) > HEAD_MAX:
+                out.append("%s's head is %d characters; keep it to %d" % (where, len(head), HEAD_MAX))
+            if head.endswith("."):
+                out.append("%s's head ends with a period; a headline has none" % where)
+            if "\u2014" in head:
+                out.append("%s's head has an em dash" % where)
+            if "!" in head:
+                out.append("%s's head has an exclamation point" % where)
+    if "icon" in item and item["icon"] not in ICONS:
+        out.append("%s: icon must be one of %s, not %r" % (where, ", ".join(ICONS), item["icon"]))
     return out
 
 

@@ -3,10 +3,12 @@ import SwiftUI
 /// What's new (the version at the foot of Settings, search, and Home's note): every build's
 /// notes, newest first, from the bundled ReleaseNotes.json (Verbatim/Model/ReleaseNotes.swift), grouped under version
 /// headers ("Version 1.0 beta"): the newest version open, older ones closed until tapped. On the refined kit (DESIGN.md
-/// §13): the large serif title, then one card per build with the build and date in the meta
-/// style ("Build 203 · Oct 25"), its title in the section serif, and its items under semibold platform labels. The
-/// items for this iPhone lead (iPhone, then Apple Watch), the Mac's fold under one "Also on Mac" row, and a line with a detail opens it in place, without
-/// movement (`ReleaseNotes.summary`).
+/// §13): the large serif title, then one card per build. The newest build's card leads with the butter hero
+/// (WhatsNewSheet.swift); the others show the build and date in the meta style ("Build 203 · Oct 25") over the title in
+/// the section serif. Each change is a row with its icon in a colored square and its headline (`WhatsNewItemRow`),
+/// smaller in older builds. The items for this iPhone lead (iPhone, then Apple Watch, labeled only when both have
+/// some), the Mac's fold under one "Also on Mac" row, and a row with a detail opens it in place, without movement
+/// (`ReleaseNotes.summary`).
 struct WhatsNewScreen: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
     /// Versions tapped open or closed; the newest starts open and the rest closed.
@@ -42,7 +44,7 @@ struct WhatsNewScreen: View {
                         .padding(.top, i == 0 ? 14 : 22)
                     if open {
                         ForEach(Array(version.notes.enumerated()), id: \.element.id) { j, note in
-                            card(note)
+                            card(note, newest: i == 0 && j == 0)
                                 .padding(.top, j == 0 ? 8 : 14)
                         }
                     }
@@ -94,31 +96,46 @@ struct WhatsNewScreen: View {
         .accessibilityAddTraits([.isButton, .isHeader])
     }
 
-    /// A build's card: the build and date, the title in the section serif, and the items.
-    private func card(_ note: ReleaseNote) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(note.heading).refinedFont(.meta).foregroundStyle(Refined.mute)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(note.spokenHeading)
-            Text(note.title).refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-            items(note)
+    /// A build's card: the newest leads with the hero; the others with the build and date over the title in the
+    /// section serif. Then the items.
+    @ViewBuilder
+    private func card(_ note: ReleaseNote, newest: Bool) -> some View {
+        if newest {
+            VStack(alignment: .leading, spacing: 0) {
+                WhatsNewHero(eyebrow: note.heading, title: note.title, compact: true)
+                    .accessibilityLabel(note.spokenHeading + ", " + note.title)
+                items(note, small: false).padding(16)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+            .clipShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(note.heading).refinedFont(.meta).foregroundStyle(Refined.mute)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(note.spokenHeading)
+                Text(note.title).refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                items(note, small: true)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
     }
 
     /// The items for this iPhone first (iPhone, then Apple Watch, each under its label), and the Mac's folded under
     /// "Also on Mac", closed until tapped. Nothing here animates: a detail or the fold opens in place.
-    private func items(_ note: ReleaseNote) -> some View {
+    private func items(_ note: ReleaseNote, small: Bool) -> some View {
         let sum = ReleaseNotes.summary(note.items, for: .phone)
         let alsoOpen = alsoOpened.contains(note.id)
-        return VStack(alignment: .leading, spacing: 6) {
+        let starts = sum.sections.indices.map { k in sum.sections[..<k].reduce(0) { $0 + $1.items.count } }
+        let ownCount = sum.sections.reduce(0) { $0 + $1.items.count }
+        return VStack(alignment: .leading, spacing: small ? 10 : 14) {
             ForEach(Array(sum.sections.enumerated()), id: \.element.id) { k, section in
-                platformLabel(section.title).padding(.top, k == 0 ? 2 : 8)
-                lines(section.items, note: note, part: section.id)
+                if sum.sections.count > 1 { platformLabel(section.title).padding(.top, k == 0 ? 2 : 8) }
+                lines(section.items, note: note, part: section.id, start: starts[k], small: small)
             }
             if !sum.also.isEmpty {
                 alsoRow(note, title: sum.alsoTitle, count: sum.alsoCount, open: alsoOpen)
@@ -127,7 +144,7 @@ struct WhatsNewScreen: View {
                 if alsoOpen {
                     ForEach(sum.also) { section in
                         if sum.also.count > 1 { platformLabel(section.title) }
-                        lines(section.items, note: note, part: "also-" + section.id)
+                        lines(section.items, note: note, part: "also-" + section.id, start: ownCount, small: true)
                     }
                 }
             }
@@ -167,55 +184,45 @@ struct WhatsNewScreen: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    private func lines(_ items: [ReleaseItem], note: ReleaseNote, part: String) -> some View {
+    private func lines(_ items: [ReleaseItem], note: ReleaseNote, part: String, start: Int, small: Bool) -> some View {
         ForEach(Array(items.enumerated()), id: \.offset) { i, item in
-            line(item, key: Self.lineKey(note, part: part, index: i))
+            line(item, key: Self.lineKey(note, part: part, index: i), hue: WhatsNewLook.hue(start + i), small: small)
         }
     }
 
-    /// One line: a bullet and the text. With a detail, the line is a button with a disclosure chevron that opens the
-    /// detail under it, without movement.
+    /// One change: its icon, headline, and text (`WhatsNewItemRow`). With a detail, the row is a button with a
+    /// disclosure chevron that opens the detail under the text, without movement.
     @ViewBuilder
-    private func line(_ item: ReleaseItem, key: String) -> some View {
+    private func line(_ item: ReleaseItem, key: String, hue: RefinedHue, small: Bool) -> some View {
+        let square: CGFloat? = small ? 30 : nil
+        let h = ReleaseNotes.headline(item)
+        let spoken = (h.head.map { $0 + ". " } ?? "") + h.text
         if let detail = item.detail {
             let open = detailsOpen.contains(key)
-            VStack(alignment: .leading, spacing: 4) {
-                Button {
-                    if open { detailsOpen.remove(key) } else { detailsOpen.insert(key) }
-                } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•").foregroundStyle(Refined.mute).accessibilityHidden(true)
-                        Text(item.text).foregroundStyle(Refined.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 4)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: max(11, itemSize - 4), weight: .semibold))
-                            .foregroundStyle(Refined.accentText)
-                            .rotationEffect(.degrees(open ? 90 : 0))
-                            .accessibilityHidden(true)
-                    }
-                    .font(.system(size: itemSize))
-                    .contentShape(Rectangle())
+            Button {
+                if open { detailsOpen.remove(key) } else { detailsOpen.insert(key) }
+            } label: {
+                HStack(alignment: .top, spacing: 8) {
+                    WhatsNewItemRow(item: item, hue: hue, square: square, showDetail: open)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: max(11, itemSize - 4), weight: .semibold))
+                        .foregroundStyle(Refined.accentText)
+                        .rotationEffect(.degrees(open ? 90 : 0))
+                        .padding(.top, small ? 7 : 11)
+                        .accessibilityHidden(true)
                 }
-                .buttonStyle(.plain)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(item.text)
-                .accessibilityHint(open ? "Shows less" : "Shows more")
-                .accessibilityAddTraits(.isButton)
-                if open {
-                    Text(detail).font(.system(size: itemSize - 1)).foregroundStyle(Refined.dim)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.leading, 16)
-                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(open ? spoken + " " + detail : spoken)
+            .accessibilityHint(open ? "Shows less" : "Shows more")
+            .accessibilityAddTraits(.isButton)
             .id(key)
         } else {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("•").foregroundStyle(Refined.mute).accessibilityHidden(true)
-                Text(item.text).foregroundStyle(Refined.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .font(.system(size: itemSize))
+            WhatsNewItemRow(item: item, hue: hue, square: square)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(spoken)
         }
     }
 

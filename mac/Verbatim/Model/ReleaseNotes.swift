@@ -5,7 +5,8 @@ import Foundation
 // (mac/ReleaseNotes/README.md). Foundation only, so mac/tools/test-release-notes.sh compiles it on Linux.
 //
 // After an update to a build with an entry, Home shows "What's new in build N" once (a banner on iPhone, a line on
-// the Mac). The last build shown is in UserDefaults (`lastSeenKey`); dismissing the note or opening What's new sets it.
+// the Mac). A build marked `"big": true` instead opens the What's new sheet once by itself (WhatsNewSheet.swift):
+// its title on a colored hero, then each change with its icon (`ReleaseNotes.popup`). The last build shown is in UserDefaults (`lastSeenKey`); dismissing the note or opening What's new sets it.
 // What's new groups the builds by version ("Version 1.0 beta"), newest first (mac/VERSIONING.md), and each build's
 // items by platform, this device's first (`ReleaseNotes.summary`, which release_notes.py's `summary` matches for
 // Sparkle, GitHub, and TestFlight).
@@ -42,6 +43,11 @@ struct ReleaseItem: Decodable, Hashable, Sendable, ExpressibleByStringLiteral {
     var platformNames: [String]
     var text: String
     var detail: String?
+    /// A short headline for the What's new sheet and list ("Your words calendar"), at most 32 characters with no
+    /// period. Without one, the text before an early colon is the headline (`ReleaseNotes.headline`).
+    var head: String?
+    /// The icon beside the item, one of `ReleaseNotes.icons` ("calendar"). Without one, the item gets "notes".
+    var icon: String?
     /// Written as a string (an older build).
     var isLegacy = false
 
@@ -73,7 +79,7 @@ struct ReleaseItem: Decodable, Hashable, Sendable, ExpressibleByStringLiteral {
 
     init(stringLiteral value: String) { self.init(legacy: value) }
 
-    private enum Key: String, CodingKey { case platforms, text, detail }
+    private enum Key: String, CodingKey { case platforms, text, detail, head, icon }
 
     init(from decoder: Decoder) throws {
         if let s = try? decoder.singleValueContainer().decode(String.self) {
@@ -87,7 +93,15 @@ struct ReleaseItem: Decodable, Hashable, Sendable, ExpressibleByStringLiteral {
         let d = (((try? c.decodeIfPresent(String.self, forKey: .detail)) ?? nil) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         detail = d.isEmpty ? nil : d
         hasDetailKey = c.contains(.detail)
+        head = ((try? c.decodeIfPresent(String.self, forKey: .head)) ?? nil)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        hasHeadKey = c.contains(.head)
+        icon = ((try? c.decodeIfPresent(String.self, forKey: .icon)) ?? nil)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        hasIconKey = c.contains(.icon)
     }
+
+    /// The object had a "head" or "icon" key, even one that isn't a string (`problems` reports it).
+    var hasHeadKey = false
+    var hasIconKey = false
 
     /// The object had a "detail" key, even an empty one (`problems` reports an empty detail).
     var hasDetailKey = false
@@ -125,6 +139,29 @@ struct ReleaseNote: Decodable, Identifiable, Hashable, Sendable {
     /// The version the build belongs to ("1.0 beta"), stamped by CI with the build number. Absent on "next" and on
     /// every entry from before versions were recorded, which count as `ReleaseNotes.firstVersion`.
     var version: String? = nil
+    /// A bigger build: What's new opens by itself after the update, instead of Home's quiet note.
+    var big = false
+
+    private enum Key: String, CodingKey { case build, date, title, items, version, big }
+
+    init(build: String, date: String? = nil, title: String, items: [ReleaseItem], version: String? = nil, big: Bool = false) {
+        self.build = build; self.date = date; self.title = title; self.items = items; self.version = version; self.big = big
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Key.self)
+        build = try c.decode(String.self, forKey: .build)
+        date = try c.decodeIfPresent(String.self, forKey: .date)
+        title = try c.decode(String.self, forKey: .title)
+        items = try c.decode([ReleaseItem].self, forKey: .items)
+        version = try c.decodeIfPresent(String.self, forKey: .version)
+        // Lenient like an item: anything but true reads as a quiet build; `problems` reports a wrong type.
+        big = ((try? c.decodeIfPresent(Bool.self, forKey: .big)) ?? nil) ?? false
+        hasBadBig = c.contains(.big) && ((try? c.decodeIfPresent(Bool.self, forKey: .big)) == nil)
+    }
+
+    /// The entry had a "big" key that isn't true or false.
+    var hasBadBig = false
 
     var id: String { build }
     /// "1.0 beta": the version this build is grouped under in What's new.
@@ -283,6 +320,7 @@ enum ReleaseNotes {
             if let date = n.date, day(date, format: "MMM d") == nil { out.append("build \(n.build): date must be YYYY-MM-DD, not \"\(date)\"") }
             if n.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { out.append("build \(n.build) has no title") }
             if n.items.isEmpty { out.append("build \(n.build) needs one or more items") }
+            if n.hasBadBig { out.append("build \(n.build): big must be true or false") }
             for (j, item) in n.items.enumerated() {
                 out += itemProblems(item, where: "build \(n.build), item \(j + 1)", inNext: n.isNext)
             }
@@ -331,7 +369,50 @@ enum ReleaseNotes {
         } else if item.hasDetailKey {
             out.append("\(at): detail must be a sentence; leave it out when there's nothing to add")
         }
+        if let h = item.head, !h.isEmpty {
+            let n = h.unicodeScalars.count
+            if n > headMax { out.append("\(at)'s head is \(n) characters; keep it to \(headMax)") }
+            if h.hasSuffix(".") { out.append("\(at)'s head ends with a period; a headline has none") }
+            if h.contains("\u{2014}") { out.append("\(at)'s head has an em dash") }
+            if h.contains("!") { out.append("\(at)'s head has an exclamation point") }
+        } else if item.hasHeadKey {
+            out.append("\(at): head must be a short headline; leave it out when the text's colon gives one")
+        }
+        if let i = item.icon, icons.contains(i) {
+        } else if item.hasIconKey {
+            out.append("\(at): icon must be one of \(icons.joined(separator: ", ")), not \(item.icon.map { "\"\($0)\"" } ?? "that")")
+        }
         return out
+    }
+
+    /// The longest headline (characters).
+    static let headMax = 32
+    /// The icons an item can name, drawn from the app's own line icons (WhatsNewSheet.swift maps each to one).
+    /// release_notes.py's ICONS lists the same names.
+    static let icons = [
+        "notes", "calendar", "words", "swap", "tasks", "plan", "tidy", "mic", "voice", "thought", "braindump", "ask",
+        "ai", "import", "play", "share", "export", "copy", "settings", "home", "library", "tabbar", "privacy", "sync",
+        "speakers", "summary", "captions", "film", "links", "dictionary", "widgets", "tour", "feedback", "support",
+        "mark", "language", "accessibility", "appearance", "audio", "project", "quality",
+    ]
+
+    /// An item's headline and the line under it: its `head` and its text; else the text before a colon in its first
+    /// 40 characters and the rest ("Your words calendar: every day you talked." → "Your words calendar", "Every day
+    /// you talked."); else no headline and the text.
+    static func headline(_ item: ReleaseItem) -> (head: String?, text: String) {
+        if let h = item.head, !h.isEmpty { return (h, item.text) }
+        if let r = item.text.range(of: ": "), item.text.distance(from: item.text.startIndex, to: r.lowerBound) <= 40 {
+            let head = String(item.text[..<r.lowerBound])
+            let rest = String(item.text[r.upperBound...])
+            if !head.isEmpty, !rest.isEmpty { return (capitalized(head), capitalized(rest)) }
+        }
+        return (nil, item.text)
+    }
+
+    /// The icon to draw for an item: its own, when it's one of `icons`, else "notes".
+    static func icon(_ item: ReleaseItem) -> String {
+        if let i = item.icon, icons.contains(i) { return i }
+        return "notes"
     }
 
     private static func lineProblems(_ s: String, where at: String, limit: Int) -> [String] {
@@ -414,6 +495,17 @@ enum ReleaseNotes {
         notes.first { $0.number == build }
     }
 
+    /// The build the What's new sheet opens on by itself, or nil: the newest big build after the last one shown, up to
+    /// this one. Updating past a big build to a quiet one still shows the big one, once. With `app`, only a build with
+    /// changes for that app's own devices: a big Mac build stays a note on the iPhone.
+    static func popup(current: Int?, lastSeen: Int, notes: [ReleaseNote], app: ReleaseApp? = nil) -> ReleaseNote? {
+        guard let current, current > lastSeen else { return nil }
+        return notes.first { n in
+            guard n.big, let number = n.number, number > lastSeen, number <= current else { return false }
+            return app.map { !summary(n.items, for: $0).sections.isEmpty } ?? true
+        }
+    }
+
     /// The build Home's note is about, or nil: this build has an entry and is newer than the last one shown.
     static func pending(current: Int?, lastSeen: Int, notes: [ReleaseNote]) -> ReleaseNote? {
         guard let current, current > lastSeen else { return nil }
@@ -452,6 +544,17 @@ enum ReleaseNotes {
             check("release notes: the newest build reads Build \(n) · <date>", newest.heading.hasPrefix("Build \(n) · "))
             check("release notes: Home's note shows after an update to build \(n)", pending(current: n, lastSeen: n - 1, notes: bundled) == newest)
             check("release notes: and not again once seen", pending(current: n, lastSeen: n, notes: bundled) == nil)
+        }
+        let quiet = ReleaseNote(build: "12", date: "2026-11-01", title: "Q", items: ["Q."])
+        let loud = ReleaseNote(build: "11", date: "2026-11-01", title: "L", items: ["L."], big: true)
+        check("release notes: a big build opens What's new by itself, once", popup(current: 11, lastSeen: 10, notes: [loud]) == loud && popup(current: 11, lastSeen: 11, notes: [loud]) == nil)
+        check("release notes: updating past a big build still shows it", popup(current: 12, lastSeen: 10, notes: [quiet, loud]) == loud)
+        check("release notes: a quiet build keeps Home's note", popup(current: 12, lastSeen: 11, notes: [quiet, loud]) == nil)
+        let macOnly = ReleaseNote(build: "13", date: "2026-11-01", title: "M", items: [ReleaseItem(platforms: [.mac], text: "M.")], big: true)
+        check("release notes: a big Mac-only build opens on the Mac and stays a note on iPhone",
+              popup(current: 13, lastSeen: 12, notes: [macOnly], app: .mac) == macOnly && popup(current: 13, lastSeen: 12, notes: [macOnly], app: .phone) == nil)
+        for n in bundled.prefix(3) {
+            for item in n.items { check("release notes: build \(n.build)'s icon \(icon(item)) has a drawing", icons.contains(icon(item))) }
         }
         check("release notes: a new install starts at its own build", firstLastSeen(stored: nil, current: 300, ranBefore: false) == 300)
         let versions = byVersion(bundled)

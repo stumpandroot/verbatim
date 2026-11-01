@@ -1423,6 +1423,36 @@ enum PhoneUITest {
         app.closeSettings()
         app.tab = .home
         try? await Task.sleep(nanoseconds: 700_000_000)
+        await whatsNewSheetTour(prefix: prefix, suffix: suffix)
+    }
+
+    /// The sheet after a bigger update (WhatsNewSheet.swift), for the newest big build with iPhone changes: it opens by
+    /// itself, counts the build as seen so Home's note stays away, and Continue closes it. Screen
+    /// <prefix>01d-whats-new-sheet<suffix>.
+    private static func whatsNewSheetTour(prefix: String, suffix: String) async {
+        let d = UserDefaults.standard
+        guard let big = ReleaseNotes.bundled.first(where: { $0.big && $0.number != nil && !ReleaseNotes.summary($0.items, for: .phone).sections.isEmpty }),
+              let b = big.number else {
+            if prefix == "p" { Log.note("UITEST NOTE what's new: no big build with iPhone changes in the notes, so no sheet") }
+            return
+        }
+        let keepSeen = d.object(forKey: ReleaseNotes.lastSeenKey)
+        WhatsNewBanner.previewBuild = b
+        d.set(b - 1, forKey: ReleaseNotes.lastSeenKey)
+        NotificationCenter.default.post(name: .verbatimWhatsNewPopup, object: nil)
+        let shown = await waitFor(3) { WhatsNewSheet.onScreen > 0 }
+        await show("\(prefix)01d-whats-new-sheet\(suffix)")
+        if prefix == "p" {
+            Log.note("UITEST \(shown.ok ? "PASS" : "FAIL") what's new: build \(b), a bigger build, opens the sheet by itself")
+            let seen = d.integer(forKey: ReleaseNotes.lastSeenKey)
+            Log.note("UITEST \(seen >= b && ReleaseNotes.pending(current: b, lastSeen: seen, notes: ReleaseNotes.bundled) == nil ? "PASS" : "FAIL") what's new: the sheet counts as seen, so Home's note stays away")
+        }
+        NotificationCenter.default.post(name: .verbatimWhatsNewPopup, object: false)
+        let gone = await waitFor(3) { WhatsNewSheet.onScreen == 0 }
+        if prefix == "p" { Log.note("UITEST \(gone.ok ? "PASS" : "FAIL") what's new: Continue closes the sheet") }
+        WhatsNewBanner.previewBuild = nil
+        if let keepSeen { d.set(keepSeen, forKey: ReleaseNotes.lastSeenKey) } else { d.removeObject(forKey: ReleaseNotes.lastSeenKey) }
+        try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
     /// Waits up to `seconds` for `done`, checking every 50 ms: whether it came true, and after how long (ms).

@@ -9,6 +9,9 @@ What's new:
 - After an update to a build with notes, Home shows "What's new in build N" once (a banner on iPhone, a line on the
   Mac). Dismissing it or opening What's new stores the build in `releaseNotes.lastSeenBuild` (UserDefaults, per
   device). A new install starts at its own build, so it shows no note until the next update.
+- After an update to a bigger build (`"big": true`), the What's new sheet opens once by itself instead of Home's
+  note: the build's title on a colored hero, then each change with its icon, Continue, and See every update. Updating
+  past a big build to a quiet one still shows the big one, once.
 
 Each place leads with its own platform:
 
@@ -41,6 +44,17 @@ Each item is an object:
 - `text`: one line of about 12 words, at most 90 characters.
 - `detail` (optional): one sentence, at most 200 characters, shown when someone taps or clicks the line. Most items
   have none.
+- `head` (optional): a headline of at most 32 characters with no period, such as `"Your words calendar"`. The sheet
+  and the list show it in bold over the text. Without one, text that starts with a short phrase and a colon ("Your
+  words calendar: every day you talked.") uses that phrase.
+- `icon` (optional): the picture beside the item, one of `notes`, `calendar`, `words`, `swap`, `tasks`, `plan`,
+  `tidy`, `mic`, `voice`, `thought`, `braindump`, `ask`, `ai`, `import`, `play`, `share`, `export`, `copy`,
+  `settings`, `home`, `library`, `tabbar`, `privacy`, `sync`, `speakers`, `summary`, `captions`, `film`, `links`,
+  `dictionary`, `widgets`, `tour`, `feedback`, `support`, `mark`, `language`, `accessibility`, `appearance`, `audio`,
+  `project`, and `quality`. Without one, the item gets `notes`.
+
+Mark an entry `"big": true` when the build adds something people should see the day it arrives, such as a new screen.
+Leave fixes and small changes quiet: Home's note covers them. Give a big build's items a `head` and an `icon`.
 
 Entries from before platforms were recorded keep their items as strings. A prefix such as "Mac:", "iPhone:", "Apple
 Watch:", "Mac and iPhone:", or "Mac Home:" gives a string's platforms and comes off the line under the heading ("Mac

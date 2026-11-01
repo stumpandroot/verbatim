@@ -227,6 +227,43 @@ do {
     check("store: the version is named without beta", store[1].version == "1.0")
 } catch { check("store: the sample parses (\(error))", false) }
 
+// The What's new sheet: big builds, headlines, and icons (WhatsNewSheet.swift).
+do {
+    let json = """
+    {"notes":[
+      {"build":"12","date":"2026-11-02","title":"Quiet","items":[{"platforms":["iphone"],"text":"A fix."}]},
+      {"build":"11","date":"2026-11-01","title":"Loud","big":true,"items":[{"platforms":["iphone","mac"],"head":"Your words calendar","icon":"calendar","text":"Every day you talked."}]},
+      {"build":"10","date":"2026-10-31","title":"Mac","big":true,"items":[{"platforms":["mac"],"text":"Mac only."}]}
+    ]}
+    """
+    let notes = try ReleaseNotes.parse(Data(json.utf8))
+    check("big: reads true, and absent is quiet", notes[1].big && !notes[0].big)
+    check("big: opens on the update to it", ReleaseNotes.popup(current: 11, lastSeen: 9, notes: notes)?.build == "11")
+    check("big: not again once seen", ReleaseNotes.popup(current: 11, lastSeen: 11, notes: notes) == nil)
+    check("big: updating past it to a quiet build still opens it", ReleaseNotes.popup(current: 12, lastSeen: 10, notes: notes)?.build == "11")
+    check("big: a quiet build after it keeps Home's note", ReleaseNotes.popup(current: 12, lastSeen: 11, notes: notes) == nil)
+    check("big: a Mac-only build opens on the Mac", ReleaseNotes.popup(current: 10, lastSeen: 9, notes: notes, app: .mac)?.build == "10")
+    check("big: a Mac-only build stays a note on iPhone", ReleaseNotes.popup(current: 10, lastSeen: 9, notes: notes, app: .phone) == nil)
+    check("big: a fresh install shows nothing", ReleaseNotes.popup(current: 12, lastSeen: 12, notes: notes) == nil && ReleaseNotes.popup(current: nil, lastSeen: 0, notes: notes) == nil)
+    let item = notes[1].items[0]
+    check("headline: its head and its text", ReleaseNotes.headline(item).head == "Your words calendar" && ReleaseNotes.headline(item).text == "Every day you talked.")
+    let colon = ReleaseItem(platforms: [.iphone], text: "Your words calendar: every day you talked.")
+    check("headline: an early colon gives one", ReleaseNotes.headline(colon).head == "Your words calendar" && ReleaseNotes.headline(colon).text == "Every day you talked.")
+    let late = ReleaseItem(platforms: [.iphone], text: "Send tasks from a plan to Things, OmniFocus, or any app, as well as: Reminders.")
+    check("headline: a late colon doesn't", ReleaseNotes.headline(late).head == nil)
+    check("headline: none without a colon", ReleaseNotes.headline(ReleaseItem(platforms: [.mac], text: "A fix.")).head == nil)
+    check("icon: its own, or notes", ReleaseNotes.icon(item) == "calendar" && ReleaseNotes.icon(colon) == "notes")
+    check("rules: the sample follows them", ReleaseNotes.problems(notes).isEmpty)
+} catch { check("big: the sample parses (\(error))", false) }
+check("rules: a long head fails", itemBad(#"{"platforms": ["mac"], "head": "\#(String(repeating: "a", count: 33))", "text": "A."}"#) && !itemBad(#"{"platforms": ["mac"], "head": "\#(String(repeating: "a", count: 32))", "text": "A."}"#))
+check("rules: a head with a period fails", itemBad(#"{"platforms": ["mac"], "head": "New.", "text": "A."}"#))
+check("rules: an empty head fails", itemBad(#"{"platforms": ["mac"], "head": " ", "text": "A."}"#))
+check("rules: an unknown icon fails", itemBad(#"{"platforms": ["mac"], "icon": "rocket", "text": "A."}"#) && !itemBad(#"{"platforms": ["mac"], "icon": "mic", "text": "A."}"#))
+do {
+    let bad = try ReleaseNotes.parse(Data(#"{"notes":[{"build":"5","date":"2026-10-01","title":"t","big":"yes","items":["i."]}]}"#.utf8))
+    check("rules: big that isn't true or false fails", !ReleaseNotes.problems(bad).isEmpty && !bad[0].big)
+} catch { check("rules: a bad big still parses (\(error))", false) }
+
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
 

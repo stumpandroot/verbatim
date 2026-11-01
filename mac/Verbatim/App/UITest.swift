@@ -728,6 +728,7 @@ enum UITest {
         app.go(.home)
         await show("10-home-again")
         await whatsNewLine(app: app, window: window, name: "10f-home-whats-new")
+        await whatsNewSheet(name: "10g-home-whats-new-sheet")
         for (i, name) in ["10a-onboarding-welcome", "10b-onboarding-permissions", "10c-onboarding-try", "10c1-onboarding-ways", "10d-onboarding-placement", "10e-onboarding-quality"].enumerated() {
             onboardingStep = i
             app.showOnboarding = true
@@ -1114,6 +1115,30 @@ enum UITest {
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         window.makeKeyAndOrderFront(nil)
         try? await Task.sleep(nanoseconds: 600_000_000)
+    }
+
+    /// The sheet after a bigger update (WhatsNewSheet.swift), for the newest big build with Mac changes: it opens by
+    /// itself over Home, counts the build as seen, and Continue closes it.
+    private static func whatsNewSheet(name: String) async {
+        let d = UserDefaults.standard
+        guard let big = ReleaseNotes.bundled.first(where: { $0.big && $0.number != nil && !ReleaseNotes.summary($0.items, for: .mac).sections.isEmpty }),
+              let b = big.number else {
+            Log.note("UITEST NOTE what's new: no big build with Mac changes in the notes, so no sheet"); return
+        }
+        let keepSeen = d.object(forKey: ReleaseNotes.lastSeenKey)
+        WhatsNewHomeLine.previewBuild = b
+        d.set(b - 1, forKey: ReleaseNotes.lastSeenKey)
+        NotificationCenter.default.post(name: WhatsNewHomeLine.popupForTest, object: nil)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        let shown = WhatsNewSheet.onScreen > 0
+        await show(name)
+        check("what's new: build \(b), a bigger build, opens the sheet over Home", shown)
+        check("what's new: the sheet counts as seen", d.integer(forKey: ReleaseNotes.lastSeenKey) >= b)
+        NotificationCenter.default.post(name: WhatsNewHomeLine.popupForTest, object: false)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        check("what's new: Continue closes the sheet", WhatsNewSheet.onScreen == 0)
+        WhatsNewHomeLine.previewBuild = nil
+        if let keepSeen { d.set(keepSeen, forKey: ReleaseNotes.lastSeenKey) } else { d.removeObject(forKey: ReleaseNotes.lastSeenKey) }
     }
 
     static weak var appRef: AppState?

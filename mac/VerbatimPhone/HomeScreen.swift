@@ -26,6 +26,9 @@ struct HomeScreen: View {
     /// The press on Record (RecordTray.swift): just touched, or held with the Record as tray open.
     @State private var recordPress: RecordPressPhase = .idle
     @ObservedObject private var flow = FlowSettings.shared
+    /// The What's new sheet after a bigger update (WhatsNewSheet.swift), once.
+    @State private var whatsNewPopup: ReleaseNote?
+    @AppStorage(ReleaseNotes.lastSeenKey) private var whatsNewLastSeen = 0
 
     /// How many Homes are on screen (the self-test checks Home draws once).
     static var recordCardsOnScreen = 0
@@ -66,7 +69,21 @@ struct HomeScreen: View {
         .onReceive(NotificationCenter.default.publisher(for: .verbatimEditHome)) { note in
             editingHome = (note.object as? Bool) ?? true
         }
-        .onAppear { now = Date(); readyText = RecordingRoute.readyText(); Self.recordCardsOnScreen += 1 }
+        .sheet(item: $whatsNewPopup) { note in
+            WhatsNewSheet(note: note, app: .phone, seeAll: {
+                whatsNewPopup = nil
+                // After the sheet has gone, so Settings' sheet isn't asked for while this one closes.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { Self.openWhatsNew(app) }
+            }, close: { whatsNewPopup = nil })
+            .presentationDragIndicator(.visible)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimWhatsNewPopup)) { n in
+            if (n.object as? Bool) == false { whatsNewPopup = nil } else { checkWhatsNew() }
+        }
+        .onAppear {
+            now = Date(); readyText = RecordingRoute.readyText(); Self.recordCardsOnScreen += 1
+            checkWhatsNew()
+        }
         .onDisappear { Self.recordCardsOnScreen = max(0, Self.recordCardsOnScreen - 1) }
         .onChange(of: app.recordingActive) { _, _ in readyText = RecordingRoute.readyText() }
         .onReceive(Self.minute) { now = $0 }
@@ -149,6 +166,17 @@ struct HomeScreen: View {
 
     /// Home's note after an update opens Settings › What's new.
     static func openWhatsNew(_ app: PhoneState) { app.openSettings(page: "whatsNew") }
+
+    /// After an update to a bigger build: the What's new sheet, once, instead of the banner. Seen as soon as it opens,
+    /// through this build, so neither comes back. Never over a recording or another sheet.
+    private func checkWhatsNew() {
+        guard whatsNewPopup == nil, !editingHome, !app.recordingActive, !app.showSettings else { return }
+        let current = WhatsNewBanner.previewBuild ?? ReleaseNotes.currentBuild
+        guard let note = ReleaseNotes.popup(current: current, lastSeen: whatsNewLastSeen, notes: ReleaseNotes.bundled, app: .phone),
+              let current else { return }
+        whatsNewLastSeen = max(whatsNewLastSeen, current)
+        whatsNewPopup = note
+    }
 
     /// Puts a dictation's words on the clipboard (a Dictations row). The row itself confirms with a check.
     static func copyDictation(_ text: String) {
@@ -356,6 +384,9 @@ extension Notification.Name {
     static let verbatimOpenSettingsPage = Notification.Name("verbatimOpenSettingsPage")
     /// Opens (true) or closes (false) Edit Home over Home; the self-test uses it.
     static let verbatimEditHome = Notification.Name("verbatimEditHome")
+    /// The UI tour asks Home to check for the What's new sheet again (after it sets the build to preview), or, with
+    /// false, closes it as Continue does.
+    static let verbatimWhatsNewPopup = Notification.Name("verbatimWhatsNewPopup")
 }
 
 /// Opens a page inside Settings from elsewhere (Home's This week opens the You page; the keyboard row opens Keyboard).

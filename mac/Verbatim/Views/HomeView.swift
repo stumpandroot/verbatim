@@ -34,6 +34,9 @@ struct HomeView: View {
     @State var now = Date()
     @State var importOpen = false
     @State var fileOver = false
+    /// The What's new sheet after a bigger update (WhatsNewSheet.swift), once.
+    @State var whatsNewPopup: ReleaseNote?
+    @AppStorage(ReleaseNotes.lastSeenKey) var whatsNewLastSeen = 0
 
     /// The gutter between tiles and between two sections in a band.
     static let gap: CGFloat = 12
@@ -66,12 +69,33 @@ struct HomeView: View {
         .background(Refined.paper)
         .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
         .onChange(of: app.focusLink) { _, _ in importOpen = true }
-        .onAppear { NavMarks.mark("home-appear"); mics.refresh() }
+        .onAppear { NavMarks.mark("home-appear"); mics.refresh(); checkWhatsNew() }
+        .sheet(item: $whatsNewPopup) { note in
+            WhatsNewSheet(note: note, app: .mac, seeAll: {
+                whatsNewPopup = nil
+                app.dictation.openSettings(tab: .whatsNew)
+            }, close: { whatsNewPopup = nil })
+            .frame(width: 480, height: 620)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: WhatsNewHomeLine.popupForTest)) { n in
+            if (n.object as? Bool) == false { whatsNewPopup = nil } else { checkWhatsNew() }
+        }
         // Only when editing: a write publishes even when nothing changes, so it re-rendered Home (and Settings' Edit
         // Home list) again.
         .onDisappear { if edit.editing { edit.editing = false } }
         .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mics.refresh(); now = Date() }
+    }
+
+    /// After an update to a bigger build: the What's new sheet, once, instead of Home's line. Seen as soon as it opens,
+    /// through this build, so neither comes back.
+    private func checkWhatsNew() {
+        guard whatsNewPopup == nil, !edit.editing else { return }
+        let current = WhatsNewHomeLine.previewBuild ?? ReleaseNotes.currentBuild
+        guard let note = ReleaseNotes.popup(current: current, lastSeen: whatsNewLastSeen, notes: ReleaseNotes.bundled, app: .mac),
+              let current else { return }
+        whatsNewLastSeen = max(whatsNewLastSeen, current)
+        whatsNewPopup = note
     }
 
     private var column: some View {
