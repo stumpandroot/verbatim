@@ -1135,8 +1135,13 @@ enum UITest {
         check("what's new: build \(b), a bigger build, opens the sheet over Home", shown)
         check("what's new: the sheet counts as seen", d.integer(forKey: ReleaseNotes.lastSeenKey) >= b)
         NotificationCenter.default.post(name: WhatsNewHomeLine.popupForTest, object: false)
-        try? await Task.sleep(nanoseconds: 800_000_000)
-        check("what's new: Continue closes the sheet", WhatsNewSheet.onScreen == 0)
+        // The window's attached sheet is the evidence: on the Mac a sheet's onDisappear can come late or not at all,
+        // so the view counter alone failed build 267's tour though the sheet had gone.
+        func sheetUp() -> Bool { NSApp.windows.contains { $0.attachedSheet != nil } }
+        let end = Date().addingTimeInterval(3)
+        while sheetUp(), Date() < end { try? await Task.sleep(nanoseconds: 100_000_000) }
+        Log.note("UITEST NOTE what's new: after Continue, attached sheet=\(sheetUp()) counter=\(WhatsNewSheet.onScreen)")
+        check("what's new: Continue closes the sheet", !sheetUp())
         WhatsNewHomeLine.previewBuild = nil
         if let keepSeen { d.set(keepSeen, forKey: ReleaseNotes.lastSeenKey) } else { d.removeObject(forKey: ReleaseNotes.lastSeenKey) }
     }
