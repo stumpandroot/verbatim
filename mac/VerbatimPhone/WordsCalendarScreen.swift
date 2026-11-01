@@ -354,7 +354,7 @@ struct WordsYearView: View {
     }
 
     private func months(_ y: WordsCalendar.Year) -> some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: 3)
         return LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
             ForEach(y.months, id: \.start) { m in
                 Button { openMonth(m.start) } label: { WordsMiniMonth(month: m) }

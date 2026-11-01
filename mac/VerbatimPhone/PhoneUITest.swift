@@ -1962,7 +1962,7 @@ enum PhoneUITest {
         if checks {
             youCheck("the You page opens your words calendar", WordsCalendarScreen.onScreen > 0)
             let m = WordsCalendar.month(containing: seeded.month, entries: app.store.wordsEntries)
-            youCheck("the month counts its dictations' words", m.words == seeded.words && m.daysTalked >= 20)
+            youCheck("the month counts its dictations' words", m.words >= seeded.words && m.words < seeded.words + 2_000 && m.daysTalked >= 20)
             youCheck("a recorded day has a dot", m.days.contains { !$0.recordings.isEmpty })
         }
         NotificationCenter.default.post(name: .verbatimWordsCalendar, object: WordsCalendarTour.scroll("words.more"))
@@ -1988,7 +1988,7 @@ enum PhoneUITest {
     }
 
     /// Made-up dictations (two a day, with the ums cleanup took out) and a few recordings, all in last month, for the
-    /// words calendar's screenshots. Returns that month, its words, its busiest day, and what to delete after.
+    /// words calendar's screenshots (other sample dictations from the tour may fall in that month too). Returns that month, its words, its busiest day, and what to delete after.
     private static func seedWordsMonth(_ store: Store) -> (month: Date, words: Int, best: Date, ids: [UUID]) {
         let cal = Calendar.current
         let thisMonth = cal.dateInterval(of: .month, for: Date())?.start ?? Date()
