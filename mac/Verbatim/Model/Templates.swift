@@ -242,7 +242,7 @@ enum TemplateLibrary {
 
     /// Plan my day's instruction (approved mockup "Verbose Brain Dump", section 10). The no-add rule is added when it
     /// runs, as for every template.
-    static let planMyDayInstruction = "Make a plan for the speaker's day from what they said. Put the three tasks they call most important under Top three, in their order; if they don't name them, use the first three tasks for today in the order said, and say so. Sort the other tasks by when the speaker said they'd do them: Today, Tomorrow, This week, or Someday. Name a day only when the transcript names it. Put tasks with no day under Someday. Put ideas that aren't tasks under Ideas, in the speaker's words. Leave out a section with nothing in it."
+    static let planMyDayInstruction = "Make a plan for the speaker's day from what they said. Put the three tasks they call most important under Top three, in their order; if they don't name them, use the first three tasks for today in the order said, and say so. Sort the other tasks by when the speaker said they'd do them: Today, Tomorrow, This week, or Someday. Name a day only when the transcript names it. Put tasks with no day under Someday. Make each thing the speaker says they'll do its own task, written as a short to-do that starts with the action, like \"Email Dana about the $250 invoice\": keep names, amounts, and dates as said, and leave out filler words, false starts, and reasons. Put ideas that aren't tasks under Ideas, in the speaker's words. Leave out a section with nothing in it."
 
     /// The nine that come with Verbose. Plan my day is ninth, a Scenario template: "Built in" means the two transcript
     /// actions (TranscriptActions.builtIn).

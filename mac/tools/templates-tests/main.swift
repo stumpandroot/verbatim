@@ -488,6 +488,38 @@ check("plan: the model saying it chose them shows the line; a task listed twice 
 check("plan: an empty brain dump says so", DayPlan.parse("## Top three\nNone stated.").isEmpty && DayPlan.noTasksLine == "No tasks or ideas in what you said.")
 check("plan: Someday's line", DayPlan.somedayLine == "And anything you didn\u{2019}t give a day")
 
+// Tidy (October 31, 2026): tasks the on-device model copied as they were said become short to-dos.
+let tidyCases: [(String, String)] = [
+    ("create a draft of the invoice for Hill fabrication", "Create a draft of the invoice for Hill fabrication"),
+    ("email Dana from Oak and Iron because they never paid a $250 invoice from a while ago", "Email Dana from Oak and Iron"),
+    ("email Sam from Brightline because he said he'd send 400 bucks but never paid it so that's on him", "Email Sam from Brightline"),
+    ("prepare for my photo shoot on Monday for Hill fabrication", "Prepare for my photo shoot on Monday for Hill fabrication"),
+    ("come up with the next meetup plan for the film club because time is running out", "Come up with the next meetup plan for the film club"),
+    ("make a to make a call with Rob about the props in", "Make a call with Rob about the props"),
+    ("call UPS about my Walmart order", "Call UPS about my Walmart order"),
+    ("send out emails to potential partners, so like the Strand Theater as a potential partner for the film club um and then more formal versions to other kinds of places who might want to partner", "Send out emails to potential partners"),
+    ("send a a message about the short film to Jo. Just um, you know, just want to get her read. It's like, look, she said no.", "Send a message about the short film to Jo"),
+    ("Um, I want to make sure that I create a draft of the invoice.", "Create a draft of the invoice"),
+    ("I need to call UPS about my order", "Call UPS about my order"),
+    ("I might as well even email Sam", "Email Sam"),
+    ("And then I need to come up with the next meetup plan", "Come up with the next meetup plan"),
+    ("have lunch with Sam", "Have lunch with Sam"),
+    ("plan the day to day schedule", "Plan the day to day schedule"),
+    ("Send the bakery invoice", "Send the bakery invoice"),
+    ("I\u{2019}ll call the print shop", "Call the print shop"),
+]
+for (said, want) in tidyCases {
+    let got = DayPlan.tidyTask(said)
+    check("tidy: \(said.prefix(40))", got == want, "got \"\(got)\"")
+}
+check("tidy: an idea keeps its words, without the filler", DayPlan.tidyIdea("um a mug with the barn logo, you know, for the kits") == "A mug with the barn logo for the kits", DayPlan.tidyIdea("um a mug with the barn logo, you know, for the kits"))
+let messy = DayPlan.item("make a to make a call with Rob about the props in [03:22]", section: .week)
+let clean = DayPlan.item("Make a call with Rob about the props [03:22]", section: .week)
+check("tidy: the plan shows the tidy words; the key stays the model's words, so what was sent stays sent",
+      messy.text == "Make a call with Rob about the props" && messy.said == "make a to make a call with Rob about the props in"
+      && messy.key == DayPlan.key("make a to make a call with Rob about the props in", 202) && clean.said == nil && messy.anchor == 202)
+check("tidy: the instruction asks for short to-dos", TemplateLibrary.planMyDayInstruction.contains("short to-do that starts with the action"))
+
 // Send to Reminders (no EventKit here: the drafts are what the app hands it).
 var sel = DayPlan.defaultSelection(plan, sent: [:])
 check("reminders: every task checked, ideas unchecked", sel.count == 9 && !sel.contains(plan.ideas[0].key))

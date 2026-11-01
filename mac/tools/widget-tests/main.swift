@@ -109,6 +109,9 @@ check("no length", WidgetSnapshot.lengthLabel(0) == "" && WidgetSnapshot.lengthL
 
 let id = UUID()
 check("transcript link round-trips", WidgetLink(url: WidgetLink.transcript(id).url) == .transcript(id))
+let atMoment = URL(string: "verbatim://transcript/\(id.uuidString)?t=258")!
+check("Verbose Tasks' Play link opens the transcript at its moment", WidgetLink(url: atMoment) == .transcript(id) && WidgetLink.moment(in: atMoment) == 258
+      && WidgetLink.moment(in: WidgetLink.transcript(id).url) == nil && WidgetLink.moment(in: URL(string: "verbatim://transcript/\(id.uuidString)?t=-4")!) == nil)
 for l in [WidgetLink.record, .dictate, .thought, .newThought] {
     check("\(l) round-trips", WidgetLink(url: l.url) == l)
 }
