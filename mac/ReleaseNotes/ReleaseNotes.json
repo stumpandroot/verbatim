@@ -2,7 +2,21 @@
   "notes": [
     {
       "build": "next",
-      "title": "Tidy brain dump tasks, and Send to Verbose Tasks",
+      "title": "Send to Verbose Tasks",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "text": "Send tasks can send to Verbose Tasks when it's installed.",
+          "detail": "Tasks arrive planned for the day you said, and Play in Verbose Tasks opens the recording at that moment. Verbose says what was saved when you come back."
+        }
+      ]
+    },
+    {
+      "build": "263",
+      "date": "2026-11-01",
+      "title": "Tidy brain dump tasks",
       "items": [
         {
           "platforms": [
@@ -11,13 +25,6 @@
           ],
           "text": "Plan my day writes each task as a short to-do, without the ums, repeats, and reasons.",
           "detail": "\"make a to make a call with Rob about the props in\" becomes \"Make a call with Rob about the props\". Plans you already made are tidied too."
-        },
-        {
-          "platforms": [
-            "iphone"
-          ],
-          "text": "Send tasks can send to Verbose Tasks when it's installed.",
-          "detail": "Tasks arrive planned for the day you said, and Play in Verbose Tasks opens the recording at that moment. Verbose says what was saved when you come back."
         }
       ]
     },
