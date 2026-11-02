@@ -2100,6 +2100,7 @@ enum PhoneUITest {
         }
         HomeSelfTest.run(check)
         tallyChecks(check)
+        VocalSoundScan.selfChecks(check)
         Log.note("UITEST home checks: \(pass) passed, \(fail) failed")
     }
 

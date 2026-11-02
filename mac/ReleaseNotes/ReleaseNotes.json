@@ -1,6 +1,21 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Testing vocal sounds",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Test vocal sounds",
+          "icon": "audio",
+          "text": "TestFlight builds can check which laughs, sighs, and pauses Verbose hears.",
+          "detail": "Open a recording, then Export › Test vocal sounds. It lists what it heard, with times, as text you can share. Nothing is saved."
+        }
+      ]
+    },
+    {
       "build": "271",
       "date": "2026-11-02",
       "version": "1.0 beta",

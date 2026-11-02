@@ -267,6 +267,26 @@ struct TranscriptScreen: View {
         }
     }
 
+    #if BETA_UNLOCK
+    /// TestFlight only: runs Apple's sound classifier over this recording and opens the share sheet with a text report
+    /// of the sounds it heard and the long pauses between words (VocalSoundScan). Nothing is saved.
+    private func testVocalSounds(_ t: Transcript, _ u: URL) {
+        Task { @MainActor in
+            if !Cloud.isDownloaded(u) { app.say("Downloading the audio…"); _ = await Cloud.ensureDownloaded(u) }
+            guard FileManager.default.fileExists(atPath: u.path) else { app.say("The audio isn't on this iPhone yet. Try again in a moment."); return }
+            app.say("Listening for vocal sounds…")
+            do {
+                let events = try await VocalSoundScan.scan(url: u)
+                let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+                shareItems = [VocalSoundScan.report(title: t.title, duration: t.duration, events: events,
+                                                    pauses: VocalSoundScan.pauses(t.segments), labels: VocalSoundScan.knownLabels(), build: build)]
+            } catch {
+                app.say("The test couldn't read this recording. \(error.localizedDescription)")
+            }
+        }
+    }
+    #endif
+
     /// Original, Cleaned, and Summary; Review once something was corrected; and a template's result.
     private func modes(_ t: Transcript) -> [(Mode, String)] {
         Self.modes(t, current: mode, busyName: TemplateCenter.shared.busyTemplate(t.id).flatMap { id in app.store.allTemplates.first { $0.id == id }?.name })
@@ -600,6 +620,13 @@ struct TranscriptScreen: View {
                     }
                     Button { app.copyText(t, .engine) } label: { Label("Copy engine words", systemImage: "waveform") }   // brand: system surface (menu)
                         .disabled(!t.hasEngineWords)
+                    #if BETA_UNLOCK
+                    // TestFlight only: the vocal expressions test (Transcription/VocalSoundScan.swift).
+                    if let u = app.store.audioURL(for: t) {
+                        Divider()
+                        Button { testVocalSounds(t, u) } label: { Label("Test vocal sounds", systemImage: "waveform.badge.magnifyingglass") }   // brand: system surface (menu)
+                    }
+                    #endif
                 } label: { Label("Export", systemImage: "square.and.arrow.up") }
                 .disabled(!ready)
                 Menu {

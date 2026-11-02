@@ -674,6 +674,7 @@ enum UITest {
         await reveal("you-time-saved", in: window)
         await show("07d-you-time-saved")
         check("you: the Time saved card draws", frames["you-time-saved"] != nil)
+        await vocalSoundChecks()
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
         await thoughtShots(suffix: "")
@@ -887,6 +888,39 @@ enum UITest {
         store.reset()
         app.go(.home)
         try? await Task.sleep(nanoseconds: 700_000_000)
+    }
+
+    /// Vocal expressions, test stage (Transcription/VocalSoundScan.swift): the pure checks, the built-in sound
+    /// classifier's labels written to the log (which sounds it can name at all), and one scan of a generated clip.
+    private static func vocalSoundChecks() async {
+        VocalSoundScan.selfChecks { check($0, $1) }
+        let labels = VocalSoundScan.knownLabels()
+        Log.note("UITEST vocal sounds: vocal labels: " + labels.filter(VocalSoundScan.isInteresting).joined(separator: ", "))
+        Log.note("UITEST vocal sounds: all \(labels.count) labels: " + labels.joined(separator: ", "))
+        check("vocal sounds: Apple's sound classifier loads and can name laughter", labels.contains { $0.contains("laugh") })
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("vocal-sounds-check.caf")
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 48_000) else { check("vocal sounds: makes a test clip", false); return }
+        buffer.frameLength = 48_000
+        var seed: UInt32 = 7
+        for i in 0..<Int(buffer.frameLength) {
+            seed = seed &* 1_664_525 &+ 1_013_904_223
+            let noise = Float(seed >> 8) / Float(1 << 24) - 0.5
+            buffer.floatChannelData?[0][i] = 0.02 * noise + 0.1 * sin(Float(i) * 2 * .pi * 220 / 16_000)
+        }
+        do {
+            try? FileManager.default.removeItem(at: url)
+            let file = try AVAudioFile(forWriting: url, settings: format.settings)
+            try file.write(from: buffer)
+        } catch { check("vocal sounds: makes a test clip", false); return }
+        do {
+            let events = try await VocalSoundScan.scan(url: url, floor: 0.1)
+            check("vocal sounds: scans a 3-second clip without an error", true)
+            Log.note("UITEST vocal sounds: generated clip heard: " + (events.isEmpty ? "nothing vocal" : events.map { "\($0.label) \(String(format: "%.2f", $0.confidence))" }.joined(separator: ", ")))
+        } catch {
+            check("vocal sounds: scans a 3-second clip without an error (\(error.localizedDescription))", false)
+        }
+        try? FileManager.default.removeItem(at: url)
     }
 
     private static func check(_ name: String, _ ok: Bool) {
