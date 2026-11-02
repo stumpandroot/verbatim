@@ -155,5 +155,25 @@ if let v = try? dec.decode(JSONValue.self, from: shapes), let back = try? enc.en
     check("JSONValue round-trips every shape", same(object(back), object(shapes)))
 } else { check("JSONValue round-trips every shape", false) }
 
+// Imported files: a made-up name (a download's ID, a camera's number) gets an automatic title; a name you gave it stays.
+for made in ["v12044gd0000db8m6m7og65g3h4k8r50", "IMG_4821", "VID_20261102_180512", "PXL_20261102_230512345", "DJI_0042",
+             "Screen Recording 2026-11-02 at 6.05.12 PM", "RPReplay_Final1730581512", "video", "Video (1)", "download",
+             "8F2C6A1E-4B7D-4E21-9C3A-2D5B6E7F8A90", "20261102_180512", "WhatsApp Video 2026-11-02 at 18.05.12",
+             "snaptik_7432189054321", "Untitled", "New Recording 12", "audio-2"] {
+    check("a made-up file name gets a title: \(made)", Transcript.isMadeUpFileName(made))
+}
+for named in ["Client interview, March", "Kickoff with the print shop", "Episode 12 recap", "2026 budget review",
+              "Q3 plan", "Sermon on Psalm 23", "Tim and Anka walkthrough", "Final cut notes from Ian"] {
+    check("a name someone gave a file stays: \(named)", !Transcript.isMadeUpFileName(named))
+}
+var tiktok = fresh; tiktok.source = .file; tiktok.title = "v12044gd0000db8m6m7og65g3h4k8r50"; tiktok.titleIsAuto = true
+check("an imported TikTok download may be retitled", tiktok.mayAutoTitle([.voiceMemo]))
+tiktok.title = "Client interview, March"
+check("an imported file with a real name keeps it", !tiktok.mayAutoTitle([.voiceMemo]))
+tiktok.title = "Have you given up"; tiktok.titleByModel = true
+check("once its made-up name is replaced by a model's title, a summary can still improve it", tiktok.mayAutoTitle([.voiceMemo]))
+tiktok.title = "IMG_4821"; tiktok.titleIsAuto = false
+check("a file you renamed is never retitled", !tiktok.mayAutoTitle([.voiceMemo, .file]))
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

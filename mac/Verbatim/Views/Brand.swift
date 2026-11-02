@@ -154,7 +154,9 @@ extension BrandArt {
     static let iconQueue = BrandArt(box: iconGrid, strokes: [.circle(5, 12, 1.4), .circle(5, 17, 1.4), .path("M9 7H20"), .path("M9 12H18"), .path("M9 17H15.5")], fills: [.circle(5, 7, 1.6)], strokeWidth: 1.5)
     static let iconDictations = BrandArt(box: iconGrid, strokes: [.path("M3 9C4.5 4.5 6 4.5 7.5 9S10.5 13.5 12 9 15 4.5 16.5 9 19.5 13.5 21 9"), .path("M3 15.5H21"), .path("M3 19.5H14")], strokeWidth: 1.5)
     static let iconDictionary = BrandArt(box: iconGrid, strokes: [.path("M12 6.5C9.5 4.8 6.5 4.5 3.5 5.2V18.7C6.5 18 9.5 18.3 12 20C14.5 18.3 17.5 18 20.5 18.7V5.2C17.5 4.5 14.5 4.8 12 6.5Z"), .path("M12 6.5V20")], strokeWidth: 1.5)
-    static let iconSettings = BrandArt(box: iconGrid, strokes: [.circle(12, 12, 6.5), .path("M12 12V7.5"), .path("M12 2.5V4"), .path("M20.23 16.75L18.93 16"), .path("M3.77 16.75L5.07 16")], fills: [.circle(12, 12, 1.2)], strokeWidth: 1.5)
+    /// Settings: a plain eight-tooth gear, so it reads as Settings at a glance (November 2, 2026; the earlier dial with
+    /// three ticks read as a timer).
+    static let iconSettings = BrandArt(box: iconGrid, strokes: [.path("M10.07 5.01L10.06 2.44L13.94 2.44L13.93 5.01L15.57 5.69L17.39 3.87L20.13 6.61L18.31 8.43L18.99 10.07L21.56 10.06L21.56 13.94L18.99 13.93L18.31 15.57L20.13 17.39L17.39 20.13L15.57 18.31L13.93 18.99L13.94 21.56L10.06 21.56L10.07 18.99L8.43 18.31L6.61 20.13L3.87 17.39L5.69 15.57L5.01 13.93L2.44 13.94L2.44 10.06L5.01 10.07L5.69 8.43L3.87 6.61L6.61 3.87L8.43 5.69Z"), .circle(12, 12, 3.1)], strokeWidth: 1.5)
     static let iconDeleted = BrandArt(box: iconGrid, strokes: [.path("M14 3.5V7.5H18")], strokeWidth: 1.5, dashes: [.init(elements: [.path("M6 3.5H14L18 7.5V20.5H6Z")], pattern: [1.6, 1.9])])
     static let iconLanguage = BrandArt(box: iconGrid, strokes: [.circle(12, 12, 8.5), .path("M3.5 12H20.5"), .path("M12 3.5C9 6 9 18 12 20.5C15 18 15 6 12 3.5")], strokeWidth: 1.5)
     static let iconVoice = BrandArt(box: iconGrid, strokes: [.circle(12, 12, 8), .circle(15, 12, 5), .circle(18, 12, 2)], strokeWidth: 1.5)

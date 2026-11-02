@@ -29,6 +29,25 @@
           "icon": "swap",
           "text": "On macOS 26 and later, the sidebar is the system's floating glass panel over the page.",
           "detail": "It no longer draws a blue outline after you click it. The arrow keys still move between items, and the selected item shows where you are."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Titles for downloads",
+          "icon": "tidy",
+          "text": "Imported files with made-up names, like a TikTok download, get a suggested title.",
+          "detail": "A file you named yourself keeps its name. For a file imported earlier, open its Summary and choose Regenerate."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "A plain gear",
+          "icon": "appearance",
+          "text": "Settings uses a plain gear everywhere, so it's easy to spot."
         }
       ]
     },

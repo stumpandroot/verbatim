@@ -845,6 +845,49 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// Placeholder titles Verbatim gives a transcript before it has words.
     static let defaultTitles: Set<String> = ["Voice memo", "Voice note", "Recovered recording", "Dictation", "App audio", "Untitled", "Audio only", "Brain dump"]
 
+    /// Whether an automatic title (Apple Intelligence's, or the first words) may replace this one: never after you
+    /// rename it; for the sources the app names itself (`sources`, the coordinator's `autoTitleSources`); and for an
+    /// imported file whose name a phone, camera, or site made up, such as a TikTok download
+    /// ("v12044gd0000db8m6m7og65g3h4k8r50"), "IMG_4821", or "Screen Recording 2026-11-02 at 6.05 PM". A file you named
+    /// yourself ("Client interview, March") keeps its name.
+    func mayAutoTitle(_ sources: Set<SourceKind>) -> Bool {
+        guard titleIsAuto else { return false }
+        if sources.contains(source) { return true }
+        // A file keeps qualifying once the app has replaced its made-up name, with the first words or a model's
+        // title, so Apple Intelligence can still improve on the first words.
+        return source == .file && (Self.isMadeUpFileName(title) || titleByModel || title == Self.titleFrom(segments))
+    }
+
+    /// Names devices, apps, and download sites give files: a camera or app prefix with a number or date, a generic
+    /// word ("video", "audio", "download"), a UUID or long ID, or a name that's mostly digits.
+    static func isMadeUpFileName(_ name: String) -> Bool {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if n.isEmpty || defaultTitles.contains(n) { return true }
+        let lower = n.lowercased()
+        // Generic words alone or with a number, date, or copy marker after them.
+        let generic = ["video", "audio", "movie", "recording", "new recording", "voice memo", "screen recording", "screenshot",
+                       "download", "untitled", "file", "clip", "trim", "export", "output", "final", "rpreplay_final", "rpreplay"]
+        let tail = CharacterSet(charactersIn: "0123456789 _-.()[]:,").union(.whitespaces)
+        for g in generic where lower.hasPrefix(g) {
+            let rest = lower.dropFirst(g.count)
+            if rest.unicodeScalars.allSatisfy({ tail.contains($0) }) { return true }
+            // "Screen Recording 2026-11-02 at 6.05.12 PM"
+            if g.contains(" ") || g == "recording", rest.range(of: #"^[\s_-]*\d{4}-\d{2}-\d{2}"#, options: .regularExpression) != nil { return true }
+        }
+        // Camera, phone, and app prefixes followed by digits: IMG_4821, VID_20261102_180512, PXL_…, DJI_0042, GX010123,
+        // DSC01234, MVI_1234, WhatsApp Video 2026-11-02 at …, snaptik_…, ssstik.io_….
+        if lower.range(of: #"^(img|vid|mov|pxl|dji|gopr|gx|gh|dsc|dscf|mvi|mah|trim|signal|telegram|whatsapp( video| audio)?|snaptik|ssstik(\.io)?|tiktok|musicaldown|savefrom|y2mate|yt1s|snapinsta)[\s_.-]*\d"#,
+                         options: .regularExpression) != nil { return true }
+        // A UUID.
+        if UUID(uuidString: n) != nil { return true }
+        let alnum = n.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }
+        let digits = alnum.filter { CharacterSet.decimalDigits.contains($0) }.count
+        // One long token mixing letters and digits, with no spaces: an ID from a site or app.
+        if !n.contains(" "), alnum.count >= 16, digits >= 4, digits < alnum.count { return true }
+        // Mostly digits: a timestamp or a number.
+        return digits >= 5 && Double(digits) >= Double(alnum.count) * 0.5
+    }
+
     /// Audio only (AudioOnly.swift): kept as sound. The transcription queue, AutoLabel, Ask's index, and Run
     /// automatically leave it alone until you transcribe it, which files it as a voice note.
     var isAudioOnly: Bool { kind == .audio }

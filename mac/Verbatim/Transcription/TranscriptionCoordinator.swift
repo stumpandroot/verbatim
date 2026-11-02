@@ -385,7 +385,8 @@ final class TranscriptionCoordinator: ObservableObject {
     private func labelIfNeeded(_ id: UUID) {
         guard AutoLabel.enabled, let t = store.transcript(id), t.status == .ready, t.source != .dictation,
               AudioOnlyRules.labels(t), t.wantsSuggestedKind, !t.segments.isEmpty else { return }
-        let wantTitle = t.titleIsAuto && config.autoTitleSources.contains(t.source)
+        // An imported file with a made-up name (a TikTok download, IMG_4821) gets a title too (Transcript.mayAutoTitle).
+        let wantTitle = t.mayAutoTitle(config.autoTitleSources)
         // Sponsor reads (detectSponsors, just before) never name or tag the recording.
         let segs = t.segmentsWithoutSponsors, speakers = max(t.speakers.count, Set(t.segments.compactMap(\.speaker)).count), duration = t.duration
         let origin = KindRule.origin(of: t)
@@ -570,7 +571,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.processingDevice = nil; x.processingDeviceName = nil
                         self.promoteAudioOnly(&x, id)
                         if !wave.isEmpty { x.waveform = wave }
-                        if autoTitle.contains(x.source), x.titleIsAuto, !x.titleByModel, let auto = Transcript.titleFrom(fixed) { x.title = auto }
+                        if x.mayAutoTitle(autoTitle), !x.titleByModel, let auto = Transcript.titleFrom(fixed) { x.title = auto }
                         // New words: a summary Apple Intelligence wrote for the old ones goes (an edited one stays).
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
                         if let old {
@@ -669,7 +670,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.processingDevice = nil; x.processingDeviceName = nil
                         self.promoteAudioOnly(&x, id)
                         if !out.wave.isEmpty { x.waveform = out.wave }
-                        if autoTitle.contains(x.source), x.titleIsAuto, !x.titleByModel, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
+                        if x.mayAutoTitle(autoTitle), !x.titleByModel, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
                     }
                     self.dropSections(t)

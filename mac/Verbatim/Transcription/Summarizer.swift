@@ -443,7 +443,7 @@ final class SummaryCenter: ObservableObject {
     }
 
     private func retitleIfNeeded(_ id: UUID, summary: TranscriptSummary) {
-        guard AutoLabel.enabled, let t = store?.transcript(id), t.titleIsAuto, retitleSources.contains(t.source) else { return }
+        guard AutoLabel.enabled, let t = store?.transcript(id), t.mayAutoTitle(retitleSources) else { return }
         Task.detached(priority: .utility) { [weak self] in
             guard let title = await AutoLabel.title(from: summary) else { return }
             await MainActor.run {
