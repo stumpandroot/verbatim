@@ -579,9 +579,11 @@ enum PhoneUITest {
         // Change kind while recording: the title is a menu, and a pick changes the whole recording as it goes.
         check("the recorder's title can change the kind while recording", app.canSwitchRecordingKind)
         app.switchRecordingKind(to: .kind(.brainDump))
+        // Read the note before the screenshot: it clears after 3 s, and a slow runner's show() can take longer.
+        let switchedToast = app.toast
         await show("p02r-record-switched")
         check("changing kind while recording files it as the new kind and says so",
-              app.recordingChoice == .kind(.brainDump) && app.toast == "Now a brain dump, from the start")
+              app.recordingChoice == .kind(.brainDump) && switchedToast == "Now a brain dump, from the start")
         app.switchRecordingKind(to: .thought)
         check("changing to a thought makes it a thought from its start", app.recordingThought && app.recordKind == nil && app.thoughtStartedAt != nil)
         app.switchRecordingKind(to: .voiceNote)
