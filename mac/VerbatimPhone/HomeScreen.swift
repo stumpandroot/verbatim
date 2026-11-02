@@ -26,6 +26,8 @@ struct HomeScreen: View {
     /// The press on Record (RecordTray.swift): just touched, or held with the Record as tray open.
     @State private var recordPress: RecordPressPhase = .idle
     @ObservedObject private var flow = FlowSettings.shared
+    /// All time for This week's card (DictationTally.swift).
+    @ObservedObject private var tally = DictationTally.shared
     /// The What's new sheet after a bigger update (WhatsNewSheet.swift), once.
     @State private var whatsNewPopup: ReleaseNote?
     @AppStorage(ReleaseNotes.lastSeenKey) private var whatsNewLastSeen = 0
@@ -252,15 +254,18 @@ struct HomeScreen: View {
     private func week(_ size: HomeCardSize) -> some View {
         let week = app.store.dictationWeek(now: now)
         let saved = HomeWeek.savedText(week.secondsSaved(typingWPM: flow.typingWPM))
+        var timeSaved = app.store.dictationTimeSaved(now: now)
+        timeSaved.useAllTime(tally.allTime, since: tally.since)
+        let total = timeSaved.allTimeLine(typingWPM: flow.typingWPM)
         let recordings = app.store.memo("recordings-this-week|\(Store.dayKey(now))") { Self.recordingsThisWeek(app.store.live, now: now) }
         let recordingsText = HomeCounts.countLabel(recordings, "recording", "recordings")
         return Button { Self.openProfile(app) } label: {
             WeekCard(words: week.words, detail: "\(week.words == 1 ? "word" : "words"), \(recordingsText)",
-                     saved: "\(saved) saved", days: week.cardDays, large: size == .large)
+                     saved: "\(saved) saved", total: total, days: week.cardDays, large: size == .large)
         }
         .buttonStyle(RefinedPress())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(recordingsText), \(saved) saved typing.")
+        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(recordingsText), \(saved) saved typing\(total.map { ", \($0)" } ?? "").")
         .accessibilityHint("Opens your You page, with the whole week.")
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("home.week")

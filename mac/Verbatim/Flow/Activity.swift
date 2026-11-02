@@ -25,6 +25,7 @@ final class ActivityLog: ObservableObject {
     /// Bumped on every change to `events`, so `week(now:)` (and the You page's range, `YouSummary`) knows when to count again.
     private(set) var generation = 0
     private var weekMemo: (generation: Int, day: Int, week: HomeWeek)?
+    private var savedMemo: (generation: Int, day: Int, saved: TimeSaved)?
 
     /// This week's numbers for Home (This week), worked out once per change and per day instead of on every render.
     func week(now: Date) -> HomeWeek {
@@ -33,6 +34,15 @@ final class ActivityLog: ObservableObject {
         let w = HomeWeek(events.map { HomeWordEntry(date: $0.date, words: $0.words, seconds: $0.seconds) }, now: now)
         weekMemo = (generation, day, w)
         return w
+    }
+    /// This week, this month, and all time for You's Time saved card and Home's all-time line, once per change and
+    /// per day. All time is every event kept (a reset starts it again).
+    func timeSaved(now: Date) -> TimeSaved {
+        let day = Store.dayKey(now)
+        if let m = savedMemo, m.generation == generation, m.day == day { return m.saved }
+        let t = TimeSaved(events.map { HomeWordEntry(date: $0.date, words: $0.words, seconds: $0.seconds) }, now: now)
+        savedMemo = (generation, day, t)
+        return t
     }
     /// The screenshot tour writes made-up numbers to its own file, never to your real Activity.
     private let file = Paths.local.appendingPathComponent(ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1" ? "activity-uitest.json" : "activity.json")

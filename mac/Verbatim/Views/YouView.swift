@@ -100,6 +100,7 @@ struct YouView: View {
                     voiceCard
                 }
                 .padding(.top, 26)
+                timeSavedCard(cal).padding(.top, 16)
                 RatioRow(weights: [1.6, 1], spacing: 16, stackBelow: 720) {
                     weekCard(range, stats, cal)
                     whereCard(range, summary)
@@ -299,21 +300,9 @@ struct YouView: View {
                 .fixedSize()
                 .padding(.leading, 4)
             }
+            // Time saved has its own card above (timeSavedCard), with the typing speed it compares against.
             HStack(alignment: .top, spacing: 34) {
                 bigStat(stats.words.formatted(), "words dictated")
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(Self.duration(stats.secondsSaved(typingWPM: settings.typingWPM))).font(.system(size: 28, weight: .semibold)).monospacedDigit()
-                        .foregroundStyle(Refined.ink).lineLimit(1).minimumScaleFactor(0.6)
-                    HStack(spacing: 3) {
-                        Text("saved vs. typing at").refinedFont(.meta).foregroundStyle(Refined.dim)
-                        Picker("Your typing speed", selection: $settings.typingWPM) {
-                            ForEach(FlowSettings.typingSpeeds(settings.typingWPM), id: \.self) { w in Text("\(w) wpm").tag(w) }
-                        }
-                        .labelsHidden().pickerStyle(.menu).fixedSize()
-                        .help("Your typing speed")
-                        .accessibilityLabel("Typing speed, \(settings.typingWPM) words per minute")
-                    }
-                }
                 bigStat(stats.pace.map { "\($0)" } ?? "–", "words per minute")
             }
             DayBars(days: YouRange.days(in: range, calendar: cal), byDay: stats.byDay, span: span, calendar: cal)
@@ -324,6 +313,56 @@ struct YouView: View {
             }
         }
         .modifier(YouCardFace())
+    }
+
+    // MARK: Time saved
+
+    /// Time saved by talking this week, this month, and all time (every dictation Activity has counted), against your
+    /// typing speed, which you pick here. The same rule as Home's This week card (`TimeSaved`), so its week matches.
+    private func timeSavedCard(_ cal: Calendar) -> some View {
+        let now = Date()
+        let t = log.timeSaved(now: now)
+        let wpm = settings.typingWPM
+        let week = YouRange.interval(.week, containing: now, calendar: cal)
+        let month = YouRange.interval(.month, containing: now, calendar: cal)
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 12) {
+                IconSquare(art: .iconTimeSaved, hue: .sage)
+                YouCardTitle(text: "Time saved by talking")
+                Spacer(minLength: 8)
+                HStack(spacing: 3) {
+                    Text("vs. typing at").refinedFont(.meta).foregroundStyle(Refined.dim)
+                    Picker("Your typing speed", selection: $settings.typingWPM) {
+                        ForEach(FlowSettings.typingSpeeds(wpm), id: \.self) { w in Text("\(w) wpm").tag(w) }
+                    }
+                    .labelsHidden().pickerStyle(.menu).fixedSize()
+                    .help("Your typing speed")
+                    .accessibilityLabel("Typing speed, \(wpm) words per minute")
+                }
+            }
+            HStack(alignment: .top, spacing: 16) {
+                savedStat("This week · \(Self.rangeLabel(week, .week, cal))", t.week, wpm, highlight: false)
+                savedStat("This month · \(Formats.pattern("MMMM").string(from: month.start))", t.month, wpm, highlight: false)
+                savedStat("All time" + (t.since.map { " · since " + TimeSaved.sinceDate($0, now: now, calendar: cal) } ?? ""), t.all, wpm, highlight: true)
+            }
+        }
+        .padding(.horizontal, 18).padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        .uiTarget("you-time-saved")
+    }
+
+    private func savedStat(_ label: String, _ span: TimeSaved.Span, _ wpm: Int, highlight: Bool) -> some View {
+        let saved = HomeWeek.savedText(span.saved(typingWPM: wpm))
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(label).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1).minimumScaleFactor(0.8)
+            Text(saved).font(.system(size: 28, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(highlight ? Refined.sageText : Refined.ink).lineLimit(1).minimumScaleFactor(0.6)
+            Text(HomeCounts.countLabel(span.words, "word", "words")).refinedFont(.meta).foregroundStyle(Refined.dim)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label): \(saved) saved, \(HomeCounts.countLabel(span.words, "word", "words"))")
     }
 
     private func step(_ n: Int) {

@@ -134,6 +134,8 @@ struct KeyboardStatNumbers: Equatable {
     /// False once the calendar week the app counted has ended (the app hasn't run since).
     var weekCurrent: Bool
     var totalWords: Int
+    /// The typing time `totalWords` saved.
+    var totalSecondsSaved: Double = 0
     /// Words and speaking time from dictations whose length is known, for the pace.
     var paceWords: Int
     var paceSeconds: Double
@@ -148,8 +150,9 @@ enum KeyboardStatsCopy {
     /// Less speaking time than this gives a pace too noisy to show.
     static let minPaceSeconds: Double = 60
 
-    /// Home's pages, in order: this week, since you started, and your speaking pace (left out until there's a minute
-    /// of speech to measure). Empty when nothing has been dictated yet (Home then shows its welcome line).
+    /// Home's pages, in order: this week, since you started, the time all of it saved (once it's more than this
+    /// week's), and your speaking pace (left out until there's a minute of speech to measure). Empty when nothing has
+    /// been dictated yet (Home then shows its welcome line).
     static func pages(_ n: KeyboardStatNumbers, grouping: String = groupingSeparator) -> [KeyboardStatPage] {
         guard n.totalWords > 0 else { return [] }
         let week = n.weekCurrent ? max(0, n.weekWords) : 0
@@ -160,6 +163,11 @@ enum KeyboardStatsCopy {
         var totalLine = "since you started."
         if let c = comparison(n.totalWords) { totalLine += " That's \(c)." }
         out.append(KeyboardStatPage(number: number(n.totalWords, grouping: grouping), unit: n.totalWords == 1 ? "word" : "words", line: totalLine))
+        // All time's time saved, once it's a minute and more than this week's.
+        if n.totalSecondsSaved >= 60, duration(n.totalSecondsSaved) != duration(saved) {
+            out.append(KeyboardStatPage(number: duration(n.totalSecondsSaved), unit: "saved",
+                                        line: "by talking instead of typing, since you started."))
+        }
         if let wpm = pace(words: n.paceWords, seconds: n.paceSeconds) {
             var line = "your speaking pace"
             if let f = faster(pace: wpm, typing: n.typingWPM) { line += ", \(f)" }

@@ -1,6 +1,39 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Time saved, all time",
+      "items": [
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Time saved, all time",
+          "icon": "time",
+          "text": "The You page shows time saved by talking this week, this month, and since you started.",
+          "detail": "It compares typing the same words at your typing speed with the time you talked. On the iPhone, deleting a dictation keeps its time in the total."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "All time on Home",
+          "icon": "home",
+          "text": "This week's card on Home adds your all-time time saved under the week's."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "All time on the keyboard",
+          "icon": "words",
+          "text": "The Verbose keyboard's stats add a page for the time you've saved since you started."
+        }
+      ]
+    },
+    {
       "build": "269",
       "date": "2026-11-01",
       "version": "1.0 beta",

@@ -52,6 +52,7 @@ extension BrandArt {
         case "audio": return .iconAudio
         case "project": return .iconProject
         case "quality": return .iconQuality
+        case "time": return .iconTimeSaved
         default: return .iconNotes
         }
     }

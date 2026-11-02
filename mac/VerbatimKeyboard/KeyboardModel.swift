@@ -245,7 +245,7 @@ final class KeyboardModel: ObservableObject {
         if let s = stats {
             pages = KeyboardStatsCopy.pages(KeyboardStatNumbers(
                 weekWords: s.weekWords, weekSecondsSaved: s.weekSecondsSaved, weekCurrent: weekCurrent ?? false,
-                totalWords: s.totalWords, paceWords: s.paceWords, paceSeconds: s.paceSeconds, typingWPM: s.typingWPM))
+                totalWords: s.totalWords, totalSecondsSaved: s.totalSecondsSaved ?? 0, paceWords: s.paceWords, paceSeconds: s.paceSeconds, typingWPM: s.typingWPM))
         }
         if pages != statsPages { statsPages = pages }
         if statsPage >= max(1, pages.count) { statsPage = 0 }

@@ -393,7 +393,7 @@ enum ReleaseNotes {
         "notes", "calendar", "words", "swap", "tasks", "plan", "tidy", "mic", "voice", "thought", "braindump", "ask",
         "ai", "import", "play", "share", "export", "copy", "settings", "home", "library", "tabbar", "privacy", "sync",
         "speakers", "summary", "captions", "film", "links", "dictionary", "widgets", "tour", "feedback", "support",
-        "mark", "language", "accessibility", "appearance", "audio", "project", "quality",
+        "mark", "language", "accessibility", "appearance", "audio", "project", "quality", "time",
     ]
 
     /// An item's headline and the line under it: its `head` and its text; else the text before a colon in its first

@@ -54,6 +54,15 @@ check("no pace page under a minute of speech", KeyboardStatsCopy.pages(brief, gr
 var one = full; one.weekWords = 1; one.weekSecondsSaved = 1
 check("one word, no time saved", KeyboardStatsCopy.pages(one, grouping: ",").first
       == KeyboardStatPage(number: "1", unit: "word", line: "dictated this week."))
+var lifetime = full; lifetime.totalSecondsSaved = 131_340
+let lifetimePages = KeyboardStatsCopy.pages(lifetime, grouping: ",")
+check("all time's time saved: its own page after since you started", lifetimePages.count == 4
+      && lifetimePages[2] == KeyboardStatPage(number: "36h 29m", unit: "saved", line: "by talking instead of typing, since you started."),
+      "\(lifetimePages)")
+var firstWeek = full; firstWeek.totalSecondsSaved = 8040
+check("all time's time saved: left out while it's this week's", KeyboardStatsCopy.pages(firstWeek, grouping: ",").count == 3)
+var tiny = full; tiny.totalSecondsSaved = 30
+check("all time's time saved: left out under a minute", KeyboardStatsCopy.pages(tiny, grouping: ",").count == 3)
 check("pace is words a minute", KeyboardStatsCopy.pace(words: 300, seconds: 120) == 150 && KeyboardStatsCopy.pace(words: 5, seconds: 10) == nil)
 check("faster than typing", KeyboardStatsCopy.faster(pace: 120, typing: 40) == "about three times faster than typing"
       && KeyboardStatsCopy.faster(pace: 80, typing: 40) == "about twice as fast as typing"

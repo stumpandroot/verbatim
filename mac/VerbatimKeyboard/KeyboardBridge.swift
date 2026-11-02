@@ -487,8 +487,10 @@ extension KeyboardBridge {
         var weekSecondsSaved: Double
         /// When that week ends: after it, the keyboard reads this week as 0 until the app writes again.
         var weekEnds: Date
-        /// Words in every dictation you've kept.
+        /// Words since you started, deleted dictations included (the iPhone's running tally, DictationTally).
         var totalWords: Int
+        /// The typing time all those words saved (`TimeSaved`). Nil in a record from before the app wrote it.
+        var totalSecondsSaved: Double? = nil
         /// Words and speaking time from dictations whose length is known, for the speaking pace.
         var paceWords: Int
         var paceSeconds: Double

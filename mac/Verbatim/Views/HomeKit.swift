@@ -111,7 +111,9 @@ struct HomeWeek: Equatable {
         if s < 60 { return "\(Int(s.rounded())) sec" }
         let m = Int((s / 60).rounded())
         if m < 60 { return "\(m) min" }
-        return m % 60 == 0 ? "\(m / 60) hr" : "\(m / 60) hr \(m % 60) min"
+        // All time can run past 999 hours: "1,204 hr".
+        let h = (m / 60).formatted()
+        return m % 60 == 0 ? "\(h) hr" : "\(h) hr \(m % 60) min"
     }
 
     /// The seven bars for VoiceOver, day by day (`RefinedRules.weekDaysSpoken`): "Monday, 120 words; Tuesday, no words;
@@ -124,6 +126,74 @@ struct HomeWeek: Equatable {
     var cardDays: [WeekCard.Day] {
         let top = Double(max(1, peak))
         return days.map { WeekCard.Day(share: Double($0.words) / top, isToday: $0.isToday, isFuture: $0.isFuture) }
+    }
+}
+
+/// Time saved by talking (You's Time saved card, Home's This week card, and the keyboard): this week, this month, and
+/// all time. Each counts typing its words at your speed minus the time you talked, HomeWeek's rule, so This week here
+/// matches This week on Home.
+struct TimeSaved: Equatable {
+    struct Span: Equatable {
+        var words = 0
+        var seconds = 0.0
+        /// Typing the words at `wpm`, in seconds.
+        func typing(typingWPM wpm: Int) -> Double { Double(words) / Double(max(wpm, 1)) * 60 }
+        func saved(typingWPM wpm: Int) -> Double { max(0, typing(typingWPM: wpm) - seconds) }
+    }
+    var week = Span()
+    var month = Span()
+    var all = Span()
+    /// The first dictation counted; nil before any.
+    var since: Date?
+
+    init(_ entries: [HomeWordEntry], now: Date = Date(), calendar: Calendar = .current) {
+        let today = calendar.startOfDay(for: now)
+        let week = calendar.dateInterval(of: .weekOfYear, for: now) ?? DateInterval(start: today, duration: 7 * 86_400)
+        let month = calendar.dateInterval(of: .month, for: now) ?? DateInterval(start: today, duration: 30 * 86_400)
+        for e in entries {
+            all.words += e.words; all.seconds += e.seconds
+            since = min(since ?? e.date, e.date)
+            if e.date >= week.start && e.date < week.end { self.week.words += e.words; self.week.seconds += e.seconds }
+            if e.date >= month.start && e.date < month.end { self.month.words += e.words; self.month.seconds += e.seconds }
+        }
+    }
+
+    /// The iPhone's all time from its running tally (DictationTally), which keeps dictations you've deleted. Taken only
+    /// when it counts at least the dictations here, so all time never shows less than this month while the tally
+    /// catches up.
+    mutating func useAllTime(_ span: Span, since first: Date?) {
+        guard span.words >= all.words else { return }
+        all = span
+        if let first { since = min(since ?? first, first) }
+    }
+
+    /// Home's line under This week's time saved: "36 hr 29 min all time". Nil under a minute, or when it reads the
+    /// same as the week's (your first week).
+    func allTimeLine(typingWPM wpm: Int) -> String? {
+        let s = all.saved(typingWPM: wpm)
+        guard s >= 60 else { return nil }
+        let text = HomeWeek.savedText(s)
+        return text == HomeWeek.savedText(week.saved(typingWPM: wpm)) ? nil : "\(text) all time"
+    }
+
+    /// "Since Aug 3", or "Since Aug 3, 2025" from an earlier year.
+    static func sinceText(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+        "Since " + sinceDate(date, now: now, calendar: calendar)
+    }
+
+    /// "Aug 3", or "Aug 3, 2025" from an earlier year.
+    static func sinceDate(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+        let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+        return Formats.pattern(sameYear ? "MMM d" : "MMM d, yyyy").string(from: date)
+    }
+
+    /// The line under all time on You: "Since Aug 3. Typing your 120,000 words at 40 wpm would take 50 hr. You talked
+    /// for 13 hr 31 min."
+    func explanation(typingWPM wpm: Int, now: Date = Date(), calendar: Calendar = .current) -> String {
+        let words = HomeCounts.countLabel(all.words, "word", "words")
+        var out = "Typing your \(words) at \(wpm) wpm would take \(HomeWeek.savedText(all.typing(typingWPM: wpm))). You talked for \(HomeWeek.savedText(all.seconds))."
+        if let since { out = "\(Self.sinceText(since, now: now, calendar: calendar)). " + out }
+        return out
     }
 }
 
@@ -274,6 +344,33 @@ enum HomeSelfTest {
               && HomeWeek.durationLabel(3600) == "1 h" && HomeWeek.durationLabel(82 * 60) == "1 h 22 m")
         check("home: This week's time saved", HomeWeek.savedText(42) == "42 sec" && HomeWeek.savedText(25 * 60) == "25 min"
               && HomeWeek.savedText(3600) == "1 hr" && HomeWeek.savedText(134 * 60) == "2 hr 14 min")
+        // Time saved: the week matches HomeWeek, the month adds October's other weeks, all time adds September.
+        let older = HomeWordEntry(date: cal.date(from: DateComponents(year: 2026, month: 9, day: 30, hour: 9))!, words: 4000, seconds: 1800)
+        let saved = TimeSaved(entries + [older], now: wed, calendar: cal)
+        check("time saved: this week matches Home", saved.week == TimeSaved.Span(words: 430, seconds: 115)
+              && saved.week.saved(typingWPM: 40) == week.secondsSaved(typingWPM: 40))
+        check("time saved: this month and all time", saved.month == TimeSaved.Span(words: 1429, seconds: 415)
+              && saved.all == TimeSaved.Span(words: 5429, seconds: 2215) && saved.since == older.date)
+        check("time saved: typing 4,000 words at 40 wpm takes 100 min",
+              TimeSaved.Span(words: 4000, seconds: 1800).typing(typingWPM: 40) == 6000
+              && TimeSaved.Span(words: 4000, seconds: 1800).saved(typingWPM: 40) == 4200
+              && TimeSaved.Span(words: 10, seconds: 600).saved(typingWPM: 40) == 0)
+        var tallied = saved
+        tallied.useAllTime(TimeSaved.Span(words: 9000, seconds: 3000), since: cal.date(from: DateComponents(year: 2026, month: 8, day: 3, hour: 12))!)
+        check("time saved: the tally's all time keeps deleted dictations", tallied.all.words == 9000
+              && Formats.pattern("MMM d").string(from: tallied.since!) == "Aug 3")
+        var behind = saved
+        behind.useAllTime(TimeSaved.Span(words: 100, seconds: 30), since: nil)
+        check("time saved: a tally behind the dictations is ignored", behind.all == saved.all)
+        check("time saved: Home's all-time line", saved.allTimeLine(typingWPM: 40) == "1 hr 39 min all time"
+              && TimeSaved(Array(entries.prefix(4)), now: wed, calendar: cal).allTimeLine(typingWPM: 40) == nil
+              && TimeSaved([], now: wed, calendar: cal).allTimeLine(typingWPM: 40) == nil)
+        check("time saved: since, with the year from another year",
+              TimeSaved.sinceText(older.date, now: wed, calendar: cal) == "Since Sep 30"
+              && TimeSaved.sinceText(cal.date(from: DateComponents(year: 2025, month: 8, day: 3, hour: 12))!, now: wed, calendar: cal) == "Since Aug 3, 2025")
+        check("time saved: the explanation", TimeSaved([older], now: wed, calendar: cal).explanation(typingWPM: 40, now: wed, calendar: cal)
+              == "Since Sep 30. Typing your 4,000 words at 40 wpm would take 1 hr 40 min. You talked for 30 min.")
+        check("time saved: hours group past 999", HomeWeek.savedText(1204 * 3600).hasPrefix("1") && HomeWeek.savedText(1204 * 3600).hasSuffix("204 hr"))
         check("home: This week's bars: today, days to come, and shares of the busiest day",
               week.cardDays.count == 7 && week.cardDays[3].isToday && week.cardDays[4].isFuture
               && week.cardDays[2].share == 1 && abs(week.cardDays[3].share - 80.0 / 250) < 0.0001)

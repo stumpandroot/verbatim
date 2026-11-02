@@ -51,7 +51,7 @@ Each item is an object:
   `tidy`, `mic`, `voice`, `thought`, `braindump`, `ask`, `ai`, `import`, `play`, `share`, `export`, `copy`,
   `settings`, `home`, `library`, `tabbar`, `privacy`, `sync`, `speakers`, `summary`, `captions`, `film`, `links`,
   `dictionary`, `widgets`, `tour`, `feedback`, `support`, `mark`, `language`, `accessibility`, `appearance`, `audio`,
-  `project`, and `quality`. Without one, the item gets `notes`.
+  `project`, `quality`, and `time`. Without one, the item gets `notes`.
 
 Mark an entry `"big": true` when the build adds something people should see the day it arrives, such as a new screen.
 Leave fixes and small changes quiet: Home's note covers them. Give a big build's items a `head` and an `icon`.

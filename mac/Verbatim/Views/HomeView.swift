@@ -430,14 +430,15 @@ struct HomeView: View {
         let saved = HomeWeek.savedText(n.saved)
         let recordings = HomeCounts.countLabel(n.recordings, "recording", "recordings")
         let savedLine = n.moments > 0 ? "\(saved) saved · \(HomeCounts.countLabel(n.moments, "moment", "moments"))" : "\(saved) saved"
+        let total = log.timeSaved(now: now).allTimeLine(typingWPM: flow.typingWPM)
         return Button { app.go(.activity) } label: {
             WeekCard(words: week.words, detail: "\(week.words == 1 ? "word" : "words"), \(recordings)", saved: savedLine,
-                     days: week.cardDays, large: large)
+                     total: total, days: week.cardDays, large: large)
                 .frame(maxHeight: .infinity)
         }
         .buttonStyle(RefinedPress())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(recordings), \(saved) saved typing, \(HomeCounts.countLabel(n.moments, "moment", "moments")).")
+        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(recordings), \(saved) saved typing\(total.map { ", \($0)" } ?? ""), \(HomeCounts.countLabel(n.moments, "moment", "moments")).")
         .accessibilityHint("Opens You: your week, cleanup, and where you dictate.")
         .accessibilityAddTraits(.isButton)
         .uiTarget("home-week")

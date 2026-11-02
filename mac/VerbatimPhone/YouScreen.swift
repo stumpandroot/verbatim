@@ -23,6 +23,8 @@ struct YouScreen: View {
     @AppStorage(CloudCleanup.enabledKey) private var cloudCleanup = false
     @ObservedObject private var flow = FlowSettings.shared
     @ObservedObject private var voice = VoiceProfileStatus.shared
+    /// All time's words and talking time, kept after you delete dictations (DictationTally.swift).
+    @ObservedObject private var tally = DictationTally.shared
     @State private var editingAbout = false
     @State private var showVoice = false
     @State private var showCalendar = false
@@ -133,7 +135,8 @@ struct YouScreen: View {
     // MARK: Your week
 
     /// The week (the same count as Home): This week's card with its words, the time saved, and seven bars, today's in
-    /// persimmon; then your typing speed, which the time saved compares against, and your pace.
+    /// persimmon; time saved by talking, all time, with this week and this month; then your typing speed, which the
+    /// time saved compares against, and your pace.
     private func weekSection(_ week: HomeWeek) -> some View {
         let saved = HomeWeek.savedText(week.secondsSaved(typingWPM: flow.typingWPM))
         let pace = Self.pace(words: week.words, seconds: week.seconds)
@@ -153,6 +156,7 @@ struct YouScreen: View {
             .accessibilityHint("Opens your words calendar.")
             .accessibilityAddTraits(.isButton)
             .accessibilityIdentifier("you.week")
+            if let saved = timeSaved() { timeSavedCard(saved) }
             PaperCard {
                 Button { commitName(); showCalendar = true } label: {
                     SettingsRow(hue: RefinedRules.settingsHue(3), art: .iconCalendar, title: "Your words calendar",
@@ -189,6 +193,58 @@ struct YouScreen: View {
                     .padding(.horizontal, 14)
             }
         }
+    }
+
+    /// This week, this month, and all time; nil before the first dictation.
+    private func timeSaved() -> TimeSaved? {
+        var t = app.store.dictationTimeSaved(now: now)
+        t.useAllTime(tally.allTime, since: tally.since)
+        return t.all.words > 0 ? t : nil
+    }
+
+    /// Time saved by talking: all time large in sage, what it compares, then this week and this month.
+    private func timeSavedCard(_ t: TimeSaved) -> some View {
+        let wpm = flow.typingWPM
+        let all = HomeWeek.savedText(t.all.saved(typingWPM: wpm))
+        let week = HomeWeek.savedText(t.week.saved(typingWPM: wpm))
+        let month = HomeWeek.savedText(t.month.saved(typingWPM: wpm))
+        let explanation = t.explanation(typingWPM: wpm, now: now)
+        return VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    IconSquare(art: .iconTimeSaved, hue: .sage)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Saved by talking, all time").refinedFont(.meta).foregroundStyle(Refined.mute)
+                        Text(all).font(.system(size: 30, weight: .bold)).monospacedDigit().foregroundStyle(Refined.sageText)
+                            .lineLimit(1).minimumScaleFactor(0.6)
+                    }
+                }
+                Text(explanation).refinedFont(.hint).foregroundStyle(Refined.dim)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 14)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Saved by talking, all time: \(all). \(explanation)")
+            PaperDivider(leading: 16)
+            savedRow("This week", week)
+            PaperDivider(leading: 16)
+            savedRow("This month", month)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        .accessibilityIdentifier("you.timeSaved")
+    }
+
+    private func savedRow(_ title: String, _ value: String) -> some View {
+        HStack {
+            Text(title).refinedFont(.body).foregroundStyle(Refined.ink)
+            Spacer(minLength: 8)
+            Text(value).refinedFont(.body, weight: .semibold).monospacedDigit().foregroundStyle(Refined.ink)
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(value) saved")
     }
 
     /// Words per minute while talking, once there's 20 seconds of dictation to judge by (the Mac's rule).

@@ -91,6 +91,13 @@ extension Store {
         return memo("dictation-week|\(Self.dayKey(now))") { HomeWeek(entries, now: now) }
     }
 
+    /// Time saved this week, this month, and over the dictations you still have (the iPhone's You and Home add its
+    /// running tally for all time, `TimeSaved.useAllTime`).
+    func dictationTimeSaved(now: Date) -> TimeSaved {
+        let entries = memo("dictation-entries") { HomeCounts.entries(fromDictations: live) }
+        return memo("dictation-time-saved|\(Self.dayKey(now))") { TimeSaved(entries, now: now) }
+    }
+
     /// The newest live transcript (the menu bar panel's last recording).
     var newestLive: Transcript? { memo("newest-live") { live.first } }
 

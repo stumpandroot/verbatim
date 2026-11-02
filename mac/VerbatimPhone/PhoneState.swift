@@ -186,7 +186,10 @@ final class PhoneState: ObservableObject {
         store.transcriptsPublisher.combineLatest(FlowSettings.shared.$typingWPM)
             .debounce(for: .seconds(1), scheduler: Self.statsQueue)
             .map { (pair: ([Transcript], Int)) -> KeyboardBridge.Stats in
-                Self.keyboardStats(pair.0.filter { $0.deletedAt == nil && $0.isDictation }, typingWPM: pair.1)
+                let live = pair.0.filter { $0.deletedAt == nil && $0.isDictation }
+                // The running tally keeps deleted dictations, for all time on You, Home, and the keyboard.
+                let all = DictationTally.shared.merge(live)
+                return Self.keyboardStats(live, typingWPM: pair.1, allTime: all.span)
             }
             .removeDuplicates()
             .sink { (stats: KeyboardBridge.Stats) in KeyboardBridge.writeStats(stats) }
@@ -226,15 +229,18 @@ final class PhoneState: ObservableObject {
     private static let statsQueue = DispatchQueue(label: "co.stumpandroot.verbatim.keyboard-stats", qos: .utility)
 
     /// The keyboard's Home numbers from your dictations: this week's words and time saved (as Home's This week card
-    /// counts them), every word you've kept, and the words and seconds behind your speaking pace. Pure, so it runs
-    /// on `statsQueue`.
-    nonisolated static func keyboardStats(_ items: [Transcript], typingWPM: Int, now: Date = Date(), calendar: Calendar = .current) -> KeyboardBridge.Stats {
+    /// counts them), all time's words and time saved (the running tally, `allTime`, when it's ahead of the dictations
+    /// kept), and the words and seconds behind your speaking pace. Pure, so it runs on `statsQueue`.
+    nonisolated static func keyboardStats(_ items: [Transcript], typingWPM: Int, allTime: TimeSaved.Span? = nil,
+                                          now: Date = Date(), calendar: Calendar = .current) -> KeyboardBridge.Stats {
         let entries = HomeCounts.entries(fromDictations: items)
         let week = HomeWeek(entries, now: now, calendar: calendar)
+        var saved = TimeSaved(entries, now: now, calendar: calendar)
+        if let allTime { saved.useAllTime(allTime, since: nil) }
         let ends = calendar.dateInterval(of: .weekOfYear, for: now)?.end ?? now.addingTimeInterval(7 * 86_400)
         let timed = entries.filter { $0.seconds > 0 }
         return KeyboardBridge.Stats(weekWords: week.words, weekSecondsSaved: week.secondsSaved(typingWPM: typingWPM), weekEnds: ends,
-                                    totalWords: entries.reduce(0) { $0 + $1.words },
+                                    totalWords: saved.all.words, totalSecondsSaved: saved.all.saved(typingWPM: typingWPM),
                                     paceWords: timed.reduce(0) { $0 + $1.words }, paceSeconds: timed.reduce(0) { $0 + $1.seconds },
                                     typingWPM: typingWPM)
     }

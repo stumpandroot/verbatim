@@ -2094,11 +2094,37 @@ enum PhoneUITest {
     /// Home's greeting, This week, and counts (shared with the Mac's self-test).
     static func homeChecks() {
         var pass = 0, fail = 0
-        HomeSelfTest.run { name, ok in
+        func check(_ name: String, _ ok: Bool) {
             if ok { pass += 1 } else { fail += 1 }
             Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
         }
+        HomeSelfTest.run(check)
+        tallyChecks(check)
         Log.note("UITEST home checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// The running tally behind all time (DictationTally.swift): it counts dictations, keeps one after it's deleted,
+    /// takes a dictation's new words, and reads back from its file.
+    static func tallyChecks(_ check: (String, Bool) -> Void) {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("tally-check-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        func dictation(_ text: String, seconds: Double) -> Transcript {
+            var t = Transcript(title: "d", source: .dictation, sourceLabel: "Dictation", duration: seconds, audioFileName: nil, model: "")
+            t.segments = [Segment(start: 0, end: seconds, text: text)]
+            return t
+        }
+        var a = dictation("Running ten minutes late, save me a seat.", seconds: 4)
+        let b = dictation("Pick up the blue folder on the way.", seconds: 3)
+        var memo = Transcript(title: "m", source: .voiceMemo, sourceLabel: "Voice memo", duration: 60, audioFileName: nil, model: "")
+        memo.segments = [Segment(start: 0, end: 60, text: "A meeting, not a dictation.")]
+        let tally = DictationTally(file: file)
+        let first = tally.merge([a, b, memo])
+        check("tally: counts dictations, not recordings", first.span == TimeSaved.Span(words: 16, seconds: 7) && tally.count == 2)
+        let afterDelete = tally.merge([a])
+        check("tally: a deleted dictation keeps its count", afterDelete.span == first.span)
+        a.segments = [Segment(start: 0, end: 4, text: "Running late.")]
+        check("tally: an edited dictation takes its new words", tally.merge([a]).span == TimeSaved.Span(words: 10, seconds: 7))
+        check("tally: reads back from its file", DictationTally(file: file).count == 2)
     }
 
     /// What Home's cards do when tapped (the Mac's self-test clicks them; here the same actions run directly):

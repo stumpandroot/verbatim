@@ -50,7 +50,7 @@ HEAD_MAX = 32
 ICONS = ("notes", "calendar", "words", "swap", "tasks", "plan", "tidy", "mic", "voice", "thought", "braindump", "ask",
          "ai", "import", "play", "share", "export", "copy", "settings", "home", "library", "tabbar", "privacy", "sync",
          "speakers", "summary", "captions", "film", "links", "dictionary", "widgets", "tour", "feedback", "support",
-         "mark", "language", "accessibility", "appearance", "audio", "project", "quality")
+         "mark", "language", "accessibility", "appearance", "audio", "project", "quality", "time")
 # TestFlight's What to Test takes 4,000 characters.
 TESTFLIGHT_MAX = 4000
 # A string item's platform prefix: "Mac:", "iPhone:", "Apple Watch:", "Mac and iPhone:", "iPhone and Mac:", or a

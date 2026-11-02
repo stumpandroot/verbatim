@@ -1136,6 +1136,8 @@ struct WeekCard: View {
     var detail: String
     /// "25 min saved"
     var saved: String
+    /// "36 hr 29 min all time", under `saved` on the large card; the compact strip leaves it out.
+    var total: String? = nil
     var days: [Day]
     var large = true
     private let mac = RefinedPlatform.mac
@@ -1162,6 +1164,7 @@ struct WeekCard: View {
             number
             Text(detail).refinedFont(.body).foregroundStyle(Refined.dim)
             Text(saved).refinedFont(.meta).foregroundStyle(Refined.mute)
+            if let total { Text(total).refinedFont(.meta).foregroundStyle(Refined.mute) }
             Spacer(minLength: 10)
             RefinedWeekBars(days: days, height: 40)
         }
@@ -1175,6 +1178,7 @@ struct WeekCard: View {
                 number
                 Text(detail).refinedFont(.hint).foregroundStyle(Refined.dim)
                 Text(saved).refinedFont(.meta).foregroundStyle(Refined.mute)
+                if let total { Text(total).refinedFont(.meta).foregroundStyle(Refined.mute) }
             }
             Spacer(minLength: 8)
             RefinedWeekBars(days: days, height: 52)
@@ -1611,7 +1615,7 @@ struct WeekCard_Previews: PreviewProvider {
     }
     static var previews: some View {
         RefinedPreviewPage {
-            WeekCard(words: 1414, detail: "words, 20 recordings", saved: "25 min saved", days: days)
+            WeekCard(words: 1414, detail: "words, 20 recordings", saved: "25 min saved", total: "36 hr 29 min all time", days: days)
                 .frame(width: RefinedPlatform.mac ? 260 : nil, height: RefinedPlatform.mac ? 190 : nil)
             WeekCard(words: 1414, detail: "words, 20 recordings", saved: "25 min saved", days: days, large: false)
         }

@@ -187,6 +187,8 @@ extension BrandArt {
     static let iconPin = BrandArt(box: iconGrid, strokes: [.path("M8.5 3.5H15.5"), .path("M10 3.5V9.5L7 13.5H17L14 9.5V3.5"), .path("M12 13.5V20.5")], strokeWidth: 1.5)
     static let iconProject = BrandArt(box: iconGrid, strokes: [.path("M3.5 5.5H9.5L11.5 7.5H20.5V18.5H3.5Z"), .path("M3.5 10.5H20.5")], strokeWidth: 1.5)
     static let iconAI = BrandArt(box: iconGrid, strokes: [.path("M12 3.5L13.9 10.1L20.5 12L13.9 13.9L12 20.5L10.1 13.9L3.5 12L10.1 10.1Z")], strokeWidth: 1.5)
+    /// A stopwatch: time saved by talking (You's Time saved card).
+    static let iconTimeSaved = BrandArt(box: iconGrid, strokes: [.circle(12, 13.5, 7), .path("M12 10V13.5L14.5 15"), .path("M10 3H14"), .path("M12 3V6.5")], strokeWidth: 1.5)
     static let iconRecent = BrandArt(box: iconGrid, strokes: [.circle(10, 12, 6.5), .path("M10 8.5V12L12.5 13.5"), .path("M19 8.5H21"), .path("M19.5 12H21"), .path("M19 15.5H21")], strokeWidth: 1.5)
     static let iconHide = BrandArt(box: iconGrid, strokes: [.path("M3.5 10.5C7.5 16 16.5 16 20.5 10.5"), .path("M6.5 13.8L5 16"), .path("M12 15.6V18.3"), .path("M17.5 13.8L19 16")], strokeWidth: 1.5)
     static let iconMultitrack = BrandArt(box: iconGrid, strokes: [.path("M3 6.5H8C9 4.5 10 4.5 11 6.5S13 8.5 14 6.5H21"), .path("M3 12H6C7 10 8 10 9 12S11 14 12 12H21"), .path("M3 17.5H10C11 15.5 12 15.5 13 17.5S15 19.5 16 17.5H21")], strokeWidth: 1.5)
