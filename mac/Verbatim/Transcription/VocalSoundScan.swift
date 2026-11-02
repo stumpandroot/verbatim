@@ -66,12 +66,14 @@ enum VocalSoundScan {
     /// `windowSeconds`, or the closest window the classifier allows.
     private static func window(for c: SNTimeDurationConstraint) -> CMTime {
         let want = CMTime(seconds: windowSeconds, preferredTimescale: 48_000)
-        switch c.type {
-        case .enumerated:
-            let options = c.enumeratedDurations.map { $0.timeValue }
-            return options.min { abs($0.seconds - windowSeconds) < abs($1.seconds - windowSeconds) } ?? want
-        case .range:
-            let r = c.durationRange
+        // In Swift the constraint is an enum: a list of allowed windows, or a range.
+        switch c {
+        case .enumeratedDurations(let options):
+            var best = want
+            var bestGap = Double.infinity
+            for o in options where abs(o.seconds - windowSeconds) < bestGap { best = o; bestGap = abs(o.seconds - windowSeconds) }
+            return best
+        case .durationRange(let r):
             return CMTimeClampToRange(want, range: r)
         @unknown default:
             return want
