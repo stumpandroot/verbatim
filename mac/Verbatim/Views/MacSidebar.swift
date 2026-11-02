@@ -100,6 +100,9 @@ struct MacSidebar: View {
         .background(Refined.side.ignoresSafeArea())
         .navigationSplitViewColumnWidth(min: 200, ideal: 232, max: 300)
         .focusable()
+        // The arrow keys still move the selection; the selected row's tint shows where you are, so the system's blue
+        // focus ring around the whole column isn't drawn.
+        .focusEffectDisabled()
         .onKeyPress(.upArrow) { step(-1) }
         .onKeyPress(.downArrow) { step(1) }
         .accessibilityElement(children: .contain)

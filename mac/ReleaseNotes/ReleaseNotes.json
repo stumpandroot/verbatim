@@ -1,6 +1,21 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "A cleaner sidebar",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "No blue outline",
+          "icon": "appearance",
+          "text": "The sidebar no longer draws a blue outline around itself after you click it.",
+          "detail": "The up and down arrow keys still move between items. The selected item's highlight shows where you are."
+        }
+      ]
+    },
+    {
       "build": "275",
       "date": "2026-11-02",
       "version": "1.0 beta",
