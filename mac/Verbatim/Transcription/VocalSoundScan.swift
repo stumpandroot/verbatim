@@ -128,18 +128,35 @@ enum VocalSoundScan {
         return String(format: "%d:%02d.%d", m, rest / 10, rest % 10)
     }
 
-    /// The plain-text report to send back: what the classifier heard, the long pauses, and the labels it knows.
-    static func report(title: String, duration: Double, events: [Event], pauses: [Pause], labels: [String], build: String) -> String {
+    /// The three words before `start` and after `end`, so an event can be matched to a script without timing it:
+    /// "going to work | I don't know". A side with no words reads "(start)" or "(end)".
+    static func context(_ segments: [Segment], start: Double, end: Double) -> String {
+        var words: [(text: String, start: Double, end: Double)] = []
+        for s in segments.sorted(by: { $0.start < $1.start }) {
+            if let w = s.words, !w.isEmpty { words += w.map { ($0.text, $0.start, $0.end) } } else { words.append((s.text, s.start, s.end)) }
+        }
+        let tidy = { (list: [(text: String, start: Double, end: Double)]) in
+            list.map { $0.text.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        let before = tidy(Array(words.filter { $0.end <= start + 0.25 }.suffix(3)))
+        let after = tidy(Array(words.filter { $0.start >= end - 0.25 }.prefix(3)))
+        return "\(before.isEmpty ? "(start)" : before) | \(after.isEmpty ? "(end)" : after)"
+    }
+
+    /// The plain-text report to send back: what the classifier heard and the long pauses, each with the words around
+    /// it, and the labels it knows.
+    static func report(title: String, duration: Double, events: [Event], pauses: [Pause], segments: [Segment],
+                       labels: [String], build: String) -> String {
         var lines = ["Vocal sounds test: \(title) (\(clock(duration)))",
                      "Build \(build). Apple's sound classifier, \(Int(windowSeconds)) s windows, \(Int(overlap * 100))% overlap, confidence \(String(format: "%.2f", floor)) and up.",
                      "", "Sounds heard"]
         if events.isEmpty { lines.append("None") }
         for e in events {
-            lines.append("\(clock(e.start)) to \(clock(e.end))  \(e.label)  \(String(format: "%.2f", e.confidence))")
+            lines.append("\(clock(e.start)) to \(clock(e.end))  \(e.label)  \(String(format: "%.2f", e.confidence))  \(context(segments, start: e.start, end: e.end))")
         }
         lines += ["", "Long pauses (\(Int(pauseSeconds)) s or more between words)"]
         if pauses.isEmpty { lines.append("None") }
-        for p in pauses { lines.append("\(clock(p.start)) to \(clock(p.end))  \(String(format: "%.1f", p.length)) s") }
+        for p in pauses { lines.append("\(clock(p.start)) to \(clock(p.end))  \(String(format: "%.1f", p.length)) s  \(context(segments, start: p.start, end: p.end))") }
         let known = labels.filter(isInteresting)
         lines += ["", "Labels the classifier knows in these groups (\(known.count) of \(labels.count))", known.isEmpty ? "None" : known.joined(separator: ", ")]
         return lines.joined(separator: "\n")
@@ -193,7 +210,10 @@ extension VocalSoundScan {
         check("vocal sounds: the clock reads 1:05.3", clock(65.3) == "1:05.3")
         check("vocal sounds: laughter and crying_sobbing are interesting, speech isn't",
               isInteresting("belly_laugh") && isInteresting("crying_sobbing") && !isInteresting("speech"))
-        let r = report(title: "Test", duration: 10, events: [], pauses: [], labels: ["speech", "laughter"], build: "1")
+        check("vocal sounds: an event lists the three words before and after it",
+              context([Segment(start: 0, end: 4, text: "I thought anyway", words: words)], start: 1, end: 3) == "I thought | anyway"
+              && context([], start: 1, end: 2) == "(start) | (end)")
+        let r = report(title: "Test", duration: 10, events: [], pauses: [], segments: [], labels: ["speech", "laughter"], build: "1")
         check("vocal sounds: the report says None when nothing was heard and lists the known labels",
               r.contains("Sounds heard\nNone") && r.hasSuffix("(1 of 2)\nlaughter"))
     }

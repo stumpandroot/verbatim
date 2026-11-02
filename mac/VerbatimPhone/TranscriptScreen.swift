@@ -279,7 +279,8 @@ struct TranscriptScreen: View {
                 let events = try await VocalSoundScan.scan(url: u)
                 let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
                 shareItems = [VocalSoundScan.report(title: t.title, duration: t.duration, events: events,
-                                                    pauses: VocalSoundScan.pauses(t.segments), labels: VocalSoundScan.knownLabels(), build: build)]
+                                                    pauses: VocalSoundScan.pauses(t.segments), segments: t.segments,
+                                                    labels: VocalSoundScan.knownLabels(), build: build)]
             } catch {
                 app.say("The test couldn't read this recording. \(error.localizedDescription)")
             }
