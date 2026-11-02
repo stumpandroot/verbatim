@@ -670,6 +670,10 @@ enum UITest {
         await show("07c-you")
         let youRefined = YouView.onScreen > 0
         Log.note("UITEST \(youRefined ? "PASS" : "FAIL") you: the You page draws the refined layout")
+        // The Time saved card sits below the fold; scroll to it for its own screenshot.
+        await reveal("you-time-saved", in: window)
+        await show("07d-you-time-saved")
+        check("you: the Time saved card draws", frames["you-time-saved"] != nil)
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
         await thoughtShots(suffix: "")
