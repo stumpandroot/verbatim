@@ -109,7 +109,7 @@ struct YouView: View {
                 footer.padding(.top, 18)
             }
             .navMarkWhenLaidOut("you-laid-out")
-            .frame(maxWidth: 1040, alignment: .leading)
+            .frame(maxWidth: MacColumn.width, alignment: .leading)
             .padding(.horizontal, 56).padding(.top, 36).padding(.bottom, 32)
             .frame(maxWidth: .infinity)
         }

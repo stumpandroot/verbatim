@@ -254,8 +254,9 @@ struct RecordCardFace: View {
                         Color.clear.frame(width: max(0, art.textReserve - 12), height: 1)
                     }
                 }
-                .padding(.horizontal, art.padding).padding(.vertical, mac ? 18 : 16)
-                .frame(maxWidth: .infinity, minHeight: mac ? 150 : 168, alignment: .leading)
+                // Mac: 112 pt, a Mac app's proportions in the 680 pt column (it was 150 across 860).
+                .padding(.horizontal, art.padding).padding(.vertical, mac ? 14 : 16)
+                .frame(maxWidth: .infinity, minHeight: mac ? 112 : 168, alignment: .leading)
             }
         }
         .foregroundStyle(ink)
@@ -405,8 +406,8 @@ struct ColorTileFace: View {
             nameAndTrailing
         }
         .foregroundStyle(ink)
-        .padding(.horizontal, compact && !mac ? 10 : 14).padding(.vertical, compact ? 10 : (mac ? 14 : 12))
-        .frame(maxWidth: .infinity, minHeight: compact ? 58 : (mac ? 84 : 74), alignment: .leading)
+        .padding(.horizontal, compact && !mac ? 10 : 14).padding(.vertical, compact ? 10 : 12)
+        .frame(maxWidth: .infinity, minHeight: compact ? 58 : (mac ? 72 : 74), alignment: .leading)
         // The pattern sits on the fill, under the glyph and name, clipped to the tile. Off under Increase Contrast.
         .background(alignment: .topTrailing) {
             if let pattern, contrast != .increased {

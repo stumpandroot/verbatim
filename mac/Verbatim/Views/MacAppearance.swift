@@ -35,4 +35,11 @@ extension View {
     @ViewBuilder func softScrollEdges(_ edges: Edge.Set) -> some View {
         if #available(macOS 26, *) { scrollEdgeEffectStyle(.soft, for: edges) } else { self }
     }
+
+    /// The Mac sidebar's surface (DESIGN.md §16). macOS 26 and later float the sidebar as the system's glass panel,
+    /// inset from the window's edges over the page's paper, so Verbose draws nothing under it: an opaque fill turned
+    /// the panel into a flat block. Earlier systems draw a plain sidebar, which keeps the paper-gray `side` token.
+    @ViewBuilder func macSidebarSurface() -> some View {
+        if #available(macOS 26, *) { self } else { background(Refined.side.ignoresSafeArea()) }
+    }
 }

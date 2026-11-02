@@ -162,10 +162,10 @@ enum RefinedRules {
         /// Point size at the default text size (iPhone) or on the Mac. iPhone sizes scale with Dynamic Type.
         func size(mac: Bool) -> Double {
             switch self {
-            case .largeTitle: return mac ? 36 : 34
+            case .largeTitle: return mac ? 32 : 34
             case .transcriptTitle: return mac ? 32 : 28
             case .sectionTitle: return mac ? 20 : 22
-            case .recordTitle: return mac ? 34 : 32
+            case .recordTitle: return mac ? 30 : 32
             case .reading: return mac ? 18 : 19
             case .body: return mac ? 13.5 : 16
             case .rowTitle: return mac ? 13.5 : 16
@@ -255,12 +255,12 @@ enum RefinedRules {
 
     /// iPhone: the mockup's 210 pt rings and 56 pt disc, the disc's center 59 pt from the trailing edge and 35 from the
     /// bottom (on the 168 pt card that's the mockup's rings at right −46, top −14, and its disc at right 31, top 105).
-    /// Mac: 260 pt rings around the disc where the mockup puts it (22 pt in from the trailing edge, 18 from the
-    /// bottom). Compact: 140 pt rings around a 40 pt disc, centered in the slim row.
+    /// Mac: 240 pt rings around a 52 pt disc, its center 48 pt from the trailing edge and 54 from the bottom, near the
+    /// middle of the 112 pt card (November 2, 2026; it was 260 and 56 on the 150 pt card). Compact: 140 pt rings around a 40 pt disc, centered in the slim row.
     static func recordArt(mac: Bool, compact: Bool) -> RecordArt {
         switch (mac, compact) {
         case (false, false): return RecordArt(side: 210, disc: 56, trailing: 59, bottom: 35, padding: 18)
-        case (true, false): return RecordArt(side: 260, disc: 56, trailing: 50, bottom: 46, padding: 22)
+        case (true, false): return RecordArt(side: 240, disc: 52, trailing: 48, bottom: 54, padding: 20)
         case (false, true): return RecordArt(side: 140, disc: 40, trailing: 36, bottom: nil, padding: 16)
         case (true, true): return RecordArt(side: 140, disc: 40, trailing: 40, bottom: nil, padding: 20)
         }

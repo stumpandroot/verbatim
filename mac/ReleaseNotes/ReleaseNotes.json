@@ -2,16 +2,33 @@
   "notes": [
     {
       "build": "next",
-      "title": "A cleaner sidebar",
+      "title": "A calmer Mac window",
       "items": [
         {
           "platforms": [
             "mac"
           ],
-          "head": "No blue outline",
+          "head": "Centered pages",
+          "icon": "home",
+          "text": "Home, You, and Dictations sit in a narrower column, centered beside the sidebar.",
+          "detail": "The column is at most 680 points wide, so a large window no longer leaves a third of it empty. By day's two panes center too."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Mac-sized Home",
           "icon": "appearance",
-          "text": "The sidebar no longer draws a blue outline around itself after you click it.",
-          "detail": "The up and down arrow keys still move between items. The selected item's highlight shows where you are."
+          "text": "The greeting, Record card, and tiles are smaller, closer to other Mac apps."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Floating sidebar",
+          "icon": "swap",
+          "text": "On macOS 26 and later, the sidebar is the system's floating glass panel over the page.",
+          "detail": "It no longer draws a blue outline after you click it. The arrow keys still move between items, and the selected item shows where you are."
         }
       ]
     },

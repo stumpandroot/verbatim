@@ -3033,8 +3033,8 @@ extension UITest {
         check("\(name): previews run a greeting's blank line into one space (M-04)",
               HomeDictationText.oneLine("Hi Jonathan,\n\nI think we should meet  on Friday.") == "Hi Jonathan, I think we should meet on Friday.")
         check("\(name): Edit Home names the tiles row Tiles (M-02)", HomeSection.tiles.title == "Tiles")
-        check("\(name): Home's column is the refined mockup's, at most 860 pt, so tiles never truncate in the test window (M-06)",
-              HomeView.maxContent == 860 && HomeView.contentWidth(1000 - 232) / 4 >= 140)
+        check("\(name): Home's column is at most 680 pt (MacColumn), so tiles never truncate in the test window (M-06)",
+              HomeView.maxContent == 680 && HomeView.contentWidth(1000 - 232) / 4 >= 140)
         var memo = Transcript(title: "m", source: .voiceMemo, sourceLabel: "Voice memo", duration: 67, audioFileName: "m.m4a", model: "")
         memo.status = .ready
         memo.createdAt = Date()

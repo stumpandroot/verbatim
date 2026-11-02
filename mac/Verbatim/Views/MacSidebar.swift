@@ -97,7 +97,7 @@ struct MacSidebar: View {
         }
         // minHeight 0: the sidebar never reports more height than the window has; any overflow scrolls.
         .frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
-        .background(Refined.side.ignoresSafeArea())
+        .macSidebarSurface()
         .navigationSplitViewColumnWidth(min: 200, ideal: 232, max: 300)
         .focusable()
         // The arrow keys still move the selection; the selected row's tint shows where you are, so the system's blue

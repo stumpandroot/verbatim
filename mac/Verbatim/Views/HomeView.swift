@@ -10,9 +10,16 @@ import CoreAudio
 /// in a card beside This week. While you record, the Record card turns into the recording card (the clock, the live
 /// waveform, your words, Mark moment, Pause, and Stop and transcribe). Today's thoughts, Journal, and a kind's newest
 /// three (Recent meetings, …) when you show them.
-/// One column, at most 860 pt wide; two Large neighbors that can pair share a band (two thirds and one third), and a
+/// One column, at most 680 pt wide and centered; two Large neighbors that can pair share a band (two thirds and one third), and a
 /// narrow window stacks them. Edit Home's button closes the page; editing outlines each section and opens the inspector on the right (EditHome.swift). Sections arrive at once and keep their identity when the layout
 /// changes.
+/// The Mac's reading column for Home, You, and Dictations: at most 680 pt, centered in the space beside the sidebar
+/// (November 2, 2026; mockup "Verbose Mac Window", option 2). Mac apps keep their parts compact; a wide column pinned
+/// left left a third of a large window empty.
+enum MacColumn {
+    static let width: CGFloat = 680
+}
+
 struct HomeView: View {
     /// Ticks `now` once a minute: one timer for every render. Built in `body`, each render made a new timer and
     /// restarted the minute, so under frequent renders (transcribing, playing, dictating) it never fired.
@@ -40,8 +47,9 @@ struct HomeView: View {
 
     /// The gutter between tiles and between two sections in a band.
     static let gap: CGFloat = 12
-    /// The widest Home's column gets (the mockup's 860).
-    static let maxContent: CGFloat = 860
+    /// The widest Home's column gets: 680 pt, centered beside the sidebar (November 2, 2026; it was 860, pinned left,
+    /// which left a third of a large window empty). `MacColumn.width` for You and Dictations too.
+    static let maxContent: CGFloat = MacColumn.width
     /// Edit Home's inspector beside Home while editing.
     static let inspectorWidth: CGFloat = 320
     /// The side margin: the mockup's 56, narrower in a narrow window.
@@ -126,7 +134,7 @@ struct HomeView: View {
                 .navMarkWhenLaidOut("home-laid-out")
                 .frame(width: width, alignment: .leading)
                 .padding(.horizontal, Self.margin(geo.size.width)).padding(.top, 18).padding(.bottom, 40)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
                 // Back and Forward bring Home back where you left it; the sidebar opens it at the top (App/NavTrail.swift).
                 .scrollPlace(ScreenPlaces.scrollKey("home"), restore: NavTrail.shared.movingThroughHistory)
             }

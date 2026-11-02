@@ -76,7 +76,7 @@ struct DictationsView: View {
                     }
                 }
             }
-            .frame(maxWidth: 900, alignment: .leading)
+            .frame(maxWidth: MacColumn.width, alignment: .leading)
             .padding(.horizontal, 40).padding(.top, 18).padding(.bottom, 40)
             .frame(maxWidth: .infinity)
         }

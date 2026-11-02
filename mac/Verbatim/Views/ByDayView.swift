@@ -58,7 +58,9 @@ struct ByDayView: View {
                 }
             }
             .padding(.horizontal, 32).padding(.top, 18).padding(.bottom, 40)
-            .frame(minWidth: 0, maxWidth: 1180, alignment: .leading)
+            // Two panes (the calendar and the day's page), so wider than `MacColumn`, and centered like it.
+            .frame(minWidth: 0, maxWidth: 960, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .scrollPlace(ScreenPlaces.scrollKey(isThoughts ? "byday-thoughts" : "byday-journal"))
             .navMarkWhenLaidOut("byday-laid-out")
         }
