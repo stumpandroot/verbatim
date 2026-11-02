@@ -689,6 +689,8 @@ final class PhoneState: ObservableObject {
                         }
                         // The screenshot tour never runs the speech engines (they download models).
                         if !PhoneUITest.enabled { coordinator.enqueueExisting(id) }
+                        // A video's stills for the transcript's margin, while the file is still here (VideoStills).
+                        await store.addStills(id, from: src)
                     }
                 } catch {
                     store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
@@ -808,8 +810,9 @@ final class PhoneState: ObservableObject {
                 guard self.stillWanted(id) else { try? FileManager.default.removeItem(at: file); return }
                 self.store.setStage(id, "Preparing the audio")
                 let prepared = try await MediaImport.prepare(file, into: self.store.newAudioURL(ext: "m4a"))
-                try? FileManager.default.removeItem(at: file)
-                guard self.stillWanted(id) else { try? FileManager.default.removeItem(at: prepared.url); return }
+                guard self.stillWanted(id) else {
+                    try? FileManager.default.removeItem(at: file); try? FileManager.default.removeItem(at: prepared.url); return
+                }
                 imp.duration = prepared.duration
                 self.store.update(id) { x in
                     x.audioFileName = prepared.url.lastPathComponent; x.duration = prepared.duration; x.stage = "Queued"
@@ -819,6 +822,9 @@ final class PhoneState: ObservableObject {
                 if let thumb = r?.thumbnail, let name = await PhoneLinkFetcher.saveThumbnail(thumb, as: id.uuidString) {
                     self.store.update(id) { $0.link?.thumbnailFile = name }
                 }
+                // A downloaded video's stills while it transcribes (none for audio), then the download goes.
+                await self.store.addStills(id, from: file)
+                try? FileManager.default.removeItem(at: file)
             } catch is CancellationError {
                 if let downloaded { try? FileManager.default.removeItem(at: downloaded) }
             } catch LinkFetchError.needsMac {

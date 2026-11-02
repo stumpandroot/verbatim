@@ -1358,6 +1358,8 @@ final class Store: Observable {
         if t.multitrack != nil { let tracks = Paths.tracks(t.id); TranscriptFiles.queue.async { try? FileManager.default.removeItem(at: tracks) } }
         // Note stills go too. Kept MP4/M4A files in the Keep folder are yours and stay.
         for f in t.notes.compactMap(\.frameFile) { if let u = LibraryFile.url(f, in: Paths.thumbs, field: "note still") { files.append(u) } }
+        // And the video's stills in the margin.
+        for s in t.stills ?? [] { if let u = LibraryFile.url(s.file, in: Paths.thumbs, field: "video still") { files.append(u) } }
         // Same queue as saves, so a write still queued for this transcript lands before the delete, never after.
         let id = t.id, gone = files
         inFlight[id, default: 0] += 1
@@ -1474,6 +1476,18 @@ final class Store: Observable {
 
     /// The transcript as it shows, with its live progress label (StageClock) folded in.
     func shown(_ id: UUID) -> Transcript? { transcript(id).map(StageClock.shared.applied(to:)) }
+
+    /// Takes an imported video's stills (VideoStills) and keeps them on its transcript. Nothing for audio; a
+    /// transcript deleted meanwhile takes its stills with it.
+    func addStills(_ id: UUID, from video: URL) async {
+        let stills = await VideoStills.capture(from: video, id: id)
+        guard !stills.isEmpty else { return }
+        guard transcript(id) != nil else {
+            for s in stills { try? FileManager.default.removeItem(at: Paths.thumbs.appendingPathComponent(s.file)) }
+            return
+        }
+        update(id) { $0.stills = stills }
+    }
 
     func audioURL(for t: Transcript) -> URL? {
         LibraryFile.url(t.audioFileName, in: Paths.audio, field: "audio")

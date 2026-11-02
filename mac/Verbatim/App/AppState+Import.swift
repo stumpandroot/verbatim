@@ -64,6 +64,8 @@ extension AppState {
                         if let mt = prepared.multitrack { $0.multitrack = mt; $0.waveform = prepared.wave }
                     }
                     coordinator.enqueueExisting(id)
+                    // A video's stills for the transcript's margin, beside the transcription (VideoStills).
+                    if isVideo { Task { await store.addStills(id, from: src) } }
                 } catch {
                     store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     FolderWatcher.shared.transcriptFailed(id, error: error)

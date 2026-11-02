@@ -522,7 +522,7 @@ struct Transcript: Codable, Identifiable, Equatable {
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
              summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited, schemaVersion,
-             speakerSuggestions, unclear, previousVersion, rerunRequest, templateResults, autoRun, remindersSent
+             speakerSuggestions, unclear, previousVersion, rerunRequest, templateResults, autoRun, remindersSent, stills
     }
     /// Every key this build reads or writes, including the legacy path keys: anything else is a newer build's.
     static let knownKeys: Set<String> = Set(CodingKeys.allCases.map(\.stringValue) + LegacyKeys.allCases.map(\.stringValue))
@@ -614,6 +614,9 @@ struct Transcript: Codable, Identifiable, Equatable {
     var pendingAppend: String? = nil
     /// Multi-track recordings: one file per mic, each transcribed on its own and woven together by time.
     var multitrack: MultitrackInfo? = nil
+    /// An imported video's stills, one where the picture changes (VideoStill.pick), shown in the transcript's margin.
+    /// nil for audio and for videos imported before stills.
+    var stills: [VideoStill]? = nil
     /// Sponsor reads (SponsorDetect, Sponsors.swift): nil until a podcast or video is checked, [] when it has none.
     /// Older builds keep the key as they found it and write it back.
     var sponsors: [SponsorSpan]? = nil
@@ -714,6 +717,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         flow = try c.decodeIfPresent(FlowInfo.self, forKey: .flow)
         pendingAppend = try LibraryFile.checked(c.decodeIfPresent(String.self, forKey: .pendingAppend), field: "continued recording")
         multitrack = try? c.decodeIfPresent(MultitrackInfo.self, forKey: .multitrack)
+        stills = (try? c.decodeIfPresent([VideoStill].self, forKey: .stills)) ?? nil
         // Spans a newer build wrote in a shape this one can't read are dropped, never the whole file.
         sponsors = (try? c.decodeIfPresent([SponsorSpan].self, forKey: .sponsors)) ?? nil
         // An unknown kind (from a newer build) reads as unlabeled rather than failing the whole file.
@@ -801,6 +805,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         try c.encodeIfPresent(summary, forKey: .summary)
         try c.encode(summaryByModel, forKey: .summaryByModel)
         try c.encodeIfPresent(multitrack, forKey: .multitrack)
+        try c.encodeIfPresent(stills, forKey: .stills)
         try c.encodeIfPresent(sponsors, forKey: .sponsors)
         if let cleaned = documentCleanedBy { try c.encode(unknown.raw(for: "documentCleanedBy", current: cleaned.rawValue), forKey: .documentCleanedBy) }
         try c.encode(documentMarkHistory, forKey: .documentMarkHistory)
@@ -1016,5 +1021,85 @@ extension Double {
         let s = Int(self.rounded())
         let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%02d:%02d", m, sec)
+    }
+}
+
+/// A still from an imported video (Paths.thumbs), at the moment the picture changed. Shown beside the line playing
+/// then, in the transcript's margin; a tap plays from `at` (November 2, 2026, mockup "Verbose Video Stills", option B).
+struct VideoStill: Codable, Equatable, Hashable, Sendable {
+    /// Seconds into the recording.
+    var at: Double
+    /// The JPEG's name in Paths.thumbs.
+    var file: String
+    /// Width over height as the video plays (a phone video is about 0.56, a widescreen one 1.78).
+    var aspect: Double
+
+    /// The longest a video gets one still for, and the fewest seconds between two.
+    static let limit = 30
+    static let minGap: Double = 10
+    /// How different two 16 by 16 gray frames must be (mean difference, 0 to 1) to count as a new picture.
+    static let threshold = 0.12
+    /// Samples taken across a video: one a second, fewer for videos over 10 minutes.
+    static let maxSamples = 600
+
+    /// A small gray frame taken while picking: its time and 16 by 16 brightness values.
+    struct Sample: Sendable {
+        var at: Double
+        var gray: [UInt8]
+    }
+
+    /// The times to keep: the first frame, then each frame that differs enough from the last one kept, at least
+    /// `minGap` seconds later, up to `limit`. A fast-cut video gets one still per `minGap` at most; one steady camera
+    /// gets one.
+    static func pick(_ samples: [Sample], limit: Int = limit, minGap: Double = minGap, threshold: Double = threshold) -> [Double] {
+        var kept: [Double] = []
+        var last: Sample?
+        for s in samples.sorted(by: { $0.at < $1.at }) {
+            guard kept.count < limit else { break }
+            if let l = last {
+                guard s.at - l.at >= minGap, difference(s.gray, l.gray) >= threshold else { continue }
+            }
+            kept.append(s.at)
+            last = s
+        }
+        return kept
+    }
+
+    /// Mean absolute difference of two gray frames, 0 (same) to 1 (black against white).
+    static func difference(_ a: [UInt8], _ b: [UInt8]) -> Double {
+        let n = min(a.count, b.count)
+        guard n > 0 else { return 1 }
+        var sum = 0
+        for i in 0..<n { sum += abs(Int(a[i]) - Int(b[i])) }
+        return Double(sum) / Double(n) / 255
+    }
+
+    /// The times to sample a video `duration` seconds long: every second, or evenly spaced when that's over
+    /// `maxSamples`.
+    static func sampleTimes(duration: Double) -> [Double] {
+        guard duration > 0 else { return [] }
+        let step = max(1, duration / Double(maxSamples))
+        return Array(stride(from: 0, to: duration, by: step))
+    }
+
+    /// Each still's line: the last line that starts at or before it (the first line for a still before any words).
+    /// A line gets at most one still, the earliest.
+    static func byLine(_ stills: [VideoStill], lines: [Segment]) -> [UUID: VideoStill] {
+        let sorted = lines.sorted { $0.start < $1.start }
+        guard let first = sorted.first else { return [:] }
+        var out: [UUID: VideoStill] = [:]
+        for still in stills.sorted(by: { $0.at < $1.at }) {
+            let line = sorted.last { $0.start <= still.at + 0.25 } ?? first
+            if out[line.id] == nil { out[line.id] = still }
+        }
+        return out
+    }
+
+    /// The still's size in the margin: `width` points across for a tall video, wider for a wide one, and as tall as
+    /// its shape (never over 1.8 times its width).
+    static func size(aspect: Double, tallWidth: Double) -> (width: Double, height: Double) {
+        let a = aspect > 0 ? aspect : 9.0 / 16
+        let w = a >= 1 ? tallWidth * 1.5 : tallWidth
+        return (w, min(w / a, w * 1.8))
     }
 }

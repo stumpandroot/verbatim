@@ -93,3 +93,32 @@ enum ThumbCache {
         return image
     }
 }
+
+/// A video still in the transcript's margin (VideoStill; mockup "Verbose Video Stills", option B): drawn at the
+/// video's shape, a tall one `tallWidth` across, and a tap plays from its moment. Shared by the Mac and the iPhone.
+struct VideoStillThumb: View {
+    var still: VideoStill
+    var tallWidth: CGFloat
+    var play: () -> Void
+
+    var body: some View {
+        let size = VideoStill.size(aspect: still.aspect, tallWidth: Double(tallWidth))
+        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+        Button(action: play) {
+            ThumbImage(file: still.file, maxPixel: Int(max(size.width, size.height) * 3)) { Rectangle().fill(Refined.track) }
+                .frame(width: CGFloat(size.width), height: CGFloat(size.height))
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(Refined.separator, lineWidth: 0.5))
+                .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Still at \(RefinedRules.spokenTime(still.at))")
+        .accessibilityHint("Plays from here.")
+    }
+
+    /// The margin a transcript's stills need: the widest still, or nil when it has none (no margin at all).
+    static func margin(_ stills: [VideoStill]?, tallWidth: CGFloat) -> CGFloat? {
+        guard let stills, !stills.isEmpty else { return nil }
+        return CGFloat(stills.map { VideoStill.size(aspect: $0.aspect, tallWidth: Double(tallWidth)).width }.max() ?? Double(tallWidth))
+    }
+}

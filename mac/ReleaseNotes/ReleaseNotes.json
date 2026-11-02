@@ -6,6 +6,16 @@
       "items": [
         {
           "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Video stills",
+          "icon": "film",
+          "text": "Imported videos show a still beside the line where the picture changes. Tap one to play.",
+          "detail": "At most one every 10 seconds and 30 per video, so fast cuts don't fill the page. Videos imported earlier don't have stills."
+        },
+        {
+          "platforms": [
             "mac"
           ],
           "head": "Centered pages",
@@ -36,7 +46,7 @@
             "mac"
           ],
           "head": "Titles for downloads",
-          "icon": "tidy",
+          "icon": "import",
           "text": "Imported files with made-up names, like a TikTok download, get a suggested title.",
           "detail": "A file you named yourself keeps its name. For a file imported earlier, open its Summary and choose Regenerate."
         },
@@ -46,7 +56,7 @@
             "mac"
           ],
           "head": "A plain gear",
-          "icon": "appearance",
+          "icon": "settings",
           "text": "Settings uses a plain gear everywhere, so it's easy to spot."
         }
       ]

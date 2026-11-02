@@ -25,6 +25,10 @@ struct SegmentLine: View {
     var size: CGFloat
     /// The first line in the column: no extra space above its speaker.
     var first = false
+    /// An imported video's still for this line, in the margin (VideoStill), and the margin's width when the transcript
+    /// has stills (nil: no margin).
+    var still: VideoStill? = nil
+    var margin: CGFloat? = nil
     var select: () -> Void
     @State private var hover = false
     @State private var fixing: String? = nil
@@ -60,6 +64,29 @@ struct SegmentLine: View {
 
     var body: some View {
         let name = showSpeaker ? segment.speaker.flatMap { sp in transcript.speakerName(sp).map { (sp, $0) } } : nil
+        HStack(alignment: .top, spacing: 12) {
+            // A video's still in the margin; lines without one keep the margin, so the text stays in one column.
+            if let margin {
+                Group {
+                    if let still {
+                        VideoStillThumb(still: still, tallWidth: 48) { app.player.play(from: still.at) }
+                            .help("Play from \(RefinedRules.time(still.at))")
+                    }
+                }
+                .frame(width: margin, alignment: .leading)
+                .padding(.top, 3)
+            }
+            lineColumn(name)
+        }
+        .readingTurn(playing: current, selected: selected, hovered: hover)
+        .onHover { hover = $0 }
+        .accessibilityElement(children: .contain)
+        // About 16 pt more between speakers; lines from the same speaker sit closer.
+        .padding(.top, showSpeaker && !first ? 10 : 0)
+    }
+
+    /// The chip and time, the text with its menu and Fix popover, and a marked moment's chip.
+    private func lineColumn(_ name: (String, String)?) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 8) {
                 if let n = name { speakerMenu(n.0, name: n.1) }
@@ -131,11 +158,6 @@ struct SegmentLine: View {
                     .padding(.top, 3)
             }
         }
-        .readingTurn(playing: current, selected: selected, hovered: hover)
-        .onHover { hover = $0 }
-        .accessibilityElement(children: .contain)
-        // About 16 pt more between speakers; lines from the same speaker sit closer.
-        .padding(.top, showSpeaker && !first ? 10 : 0)
     }
 
     /// The speaker's chip: a menu that moves the line to someone else, renames them, or takes the speaker off.
@@ -243,6 +265,9 @@ struct TranscriptLines: View {
         let folds = self.folds.count == segments.count ? self.folds : SponsorFold.places(segments, in: transcript)
         // "unclear 2:10" chips where speech was heard but no words came through (UnclearRules), between the lines.
         let chips = UnclearStyle.chips(transcript, lines: segments)
+        // An imported video's stills, each in the margin beside the line playing then (VideoStill).
+        let stills = VideoStill.byLine(transcript.stills ?? [], lines: segments)
+        let margin = VideoStillThumb.margin(transcript.stills, tallWidth: 48)
         LazyVStack(alignment: .leading, spacing: 2) {
             ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
                 // After a folded read, name the speaker again: the line above on screen is someone else's.
@@ -258,7 +283,8 @@ struct TranscriptLines: View {
                 }
                 SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, speakerIndex: s.speaker.flatMap { order[$0] } ?? 0,
                             current: current.contains(s.id), marked: saved.contains(s.id) || marked[s.id] != nil, mark: marked[s.id],
-                            selected: selected == s.id, editable: editable, size: textSize, first: i == 0) {
+                            selected: selected == s.id, editable: editable, size: textSize, first: i == 0,
+                            still: stills[s.id], margin: margin) {
                     selected = selected == s.id ? nil : s.id
                 }
                 .id(s.id)

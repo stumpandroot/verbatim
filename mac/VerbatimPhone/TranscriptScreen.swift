@@ -758,6 +758,9 @@ struct PhoneLines: View {
         let folds = self.folds.count == segs.count ? self.folds : SponsorFold.places(segs, in: transcript)
         // "unclear 2:10" chips where speech was heard but no words came through (UnclearRules), between the lines.
         let chips = UnclearStyle.chips(transcript, lines: segs)
+        // An imported video's stills, each in the margin beside the line playing then (VideoStill).
+        let stills = VideoStill.byLine(transcript.stills ?? [], lines: segs)
+        let margin = VideoStillThumb.margin(transcript.stills, tallWidth: 44)
         LazyVStack(alignment: .leading, spacing: 4) {
             ForEach(Array(segs.enumerated()), id: \.element.id) { i, s in
                 // After a folded read, name the speaker again: the line above on screen is someone else's.
@@ -774,7 +777,8 @@ struct PhoneLines: View {
                         .padding(.top, i == 0 ? 2 : 10).padding(.bottom, 4)
                 }
                 turn(s, showSpeaker: showSpeaker, index: s.speaker.flatMap { order[$0] } ?? 0, playing: playing,
-                     marked: saved.contains(s.id) || marked[s.id] != nil, mark: marked[s.id], inFold: fold != nil)
+                     marked: saved.contains(s.id) || marked[s.id] != nil, mark: marked[s.id], inFold: fold != nil,
+                     still: stills[s.id], margin: margin)
                     .padding(.top, showSpeaker && i > 0 ? 10 : 0)
                     .id(s.id)
                     .scrubRow(scrub, index: i, count: segs.count)
@@ -796,10 +800,47 @@ struct PhoneLines: View {
 
     /// One turn: the chip and the time (the chip opens Rename and This line is; the time plays from here), the text,
     /// and a marked moment's chip.
-    private func turn(_ s: Segment, showSpeaker: Bool, index: Int, playing: Bool, marked: Bool, mark: Note?, inFold: Bool) -> some View {
+    private func turn(_ s: Segment, showSpeaker: Bool, index: Int, playing: Bool, marked: Bool, mark: Note?, inFold: Bool,
+                      still: VideoStill?, margin: CGFloat?) -> some View {
         let name = transcript.speakerName(s.speaker)
         let time = RefinedRules.time(s.start)
-        return VStack(alignment: .leading, spacing: 4) {
+        return HStack(alignment: .top, spacing: 10) {
+            // A video's still in the margin; lines without one keep the margin, so the text stays in one column.
+            if let margin {
+                Group {
+                    if let still { VideoStillThumb(still: still, tallWidth: 44) { app.player.play(from: still.at) } }
+                }
+                .frame(width: margin, alignment: .leading)
+                .padding(.top, 4)
+            }
+            turnText(s, name: name, time: time, showSpeaker: showSpeaker, index: index, playing: playing, marked: marked, mark: mark)
+        }
+        .readingTurn(playing: playing)
+        .contentShape(Rectangle())
+        .contextMenu { lineMenu(s, inFold: inFold) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([name.map { "\($0)," }, RefinedRules.spokenTime(s.start) + ",", s.text].compactMap { $0 }.joined(separator: " "))
+        .accessibilityValue([playing ? "Playing" : nil, marked ? "Marked" : nil].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityHint("Plays from here.")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { play(s) }
+        .accessibilityActions {
+            Button("Bookmark") { bookmark(s) }
+            Button("Add note") { onNote(s) }
+            Button("Fix a word") { fixing = s }
+            Button("Copy quote") { copyQuote(s) }
+            if let sid = s.speaker, let sp = transcript.speakers.first(where: { $0.id == sid }) {
+                Button("Rename \(sp.label)") { newName = sp.name; renaming = sp }
+            }
+            if let mark { Button("Play moment") { app.player.play(from: mark.at ?? s.start) } }
+        }
+    }
+
+    /// The turn's chip and time (the chip opens Rename and This line is; the time plays from here), the text, and a
+    /// marked moment's chip.
+    private func turnText(_ s: Segment, name: String?, time: String, showSpeaker: Bool, index: Int, playing: Bool,
+                          marked: Bool, mark: Note?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 if showSpeaker, let n = name {
                     // Tap the name to rename the speaker or move this line to someone else.
@@ -835,25 +876,6 @@ struct PhoneLines: View {
                 .accessibilityLabel(Marks.chip(mark) ?? "Moment")
                 .accessibilityHint("Plays from this moment.")
             }
-        }
-        .readingTurn(playing: playing)
-        .contentShape(Rectangle())
-        .contextMenu { lineMenu(s, inFold: inFold) }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel([name.map { "\($0)," }, RefinedRules.spokenTime(s.start) + ",", s.text].compactMap { $0 }.joined(separator: " "))
-        .accessibilityValue([playing ? "Playing" : nil, marked ? "Marked" : nil].compactMap { $0 }.joined(separator: ", "))
-        .accessibilityHint("Plays from here.")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { play(s) }
-        .accessibilityActions {
-            Button("Bookmark") { bookmark(s) }
-            Button("Add note") { onNote(s) }
-            Button("Fix a word") { fixing = s }
-            Button("Copy quote") { copyQuote(s) }
-            if let sid = s.speaker, let sp = transcript.speakers.first(where: { $0.id == sid }) {
-                Button("Rename \(sp.label)") { newName = sp.name; renaming = sp }
-            }
-            if let mark { Button("Play moment") { app.player.play(from: mark.at ?? s.start) } }
         }
     }
 

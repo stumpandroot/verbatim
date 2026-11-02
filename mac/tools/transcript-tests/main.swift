@@ -175,5 +175,31 @@ check("once its made-up name is replaced by a model's title, a summary can still
 tiktok.title = "IMG_4821"; tiktok.titleIsAuto = false
 check("a file you renamed is never retitled", !tiktok.mayAutoTitle([.voiceMemo, .file]))
 
+// Video stills: one where the picture changes, at most one per 10 seconds and 30 per video.
+func gray(_ v: UInt8) -> [UInt8] { Array(repeating: v, count: 256) }
+let cuts = (0..<60).map { i in VideoStill.Sample(at: Double(i), gray: gray(UInt8((i / 3) % 2 == 0 ? 40 : 200))) }
+let picked = VideoStill.pick(cuts)
+check("a fast-cut video gets at most one still per 10 seconds", picked.first == 0 && zip(picked, picked.dropFirst()).allSatisfy { $1 - $0 >= 10 })
+check("a fast-cut minute gets 5 to 6 stills", (5...6).contains(picked.count), "\(picked)")
+let steady = (0..<120).map { i in VideoStill.Sample(at: Double(i), gray: gray(UInt8(100 + i % 3))) }
+check("one steady camera gets one still", VideoStill.pick(steady) == [0])
+let slides = (0..<100).map { i in VideoStill.Sample(at: Double(i), gray: gray(UInt8(i < 25 ? 30 : i < 60 ? 220 : 90))) }
+check("a slideshow gets a still per slide", VideoStill.pick(slides) == [0, 25, 60])
+let long = (0..<2000).map { i in VideoStill.Sample(at: Double(i) * 2, gray: gray(UInt8(i % 2 == 0 ? 0 : 255))) }
+check("never more than 30 stills", VideoStill.pick(long).count == 30)
+check("a 10-minute video is sampled once a second", VideoStill.sampleTimes(duration: 600).count == 600)
+check("an hour is sampled 600 times", VideoStill.sampleTimes(duration: 3600).count == 600)
+check("difference runs from 0 to 1", VideoStill.difference(gray(0), gray(0)) == 0 && VideoStill.difference(gray(0), gray(255)) == 1)
+let l1 = Segment(start: 0, end: 3, text: "a"), l2 = Segment(start: 3, end: 7, text: "b"), l3 = Segment(start: 7, end: 9, text: "c")
+let map = VideoStill.byLine([VideoStill(at: 0, file: "a", aspect: 0.56), VideoStill(at: 7.1, file: "b", aspect: 0.56),
+                             VideoStill(at: 8, file: "c", aspect: 0.56)], lines: [l1, l2, l3])
+check("each still sits on the line playing then, one per line", map[l1.id]?.file == "a" && map[l2.id] == nil && map[l3.id]?.file == "b")
+let tall = VideoStill.size(aspect: 9.0 / 16, tallWidth: 44), wide = VideoStill.size(aspect: 16.0 / 9, tallWidth: 44)
+check("a tall still is 44 by 78; a wide one 66 by 37", Int(tall.width) == 44 && Int(tall.height) == 78 && Int(wide.width) == 66 && Int(wide.height) == 37)
+var withStills = fresh; withStills.stills = [VideoStill(at: 7, file: "still-x-7000.jpg", aspect: 0.5625)]
+if let d = try? enc.encode(withStills), let back = try? dec.decode(Transcript.self, from: d) {
+    check("stills survive a save", back.stills == withStills.stills)
+} else { check("stills survive a save", false) }
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

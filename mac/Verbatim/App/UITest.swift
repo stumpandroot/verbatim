@@ -675,6 +675,7 @@ enum UITest {
         await show("07d-you-time-saved")
         check("you: the Time saved card draws", frames["you-time-saved"] != nil)
         await vocalSoundChecks()
+        await videoStillChecks()
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
         await thoughtShots(suffix: "")
@@ -892,6 +893,45 @@ enum UITest {
 
     /// Vocal expressions, test stage (Transcription/VocalSoundScan.swift): the pure checks, the built-in sound
     /// classifier's labels written to the log (which sounds it can name at all), and one scan of a generated clip.
+    /// Video stills (VideoStills): a 30-second tall test video with three scenes (dark, light, then mid gray from 12
+    /// and 24 seconds) gets one still per scene, at the video's shape, saved in the thumbs folder.
+    private static func videoStillChecks() async {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("video-stills-check.mov")
+        try? FileManager.default.removeItem(at: url)
+        let w = 72, h = 128
+        guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mov) else { check("video stills: makes a test video", false); return }
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: w, AVVideoHeightKey: h])
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA, kCVPixelBufferWidthKey as String: w, kCVPixelBufferHeightKey as String: h])
+        writer.add(input)
+        writer.startWriting(); writer.startSession(atSourceTime: .zero)
+        for second in 0...30 {
+            while !input.isReadyForMoreMediaData { try? await Task.sleep(nanoseconds: 5_000_000) }
+            var pb: CVPixelBuffer?
+            guard let pool = adaptor.pixelBufferPool, CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb) == kCVReturnSuccess, let buf = pb else { break }
+            CVPixelBufferLockBaseAddress(buf, [])
+            let level: UInt8 = second < 12 ? 30 : second < 24 ? 225 : 120
+            if let base = CVPixelBufferGetBaseAddress(buf) { memset(base, Int32(level), CVPixelBufferGetBytesPerRow(buf) * h) }
+            CVPixelBufferUnlockBaseAddress(buf, [])
+            adaptor.append(buf, withPresentationTime: CMTime(value: CMTimeValue(second), timescale: 1))
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        check("video stills: makes a test video", writer.status == .completed)
+        let id = UUID()
+        let stills = await VideoStills.capture(from: url, id: id)
+        Log.note("UITEST video stills: " + stills.map { "\(String(format: "%.1f", $0.at)) s \(String(format: "%.2f", $0.aspect))" }.joined(separator: ", "))
+        check("video stills: one still per scene, at 0, 12, and 24 seconds",
+              stills.count == 3 && zip(stills.map(\.at), [0.0, 12, 24]).allSatisfy { abs($0 - $1) <= 1 })
+        check("video stills: each keeps the video's tall shape", stills.allSatisfy { abs($0.aspect - Double(w) / Double(h)) < 0.05 })
+        check("video stills: each is saved in the thumbs folder",
+              stills.allSatisfy { FileManager.default.fileExists(atPath: Paths.thumbs.appendingPathComponent($0.file).path) })
+        let audio = FileManager.default.temporaryDirectory.appendingPathComponent("vocal-sounds-check.caf")
+        check("video stills: an audio file gets none", await VideoStills.capture(from: audio, id: id).isEmpty)
+        for s in stills { try? FileManager.default.removeItem(at: Paths.thumbs.appendingPathComponent(s.file)) }
+        try? FileManager.default.removeItem(at: url)
+    }
+
     private static func vocalSoundChecks() async {
         VocalSoundScan.selfChecks { check($0, $1) }
         let labels = VocalSoundScan.knownLabels()
