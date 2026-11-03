@@ -341,6 +341,8 @@ struct MeetingsSettingsPane: View {
 
     var body: some View {
         SettingsPane(tab: .meetings) {
+            // Calls before they start (CallViews.swift, App/CallCalendar.swift).
+            CallsSettingsGroup()
             SettingsGroup(title: "Meetings") {
                 SettingsToggleRow("meetings.notice", isOn: $notice)
                 SettingsToggleRow("meetings.copyNotice", isOn: $copyNotice)
@@ -361,6 +363,61 @@ struct MeetingsSettingsPane: View {
                 }
             }
             CaptionsSettingsGroup()
+        }
+    }
+}
+
+/// Settings › Meetings › Calls (mockup "Verbose Call Recording", board 7): Calls from Calendar and which calendars.
+/// Turning Calls from Calendar on asks macOS for access the first time; when access is off, the row says where to turn
+/// it on.
+struct CallsSettingsGroup: View {
+    @ObservedObject private var calendar = CallCalendar.shared
+    @AppStorage(MeetingCoordinator.stopWhenEndsKey) private var stopWhenEnds = true
+    @AppStorage(CallStillCapture.enabledKey) private var stills = false
+    /// Screen Recording, looked at again when Settings comes forward (System Settings may have changed it).
+    @State private var screenAllowed = CallStillCapture.allowed
+
+    var body: some View {
+        SettingsGroup(title: "Calls") {
+            SettingsToggleRow("meetings.calendar", isOn: Binding(get: { calendar.enabled }, set: { on in
+                if on { Task { await calendar.turnOn() } } else { calendar.turnOff() }
+            }), detail: calendar.access == .denied ? CallCopy.calendarDenied : nil)
+            if calendar.access == .denied {
+                SettingsRow("meetings.calendars", detail: "Shows once Verbose can read your calendars.") {
+                    Button("Open System Settings") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") { NSWorkspace.shared.open(url) }
+                    }
+                    .buttonStyle(.settingsPill)
+                }
+            } else {
+                SettingsRow("meetings.calendars") {
+                    Menu(calendar.shownSummary) {
+                        ForEach(calendar.calendars) { c in
+                            Toggle(c.title, isOn: Binding(get: { !calendar.hidden.contains(c.id) }, set: { calendar.setShown(c.id, $0) }))
+                        }
+                    }
+                    .fixedSize()
+                    .disabled(!calendar.showing || calendar.calendars.isEmpty)
+                }
+            }
+            SettingsToggleRow("meetings.stopWhenEnds", isOn: $stopWhenEnds)
+            // Stills of shared screens (App/CallStills.swift): off by default. Turning it on asks for Screen Recording
+            // the first time; without it, the row says so and offers System Settings.
+            SettingsRow("meetings.stills", detail: stills && !screenAllowed ? "Needs Screen Recording. Allow Verbose in System Settings › Privacy & Security › Screen & System Audio Recording." : nil,
+                        detailColor: stills && !screenAllowed ? Refined.accentText : Refined.mute) {
+                HStack(spacing: 10) {
+                    if stills && !screenAllowed {
+                        Button("Open System Settings") { NSWorkspace.shared.open(AppPickerSheet.screenCaptureSettings) }
+                            .buttonStyle(.settingsPill)
+                    }
+                    Toggle(SettingsIndex.entry("meetings.stills")?.label ?? "Keep stills of shared screens", isOn: Binding(get: { stills }, set: { on in
+                        stills = on
+                        if on && !CGPreflightScreenCaptureAccess() { screenAllowed = CGRequestScreenCaptureAccess() }
+                    }))
+                    .toggleStyle(.switch).labelsHidden().refinedSwitchTint()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in screenAllowed = CallStillCapture.allowed }
         }
     }
 }

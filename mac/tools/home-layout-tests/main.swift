@@ -35,7 +35,9 @@ check("Queue, Projects, Moments, Last dictation, and Stats left", HomeSection.re
 check("every default lists each available section once", [(pv, HomePlatform.phone), (mv, .mac)].allSatisfy { l, p in
     Set(l.items.map(\.section)) == Set(HomeSection.allCases.filter { $0.isAvailable(on: p) }) && l.items.count == Set(l.items.map(\.section)).count })
 check("iPhone tiles: Dictate, Import, What's playing, New thought", pv.tiles == [.dictate, .importMedia, .whatsPlaying, .newThought])
-check("Mac tiles: Dictate, Import, App audio, New thought", mv.tiles == [.dictate, .importMedia, .appAudio, .newThought])
+check("Mac tiles: Dictate, Import, Call, New thought", mv.tiles == [.dictate, .importMedia, .call, .newThought])
+check("App audio stays in the Mac's catalog", HomeTile.available(on: .mac).contains(.appAudio) && !mv.tiles.contains(.appAudio))
+check("Call is Mac only", HomeTile.available(on: .mac).contains(.call) && !HomeTile.available(on: .phone).contains(.call))
 check("Live captions left the four and stays in the catalog", !pv.tiles.contains(.captions) && HomeTile.available(on: .phone).contains(.captions)
       && HomeTile.available(on: .mac).contains(.captions))
 check("the tile catalog drops Search, Moments, Queue, and Paste a link", ["search", "moments", "queue", "pasteLink"].allSatisfy { HomeTile(rawValue: $0) == nil })
@@ -91,7 +93,7 @@ let preConsolidation = json(#"{"version":1,"items":[{"section":"record","visible
 let pc = HomeLayout.decode(preConsolidation, .mac)
 check("a pre-consolidation layout keeps its order and choices for the sections that stay", pc.map { names($0.shown) } == ["record", "tiles", "week"]
       && pc?.isVisible(.recent) == false && pc?.size(.recent) == .compact, "\(pc.map { names($0.items) } ?? [])")
-check("its retired tiles are replaced from the defaults, in order", pc?.tiles == [.dictate, .importMedia, .appAudio, .newThought], "\(pc?.tiles.map(\.rawValue) ?? [])")
+check("its retired tiles are replaced from the defaults, in order", pc?.tiles == [.dictate, .importMedia, .call, .newThought], "\(pc?.tiles.map(\.rawValue) ?? [])")
 
 let otherApp = json(#"{"items":[{"section":"week","visible":true}],"tiles":["appAudio","thoughtPad","captions"]}"#)
 let o = HomeLayout.decode(otherApp, .phone)
@@ -426,11 +428,11 @@ check("kind tiles: each records its kind, in Record as's order",
 check("kind tiles: offered on both apps", [HomePlatform.phone, .mac].allSatisfy { p in HomeTile.recordsKind.allSatisfy { HomeTile.available(on: p).contains($0) } })
 check("kind tiles: never picked by default, and the four defaults are unchanged",
       [pv, mv].allSatisfy { l in !l.tiles.contains { $0.kindRaw != nil } }
-      && pv.tiles == [.dictate, .importMedia, .whatsPlaying, .newThought] && mv.tiles == [.dictate, .importMedia, .appAudio, .newThought])
+      && pv.tiles == [.dictate, .importMedia, .whatsPlaying, .newThought] && mv.tiles == [.dictate, .importMedia, .call, .newThought])
 check("kind tiles: a stored pick of them is kept", HomeLayout.decode(json(#"{"tiles":["meeting","audioOnly","interview","talk"]}"#), .phone)?.tiles
       == [.meeting, .audioOnly, .interview, .talk])
 check("kind tiles: an older build's unknown tile is still dropped", HomeLayout.decode(json(#"{"tiles":["meeting","hologram"]}"#), .mac)?.tiles
-      == [.meeting, .dictate, .importMedia, .appAudio])
+      == [.meeting, .dictate, .importMedia, .call])
 check("kind tiles wear their kind's hue: Interview and Talk sage, Audio only petal",
       HomeTile.interview.hue == .sage && HomeTile.talk.hue == .sage && HomeTile.audioOnly.hue == .petal)
 check("the Meeting tile is the card: persimmon stays Record's", HomeTile.meeting.hue == nil)
@@ -500,6 +502,28 @@ check("record tap: VoiceOver's hint takes the right article",
       && TabRecordDefault.audio.hint.hasPrefix("Starts an Audio only recording.") && TabRecordDefault.brainDump.hint.hasPrefix("Starts a brain dump."))
 check("record chrome: a kind's tab shows Record like any tab", PhoneTab.kinds.allSatisfy {
     !RC.hidden(tab: $0, homeAtRoot: true, recordCardShown: true, readingTranscript: false, recording: false) })
+
+// The Call tile (November 3, 2026): the Mac's untouched default four get Call in App audio's place; picked tiles stay.
+var beforeCall = mv
+beforeCall.tiles = HomeLayout.macTilesBeforeCall
+check("call tile: the earlier default four get Call in App audio's slot", HomeCallTileMigration.apply(beforeCall).tiles == [.dictate, .importMedia, .call, .newThought])
+check("call tile: and nothing else changes", HomeCallTileMigration.apply(beforeCall).items == beforeCall.items)
+var picked = mv
+picked.tiles = [.appAudio, .dictate, .importMedia, .newThought]
+check("call tile: tiles picked in Edit Home stay", HomeCallTileMigration.apply(picked) == picked)
+var kept = mv
+kept.tiles = HomeLayout.earlierTiles(.mac)
+check("call tile: the four from before the consolidation stay", HomeCallTileMigration.apply(kept) == kept)
+check("call tile: wears App audio's petal and has a name and a line", HomeTile.call.hue == .petal && HomeTile.call.title == "Call" && !HomeTile.call.detail.isEmpty)
+if let suite = UserDefaults(suiteName: "home-layout-tests-call-\(UUID().uuidString)") {
+    suite.set(beforeCall.encoded(), forKey: HomeLayout.key)
+    check("call tile: runs once on the Mac", HomeCallTileMigration.runOnce(suite, platform: .mac)
+          && suite.data(forKey: HomeLayout.key).flatMap { HomeLayout.decode($0, .mac) }?.tiles == [.dictate, .importMedia, .call, .newThought])
+    suite.set(beforeCall.encoded(), forKey: HomeLayout.key)
+    check("call tile: and never again (App audio put back stays)", !HomeCallTileMigration.runOnce(suite, platform: .mac)
+          && suite.data(forKey: HomeLayout.key).flatMap { HomeLayout.decode($0, .mac) }?.tiles == HomeLayout.macTilesBeforeCall)
+    check("call tile: never on iPhone", !HomeCallTileMigration.runOnce(UserDefaults(suiteName: "home-layout-tests-call-phone-\(UUID().uuidString)")!, platform: .phone))
+}
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

@@ -165,6 +165,14 @@ struct SegmentLine: View {
         Menu {
             ForEach(transcript.speakers) { s in Button(s.label) { app.assign(transcript: transcript.id, segment: segment.id, to: s.id) } }
             Divider()
+            // A calendar call's attendees, the names to pick from for the call's track (MeetingSession.handOff).
+            let invited = transcript.calendarNames(for: sp).filter { $0 != name }
+            if !invited.isEmpty {
+                Section("From the calendar event") {
+                    ForEach(invited, id: \.self) { n in Button("Rename to \(n)") { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: n) } }
+                }
+                Divider()
+            }
             Button("Rename \(name)…") { renaming = true; newName = name }
             Button("No speaker") { app.assign(transcript: transcript.id, segment: segment.id, to: nil) }
         } label: {

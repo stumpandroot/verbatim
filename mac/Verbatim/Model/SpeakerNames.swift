@@ -164,7 +164,8 @@ enum SpeakerNames {
     /// New suggestions over saved ones: used and dismissed ones stay (a dismissed name is never suggested again for
     /// that speaker); pending ones are replaced. nil when there's nothing to keep.
     static func merge(existing: [SpeakerSuggestion]?, new: [SpeakerSuggestion]) -> [SpeakerSuggestion]? {
-        let kept = (existing ?? []).filter { $0.state != .pending }
+        // A calendar call's attendees stay too: they came from the invite, not from this run.
+        let kept = (existing ?? []).filter { $0.state != .pending || $0.fromCalendar }
         let done = Set(kept.map(\.id))
         let out = kept + new.filter { !done.contains($0.id) }
         return out.isEmpty && existing == nil ? nil : out

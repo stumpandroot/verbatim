@@ -243,6 +243,11 @@ struct MeetingAppBook: Codable, Equatable {
 /// Starting points from the meetings report (§8); have a lawyer review them before release.
 enum MeetingCopy {
     static let chatNotice = "Heads-up: I'm recording the audio of this call on my computer so I can keep accurate notes. Let me know if you'd rather I didn't."
+    /// The chat notice while stills of shared screens are on: a shared screen can show other people's documents.
+    static let chatNoticeWithStills = "Heads-up: I'm recording the audio of this call on my computer, and keeping stills of shared screens, so I can keep accurate notes. Let me know if you'd rather I didn't."
+    /// The consent sheet's line while stills of shared screens are on.
+    static let stillsOn = "Stills of shared screens are on: Verbose keeps a picture of the call window when a shared screen or slide changes."
+    static func chatNotice(stills: Bool) -> String { stills ? chatNoticeWithStills : chatNotice }
     static let consentTitle = "Record this meeting?"
     static let consentLaw = "In some places, including California, Florida, Illinois, Pennsylvania, and Washington, everyone on the call must agree before you record."
     static let tellEveryone = "Tell everyone: copy a notice to paste in the chat"
@@ -250,6 +255,30 @@ enum MeetingCopy {
     static let silentDetail = "Check System Settings › Privacy & Security › Screen & System Audio Recording, or keep recording only your mic."
     static let sleptTitle = "Your Mac went to sleep, so the recording paused"
     static let sleptDetail = "Everything before that is saved."
+
+    // Record a call before it starts (mockup "Verbose Call Recording", November 3, 2026).
+    static let waitTitle = "Record your next call"
+    static let waitBodyNoCall = "No call is on yet. Verbose waits and starts recording when the call does: your microphone and the call app, as two tracks."
+    static let waitBody = "Verbose waits and starts recording when the call does: your microphone and the call app, as two tracks."
+    static let copyOnStart = "Copy the chat notice when recording starts"
+
+    /// "Recording your Zoom call" (the banner when a call you set up starts recording).
+    static func startedTitle(_ app: String) -> String { "Recording your \(app) call" }
+
+    /// "Catalog review with the printer · two tracks. The chat notice is on your clipboard; paste it in the Zoom chat."
+    static func startedDetail(app: String, title: String?, copied: Bool) -> String {
+        let what = "\(title ?? "Your microphone and \(app)") · two tracks."
+        return copied ? "\(what) The chat notice is on your clipboard; paste it in the \(app) chat." : what
+    }
+
+    /// "Zoom left the call" (Stop when the call ends).
+    static func leftTitle(_ app: String) -> String { "\(app) left the call" }
+
+    /// "Recording stops in 15 seconds and saves as “Catalog review with the printer”."
+    static func leftDetail(title: String?, seconds: Int) -> String {
+        let when = "Recording stops in \(seconds) seconds"
+        return title.map { "\(when) and saves as “\($0)”." } ?? "\(when) and saves."
+    }
 
     static func promptTitle(_ app: String) -> String { "\(app) is using your microphone" }
     static func silentTitle(_ app: String) -> String { "Verbose isn't hearing anything from \(app)" }

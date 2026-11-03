@@ -154,6 +154,10 @@ targets:
         NSAppleEventsUsageDescription: "Verbose reads the website you're dictating into, by domain only, to show where you dictate."
         # Dictionary › Suggest names from Contacts (Model/ContactNames.swift): names only, read when you ask.
         NSContactsUsageDescription: "Verbose suggests names from your contacts for your Dictionary, so it spells them correctly. Names stay on this device."
+        # Calls from Calendar (App/CallCalendar.swift): asked when you choose Show my calls on Home or turn it on in
+        # Settings › Meetings. macOS 14 offers only full access for reading events; the older key is kept for completeness.
+        NSCalendarsFullAccessUsageDescription: "Verbose shows your next call on Home and names recordings after the event. It reads events with a call link, their titles, and attendee names, on this Mac."
+        NSCalendarsUsageDescription: "Verbose shows your next call on Home and names recordings after the event. It reads events with a call link, their titles, and attendee names, on this Mac."
         # Send to Reminders (App/RemindersBridge.swift): asked the first time you add a plan's tasks. iOS 17 has no add-only
         # access for reminders, so it's full access; the older key is kept for completeness.
         NSRemindersFullAccessUsageDescription: "Verbose adds the tasks from a plan you make to the Reminders list you pick. It reads your lists only to show them."

@@ -501,6 +501,7 @@ extension HomeTile {
         case .interview: return .iconQuote
         case .talk: return .iconVoice
         case .audioOnly: return .iconAudio
+        case .call: return .iconOneOnOne
         }
     }
 }

@@ -83,7 +83,23 @@ enum UITest {
             } else if app.recorder.isRecording {
                 _ = app.recorder.stop()
             }
-            await step("app tile opens the picker", window, target: "tile-app", check: { app.showAppPicker })
+            // Call took App audio's place in the default four (November 3, 2026): with no call on, it sets up a wait in the
+            // consent panel; Cancel closes it without recording. App audio's picker stays in the Record menu and Edit Home.
+            let calls = MeetingCoordinator.shared
+            await step("call tile sets up a call", window, target: HomeView.tileTarget(.call), check: { calls.consent.isShowing && calls.consent.model.request?.wait != nil })
+            calls.consent.finish(record: false)
+            check("call tile: Cancel records nothing and sets up nothing", !MeetingSession.shared.isActive && !calls.consent.isShowing && calls.wait == nil)
+            // Wait for the call: nothing is watched in the self-test, so the wait only shows; Home's Cancel clears it.
+            await step("call tile sets up a call again", window, target: HomeView.tileTarget(.call), check: { calls.consent.isShowing })
+            calls.consent.finish(record: true)
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            check("call: Wait for the call sets up a wait for any call app and records nothing",
+                  calls.wait?.anyApp == true && !MeetingSession.shared.isActive)
+            await step("call: Home's Cancel stops waiting", window, target: "home-call-cancel", check: { calls.wait == nil })
+            check("App audio left the default four for Call and stays in the catalog",
+                  HomeLayout.defaults(.mac).tiles == [.dictate, .importMedia, .call, .newThought] && HomeTile.available(on: .mac).contains(.appAudio))
+            app.pickApp()
+            check("App audio's picker still opens", app.showAppPicker)
             app.showAppPicker = false
             try? await Task.sleep(nanoseconds: 400_000_000)
             // Live captions left the four default tiles (consolidation, October 28, 2026); its menu item and ⌥⌘C remain.
@@ -1027,8 +1043,8 @@ enum UITest {
         nav.inspector = false
         try? await Task.sleep(nanoseconds: 700_000_000)
         if windowFrames["tb-record"]?() == nil { Log.note("UITEST note: \(tag): Record isn't in the toolbar with the inspector closed either") }
-        check("\(tag): Record's menu lists Dictate, Live captions, and Import, then the six ways to record",
-              ToolbarRecordMenu.extras == ["Dictate", "Live Captions", "Import…"] && RecordChoice.all.count == 8
+        check("\(tag): Record's menu lists Dictate, Live captions, Import, Record a call, and App audio, then the ways to record",
+              ToolbarRecordMenu.extras == ["Dictate", "Live Captions", "Import…", "Record a Call…", "App Audio…"] && RecordChoice.all.count == 8
               && windowFrames["tb-record-menu"]?() != nil)
         // Record stays off a transcript at rest; while you record or capture an app's audio, the timer and Stop are on
         // every screen, transcripts included (review fix 2).

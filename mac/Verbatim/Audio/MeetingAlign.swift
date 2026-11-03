@@ -48,6 +48,12 @@ struct MeetingSidecar: Codable, Equatable {
     /// The transcript the session became. Recovery skips a session that already has one.
     var transcriptID: UUID? = nil
     var stoppedCleanly = false
+    /// A call set up from a calendar event (App/CallCalendar.swift): the event's title names the recording, and its
+    /// attendees become the speaker names to pick from. Nil for other recordings (and in sidecars from before).
+    var title: String? = nil
+    var attendees: [String]? = nil
+    /// Stills of shared screens kept while recording (App/CallStills.swift), so a recovered session keeps them too.
+    var stills: [MeetingStill]? = nil
 
     func track(_ role: MeetingTrack.Role) -> MeetingTrack? { tracks.first { $0.role == role } }
 
@@ -77,6 +83,14 @@ struct MeetingSidecar: Codable, Equatable {
         guard let data = try? Data(contentsOf: folder.appendingPathComponent(fileName)) else { return nil }
         return try? decode(data)
     }
+}
+
+/// A still of a shared screen from a call: seconds into the recording (pauses left out), the JPEG in the thumbs
+/// folder, and its width over height. Becomes the transcript's `VideoStill` at hand-off.
+struct MeetingStill: Codable, Equatable, Sendable {
+    var at: Double
+    var file: String
+    var aspect: Double
 }
 
 /// The host-time clock of one track: when its first sample was heard and when its last one ended. Written on the

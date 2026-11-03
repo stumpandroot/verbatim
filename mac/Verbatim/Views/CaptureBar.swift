@@ -11,6 +11,10 @@ struct RecordMenu: View {
     var onChange: () -> Void = {}
     var body: some View {
         let selected = AudioDevices.selectedUID
+        // A call first (the Record card's hint names it): recorded now when a call is on, else waited for.
+        Button { MeetingCoordinator.shared.recordCall() } label: { Label("Record a call…", image: RecordChoice.kind(.meeting).symbolName) }
+            .disabled(MeetingSession.shared.isActive)
+        Divider()
         RecordKindMenuItems()
         Divider()
         Section("Microphone") {

@@ -58,7 +58,7 @@ enum HomeTileAction {
         case .journal: app.go(.journal)
         case .brainDump, .meeting, .interview, .talk, .audioOnly:
             if let k = tile.kindRaw.flatMap(RecordingKind.init(rawValue:)) { startKind(k, app) }
-        case .appAudio, .thoughtPad: break
+        case .appAudio, .thoughtPad, .call: break
         }
     }
 
@@ -78,7 +78,7 @@ enum HomeTileAction {
         case .interview: return "Records an interview, with every voice kept."
         case .talk: return "Records a talk, with every voice kept."
         case .audioOnly: return "Records the sound only, with no transcript."
-        case .appAudio, .thoughtPad: return ""
+        case .appAudio, .thoughtPad, .call: return ""
         }
     }
 }

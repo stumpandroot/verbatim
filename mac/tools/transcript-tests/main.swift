@@ -201,5 +201,28 @@ if let d = try? enc.encode(withStills), let back = try? dec.decode(Transcript.se
     check("stills survive a save", back.stills == withStills.stills)
 } else { check("stills survive a save", false) }
 
+// A calendar call's attendees (November 3, 2026): the names to pick from for the call's track, which is named for its
+// app ("Zoom"), not a placeholder. One other person: a suggestion row; more: the speaker's menu only.
+do {
+    var call = Transcript(title: "Catalog review with the printer", source: .app, sourceLabel: "Meeting", duration: 60, audioFileName: nil, model: "")
+    call.speakers = [Speaker(id: "S1", name: "You"), Speaker(id: "S2", name: "Zoom")]
+    func cal(_ name: String) -> SpeakerSuggestion { SpeakerSuggestion(speakerId: "S2", name: name, reasons: ["invited to the calendar event"], sources: ["calendar"]) }
+    call.speakerSuggestions = [cal("Printer Rep")]
+    check("calendar: one other person is suggested for the call's track", call.visibleSpeakerSuggestions.map(\.name) == ["Printer Rep"])
+    check("calendar: and offered in its menu", call.calendarNames(for: "S2") == ["Printer Rep"] && call.calendarNames(for: "S1").isEmpty)
+    call.speakerSuggestions = [cal("Printer Rep"), cal("Marco Vell")]
+    check("calendar: with more, no row, only the menu", call.visibleSpeakerSuggestions.isEmpty && call.calendarNames(for: "S2") == ["Printer Rep", "Marco Vell"])
+    call.speakerSuggestions = [cal("Printer Rep")]
+    call.markSpeakerSuggestion(cal("Printer Rep").id, .accepted)
+    call.speakers[1].name = "Printer Rep"
+    check("calendar: used, it's gone", call.visibleSpeakerSuggestions.isEmpty)
+    var plain = call
+    plain.speakers[1].name = "Zoom"
+    plain.speakerSuggestions = [SpeakerSuggestion(speakerId: "S2", name: "Jenna", sources: ["speech"])]
+    check("calendar: other suggestions still need a placeholder speaker", plain.visibleSpeakerSuggestions.isEmpty)
+    let roundTrip = try? JSONDecoder().decode(Transcript.self, from: JSONEncoder().encode(call))
+    check("calendar: the source survives a save", roundTrip?.speakerSuggestions?.first?.fromCalendar == true)
+}
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
