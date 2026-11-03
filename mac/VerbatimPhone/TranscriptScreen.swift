@@ -11,7 +11,10 @@ import UIKit
 /// marked line carries a small accent mark. The glass player bar sits at the bottom edge. Touch and hold a line to
 /// bookmark it, add a note, fix a word, copy it, or open the video at that moment. Copy takes the tab you're on.
 struct TranscriptScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
+    /// Watched directly (PhoneState doesn't pass its changes on): a recording keeps the tab bar (`readingTabBar`).
+    /// The player isn't: its bar and the lines watch it themselves.
+    @EnvironmentObject private var recorder: Recorder
     var id: UUID
     var startMode: Mode = .transcript
     /// `result`: the template results tab (TemplatesScreens.swift), once a template ran or is running here.
@@ -193,16 +196,16 @@ struct TranscriptScreen: View {
                         mode = .transcript
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { scrollTarget = s.id }
                     }
-                    .environmentObject(app)
+                    .phoneState(app)
                 }
-                .sheet(isPresented: $showSpeakers) { TranscriptSpeakersSheet(id: t.id).environmentObject(app) }
-                .sheet(isPresented: $showDetails) { TranscriptDetailsSheet(id: t.id).environmentObject(app) }
+                .sheet(isPresented: $showSpeakers) { TranscriptSpeakersSheet(id: t.id).phoneState(app) }
+                .sheet(isPresented: $showDetails) { TranscriptDetailsSheet(id: t.id).phoneState(app) }
                 .confirmationDialog("Move this transcript to Recently Deleted?", isPresented: $confirmDelete, titleVisibility: .visible) {
                     Button("Move to Recently Deleted", role: .destructive) { app.delete([t.id]); dismiss() }
                     Button("Cancel", role: .cancel) {}
                 } message: { Text("You can restore it for 30 days.") }
                 .sheet(item: $runningAction) { a in
-                    PhoneActionSheet(action: a, transcript: t).environmentObject(app).presentationDetents([.large])
+                    PhoneActionSheet(action: a, transcript: t).phoneState(app).presentationDetents([.large])
                 }
                 .alert("Apple Intelligence is off", isPresented: Binding(get: { summaryUnavailable != nil }, set: { if !$0 { summaryUnavailable = nil } })) {
                     Button("OK", role: .cancel) {}
@@ -733,7 +736,9 @@ private struct PlayerFade: View {
 /// every 20 Hz tick, so the playing wash moves without re-rendering the screen. VoiceOver reads a turn as one element:
 /// the speaker, the time, and the words, with Play from here as its action and the line's tools as named actions.
 struct PhoneLines: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
+    /// Watched directly (PhoneState doesn't pass its changes on): whether the player is playing.
+    @EnvironmentObject private var player: Player
     var transcript: Transcript
     /// The lines to show (filler and background voices already left out by the screen).
     var segments: [Segment]
@@ -760,7 +765,7 @@ struct PhoneLines: View {
         let marked = Dictionary(transcript.notes.filter(\.isMark).compactMap { n in n.segmentId.map { ($0, n) } }, uniquingKeysWith: { a, _ in a })
         let segs = segments
         let order = transcript.speakerOrder
-        let current = PlayingLines.ids(segs, at: clock.time, isPlaying: app.player.isPlaying)
+        let current = PlayingLines.ids(segs, at: clock.time, isPlaying: player.isPlaying)
         // Sponsor reads fold into one row at their first line; their lines show once the row is opened.
         let folds = self.folds.count == segs.count ? self.folds : SponsorFold.places(segs, in: transcript)
         // "unclear 2:10" chips where speech was heard but no words came through (UnclearRules), between the lines.
@@ -804,7 +809,7 @@ struct PhoneLines: View {
         } message: { Text("Changes every line from this speaker, on this iPhone and your Mac.") }
         .phoneFixWord($fixing, transcriptID: transcript.id)
         .onReceive(clock.$time) { now in syncPlaying(at: now) }
-        .onChange(of: app.player.isPlaying) { _, _ in syncPlaying(at: clock.time) }
+        .onChange(of: player.isPlaying) { _, _ in syncPlaying(at: clock.time) }
         // The lines' ids and times, not the whole lines (words included): only those decide what's playing.
         .onChange(of: transcript.segments.timingKey) { _, _ in syncPlaying(at: clock.time) }
     }
@@ -963,7 +968,7 @@ struct PhoneLines: View {
 /// speed's menu (the speeds, back and forward 5 seconds, Reduce background noise, Mark this moment, and Follow
 /// playback). Observes the player and the clock, so playback redraws the bar alone. Play turns Follow back on.
 struct PhonePlayerBar: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
     @ObservedObject var player: Player
     @ObservedObject var clock: PlayerClock
@@ -1059,7 +1064,7 @@ struct PhoneLinkCard: View {
 /// Moments and notes for one transcript, newest first, with an add field: a system sheet with the transcript's
 /// paper behind its rows. A bookmark or a marked moment carries the accent mark; tap one to play from it.
 struct NotesSheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var id: UUID
     @State private var draft = ""
     @FocusState private var focused: Bool

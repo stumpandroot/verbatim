@@ -92,7 +92,7 @@ struct HomeNewThoughtButton: View {
 /// thought. Compact: one slim row with the count and the latest, and New thought beside it. A click opens today's page.
 /// Thoughts are a kind, so the section stays in ink (DESIGN.md §14.1).
 struct HomeThoughtsMac: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var size: HomeCardSize
 
     var body: some View {
@@ -175,7 +175,7 @@ struct HomeThoughtsMac: View {
 /// a play button with the length) over this week's days as dots. Compact: one slim row with the title and the dots.
 /// A click opens Journal By day; play plays the entry.
 struct HomeJournalMac: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var size: HomeCardSize
 
     var body: some View {

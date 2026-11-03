@@ -49,7 +49,7 @@ enum TemplateTryOnList {
 }
 
 struct TemplatesView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var nav = TemplatesNav.shared
 
     var body: some View {
@@ -62,8 +62,8 @@ struct TemplatesView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Refined.paper)
-        .sheet(item: $nav.editing) { t in TemplateEditorSheet(draft: t, isNew: nav.editingIsNew).environmentObject(app) }
-        .sheet(item: $nav.tryOn) { x in TemplateTryOnSheet(template: x.template, transcriptID: x.transcript).environmentObject(app) }
+        .sheet(item: $nav.editing) { t in TemplateEditorSheet(draft: t, isNew: nav.editingIsNew).appState(app) }
+        .sheet(item: $nav.tryOn) { x in TemplateTryOnSheet(template: x.template, transcriptID: x.transcript).appState(app) }
     }
 }
 
@@ -95,7 +95,7 @@ private struct MakePage<Content: View>: View {
 // MARK: - Library
 
 struct TemplateLibraryPane: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var nav = TemplatesNav.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @ObservedObject private var flow = FlowSettings.shared
@@ -260,7 +260,7 @@ struct TemplateAutoBadge: View {
 /// A template beside the library: what it is, its name, description, sections, the kinds it runs for automatically,
 /// Try on a recording, and Duplicate and edit (or Edit, Duplicate, and Delete for yours).
 struct TemplateDetailCard: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var template: TranscriptTemplate
     /// Where it works: recordings, and selected text too when it's also a text action.
     var scope: TemplateScope = .recording
@@ -341,7 +341,7 @@ struct TemplateDetailCard: View {
 
 /// Try on a recording: a menu of recent recordings; the result shows in a sheet and nothing is saved.
 struct TemplateTryOnMenu: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var template: TranscriptTemplate
     var title = "Try on a recording"
     var onPick: ((UUID) -> Void)? = nil
@@ -385,7 +385,7 @@ private struct TemplatesPaneSwitch: View {
 // MARK: - Run automatically
 
 struct RunAutomaticallyPane: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var nav = TemplatesNav.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
 
@@ -487,7 +487,7 @@ struct RunAutomaticallyPane: View {
 /// New template, Duplicate and edit, or Edit: the name, the kinds it suits, what it should write (the no-add rule is
 /// added for you), its sections in order with a format each, and Try on a recording before you save.
 struct TemplateEditorSheet: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @Environment(\.dismiss) private var dismiss
     @State private var draft: TranscriptTemplate
     var isNew: Bool
@@ -528,7 +528,7 @@ struct TemplateEditorSheet: View {
         .frame(maxHeight: TemplateEditorSheet.maxHeight(window: app.mainWindow?.contentLayoutRect.height))
         .background(Refined.paper)
         .tint(Refined.accentText)
-        .sheet(item: $tryOn) { x in TemplateTryOnSheet(template: x.template, transcriptID: x.transcript).environmentObject(app) }
+        .sheet(item: $tryOn) { x in TemplateTryOnSheet(template: x.template, transcriptID: x.transcript).appState(app) }
     }
 
     /// The window's content height less 80, so the sheet never runs past the window (no window: no cap).
@@ -640,7 +640,7 @@ struct TemplateEditorSheet: View {
 
 /// A template's result on one recording, made on this Mac and never saved: copy it, or close.
 struct TemplateTryOnSheet: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @Environment(\.dismiss) private var dismiss
     var template: TranscriptTemplate
     var transcriptID: UUID

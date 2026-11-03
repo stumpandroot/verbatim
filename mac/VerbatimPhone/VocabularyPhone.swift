@@ -6,7 +6,7 @@ import UIKit
 
 /// Names from About me and fixes you keep making, each with Add and Dismiss, plus the Contacts button.
 struct PhoneDictionarySuggestions: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @AppStorage(AboutMeContext.key) private var aboutMe = ""
     @AppStorage(VocabularySuggestions.dismissedKey) private var dismissedRaw = ""
     @AppStorage(EditLearner.storeKey) private var pairsData = Data()
@@ -43,7 +43,7 @@ struct PhoneDictionarySuggestions: View {
             }
             .foregroundStyle(Refined.accentText)
             .task(id: aboutMe) { modelNames = await NameExtractor.modelNames(in: aboutMe) }
-            .sheet(isPresented: $showContacts) { PhoneContactNamesSheet().environmentObject(app) }
+            .sheet(isPresented: $showContacts) { PhoneContactNamesSheet().phoneState(app) }
         } header: {
             Text("Suggestions")
         } footer: {
@@ -57,7 +57,7 @@ struct PhoneDictionarySuggestions: View {
 
 /// Picks names from Contacts to add in bulk. Asks for access first; reads names only, on this iPhone.
 struct PhoneContactNamesSheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.dismiss) private var dismiss
     private enum Phase { case loading, denied, ready }
     @State private var phase: Phase = .loading

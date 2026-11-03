@@ -5,7 +5,7 @@ import AppKit
 // capturing an app's audio. Paper, the kit's type, and the system's buttons.
 
 struct MicSheet: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var body: some View {
         VStack(spacing: 10) {
             ZStack {
@@ -31,7 +31,7 @@ struct MicSheet: View {
 }
 
 struct AppPickerSheet: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @State private var apps: [AppAudioCapture.RunningApp] = []
     @State private var error: String?
     @State private var filter = ""

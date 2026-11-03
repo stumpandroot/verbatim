@@ -60,7 +60,9 @@ enum YouRange {
 }
 
 struct YouView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): the hotkey it names.
+    @EnvironmentObject private var dictation: DictationController
     @ObservedObject private var log = ActivityLog.shared
     @ObservedObject private var sites = SiteLog.shared
     @ObservedObject private var settings = FlowSettings.shared

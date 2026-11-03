@@ -24,7 +24,7 @@ extension FlowAction {
 /// The saved actions as menu items, with a way to edit them. On a transcript (`transcript`), Plan my day and Daily
 /// reflection run as the templates they are, so the result is a template result (a plan with Send to Reminders).
 struct ActionsMenuItems: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var settings = FlowSettings.shared
     var transcript: UUID? = nil
     var pick: (FlowAction) -> Void
@@ -53,7 +53,7 @@ struct ActionSheet: View {
     var aiLabel: String = "Made by Apple Intelligence"
     var saveNote: ((String) -> Void)? = nil
 
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @Environment(\.dismiss) private var dismiss
     @State private var result = ""
     @State private var state: Phase = .running

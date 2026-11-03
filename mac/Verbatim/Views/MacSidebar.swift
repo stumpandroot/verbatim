@@ -15,7 +15,9 @@ enum SidebarPlace: Hashable {
 }
 
 struct MacSidebar: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): the Queue row, its badge, and its spinner.
+    @EnvironmentObject private var queue: TranscriptionCoordinator
     @ObservedObject private var layout = SidebarLayout.shared
     @ObservedObject private var recordAs = RecordAsStore.shared
     @State private var customizing = false

@@ -11,7 +11,7 @@ import AppKit
 /// Moments (click a time to play from it; add a note at the selected passage or the playhead), Speakers with their
 /// talk time, Export and Copy for AI, and Details. The summary and a template's results are tabs of their own.
 struct TranscriptSide: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     @ObservedObject var nav: WindowNav
     @State private var note = ""
@@ -165,7 +165,7 @@ struct TranscriptSide: View {
 /// Details under the side column: source, engine, language (Transcribe again in another one), words, Dictionary fixes,
 /// where it's kept, when it was made, where the data went, its project, and Delete.
 struct TranscriptDetails: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     @Binding var open: Bool
     @Environment(\.limitMotion) private var limitMotion
@@ -215,7 +215,7 @@ struct TranscriptDetails: View {
 
 /// Details › Language: what the transcript was transcribed in, and Transcribe again in… another language.
 private struct TranscriptLanguageMenuMac: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     /// The language picked, waiting for the confirmation (`.some(nil)`: detect automatically).
     @State private var pending: String?? = nil
@@ -260,7 +260,7 @@ private struct TranscriptLanguageMenuMac: View {
 /// Share's items: copy the tab you're on (⇧⌘C), with timestamps, the other version, the engine's words, for AI, and
 /// Export. The toolbar's Share.
 struct TranscriptShareItems: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     @ObservedObject var nav: WindowNav
 
@@ -281,7 +281,9 @@ struct TranscriptShareItems: View {
 /// words to show and Select Text, Follow Playback, Transcribe Again with Whisper Turbo, and Text Size. The toolbar's
 /// More.
 struct TranscriptMoreItems: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): Continue Recording is off while something records.
+    @EnvironmentObject private var recorder: Recorder
     var transcript: Transcript
     @ObservedObject var nav: WindowNav
 
@@ -339,7 +341,7 @@ struct TranscriptMoreItems: View {
 /// speed's menu (the speeds, back and forward 5 seconds, Reduce background noise, Mark this moment, Follow playback).
 /// Observes the player and the clock, so playback redraws the bar alone.
 struct MacPlayerBar: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     @ObservedObject var player: Player
     @ObservedObject var clock: PlayerClock
@@ -380,7 +382,7 @@ struct MacPlayerBar: View {
 /// changed after a template ran, or a recording was filed as a Brain dump: Run runs it (and opens its tab), Not now
 /// never offers again. Nothing runs on its own.
 struct KindOfferRow: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     var onRun: () -> Void = {}
     @ObservedObject private var center = TemplateCenter.shared

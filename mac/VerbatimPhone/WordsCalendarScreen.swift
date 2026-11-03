@@ -21,7 +21,7 @@ struct WordsCalendarScreen: View {
     enum Span: Hashable { case month, year }
 
     private static let minute = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @ObservedObject private var flow = FlowSettings.shared
     @AppStorage(WordsCalendar.milestoneSeenKey) private var milestoneSeen = 0
     /// You › Show milestones; off by default, so the calendar opens on the month.

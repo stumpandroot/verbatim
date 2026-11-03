@@ -14,7 +14,7 @@ struct RecipeRoute: Hashable { var id: UUID }
 /// "Ask about “…”" under the Library's search field (DESIGN.md §6.8): a row of the Library's card that opens Ask with
 /// what you typed. A button that pushes, so the list adds no chevron of its own.
 struct AskAboutRow: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var query: String
     var body: some View {
         Button { app.pushHere(AskRoute(query: query)) } label: {
@@ -29,7 +29,7 @@ struct AskAboutRow: View {
 // MARK: - Ask
 
 struct AskScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @ObservedObject private var center = AskCenter.shared
     var route = AskRoute()
     @State private var query = ""
@@ -110,7 +110,7 @@ struct AskScreen: View {
                 .accessibilityLabel("More")
             }
         }
-        .sheet(item: $editing) { d in PhoneRecipeEditor(draft: d).environmentObject(app) }
+        .sheet(item: $editing) { d in PhoneRecipeEditor(draft: d).phoneState(app) }
         .onAppear {
             guard !applied else { return }
             applied = true
@@ -199,7 +199,7 @@ struct AskScreen: View {
 struct PhoneAskResult: View {
     var result: AskResult
     var showsFooter = true
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     /// The last footer line an answer card drew, for the self-test.
     static var footerShown: String? = nil
 
@@ -284,7 +284,7 @@ struct PhoneAskAnswerText: View {
 /// A tap opens the transcript at that line and plays it.
 struct PhoneAskCitations: View {
     var sources: [AskSource]
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -335,7 +335,7 @@ struct PhoneAskCitations: View {
 /// A passage the answer didn't cite, as a row in the passages' card: its recording, time, and words.
 struct PhoneAskPassage: View {
     var source: AskSource
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var body: some View {
         PaperRowButton(action: { app.autoplay = source.transcriptId; app.open(source.transcriptId, segment: source.segmentId) }) {
             VStack(alignment: .leading, spacing: 4) {
@@ -355,7 +355,7 @@ struct PhoneAskPassage: View {
 // MARK: - Recipes
 
 struct RecipesScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @ObservedObject private var center = AskRecipeCenter.shared
     @State private var editing: RecipeDraft? = nil
     static var shown: Int? = nil
@@ -415,7 +415,7 @@ struct RecipesScreen: View {
                     .accessibilityLabel("New recipe")
             }
         }
-        .sheet(item: $editing) { d in PhoneRecipeEditor(draft: d).environmentObject(app) }
+        .sheet(item: $editing) { d in PhoneRecipeEditor(draft: d).phoneState(app) }
         .onAppear { Self.shown = recipes.count }
         .onChange(of: recipes.count) { _, n in Self.shown = n }
     }
@@ -448,7 +448,7 @@ struct RecipesScreen: View {
 
 /// One recipe: its latest answer with citations, Run now, Edit, and its earlier answers on this iPhone.
 struct RecipeScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.dismiss) private var dismiss
     var id: UUID
     @ObservedObject private var center = AskRecipeCenter.shared
@@ -507,7 +507,7 @@ struct RecipeScreen: View {
         .background(Refined.paper.ignoresSafeArea())
         .navigationTitle("Recipe")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $editing) { d in PhoneRecipeEditor(draft: d).environmentObject(app) }
+        .sheet(item: $editing) { d in PhoneRecipeEditor(draft: d).phoneState(app) }
     }
 
     private func draft(_ r: AskRecipe) -> RecipeDraft { RecipeDraft(r, schedule: center.schedule(r.id)) }
@@ -515,7 +515,7 @@ struct RecipeScreen: View {
 
 /// New recipe, Save as recipe, and Edit: the question, where it looks, and a weekly time on this iPhone.
 struct PhoneRecipeEditor: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.dismiss) private var dismiss
     @State var draft: RecipeDraft
     @State private var confirmDelete = false

@@ -821,7 +821,7 @@ enum UITest {
         win.isReleasedWhenClosed = false
         for (name, screen) in pages {
             app.go(screen)
-            let host = NSHostingView(rootView: WidePage(screen: screen).environmentObject(app).limitMotionRoot())
+            let host = NSHostingView(rootView: WidePage(screen: screen).appState(app).limitMotionRoot())
             host.frame = NSRect(origin: .zero, size: size)
             win.contentView = host
             win.orderFrontRegardless()
@@ -2924,7 +2924,7 @@ extension UITest {
         // The menu bar's Thoughts group, in a window of its own.
         let menu = NSPanel(contentRect: NSRect(x: 200, y: 200, width: 320, height: 200), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         menu.isReleasedWhenClosed = false
-        menu.contentView = FirstClickHostingView(rootView: ThoughtsMenuSection().environmentObject(app).frame(width: 320).background(Refined.paper))
+        menu.contentView = FirstClickHostingView(rootView: ThoughtsMenuSection().appState(app).frame(width: 320).background(Refined.paper))
         menu.orderFrontRegardless()
         try? await Task.sleep(nanoseconds: 800_000_000)
         check("thoughts: the menu bar has New thought, Today's count, Open today's page, and Show the bubble",

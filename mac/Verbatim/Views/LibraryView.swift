@@ -10,7 +10,7 @@ import AppKit
 /// inspector previews the selection, and search is the toolbar's system field (MacChrome.swift). Back and the sidebar bring the Library back scrolled where you left it, with the row you opened selected
 /// (App/NavTrail.swift). A lazy table: a library of hundreds builds only the rows on screen.
 struct LibraryView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     /// Newest, Oldest, Longest, or Title A–Z, remembered on this Mac; the table writes it when its sort is one of them.
     @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
     /// The table's sort: one column and its direction, started from the Library's sort.
@@ -599,7 +599,7 @@ struct LibraryColumns {
 /// stage and a spinner while it transcribes), the day, and the length. Selected rows take the persimmon tint, others
 /// alternate with the stripe. The row is one VoiceOver element that reads every column; its action opens it.
 private struct LibraryTableRow: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     var columns: LibraryColumns
     var selected: Bool
@@ -759,7 +759,7 @@ struct PassageResults: View {
 }
 
 struct PassageLine: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     var segment: Segment
     var query: String
@@ -807,7 +807,7 @@ struct PassageLine: View {
 /// and people, its title, the summary, its first line, and Play, Open Transcript, and ⋯. Plain text on the inspector,
 /// as the transcript's inspector lists its parts; Apple draws the inspector.
 struct LibraryPreview: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject var nav: WindowNav
 
     var body: some View {

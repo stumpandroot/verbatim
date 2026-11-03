@@ -11,7 +11,7 @@ import UIKit
 /// "Now a Brain dump. Run Plan my day?" on a recording you filed as a Brain dump with nothing run automatically
 /// (`AutoRunRules.brainDumpOffer`). Run runs it and shows the result; Not now never offers again.
 struct PhoneKindOffer: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
     var onRun: () -> Void = {}
     @ObservedObject private var center = TemplateCenter.shared
@@ -47,7 +47,7 @@ struct PhoneKindOffer: View {
 /// A Plan my day result: Send to Reminders (or how many are there), then the plan's sections. Each task's time plays
 /// the line it came from.
 struct PhonePlanResult: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
     var result: TemplateResult
     var onJump: ((Double) -> Void)? = nil
@@ -73,7 +73,7 @@ struct PhonePlanResult: View {
                 app.store.update(transcript.id) { $0.recordSentReminders(added, result: result.id) }
                 showToast(message, list)
             }
-            .environmentObject(app)
+            .phoneState(app)
         }
     }
 
@@ -167,7 +167,7 @@ extension PhoneState {
 /// ("Today", "Wed, Oct 28", or "No date"), and Add. A task gets a due date only when you said a day. The first add to
 /// Reminders asks for access; if you say no, the sheet says how to turn it on. Only Reminders marks tasks as sent.
 struct PhoneRemindersSheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @ObservedObject var model: SendToReminders
     var onSent: ([String: String], String, String) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -373,7 +373,7 @@ struct ThoughtsPlanRoute: Hashable { var day: Date }
 /// Today's page's way into the plan: "Organize today's thoughts" (a quiet action with the plan glyph), and once a plan
 /// is made, "Plan · made 3:20 PM", with how many thoughts came after it.
 struct ThoughtsOrganizeRow: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var day: Date
     var isToday: Bool
     var thoughts: [Transcript]
@@ -435,7 +435,7 @@ struct ThoughtsOrganizeRow: View {
 
 /// The plan from a day's thoughts: the large serif title, then the plan on a card. Each task's link names the thought's time and where it came from; tap it to go back to the thought on the page.
 struct ThoughtsPlanScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var day: Date
     @ObservedObject private var center = DayPlanCenter.shared
     @Environment(\.dismiss) private var dismiss
@@ -470,7 +470,7 @@ struct ThoughtsPlanScreen: View {
                 toast = message; app.say(message)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) { if toast == message { toast = nil } }
             }
-            .environmentObject(app)
+            .phoneState(app)
         }
         .onAppear { Self.shown = day }
         .onDisappear { if Self.shown == day { Self.shown = nil } }

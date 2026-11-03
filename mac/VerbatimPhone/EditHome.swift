@@ -8,7 +8,7 @@ import SwiftUI
 /// Two ways in: the Edit Home button at the end of Home presents it in a sheet with Reset and Done (`onDone`), and
 /// Settings › Personalization › Customize Home pushes it (no `onDone`: Back closes it, Reset sits on the right).
 struct EditHomeView: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     /// Done, when presented as a sheet. Nil when pushed from Settings.
     var onDone: (() -> Void)? = nil
     @ObservedObject private var store = HomeLayoutStore.shared
@@ -68,14 +68,14 @@ struct EditHomeView: View {
         }
         .sheet(isPresented: $pickingTiles) {
             NavigationStack { HomeTilePicker() }
-                .environmentObject(app)
+                .phoneState(app)
         }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimHomeTilePicker)) { note in
             pickingTiles = (note.object as? Bool) ?? true
         }
         .sheet(isPresented: $editingTabBar) {
             NavigationStack { TabBarSettingsScreen(onDone: { editingTabBar = false }) }
-                .environmentObject(app)
+                .phoneState(app)
         }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimEditTabBar)) { note in
             editingTabBar = (note.object as? Bool) ?? true

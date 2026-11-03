@@ -9,7 +9,7 @@ import WidgetKit
 /// Button and Open Settings. One intent, `ActionButtonIntent`, follows the choice, so the button is assigned once.
 /// Google developer documentation style.
 struct ActionButtonScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @AppStorage(Ribbon.actionChoiceKey) private var choiceRaw = Ribbon.ActionChoice.dictate.rawValue
 
     private var choice: Ribbon.ActionChoice { Ribbon.actionChoice(choiceRaw) }

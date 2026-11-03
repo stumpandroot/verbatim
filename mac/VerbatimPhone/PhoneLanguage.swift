@@ -22,7 +22,7 @@ struct ParakeetV3Offer: Equatable {
 
 /// The transcript header's language: what it was transcribed in, and Transcribe again in… another language.
 struct TranscriptLanguageMenu: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
     /// The language picked, waiting for the confirmation (`.some(nil)`: detect automatically).
     @State private var pending: String?? = nil

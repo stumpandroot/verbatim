@@ -4,7 +4,7 @@ import SwiftUI
 /// with the count, the deleted recordings on a card with the days each has left, swipe right to restore and left to
 /// delete now, and Restore all or Empty in the bar's menu.
 struct TrashScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @State private var confirmEmpty = false
     var body: some View {
         // `store.trash` filters and sorts every transcript; read it once per render.

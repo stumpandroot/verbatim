@@ -3,7 +3,7 @@ import AppKit
 
 /// Keep video (links) and Keep audio, or Show in Finder once kept.
 struct KeepMenuItems: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var kept = KeptMedia.shared
     var transcript: Transcript
     var body: some View {
@@ -23,7 +23,7 @@ struct KeepMenuItems: View {
 }
 
 struct RowMenu: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     var body: some View {
         Button("Open") { app.go(.transcript(transcript.id)) }

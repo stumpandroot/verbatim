@@ -4,7 +4,7 @@ import AppKit
 /// The Cleaned tab: paragraphs, no timecodes, editable, with Harper underlines and Apple-model Clean up and Tone.
 /// Clean up and Tone always start from the corrected lines (Transcript.cleanupBase); the Original is never changed.
 struct DocumentView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     @State private var lints: [Harper.Lint] = []
     @State private var ignored: Set<String> = []

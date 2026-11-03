@@ -8,7 +8,9 @@ import AppKit
 /// Copy any of them again, see the words before cleanup, redo the cleanup at another level, or open the
 /// full transcript with its audio.
 struct DictationsView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): the hotkey in the empty state.
+    @EnvironmentObject private var dictation: DictationController
     @ObservedObject private var settings = FlowSettings.shared
     @State private var filter: AppCategory? = nil
 
@@ -158,7 +160,7 @@ struct DictationsView: View {
 /// a project in the sidebar. The words and the controls are side by side, so no button sits under the row's gestures
 /// (macOS 26 click safety).
 struct DictationRow: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     @State private var showRaw = false
     @State private var working = false
@@ -199,7 +201,7 @@ struct DictationRow: View {
             ActionSheet(action: a, source: pasted, sourceLabel: "a dictation into \(info?.app ?? "an app")") { text in
                 app.store.addNote(Note(text: text, aiAction: a.name), to: transcript.id)
             }
-            .environmentObject(app)
+            .appState(app)
         }
     }
 

@@ -23,7 +23,7 @@ extension Notification.Name {
 // MARK: - A day's page
 
 struct DayPageScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     let kind: RecordingKind
     @State private var day: Date
     @State private var editing: Transcript?
@@ -122,7 +122,7 @@ struct DayPageScreen: View {
                 .accessibilityLabel("Copy the day")
             }
         }
-        .sheet(item: $editing) { t in ThoughtEditSheet(transcript: t).environmentObject(app) }
+        .sheet(item: $editing) { t in ThoughtEditSheet(transcript: t).phoneState(app) }
         .onAppear { note(items) }
         .onChange(of: items.map(\.id)) { _, _ in note(self.items) }
         .onChange(of: day) { _, _ in note(self.items) }
@@ -263,7 +263,7 @@ struct DayPageScreen: View {
 /// A thought's words, or where it is: "Saved as audio. Transcribing…" until the words are ready, and the failure
 /// with Transcribe again (the audio is kept either way).
 private struct ThoughtWords: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
 
     var body: some View {
@@ -314,7 +314,7 @@ private struct JournalLine: View {
 /// Tap a thought to edit it: your words go in the edited layer, so what was heard stays (Transcribe again goes back to
 /// what's heard). Delete moves it to Recently Deleted.
 private struct ThoughtEditSheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.dismiss) private var dismiss
     let transcript: Transcript
     @State private var text = ""
@@ -367,7 +367,7 @@ private struct ThoughtEditSheet: View {
 /// Library › By day: Thoughts or Journal, a month calendar with a dot on each day that has something, and that
 /// month's days, newest first. Tap a day to open its page.
 struct ByDayScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @State private var kind: RecordingKind
     @State private var month = Date()
 

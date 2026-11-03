@@ -50,7 +50,7 @@ final class PhoneCallRelay: ObservableObject {
 /// Record a call: three ways that work on iPhone, the Mac first when there is one.
 struct PhoneCallSheet: View {
     enum Way: Hashable { case mac, speaker, phone }
-    @EnvironmentObject private var app: PhoneState
+    @Environment(PhoneState.self) private var app
     @ObservedObject private var relay = PhoneCallRelay.shared
     @Environment(\.dismiss) private var dismiss
     @State private var way: Way = .mac

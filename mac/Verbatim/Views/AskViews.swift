@@ -108,7 +108,7 @@ enum AskOpen {
 
 /// The ⌘K panel over the window: a scrim (click it, or press Escape, to close) and the panel near the top.
 struct AskPanelLayer: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var nav = AskNav.shared
     @Environment(\.limitMotion) private var limitMotion
 
@@ -132,7 +132,7 @@ struct AskPanelLayer: View {
 }
 
 struct AskPanel: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var nav = AskNav.shared
     @ObservedObject private var center = AskCenter.shared
     @FocusState private var focused: Bool
@@ -269,7 +269,7 @@ struct AskPanel: View {
 
 /// One matching line in Search: its time and words; a click opens the transcript there.
 private struct AskSearchLine: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     var segment: Segment
     var query: String
@@ -299,7 +299,7 @@ private struct AskSearchLine: View {
 /// All, This week, Thoughts, Meetings, and each project.
 struct AskScopeChips: View {
     @Binding var scope: AskScope
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
 
     var body: some View {
         RefinedChipRow(label: "Where to look") {
@@ -351,7 +351,7 @@ struct AskResultBody: View {
 struct AskResultView: View {
     var result: AskResult
     var context: AskContext
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @AppStorage(RecipesSetting.key) private var showRecipes = false
     private var hasRecipes: Bool { !app.store.recipes.isEmpty }
     @State private var copied = false
@@ -455,7 +455,7 @@ struct AskAnswerText: View {
 /// (the one playing takes the sage playing wash); right-click opens the transcript at the line.
 struct AskCitationChips: View {
     var sources: [AskSource]
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var player = AskPlayer.shared
 
     var body: some View {
@@ -468,7 +468,7 @@ struct AskCitationChips: View {
 struct AskCitationChip: View {
     var source: AskSource
     var playing: Bool
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @State private var hover = false
 
     var body: some View {
@@ -530,7 +530,7 @@ struct AskFlow: Layout {
 // MARK: - Make › Ask
 
 struct AskView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var nav = AskNav.shared
     /// Recipes are hidden until you show them, or while you have one (consolidation, `RecipesSetting`).
     @AppStorage(RecipesSetting.key) private var showRecipes = false
@@ -583,7 +583,7 @@ struct AskView: View {
             if pane == .questions { AskQuestionsPane(part: .side) }
         }
         .background(Refined.paper)
-        .sheet(item: $nav.editing) { d in RecipeEditorSheet(draft: d).environmentObject(app) }
+        .sheet(item: $nav.editing) { d in RecipeEditorSheet(draft: d).appState(app) }
     }
 }
 
@@ -592,7 +592,7 @@ struct AskView: View {
 struct AskQuestionsPane: View {
     enum Part { case main, side }
     var part: Part = .main
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var nav = AskNav.shared
     @ObservedObject private var center = AskCenter.shared
 
@@ -652,7 +652,7 @@ struct AskQuestionsPane: View {
 /// Ask › Recipes: the recipes on the left, the selected one's latest digest on the right; the three examples when
 /// there are none.
 struct AskRecipesPane: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var nav = AskNav.shared
     @ObservedObject private var center = AskRecipeCenter.shared
 
@@ -767,7 +767,7 @@ struct AskRecipesPane: View {
 // MARK: - The recipe editor
 
 struct RecipeEditorSheet: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @Environment(\.dismiss) private var dismiss
     @State var draft: RecipeDraft
     @State private var confirmDelete = false

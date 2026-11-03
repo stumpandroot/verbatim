@@ -27,66 +27,70 @@ enum SlideDirection: Equatable { case push, pop, up, down }
 
 /// The Mac app's state. Recording and app audio live in AppState+Capture, files and links in AppState+Import,
 /// organizing, editing, and Keep in AppState+Library, and the transcription queue in AppState+Pipeline.
-@MainActor
-final class AppState: ObservableObject {
+@MainActor @Observable
+final class AppState: DistinctTracking {
     /// Where we are, how we got here, and how many times we've moved: one value, one publish per navigation.
     /// On macOS 26 a view flushed by `withAnimation` with half-updated state keeps showing the old screen
     /// (the publish that follows is dropped), so navigation never changes two properties in a row.
     struct Nav: Equatable { var screen: Screen; var direction: SlideDirection; var count: Int }
-    @Changed var nav = Nav(screen: .home, direction: .up, count: 0)
+    @ObservationIgnored @Distinct var nav = Nav(screen: .home, direction: .up, count: 0)
     var screen: Screen { nav.screen }
     var direction: SlideDirection { nav.direction }
     var navCount: Int { nav.count }
-    var navStartedAt = Date()
+    @ObservationIgnored var navStartedAt = Date()
     /// The open "Navigate" signpost (Perf), from `go` to the new screen's root `onAppear`. Not published.
-    private var navInterval: OSSignpostIntervalState?
-    @Changed var search = ""
-    @Changed var projectFilter: UUID? = nil
+    @ObservationIgnored private var navInterval: OSSignpostIntervalState?
+    @ObservationIgnored @Distinct var search = ""
+    @ObservationIgnored @Distinct var projectFilter: UUID? = nil
     /// Library › kind chips: nil is All.
-    @Changed var libraryKind: RecordingKind? = nil
+    @ObservationIgnored @Distinct var libraryKind: RecordingKind? = nil
     /// Library › type and platform chips, remembered on this Mac ("videos|YouTube"). See LibraryFilter.
-    @Changed(LibraryFilter.libraryKey) var libraryFilterRaw = "all"
+    @ObservationIgnored @Distinct(LibraryFilter.libraryKey) var libraryFilterRaw = "all"
     var libraryFilter: LibraryFilter {
         get { LibraryFilter(raw: libraryFilterRaw) }
         set { libraryFilterRaw = newValue.raw }
     }
     /// The Add from Library sheet, open for this project.
-    @Changed var addFromLibrary: UUID? = nil
+    @ObservationIgnored @Distinct var addFromLibrary: UUID? = nil
     /// "New project…" from a row's Add to project menu: these transcripts join the project once it's named.
-    @Changed var newProjectFor: [UUID]? = nil
-    @Changed var focusLink = false
-    @Changed var showMicSheet = false
-    @Changed var showAppPicker = false
+    @ObservationIgnored @Distinct var newProjectFor: [UUID]? = nil
+    @ObservationIgnored @Distinct var focusLink = false
+    @ObservationIgnored @Distinct var showMicSheet = false
+    @ObservationIgnored @Distinct var showAppPicker = false
     /// The export sheet, for one transcript or a Library selection (ExportSheet).
-    @Changed var exportRequest: ExportRequest? = nil
-    @Changed var toast: Toast? = nil
+    @ObservationIgnored @Distinct var exportRequest: ExportRequest? = nil
+    @ObservationIgnored @Distinct var toast: Toast? = nil
 
-    // Preferences, persisted in UserDefaults by key. Never @AppStorage or @Published here: see Changed.swift.
-    @Changed("showMenuBar") var showMenuBar = true
-    @Changed("preset") var presetRaw = QualityPreset.defaultPreset.rawValue
-    @Changed("advEngine") var advEngine = "fluid"
-    @Changed("advModel") var advModel = "v2"
-    @Changed("identifySpeakers") var identifySpeakers = true
-    @Changed("applyDictionary") var applyDictionary = true
+    // Preferences, persisted in UserDefaults by key. Never @AppStorage or a plain tracked property here: see Changed.swift.
+    @ObservationIgnored @Distinct("showMenuBar") var showMenuBar = true
+    @ObservationIgnored @Distinct("preset") var presetRaw = QualityPreset.defaultPreset.rawValue
+    @ObservationIgnored @Distinct("advEngine") var advEngine = "fluid"
+    @ObservationIgnored @Distinct("advModel") var advModel = "v2"
+    @ObservationIgnored @Distinct("identifySpeakers") var identifySpeakers = true
+    @ObservationIgnored @Distinct("applyDictionary") var applyDictionary = true
     /// Settings › General › Show This week on Home: whether This week is among Home's shown sections (Edit Home's
     /// layout, HomeLayout.swift, which read the old `home.showWeek` value once).
     var showHomeWeek: Bool {
-        get { HomeLayoutStore.shared.layout.isVisible(.week) }
+        get {
+            access(keyPath: \.showHomeWeek)
+            return HomeLayoutStore.shared.layout.isVisible(.week)
+        }
         set {
             guard newValue != showHomeWeek else { return }
-            objectWillChange.send()
-            HomeLayoutStore.shared.update { $0.setVisible(.week, newValue, inPlace: true) }
+            withMutation(keyPath: \.showHomeWeek) {
+                HomeLayoutStore.shared.update { $0.setVisible(.week, newValue, inPlace: true) }
+            }
         }
     }
-    @Changed("projectVocab") var projectScopedVocabulary = false
-    @Changed("captureMode") var captureMode = "voice"
+    @ObservationIgnored @Distinct("projectVocab") var projectScopedVocabulary = false
+    @ObservationIgnored @Distinct("captureMode") var captureMode = "voice"
     /// "system" | "light" | "dark"
-    @Changed("appearance") var appearance = "system"      // "voice" | "dictate"
-    @Changed("sounds") var sounds = true { didSet { Sounds.enabled = sounds } }
+    @ObservationIgnored @Distinct("appearance") var appearance = "system"      // "voice" | "dictate"
+    @ObservationIgnored @Distinct("sounds") var sounds = true { didSet { Sounds.enabled = sounds } }
     /// Keep: also save the video (MP4) of every link you transcribe.
-    @Changed("keepVideoByDefault") var keepVideoByDefault = false
+    @ObservationIgnored @Distinct("keepVideoByDefault") var keepVideoByDefault = false
     /// Keep jobs in flight, by transcript, with a short status ("Keeping video 42%").
-    @Changed var keeping: [UUID: String] = [:]
+    @ObservationIgnored @Distinct var keeping: [UUID: String] = [:]
 
     let store = Store()
     let recorder = Recorder()
@@ -96,50 +100,50 @@ final class AppState: ObservableObject {
     let capture = AppAudioCapture()
     let dictation = DictationController()
     /// The transcription queue, shared with the iPhone. Lazy so it can be handed the Store.
-    private(set) lazy var coordinator = TranscriptionCoordinator(store: store, config: .mac)
+    @ObservationIgnored private(set) lazy var coordinator = TranscriptionCoordinator(store: store, config: .mac)
 
     /// Transcripts waiting to run, oldest first. One runs at a time.
     var queue: [UUID] { coordinator.queue }
     var runningID: UUID? { coordinator.runningID }
     /// Continue recording: the transcript the current recording will be added to.
-    @Changed var continuing: UUID? = nil
+    @ObservationIgnored @Distinct var continuing: UUID? = nil
     /// Stop was pressed and the recording is being saved (segments joined off the main thread): Home says "Saving…".
-    @Changed var savingRecording = false
+    @ObservationIgnored @Distinct var savingRecording = false
     /// The welcome tour sheet.
-    @Changed var showOnboarding = false
+    @ObservationIgnored @Distinct var showOnboarding = false
     /// Import › Multi-track recording: the sheet's tracks while it's open (AppState+Multitrack).
-    @Changed var multitrackDraft: MultitrackDraft? = nil
+    @ObservationIgnored @Distinct var multitrackDraft: MultitrackDraft? = nil
     /// Multi-track recordings being prepared (working copies, line-up, mix) before they join the queue.
-    var multitrackTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored var multitrackTasks: [UUID: Task<Void, Never>] = [:]
     /// The transcript the next recording start will add to (set by Continue, cleared by any other Record).
-    var pendingContinue: UUID? = nil
+    @ObservationIgnored var pendingContinue: UUID? = nil
     /// The kind picked when the recording started (Record a meeting, an interview, …, from a right-click): the new
     /// transcript takes it as yours, so AutoLabel never replaces it and Run automatically uses it.
-    var recordKind: RecordingKind? = nil
+    @ObservationIgnored var recordKind: RecordingKind? = nil
     /// A passage to scroll to and select when the next transcript opens (from search, a note, a link).
-    var focusSegment: UUID? = nil
+    @ObservationIgnored var focusSegment: UUID? = nil
     /// iPhone links this Mac is fetching right now.
-    var claiming: Set<UUID> = []
+    @ObservationIgnored var claiming: Set<UUID> = []
     /// The transcript whose Transcribe again with Whisper Turbo question is showing (AppState+Turbo).
-    @Changed var turboAsk: UUID? = nil
+    @ObservationIgnored @Distinct var turboAsk: UUID? = nil
     /// A private or signed-in video waiting for you to choose a browser's sign-in (Views/SignInSheet.swift).
-    @Changed var signInRequest: LinkSignInRequest? = nil
+    @ObservationIgnored @Distinct var signInRequest: LinkSignInRequest? = nil
 
     // The "link added" card (AppState+LinkCard).
     /// Links this Mac is fetching, by transcript; the card observes one of them.
-    var linkImports: [UUID: LinkImport] = [:]
-    var linkTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored var linkImports: [UUID: LinkImport] = [:]
+    @ObservationIgnored var linkTasks: [UUID: Task<Void, Never>] = [:]
     /// The link whose card is showing.
-    @Changed var linkCardID: UUID? = nil
+    @ObservationIgnored @Distinct var linkCardID: UUID? = nil
     /// Links already counted by the queue but not yet shown in its badge: their card hasn't landed.
-    @Changed var linkBadgeHeld: Set<UUID> = []
+    @ObservationIgnored @Distinct var linkBadgeHeld: Set<UUID> = []
     /// Goes up each time a card lands in Queue, so the badge pops.
-    @Changed var queueBadgePops = 0
+    @ObservationIgnored @Distinct var queueBadgePops = 0
     /// ⌘V on Home, Library, and Links (AppState+LinkCard).
-    var linkPasteMonitor: Any?
-    weak var mainWindow: NSWindow?
+    @ObservationIgnored var linkPasteMonitor: Any?
+    @ObservationIgnored weak var mainWindow: NSWindow?
 
-    private var bag = Set<AnyCancellable>()
+    @ObservationIgnored private var bag = Set<AnyCancellable>()
 
     init() {
         Sounds.enabled = sounds
@@ -154,13 +158,9 @@ final class AppState: ObservableObject {
         FeatureGate.onDenied = { [weak self] _ in
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.dictation.openSettings(tab: .account) } }
         }
-        // The Store isn't forwarded: it's Observable, so views that read the library re-render on its changes and
-        // the rest don't (Store.swift).
-        for o in [recorder.objectWillChange.eraseToAnyPublisher(),
-                  player.objectWillChange.eraseToAnyPublisher(), capture.objectWillChange.eraseToAnyPublisher(),
-                  dictation.objectWillChange.eraseToAnyPublisher(), coordinator.objectWillChange.eraseToAnyPublisher()] {
-            o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
-        }
+        // Nothing is forwarded. AppState is @Observable, so a view re-renders when a value it reads changes; the Store
+        // is Observable too (Store.swift); and the recorder, the player, the app capture, dictation, and the queue are
+        // watched directly by the views that show them (`appState(_:)` puts them in the environment).
         coordinator.host = self
         recorder.onAutoPaused = { [weak self] reason in self?.toast = Toast(reason) }
         recorder.onInputSwitched = { [weak self] note in self?.toast = Toast(note) }
@@ -262,6 +262,10 @@ final class AppState: ObservableObject {
             }
         }.store(in: &bag)
     }
+
+    // `@Distinct` (Changed.swift) reads and announces through the registrar @Observable writes.
+    func distinctAccess<Member>(_ keyPath: KeyPath<AppState, Member>) { access(keyPath: keyPath) }
+    func distinctMutation<Member>(_ keyPath: KeyPath<AppState, Member>, _ mutation: () -> Void) { withMutation(keyPath: keyPath, mutation) }
 
     var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .defaultPreset }
 

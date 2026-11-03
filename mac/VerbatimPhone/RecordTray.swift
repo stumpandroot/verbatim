@@ -371,7 +371,7 @@ private struct RecordChoiceActions: ViewModifier {
 }
 
 struct RecordTrayLayer: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     /// The rows you show (consolidation, October 28, 2026: five by default; Edit Record as turns the others on).
     @ObservedObject private var recordAs = RecordAsStore.shared
     @ObservedObject private var tray = RecordTray.shared
@@ -512,7 +512,7 @@ struct RecordTrayLayer: View {
             app.showCallSheet = true
         } label: {
             HStack(spacing: 12) {
-                IconSquare(art: .iconSpeakers, hue: .petal)
+                IconSquare(art: .iconOneOnOne, hue: .petal)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Record a call").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
                     Text("On your Mac, on speaker, or from the Phone app").refinedFont(.hint).foregroundStyle(Refined.dim)

@@ -6,8 +6,8 @@ import UIKit
 
 /// The iPhone app's state: the same Store, recorder, player, and transcription job as the Mac, so every
 /// transcript, note, bookmark, project, and Dictionary word syncs through iCloud both ways.
-@MainActor
-final class PhoneState: ObservableObject {
+@MainActor @Observable
+final class PhoneState {
     /// A tab: Home and the up to four you pick after it (PhoneTabBar.swift).
     typealias Tab = PhoneTab
 
@@ -16,132 +16,137 @@ final class PhoneState: ObservableObject {
     let player = Player()
 
     /// The selected tab. Tabs arrive at once, with no entrance (DESIGN.md §7). Going to a tab closes Settings.
-    @Published var tab: Tab = .home { didSet { if tab != oldValue, showSettings { showSettings = false } } }
+    var tab: Tab = .home { didSet { if tab != oldValue, showSettings { showSettings = false } } }
     /// Settings, as a sheet (`openSettings`, PhoneTabs.swift).
-    @Published var showSettings = false
+    var showSettings = false
     /// Each tab keeps its own navigation stack.
-    @Published var homePath = NavigationPath()
-    @Published var libraryPath = NavigationPath()
-    @Published var thoughtsPath = NavigationPath()
-    @Published var journalPath = NavigationPath()
-    @Published var dictationsPath = NavigationPath()
-    @Published var projectsPath = NavigationPath()
+    var homePath = NavigationPath()
+    var libraryPath = NavigationPath()
+    var thoughtsPath = NavigationPath()
+    var journalPath = NavigationPath()
+    var dictationsPath = NavigationPath()
+    var projectsPath = NavigationPath()
     /// The kinds' tabs (Meetings, Interviews, …), each with its own stack, by tab.
-    @Published var kindTabPaths: [PhoneTab: NavigationPath] = [:]
+    var kindTabPaths: [PhoneTab: NavigationPath] = [:]
     /// Settings › Personalization and preferences › Tab bar: which tabs follow Home, on this iPhone.
     let tabBarStore = PhoneTabBarStore.shared
     var tabBar: PhoneTabBar { tabBarStore.bar }
-    @Published var toast: String? = nil
-    @Published var showRecorder = false
+    var toast: String? = nil
+    var showRecorder = false
     /// The screenshot tour's stand-in for a running recording (no microphone in the simulator). UI test mode only.
-    @Published var previewRecording = false
+    var previewRecording = false { didSet { previewRecordingValues.send(previewRecording) } }
+    /// `previewRecording` as a publisher, for Verbose Unlock's recording limit (Unlock.swift): the value now, then each
+    /// set.
+    @ObservationIgnored let previewRecordingValues = CurrentValueSubject<Bool, Never>(false)
     /// "Finish your recording first": the feature that asked for the microphone while a recording runs.
-    @Published var finishRecordingFirst: String? = nil
+    var finishRecordingFirst: String? = nil
     /// Show words while you record (MiniRecorder.swift): live text from the recorder's own buffers.
-    private(set) lazy var recordingWords = RecordingLiveText()
+    @ObservationIgnored private(set) lazy var recordingWords = RecordingLiveText()
     /// Live captions (LiveCaptionsScreen.swift), full screen over everything.
-    @Published var showCaptions = false
-    private(set) lazy var captions = PhoneCaptions()
+    var showCaptions = false
+    @ObservationIgnored private(set) lazy var captions = PhoneCaptions()
     /// Live captions were asked for before the one-time consent notice: they open once it's acknowledged.
-    private var pendingCaptions = false
+    @ObservationIgnored private var pendingCaptions = false
     /// The Verbatim keyboard's session: microphone and speech model kept ready for dictation (KeyboardSession.swift).
-    private(set) lazy var session = KeyboardSession(app: self)
+    @ObservationIgnored private(set) lazy var session = KeyboardSession(app: self)
     /// Why the recorder paused itself (a call, a microphone it couldn't follow); nil once you resume or stop.
-    @Published var autoPauseReason: String? = nil
+    var autoPauseReason: String? = nil { didSet { autoPauseReasonValues.send(autoPauseReason) } }
+    /// `autoPauseReason` as a publisher, for the Live Activity (RecordingPresence.swift): the value now, then each set.
+    @ObservationIgnored let autoPauseReasonValues = CurrentValueSubject<String?, Never>(nil)
     /// Set to open Library on a kind's raw value, or "all" (the screenshot tour uses it); the Library screen clears it.
-    @Published var libraryFilterRequest: String? = nil
+    var libraryFilterRequest: String? = nil { didSet { libraryFilterRequestValues.send(libraryFilterRequest) } }
+    /// `libraryFilterRequest` as a publisher, for the Library tab's `onReceive` (LibraryScreen.swift): the value now,
+    /// then each set.
+    @ObservationIgnored let libraryFilterRequestValues = CurrentValueSubject<String?, Never>(nil)
     /// The Add from Library sheet, open for this project (from a project's Library view, or the screenshot tour).
-    @Published var addFromLibrary: UUID? = nil
+    var addFromLibrary: UUID? = nil
     /// The one-time recording-consent notice, shown before the first recording on this iPhone.
-    @Published var showConsentNotice = false
+    var showConsentNotice = false
     static let consentNoticeKey = "consent.noticeShown"
-    @Published var showLinkSheet = false
+    var showLinkSheet = false
     /// The export sheet (PhoneExportSheet), for one transcript or several.
-    @Published var exportRequest: ExportRequest? = nil
-    @Published var showImporter = false
+    var exportRequest: ExportRequest? = nil
+    var showImporter = false
     /// Import › Choose from Photos (videos saved from TikTok and other apps live in Photos, not Files).
-    @Published var showPhotoPicker = false
+    var showPhotoPicker = false
     /// Transcribe what's playing (PhoneWhatsPlaying.swift): the sheet with the system broadcast picker.
-    @Published var showPlayingSheet = false
+    var showPlayingSheet = false
     /// Record as's Import asks where from (Photos, files, or a link) (RecordAccessory.swift).
-    @Published var showImportChoices = false
+    var showImportChoices = false
     /// Edit Record as (the tray's foot, the Record menu's last item): which ways to record the tray shows.
-    @Published var showRecordAsEditor = false
+    var showRecordAsEditor = false
     /// Record a call (the Record tray's Call card): the three ways that work on iPhone (PhoneCallRelay.swift).
-    @Published var showCallSheet = false
+    var showCallSheet = false
     /// Transcript screens on screen, one token each, so a second onAppear can't leave Record's accessory off after you
     /// leave (build 233). The tab bar's Record accessory turns off while you read (RecordAccessory.swift).
-    @Published var readingScreens: Set<UUID> = []
+    var readingScreens: Set<UUID> = []
     var readingTranscripts: Int { readingScreens.count }
     /// The Action button's What's playing: the sheet asks for the system broadcast picker as soon as it shows.
-    var playingSheetStartsPicker = false
-    @Published var showOnboarding = Onboarding.shouldShow
+    @ObservationIgnored var playingSheetStartsPicker = false
+    var showOnboarding = Onboarding.shouldShow
     /// "New project…" from a row's menu: name it, then the transcript moves into it.
-    @Published var newProjectFor: UUID? = nil
+    var newProjectFor: UUID? = nil
     /// The transcription queue, shared with the Mac. Lazy so it can be handed the Store.
-    private(set) lazy var coordinator = TranscriptionCoordinator(store: store, config: .phone)
+    @ObservationIgnored private(set) lazy var coordinator = TranscriptionCoordinator(store: store, config: .phone)
     /// Background time and the iOS 26 continued-processing task while the queue runs.
-    private(set) lazy var backgroundWork = PhoneBackgroundWork(isBusy: { [weak self] in
+    @ObservationIgnored private(set) lazy var backgroundWork = PhoneBackgroundWork(isBusy: { [weak self] in
         guard let self else { return false }
         return self.runningID != nil || !self.queue.isEmpty
     })
     var queue: [UUID] { coordinator.queue }
     var runningID: UUID? { coordinator.runningID }
     /// Continue recording: the transcript the current recording will be added to.
-    @Published var continuing: UUID? = nil
-    private var pendingContinue: UUID? = nil
+    var continuing: UUID? = nil
+    @ObservationIgnored private var pendingContinue: UUID? = nil
     /// The kind picked in the Record as tray (Record a meeting, an interview, …): the new transcript takes it as
     /// yours, so AutoLabel never replaces it and Run automatically uses it (Templates.swift). The recorder's chip shows it.
-    @Published var recordKind: RecordingKind? = nil
+    var recordKind: RecordingKind? = nil
     /// When the recording running started, by the clock (pauses included): a switch to Thought partway files the thought
     /// on the day it began (`switchRecordingKind`).
-    var recordingStartedAt: Date? = nil
+    @ObservationIgnored var recordingStartedAt: Date? = nil
     /// The next recorder to open was started from the Record as tray: it slides in 12 pt over 150 ms, opaque from its
     /// first frame, instead of the system's presentation (RecordTray.swift).
-    var recorderSlideIn = false
+    @ObservationIgnored var recorderSlideIn = false
     /// The recording running is a thought (PhoneThoughts.swift): it lands on today's Thoughts page when you stop.
-    @Published var recordingThought = false
+    var recordingThought = false
     /// When that thought started; it belongs to that day's page.
-    var thoughtStartedAt: Date? = nil
+    @ObservationIgnored var thoughtStartedAt: Date? = nil
     /// The next recording to start is a thought (New thought, before the notice or the microphone question).
-    var pendingThought = false
+    @ObservationIgnored var pendingThought = false
     /// The last Stop was Discard (a thought's Live Activity then ends without "Added to Thoughts").
-    var lastStopDiscarded = false
+    @ObservationIgnored var lastStopDiscarded = false
     /// Transcript ready's `.success`, once per recording (HapticPolicy.swift).
-    private var readyOnce = ReadyOnce()
+    @ObservationIgnored private var readyOnce = ReadyOnce()
     /// Stop or Discard was tapped and the recording is being saved: the record screen says "Saving…" until it's done.
-    @Published var savingRecording = false
+    var savingRecording = false
     /// Microphone access is off: an alert with Open Settings.
-    @Published var showMicDenied = false
+    var showMicDenied = false
     /// A transcript in a language Parakeet v3 handles, with v3 not downloaded: an alert offering the download.
-    @Published var v3Offer: ParakeetV3Offer? = nil
+    var v3Offer: ParakeetV3Offer? = nil
     /// A passage to land on when the next transcript opens (from Moments or search).
-    var focusSegment: UUID? = nil
+    @ObservationIgnored var focusSegment: UUID? = nil
     /// A play button's transcript: the transcript that starts playing once it opens and its audio is ready.
-    var autoplay: UUID? = nil
+    @ObservationIgnored var autoplay: UUID? = nil
     /// Moments marked while recording (Model/Marks.swift): from the recorder's Mark, the Dynamic Island, the Lock
     /// Screen, or the Action button. Written beside the recording as they're made, saved as bookmarks when you stop.
-    @Published var recordingMoments: [RecordingMoment] = []
+    var recordingMoments: [RecordingMoment] = []
     /// "Marked 4:12 · 3 moments" for two seconds after a mark (the recorder, the Island, the Lock Screen).
-    @Published private(set) var lastMark: MarkConfirmation? = nil
+    private(set) var lastMark: MarkConfirmation? = nil
 
     // Preferences (same keys as the Mac app; each device keeps its own).
-    @Published var presetRaw: String = UserDefaults.standard.string(forKey: "preset") ?? QualityPreset.defaultPreset.rawValue { didSet { UserDefaults.standard.set(presetRaw, forKey: "preset") } }
-    @Published var identifySpeakers: Bool = UserDefaults.standard.object(forKey: "identifySpeakers") as? Bool ?? true { didSet { UserDefaults.standard.set(identifySpeakers, forKey: "identifySpeakers") } }
-    @Published var applyDictionary: Bool = UserDefaults.standard.object(forKey: "applyDictionary") as? Bool ?? true { didSet { UserDefaults.standard.set(applyDictionary, forKey: "applyDictionary") } }
-    @Published var appearance: String = UserDefaults.standard.string(forKey: "appearance") ?? "system" { didSet { UserDefaults.standard.set(appearance, forKey: "appearance") } }
+    var presetRaw: String = UserDefaults.standard.string(forKey: "preset") ?? QualityPreset.defaultPreset.rawValue { didSet { UserDefaults.standard.set(presetRaw, forKey: "preset") } }
+    var identifySpeakers: Bool = UserDefaults.standard.object(forKey: "identifySpeakers") as? Bool ?? true { didSet { UserDefaults.standard.set(identifySpeakers, forKey: "identifySpeakers") } }
+    var applyDictionary: Bool = UserDefaults.standard.object(forKey: "applyDictionary") as? Bool ?? true { didSet { UserDefaults.standard.set(applyDictionary, forKey: "applyDictionary") } }
+    var appearance: String = UserDefaults.standard.string(forKey: "appearance") ?? "system" { didSet { UserDefaults.standard.set(appearance, forKey: "appearance") } }
 
-    private var bag = Set<AnyCancellable>()
+    @ObservationIgnored private var bag = Set<AnyCancellable>()
 
     init() {
         // Settings › Privacy: the network activity log, before anything can use the network.
         NetworkActivityLog.install()
-        // The Store isn't forwarded: it's Observable, so views that read the library re-render on its changes and
-        // the rest don't (Store.swift).
-        for o in [recorder.objectWillChange.eraseToAnyPublisher(), player.objectWillChange.eraseToAnyPublisher(),
-                  coordinator.objectWillChange.eraseToAnyPublisher()] {
-            o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
-        }
+        // Nothing is forwarded. PhoneState is @Observable, so a view re-renders when a value it reads changes; the
+        // Store is Observable too (Store.swift); and the recorder, the player, and the queue are watched directly by the
+        // views that show them (`phoneState(_:)` puts them in the environment).
         coordinator.host = self
         // Snippets (synced with the Mac) go to the Verbatim keyboard's Snippets chip through the App Group.
         store.snippetsPublisher.sink { list in
@@ -742,16 +747,16 @@ final class PhoneState: ObservableObject {
         let link: URL
         let show: PodcastShow?
     }
-    @Published var episodeChoice: EpisodeChoice? = nil
+    var episodeChoice: EpisodeChoice? = nil
 
     /// Links being fetched on this iPhone, by transcript. A "link added" view can observe `latestLinkImport`.
-    @Published private(set) var linkImports: [UUID: LinkImport] = [:]
-    @Published private(set) var latestLinkImport: LinkImport? = nil
-    private var linkTasks: [UUID: Task<Void, Never>] = [:]
+    private(set) var linkImports: [UUID: LinkImport] = [:]
+    private(set) var latestLinkImport: LinkImport? = nil
+    @ObservationIgnored private var linkTasks: [UUID: Task<Void, Never>] = [:]
     /// The link whose "link added" card is showing.
-    @Published var linkCardImport: LinkImport? = nil
+    var linkCardImport: LinkImport? = nil
     /// Links counted by the Library badge only once their card has landed there.
-    @Published var linkBadgeHeld: Set<UUID> = []
+    var linkBadgeHeld: Set<UUID> = []
 
     /// Resolves, downloads, and prepares a link transcript's audio, then queues it for transcription.
     private func startLinkFetch(_ id: UUID) {

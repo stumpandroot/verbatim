@@ -34,7 +34,7 @@ extension LinkSignIn {
 /// "This video needs you to be signed in": the browsers on this Mac, then Cancel. When Safari's cookies were out of
 /// reach, it explains Full Disk Access first.
 struct SignInSheet: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     let request: LinkSignInRequest
     private let browsers = LinkSignIn.installed
 

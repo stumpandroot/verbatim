@@ -32,7 +32,10 @@ struct RecorderSheet: View {
     /// 12 pt over 150 ms, opaque from its first frame (PhoneState.presentRecorder sets it; never under Limit animation).
     static var slideInNext = false
 
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
+    /// Watched directly (PhoneState doesn't pass its changes on): paused or running, the muted mic, and whether the
+    /// kind can switch.
+    @EnvironmentObject private var recorder: Recorder
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @State private var naming: RecordingMoment.ID? = nil
     @State private var nameDraft = ""
@@ -46,7 +49,7 @@ struct RecorderSheet: View {
     @State private var inputs: [RecordingInput] = RecordingInputRules.menu(RecordingRoute.knownInputs())
     @State private var arrive: CGFloat = RecorderSheet.slideInNext ? 12 : 0
 
-    private var paused: Bool { app.recorder.isPaused }
+    private var paused: Bool { recorder.isPaused }
     private var saving: Bool { app.savingRecording }
     private var adding: Transcript? { app.continuing.flatMap { app.store.transcript($0) } }
     /// Audio only: no live words, and Stop keeps the sound with no transcript (AudioOnly.swift).
@@ -58,12 +61,12 @@ struct RecorderSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     header.padding(.top, 14)
-                    RecorderLivePanel(live: app.recorder.live, status: status, moments: app.recordingMoments)
+                    RecorderLivePanel(live: recorder.live, status: status, moments: app.recordingMoments)
                         .padding(.top, 16)
                     // A free recording from 9:00: where the free transcript ends; the recording keeps going (UnlockViews.swift).
                     RecordingLimitChip().padding(.top, 8)
                     if paused, let reason = app.autoPauseReason { autoPause(reason).padding(.top, 12) }
-                    if !paused, let w = app.recorder.micWarning, let note = PhoneState.mutedNote(w) { mutedMic(note).padding(.top, 12) }
+                    if !paused, let w = recorder.micWarning, let note = PhoneState.mutedNote(w) { mutedMic(note).padding(.top, 12) }
                     if !audioOnly { RecorderLiveWords(text: app.recordingWords).padding(.top, 14) }
                     momentsLine.padding(.top, 6)
                 }

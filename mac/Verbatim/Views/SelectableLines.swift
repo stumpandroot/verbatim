@@ -4,7 +4,7 @@ import SwiftUI
 /// copy with ⌘C. Times stay links that play from there; the playing passage keeps its wash and search matches theirs. Turned on with "Select text"
 /// in the Original tab; the line view (corrections, notes, Copy quote) comes back when you turn it off.
 struct SelectableLines: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var clock: PlayerClock
     var isPlaying: Bool
     var transcript: Transcript

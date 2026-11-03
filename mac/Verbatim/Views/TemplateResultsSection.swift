@@ -9,7 +9,7 @@ import AppKit
 // tab.
 
 struct TemplateResultsSection: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     /// In the reading column (Show the result first), where there's room for a wider card.
     var inline = false
@@ -249,7 +249,7 @@ struct TemplateResultsSection: View {
 /// A menu of every template, by where it came from, as the kit's quiet action: runs the chosen one on the transcript
 /// (replacing a result when `replacing` is set). On the transcript's Summary tab and in a result's card.
 struct RunTemplateMenu: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     var title = "Run a template"
     var replacing: UUID? = nil
@@ -278,7 +278,7 @@ struct RunTemplateMenu: View {
 /// A Plan my day result in a transcript: Send to Reminders (a sheet) or how many are there, then the plan. Each task's
 /// time plays the line it came from.
 struct MacPlanResult: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     var result: TemplateResult
     var inline = false
@@ -307,7 +307,7 @@ struct MacPlanResult: View {
                          onSend: { open(plan, sent, only: $0) })
         }
         .sheet(isPresented: Binding(get: { model != nil }, set: { if !$0 { model = nil } })) {
-            if let m = model { MacRemindersSend(model: m, onSent: done, onCancel: { model = nil }).environmentObject(app) }
+            if let m = model { MacRemindersSend(model: m, onSent: done, onCancel: { model = nil }).appState(app) }
         }
     }
 

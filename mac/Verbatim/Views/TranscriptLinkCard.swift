@@ -4,7 +4,7 @@ import AppKit
 /// The source page under the title, on a card (DESIGN.md §13): thumbnail, channel · site · date, and the video one
 /// click away.
 struct LinkCard: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var info: LinkInfo
     var transcript: Transcript
     var body: some View {
@@ -32,7 +32,7 @@ struct LinkCard: View {
 
 /// Keep the video, watch it save, then find it.
 struct KeepButton: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var kept = KeptMedia.shared
     var transcript: Transcript
     var body: some View {

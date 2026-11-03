@@ -6,7 +6,7 @@ import SwiftUI
 
 /// Recently deleted: kept for 30 days, then removed with their audio.
 struct TrashView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var body: some View {
         let items = app.store.trash
         ScrollView {

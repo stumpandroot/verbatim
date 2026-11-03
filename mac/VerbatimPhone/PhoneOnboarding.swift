@@ -6,7 +6,7 @@ import AVFoundation
 /// on the refined kit (DESIGN.md §13): the step count, the large serif title, cards, and the kit's strong action. The
 /// last step offers Verbose Unlock's free trial once (`UnlockTourOffer`, DESIGN.md §21), so it scrolls when it runs long.
 struct PhoneOnboarding: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @State private var step: Int
     @State private var micAllowed = AVAudioApplication.shared.recordPermission == .granted
     /// The last step's iCloud sync switch (off on a new install; `Cloud.settleSyncDefault`).

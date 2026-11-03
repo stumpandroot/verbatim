@@ -49,7 +49,7 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
         recorder.$isPaused.removeDuplicates().dropFirst().sink { [weak self] _ in
             DispatchQueue.main.async { self?.update() }
         }.store(in: &bag)
-        app.$autoPauseReason.removeDuplicates().dropFirst().sink { [weak self] _ in
+        app.autoPauseReasonValues.removeDuplicates().dropFirst().sink { [weak self] _ in
             DispatchQueue.main.async { self?.update() }
         }.store(in: &bag)
         NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification).sink { [weak self] _ in

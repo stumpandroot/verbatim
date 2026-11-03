@@ -11,7 +11,7 @@ extension BrandArt {
 /// selected folder's auto-export (formats, where and under what name, and whether to notify), then the Export options
 /// those files and every export use (ExportSettingsGroups, SettingsPanes.swift).
 struct WatchedFoldersPane: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var watcher = FolderWatcher.shared
     @AppStorage("watch.selected") private var selectedRaw = ""
     @ObservedObject private var model = SettingsModel.shared
@@ -60,7 +60,7 @@ struct WatchedFoldersPane: View {
             }
             ExportSettingsGroups()
         }
-        .sheet(isPresented: $showActivity) { WatchActivitySheet(done: { showActivity = false }).environmentObject(app) }
+        .sheet(isPresented: $showActivity) { WatchActivitySheet(done: { showActivity = false }).appState(app) }
     }
 
     private var empty: some View {
@@ -307,7 +307,7 @@ struct FlowChips: Layout {
 struct WatchActivitySheet: View {
     var done: () -> Void
     @ObservedObject private var watcher = FolderWatcher.shared
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {

@@ -5,7 +5,7 @@ import SwiftUI
 /// serif day titles, and each day's rows in a card with a leading check; tap to select, and an Add button. A transcript is in one project at a
 /// time, so one from another project says where it moves from, and adding asks first.
 struct PhoneAddFromLibrarySheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.dismiss) private var dismiss
     @Environment(\.limitMotion) private var limitMotion
     var project: UUID

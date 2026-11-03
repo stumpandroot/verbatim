@@ -132,7 +132,7 @@ extension Screen {
 
 /// The window: the sidebar, the screen, the inspector, and the toolbar, built once.
 struct MacWindow<Detail: View>: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject var nav: WindowNav
     @Binding var columns: NavigationSplitViewVisibility
     @ViewBuilder var detail: () -> Detail
@@ -158,7 +158,7 @@ struct MacWindow<Detail: View>: View {
         .toolbar { MacToolbar(nav: nav, screen: app.screen) }
         .sheet(item: $nav.runningAction) { a in
             if let id = app.screen.transcriptID, let t = app.store.transcript(id) {
-                TranscriptActionSheet(action: a, transcript: t).environmentObject(app)
+                TranscriptActionSheet(action: a, transcript: t).appState(app)
             }
         }
         .alert("Summaries need Apple Intelligence", isPresented: Binding(get: { nav.summaryUnavailable != nil }, set: { if !$0 { nav.summaryUnavailable = nil } })) {
@@ -176,7 +176,7 @@ struct MacWindow<Detail: View>: View {
 
 /// The inspector's content for the screen: the Library's preview or the transcript's side column, on paper.
 struct MacInspector: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject var nav: WindowNav
 
     var body: some View {
@@ -238,7 +238,10 @@ private struct ToolbarInspectorButton: View {
 /// audio, Record's place is the timer and Stop on every screen, transcripts included (`ToolbarRecordButton.shows`).
 /// Every screen draws its own serif title on the page (DESIGN.md §13).
 private struct ToolbarLeadingItem: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): Record steps aside while something records (`busy`).
+    @EnvironmentObject private var recorder: Recorder
+    @EnvironmentObject private var capture: AppAudioCapture
     @ObservedObject var nav: WindowNav
     /// Back and Forward, shared with View › Back and Forward and the mouse's side buttons.
     @ObservedObject private var trail = NavTrail.shared
@@ -272,7 +275,10 @@ private struct ToolbarLeadingItem: View {
 /// disc's red, beside the word. While you record it turns into the live timer capsule (`ToolbarRecordingStatus`): the
 /// red dot, the time, and Stop.
 struct ToolbarRecordButton: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): Record, or the timer and Stop (`busy`).
+    @EnvironmentObject private var recorder: Recorder
+    @EnvironmentObject private var capture: AppAudioCapture
 
     /// A recording or an app's audio capture is running: the button is the timer and Stop.
     @MainActor static func busy(_ app: AppState) -> Bool { app.recorder.isRecording || app.capture.isCapturing }
@@ -317,7 +323,7 @@ struct ToolbarRecordButton: View {
 /// The menu on Record (and its right-click): Dictate, Live captions, and Import, then the ways to record. The kinds
 /// are `RecordKindMenuItems`, so this menu, File › Record As, and the menu bar's list never drift apart.
 struct ToolbarRecordMenu: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
 
     /// The items above the kinds, in order (the self-test reads them).
     static let extras = ["Dictate", "Live Captions", "Import…", "Record a Call…", "App Audio…"]
@@ -337,7 +343,7 @@ struct ToolbarRecordMenu: View {
 /// A transcript's tabs as a segmented control in the toolbar: Original, Cleaned, and Summary, then Review once there
 /// are corrections and a template's result (`TranscriptView.tabs`). An Audio only recording has none.
 private struct ToolbarModePicker: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject var nav: WindowNav
     var id: UUID
 
@@ -418,7 +424,7 @@ enum ToolbarSearchPrompt {
 
 /// The screen's own items, in one slot: You on Home; More in the Library; Share and More on a transcript.
 private struct ToolbarActionsItem: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject var nav: WindowNav
     var screen: Screen
 

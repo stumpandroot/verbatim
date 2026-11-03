@@ -5,7 +5,7 @@ import SwiftUI
 /// both ways. Clean up and Tone always start from the corrected lines, never from the cleaned text. On the refined kit
 /// (DESIGN.md §13): menu faces for Clean up and Tone, the text on a card, and the kit's actions.
 struct PhoneDocument: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
     @State private var text = ""
     @State private var lints: [Harper.Lint] = []

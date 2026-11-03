@@ -24,7 +24,7 @@ extension Notification.Name {
 /// draws the chrome: the pages push on the system's navigation bar, and the menus, alerts, and switches are the
 /// system's.
 struct SettingsScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     /// Done beside the title closes the sheet Settings opens in (`SettingsSheet`).
     var onDone: (() -> Void)? = nil
     @Environment(\.openURL) private var openURL
@@ -353,7 +353,7 @@ struct SettingsScreen: View {
     @ViewBuilder private var recording: some View {
         PaperCard {
             menuRow("quality", 0, art: .iconQuality, title: "Quality", value: app.preset.title) {
-                Picker("Quality", selection: $app.presetRaw) {
+                Picker("Quality", selection: Bindable(app).presetRaw) {
                     ForEach(QualityPreset.allCases.filter { $0 != .advanced }) { p in Text(p.title).tag(p.rawValue) }
                 }
             }

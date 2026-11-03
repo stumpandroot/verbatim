@@ -6,7 +6,7 @@ import SwiftUI
 
 struct WordsDayScreen: View {
     var day: Date
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @ObservedObject private var flow = FlowSettings.shared
 
     static var onScreen = 0

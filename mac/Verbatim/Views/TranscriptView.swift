@@ -11,7 +11,9 @@ struct TranscriptView: View {
     /// True while any text field or text view in the key window is being edited.
     static var typing: Bool { NSApp.keyWindow?.firstResponder is NSText }
 
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): whether it plays, for the lines.
+    @EnvironmentObject private var player: Player
     var id: UUID
     @State private var selectedSegment: UUID? = nil
     @State private var followed: UUID? = nil
@@ -481,7 +483,7 @@ extension Notification.Name { static let verbatimShowMode = Notification.Name("v
 /// An action run on a transcript (Actions menu): the transcript actions read the Original text with corrections,
 /// never the Cleaned text; the result can be kept as a note.
 struct TranscriptActionSheet: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var action: FlowAction
     var transcript: Transcript
 

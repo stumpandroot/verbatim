@@ -73,7 +73,7 @@ struct TranscriptFindSheet: View {
 
 /// Speakers: each speaker's name, which you can change, and how long they talk.
 struct TranscriptSpeakersSheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var id: UUID
     @State private var drafts: [String: String] = [:]
     @Environment(\.dismiss) private var dismiss
@@ -130,7 +130,7 @@ struct TranscriptSpeakersSheet: View {
 /// Details: the kind and tags, when it was recorded, its project, and where it was transcribed (the data path and the
 /// provenance line).
 struct TranscriptDetailsSheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var id: UUID
     @State private var newTag = ""
     @Environment(\.dismiss) private var dismiss

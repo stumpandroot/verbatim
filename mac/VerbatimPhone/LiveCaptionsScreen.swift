@@ -161,7 +161,7 @@ final class PhoneCaptions: ObservableObject {
 /// The full-screen captions view (approved mockup PhoneCaptions): a mono header, faded older lines over a large
 /// current line, Aa Size / language / Flip for them, then Stop and Save transcript.
 struct LiveCaptionsScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @ObservedObject var captions: PhoneCaptions
     @ObservedObject var feed: CaptionFeed
     @AppStorage(CaptionSize.key) private var sizeRaw = CaptionSize.medium.rawValue

@@ -360,7 +360,11 @@ struct ThoughtsMenuSection: View {
 
 /// The menu bar panel: record from anywhere, jump back to the app.
 struct MenuBarPanel: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): something recording, and the last dictation.
+    @EnvironmentObject private var recorder: Recorder
+    @EnvironmentObject private var capture: AppAudioCapture
+    @EnvironmentObject private var dictation: DictationController
 
     var body: some View {
         NavMarks.mark("menubar")

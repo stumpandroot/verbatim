@@ -5,7 +5,7 @@ import Combine
 struct VerbatimApp: App {
     /// AppState, held without observing it: an AppState publish (each navigation, each Store, Recorder, Player, or
     /// transcription tick) used to re-evaluate every scene and the main menu's commands before any window. The
-    /// holder publishes only the menu bar switch (`AppHolder`).
+    /// holder publishes only the menu bar switch (`AppHolder`). The scenes read nothing AppState tracks.
     @StateObject private var holder = AppHolder()
     private var app: AppState { holder.app }
     /// Asks before quitting cuts off a recording (QuitGuard.swift).
@@ -27,7 +27,7 @@ struct VerbatimApp: App {
     var body: some Scene {
         WindowGroup("Verbose") {
             ContentView()
-                .environmentObject(app)
+                .appState(app)
                 .limitMotionRoot()
                 .frame(minWidth: 980, minHeight: 640)
                 .onAppear { Log.note("window appeared") }
@@ -62,7 +62,7 @@ struct VerbatimApp: App {
                 // The six ways to record, as on Record's right-click menu (CaptureBar.swift): a picked kind is yours, so
                 // AutoLabel leaves it and Run automatically uses it (Templates.swift). Meeting… is the meeting capture,
                 // which files its transcript as a Meeting; Stop Meeting and Pause Meeting show below while one runs.
-                Menu("Record As") { RecordKindMenuItems(titles: \.commandTitle).environmentObject(app) }
+                Menu("Record As") { RecordKindMenuItems(titles: \.commandTitle).appState(app) }
                 // Today's page in note mode (Views/DayNote.swift): the day's note, where ⌃⌥ dictation goes, and Plan my
                 // day. It took the Brain dump window's place (consolidation, October 28, 2026).
                 Button("Today's Note") { DayNote.open() }
@@ -98,7 +98,7 @@ struct VerbatimApp: App {
         }
 
         Settings {
-            SettingsView().environmentObject(app).limitMotionRoot()
+            SettingsView().appState(app).limitMotionRoot()
         }
 
         MenuBarExtra(isInserted: holder.menuBarBinding) {
@@ -109,7 +109,7 @@ struct VerbatimApp: App {
                 LiveCaptionsMenuRow().padding(.horizontal, 12).padding(.bottom, 12)
             }
             .frame(width: 320).background(Refined.paper)
-            .environmentObject(app).limitMotionRoot()
+            .appState(app).limitMotionRoot()
         } label: {
             MenuBarMark(recorder: holder.app.recorder)
         }
@@ -134,23 +134,27 @@ struct MenuBarMark: View {
     }
 }
 
-/// Owns the app's AppState for the `App` struct without forwarding its changes, so the scenes and commands are built
-/// once instead of on every publish. Commands only call into AppState; anything a menu shows live observes its own
-/// object (`MeetingCaptureCommands`, `CheckForUpdatesButton`). The one value a scene reads, Settings › General ›
-/// Show in menu bar, is mirrored in `showMenuBar` and announced only when it changes.
+/// Owns the app's AppState for the `App` struct without observing it, so the scenes and commands are built once
+/// instead of on every change. Commands only call into AppState; anything a menu shows live observes its own object
+/// (`MeetingCaptureCommands`, `CheckForUpdatesButton`). The one value a scene reads, Settings › General › Show in menu
+/// bar, is mirrored in `showMenuBar` and announced only when it changes.
 @MainActor
 final class AppHolder: ObservableObject {
     let app: AppState
     @Published private(set) var showMenuBar: Bool
-    private var bag: AnyCancellable?
 
     init() {
         let state = AppState()
         app = state
         showMenuBar = state.showMenuBar
-        // objectWillChange comes before the change, so the value is read on the next turn of the main queue.
-        bag = state.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in
-            MainActor.assumeIsolated { self?.syncMenuBar() }
+        watchMenuBar()
+    }
+
+    /// Follows Show in menu bar alone. Observation announces a change before it's stored, so the value is read on the
+    /// next turn of the main queue, and watched again from there (each watch fires once).
+    private func watchMenuBar() {
+        withObservationTracking { _ = app.showMenuBar } onChange: { [weak self] in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.syncMenuBar(); self?.watchMenuBar() } }
         }
     }
 
@@ -159,13 +163,27 @@ final class AppHolder: ObservableObject {
     }
 
     /// The menu bar item's binding. MenuBarExtra writes it back on every update (Changed.swift); AppState's
-    /// `@Changed` and `syncMenuBar` both ignore a write of the same value, so a write-back publishes nothing.
+    /// `@Distinct` and `syncMenuBar` both ignore a write of the same value, so a write-back announces nothing.
     var menuBarBinding: Binding<Bool> {
         Binding(get: { [unowned self] in self.showMenuBar },
                 set: { [unowned self] v in
                     self.app.showMenuBar = v
                     self.syncMenuBar()
                 })
+    }
+}
+
+extension View {
+    /// AppState for the views below (`@Environment(AppState.self)`), with the recorder, the player, the app capture,
+    /// dictation, and the transcription queue beside it. AppState is @Observable and doesn't pass their changes on, so
+    /// a view that shows one of them watches it itself (`@EnvironmentObject private var recorder: Recorder`).
+    func appState(_ app: AppState) -> some View {
+        environment(app)
+            .environmentObject(app.recorder)
+            .environmentObject(app.player)
+            .environmentObject(app.capture)
+            .environmentObject(app.dictation)
+            .environmentObject(app.coordinator)
     }
 }
 

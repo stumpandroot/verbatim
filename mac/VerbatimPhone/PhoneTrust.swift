@@ -104,7 +104,7 @@ struct PhoneNetworkEventRow: View {
 // MARK: - Local Only: Allow this download
 
 struct PhoneAllowDownloadButton: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
     var body: some View {
         if LocalOnlyRefusal.isModelRefusal(transcript.error) {
@@ -129,7 +129,7 @@ extension View {
 }
 
 private struct PhoneFixWord: ViewModifier {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Binding var segment: Segment?
     var transcriptID: UUID
     @State private var heard = ""
@@ -163,7 +163,7 @@ private struct PhoneFixWord: ViewModifier {
 }
 
 struct PhoneFixAllBanner: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @ObservedObject private var fix = FixAllOffer.shared
     var transcriptID: UUID
 
@@ -205,7 +205,7 @@ struct PhoneFixAllBanner: View {
 // MARK: - Dictionary CSV
 
 struct PhoneDictionaryCSVSection: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @State private var importing = false
     @State private var shareURL: URL? = nil
 
