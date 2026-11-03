@@ -25,6 +25,10 @@ final class MeetingCoordinator: ObservableObject {
     /// Settings › Meetings › Copy the chat notice when recording starts: the consent sheet's checkbox starts this
     /// way, and a start without the sheet follows it. On by default.
     static var copyNoticeOnStart: Bool { UserDefaults.standard.object(forKey: copyNoticeKey) as? Bool ?? true }
+    static let stopWhenEndsKey = "meetings.stopWhenEnds"
+    /// Settings › Meetings › Stop when the call ends: when the call app lets go of the microphone, "Zoom left the
+    /// call", then stop and save 15 seconds later unless you keep recording. On by default.
+    static var stopWhenEnds: Bool { UserDefaults.standard.object(forKey: stopWhenEndsKey) as? Bool ?? true }
 
     @Published private(set) var book: MeetingAppBook
     /// Waiting for your call: set up from the Call tile, a Record menu, the menu bar, or Home's Next call card.
@@ -47,6 +51,8 @@ final class MeetingCoordinator: ObservableObject {
     private var waitTracker = CallWaitTracker()
     /// The call app being recorded (its key), for Stop when the call ends; nil for all system audio.
     private var recordingKey: String?
+    /// Watching for the call to end while it records (Stop when the call ends).
+    private var endWatch: CallEndWatch?
 
     private init() {
         book = MeetingAppBook.decode(UserDefaults.standard.data(forKey: Self.bookKey))
@@ -120,6 +126,12 @@ final class MeetingCoordinator: ObservableObject {
                 startFromWait(w, key: key)
             }
         }
+        // Stop when the call ends: the call app let go of the microphone.
+        if var watch = endWatch, session.phase == .recording || session.phase == .paused {
+            let event = watch.update(using: keys, now: now)
+            endWatch = watch
+            if let event { callEndEvent(event, key: watch.key) }
+        }
         // Apps a wait is for never get the prompt: their call starts the recording.
         let muted = book.muted.union(wait?.keys ?? [])
         let context = MeetingCallTracker.Context(enabled: Self.noticeCalls, busy: isBusy, recordingMeeting: session.isActive, muted: muted)
@@ -134,7 +146,7 @@ final class MeetingCoordinator: ObservableObject {
                 }
             }
         }
-        if !tracker.isIdle || snap.deviceRunning || !keys.isEmpty || wait != nil { startPolling() } else { stopPolling() }
+        if !tracker.isIdle || snap.deviceRunning || !keys.isEmpty || wait != nil || endWatch != nil { startPolling() } else { stopPolling() }
     }
 
     /// Verbose itself is recording, capturing, dictating, showing captions, or asking for consent: wait.
@@ -186,6 +198,31 @@ final class MeetingCoordinator: ObservableObject {
             MeetingSession.shared.stop()
         case .dismiss:
             banner.hide()
+        case .keepRecording:
+            banner.hide()
+            endWatch?.keep()
+            Log.note("meeting: Keep recording after the call app left the microphone")
+        case .stopNow:
+            banner.hide()
+            Log.note("meeting: Stop now after the call app left the microphone")
+            MeetingSession.shared.stop()
+        }
+    }
+
+    /// Stop when the call ends: the banner, its going away, or the stop.
+    private func callEndEvent(_ event: CallEndWatch.Event, key: String) {
+        let name = MeetingApps.info(key: key)?.name ?? "The call app"
+        switch event {
+        case .left:
+            Log.note("meeting: \(name) let go of the microphone; stopping in \(Int(CallEndWatch.grace)) s unless you keep recording")
+            banner.show(.callEnded(app: name, title: MeetingSession.shared.eventTitle))
+        case .back:
+            Log.note("meeting: \(name) is using the microphone again; keeps recording")
+            banner.hide { if case .callEnded = $0 { return true }; return false }
+        case .stop:
+            Log.note("meeting: the call in \(name) ended; stopping and saving")
+            banner.hide { if case .callEnded = $0 { return true }; return false }
+            MeetingSession.shared.stop()
         }
     }
 
@@ -350,10 +387,11 @@ final class MeetingCoordinator: ObservableObject {
             status.hide()
             pendingCount = nil
             recordingKey = nil
+            endWatch = nil
             // The silent and sleep notes belong to the recording; a notice ("The meeting is saved…") stays.
             banner.hide { k in
                 switch k {
-                case .silent, .slept: return true
+                case .silent, .slept, .callEnded: return true
                 case .call, .notice, .started: return false
                 }
             }
@@ -362,6 +400,7 @@ final class MeetingCoordinator: ObservableObject {
             status.show()
         case .recording, .paused:
             status.show()
+            if endWatch == nil, let key = recordingKey, Self.stopWhenEnds { endWatch = CallEndWatch(key: key); startPolling() }
             if let p = pendingCount, phase == .recording {
                 book.recorded(p.key, name: p.name)
                 saveBook()

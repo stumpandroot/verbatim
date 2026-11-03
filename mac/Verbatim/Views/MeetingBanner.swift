@@ -173,20 +173,22 @@ enum MeetingBannerKind: Equatable {
     case notice(String)
     /// "Recording your Zoom call": a call you set up started recording with no prompt. Hides after 5 seconds.
     case started(app: String, title: String?, copied: Bool)
+    /// "Zoom left the call": Keep recording or Stop now; it stops on its own 15 seconds later (Stop when the call ends).
+    case callEnded(app: String, title: String?)
 
     var autoHide: Double? {
         switch self {
         case .call: return 20
         case .notice: return 7
         case .started: return 5
-        case .silent, .slept: return nil
+        case .silent, .slept, .callEnded: return nil
         }
     }
 
     var isCall: Bool { if case .call = self { return true }; return false }
 }
 
-enum MeetingBannerAction { case notNow, record, openSettings, keepMicOnly, resume, stopAndSave, dismiss }
+enum MeetingBannerAction { case notNow, record, openSettings, keepMicOnly, resume, stopAndSave, dismiss, keepRecording, stopNow }
 
 @MainActor
 final class MeetingBannerModel: ObservableObject {
@@ -294,6 +296,7 @@ final class MeetingBannerController {
         case .slept: return MeetingCopy.sleptTitle
         case .notice(let s): return s
         case .started(let app, let title, let copied): return MeetingCopy.startedTitle(app) + ". " + MeetingCopy.startedDetail(app: app, title: title, copied: copied)
+        case .callEnded(let app, let title): return MeetingCopy.leftTitle(app) + ". " + MeetingCopy.leftDetail(title: title, seconds: Int(CallEndWatch.grace))
         }
     }
 }
@@ -336,6 +339,11 @@ struct MeetingBannerView: View {
         case .notice(let text):
             row(icon: .iconDetails, title: text, detail: nil) {
                 MeetingButton(title: "OK", style: .quiet, target: "meeting-notice-ok") { act(.dismiss) }
+            }
+        case .callEnded(let app, let title):
+            row(icon: .iconSpeakers, title: MeetingCopy.leftTitle(app), detail: MeetingCopy.leftDetail(title: title, seconds: Int(CallEndWatch.grace))) {
+                MeetingButton(title: "Keep recording", target: "meeting-ended-keep") { act(.keepRecording) }
+                MeetingButton(title: "Stop now", style: .primary, stopSquare: true, target: "meeting-ended-stop") { act(.stopNow) }
             }
         case .started(let app, let title, let copied):
             // No buttons: Stop and Pause stay in the meeting's menu bar item, as for any meeting.

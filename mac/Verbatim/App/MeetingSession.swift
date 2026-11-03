@@ -76,8 +76,9 @@ final class MeetingSession: ObservableObject {
     private var sleepObservers: [NSObjectProtocol] = []
     private var screenStartedAt: Double = 0
     private var pausedForSleep = false
-    /// The calendar event's title and attendees, for the sidecar (a call set up from Home's Next call card).
-    private var eventTitle: String?
+    /// The calendar event's title and attendees, for the sidecar (a call set up from Home's Next call card). The title
+    /// is what the recording saves as ("Zoom left the call" says so).
+    private(set) var eventTitle: String?
     private var eventAttendees: [String] = []
 
     @available(macOS 14.4, *)

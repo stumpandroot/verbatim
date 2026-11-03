@@ -371,6 +371,7 @@ struct MeetingsSettingsPane: View {
 /// it on.
 struct CallsSettingsGroup: View {
     @ObservedObject private var calendar = CallCalendar.shared
+    @AppStorage(MeetingCoordinator.stopWhenEndsKey) private var stopWhenEnds = true
 
     var body: some View {
         SettingsGroup(title: "Calls") {
@@ -395,6 +396,7 @@ struct CallsSettingsGroup: View {
                     .disabled(!calendar.showing || calendar.calendars.isEmpty)
                 }
             }
+            SettingsToggleRow("meetings.stopWhenEnds", isOn: $stopWhenEnds)
         }
     }
 }

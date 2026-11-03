@@ -204,5 +204,20 @@ do {
                                                                                          (id: 2, width: 1200, height: 800, onScreen: false)]) == nil)
 }
 
+// MARK: Words
+
+do {
+    check("words: the started banner", MeetingCopy.startedTitle("Zoom") == "Recording your Zoom call"
+          && MeetingCopy.startedDetail(app: "Zoom", title: "Catalog review with the printer", copied: true)
+          == "Catalog review with the printer · two tracks. The chat notice is on your clipboard; paste it in the Zoom chat.")
+    check("words: without an event or the notice", MeetingCopy.startedDetail(app: "Zoom", title: nil, copied: false) == "Your microphone and Zoom · two tracks.")
+    check("words: the call ended", MeetingCopy.leftTitle("Zoom") == "Zoom left the call"
+          && MeetingCopy.leftDetail(title: "Catalog review with the printer", seconds: 15) == "Recording stops in 15 seconds and saves as “Catalog review with the printer”."
+          && MeetingCopy.leftDetail(title: nil, seconds: 15) == "Recording stops in 15 seconds and saves.")
+    let words = [MeetingCopy.waitTitle, MeetingCopy.waitBody, MeetingCopy.waitBodyNoCall, MeetingCopy.copyOnStart,
+                 MeetingCopy.startedDetail(app: "Zoom", title: "x", copied: true), MeetingCopy.leftDetail(title: "x", seconds: 15)]
+    check("words: no em dashes or exclamation points", words.allSatisfy { !$0.contains("\u{2014}") && !$0.contains("!") })
+}
+
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
