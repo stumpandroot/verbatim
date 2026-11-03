@@ -117,41 +117,77 @@ struct HomeView: View {
         // out in the body, never stored: a stored width laid Home out twice on every visit (900 pt, then the real one).
         GeometryReader { geo in
             let _ = NavMarks.mark("home-grid")
-            let width = Self.contentWidth(geo.size.width)
             let layout = layouts.layout
-            let rows = HomeRows.rows(layout.shown, wide: Self.wide(width))
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    LargeSerifTitle(title: greeting, eyebrow: HomeGreeting.dateLine(now))
-                        .background { popoverAnchors(layout) }
-                    // After an update: "What's new in build N", once (WhatsNewPane.swift).
-                    WhatsNewHomeLine(top: 16) { app.dictation.openSettings(tab: .whatsNew) }
-                    // Your next call, or the call you're waiting for (CallViews.swift); nothing when there's neither.
-                    HomeCallCard(now: now, top: 16)
-                    // Recording with the Record card hidden: the recording card leads Home all the same.
-                    if recording && !layout.isVisible(.record) {
-                        HomeRecordingCard().padding(.top, 18).transition(Motion.cardTransition(limited: limitMotion))
+            // Two columns on a wide window (mockup "Verbose Mac Columns"): Record, the tiles, and the recordings on the
+            // left; This week, today's thoughts, the journal, and the last dictations on the right. Edit Home keeps one
+            // column, with its panel beside it.
+            let twoCol = MacColumnsMetrics.twoColumns(geo.size.width) && !edit.editing
+            let width = twoCol ? MacColumnsMetrics.mainWidth(geo.size.width, mainMax: Self.mainMax) : Self.contentWidth(geo.size.width)
+            let mainItems = twoCol ? layout.shown.filter { !Self.sideSections.contains($0.section) } : layout.shown
+            let sideItems = twoCol ? layout.shown.filter { Self.sideSections.contains($0.section) } : []
+            let rows = HomeRows.rows(mainItems, wide: !twoCol && Self.wide(width))
+            if twoCol {
+                let extra = max(0, geo.size.width - MacColumnsMetrics.leading - MacColumnsMetrics.trailing - width - MacColumnsMetrics.gap - MacColumnsMetrics.side) / 2
+                HStack(alignment: .top, spacing: MacColumnsMetrics.gap) {
+                    mainScroll(rows: rows, layout: layout, width: width, leading: 0, trailing: 0)
+                        .frame(width: width)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(sideItems, id: \.section) { item in section(item, layout: layout) }
+                            HomeSideDictations()
+                        }
+                        .frame(width: MacColumnsMetrics.side, alignment: .topLeading)
+                        .padding(.top, 18).padding(.bottom, 40)
                     }
-                    // Only the shown sections, each band identified by its first section.
-                    ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
-                        band(row, width: width, layout: layout)
-                            .padding(.top, Self.rowGap(row, after: i > 0 ? rows[i - 1] : nil))
-                    }
-                    editHomeButton.padding(.top, 32)
+                    .scrollIndicators(.never)
+                    .frame(width: MacColumnsMetrics.side)
                 }
-                // Record → recording: the Record card crossfades into the recording card and Home's space follows,
-                // only when recording starts or stops (DESIGN.md §7).
-                .animation(limitMotion ? Motion.fade : Motion.settle, value: recording)
-                .navMarkWhenLaidOut("home-laid-out")
-                .frame(width: width, alignment: .leading)
-                .padding(.horizontal, Self.margin(geo.size.width)).padding(.top, 18).padding(.bottom, 40)
-                .frame(maxWidth: .infinity, alignment: .center)
-                // Back and Forward bring Home back where you left it; the sidebar opens it at the top (App/NavTrail.swift).
-                .scrollPlace(ScreenPlaces.scrollKey("home"), restore: NavTrail.shared.movingThroughHistory)
+                .padding(.leading, MacColumnsMetrics.leading + extra)
+                .padding(.trailing, MacColumnsMetrics.trailing + extra)
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            } else {
+                mainScroll(rows: rows, layout: layout, width: width, leading: Self.margin(geo.size.width), trailing: Self.margin(geo.size.width))
             }
-            // The greeting fades under the toolbar's glass instead of running into it (review M-05).
-            .softScrollEdges(.top)
         }
+    }
+
+    /// The sections the side column takes on a wide window.
+    static let sideSections: Set<HomeSection> = [.week, .thoughts, .journal]
+    /// The main column's widest in two columns.
+    static let mainMax: CGFloat = 900
+
+    @ViewBuilder private func mainScroll(rows: [HomeRow], layout: HomeLayout, width: CGFloat, leading: CGFloat, trailing: CGFloat) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                LargeSerifTitle(title: greeting, eyebrow: HomeGreeting.dateLine(now))
+                    .background { popoverAnchors(layout) }
+                // After an update: "What's new in build N", once (WhatsNewPane.swift).
+                WhatsNewHomeLine(top: 16) { app.dictation.openSettings(tab: .whatsNew) }
+                // Your next call, or the call you're waiting for (CallViews.swift); nothing when there's neither.
+                HomeCallCard(now: now, top: 16)
+                // Recording with the Record card hidden: the recording card leads Home all the same.
+                if recording && !layout.isVisible(.record) {
+                    HomeRecordingCard().padding(.top, 18).transition(Motion.cardTransition(limited: limitMotion))
+                }
+                // Only the shown sections, each band identified by its first section.
+                ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
+                    band(row, width: width, layout: layout)
+                        .padding(.top, Self.rowGap(row, after: i > 0 ? rows[i - 1] : nil))
+                }
+                editHomeButton.padding(.top, 32)
+            }
+            // Record → recording: the Record card crossfades into the recording card and Home's space follows,
+            // only when recording starts or stops (DESIGN.md §7).
+            .animation(limitMotion ? Motion.fade : Motion.settle, value: recording)
+            .navMarkWhenLaidOut("home-laid-out")
+            .frame(width: width, alignment: .leading)
+            .padding(.leading, leading).padding(.trailing, trailing).padding(.top, 18).padding(.bottom, 40)
+            .frame(maxWidth: .infinity, alignment: .center)
+            // Back and Forward bring Home back where you left it; the sidebar opens it at the top (App/NavTrail.swift).
+            .scrollPlace(ScreenPlaces.scrollKey("home"), restore: NavTrail.shared.movingThroughHistory)
+        }
+        // The greeting fades under the toolbar's glass instead of running into it (review M-05).
+        .softScrollEdges(.top)
     }
 
     // MARK: Layout
@@ -773,5 +809,24 @@ final class HomeMic: ObservableObject {
         guard uid != lastUID else { return }
         lastUID = uid
         refresh()
+    }
+}
+
+/// Home's side column on a wide window: the last two dictations, with All opening Dictations. Nothing when there are
+/// none.
+struct HomeSideDictations: View {
+    @EnvironmentObject var app: AppState
+
+    var body: some View {
+        let recent = Array(app.store.live.filter { $0.flow != nil }.sorted { $0.createdAt > $1.createdAt }.prefix(2))
+        if !recent.isEmpty {
+            MacSideCard(title: "Dictations", link: "All", action: { app.go(.dictations) }) {
+                ForEach(recent) { t in
+                    let words = (t.flow?.pasted ?? t.text).split(whereSeparator: \.isWhitespace).count
+                    MacSideLine(label: "\(t.flow?.app ?? "Dictation") · \(words == 1 ? "1 word" : "\(words) words")",
+                                value: Formats.style(date: .none, time: .short).string(from: t.createdAt))
+                }
+            }
+        }
     }
 }
