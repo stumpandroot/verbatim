@@ -3003,12 +3003,16 @@ extension UITest {
         let h = window.contentView?.bounds.height ?? 0
         // The window's handle first, the same one the click uses, so the row chosen is the row clicked.
         func rowFrame(_ id: UUID) -> CGRect? { windowFrames["lib-row-\(id.uuidString)"]?() ?? frames["lib-row-\(id.uuidString)"] }
-        // The row nearest the window's lower middle, well inside the list.
+        // The row nearest the window's lower middle, well inside the list. Only rows the window still holds: a lazy
+        // row scrolled away keeps its last SwiftUI frame, which now sits over a different row (build 282 picked
+        // row 4 at its old place and clicked row 21).
         var picked: (id: UUID, distance: CGFloat)?
         let aim = h * 0.6
         let bottom = h - 60
+        let live = ids.contains { windowFrames["lib-row-\($0.uuidString)"]?() != nil }
         for id in ids {
-            guard let f = rowFrame(id), f.minY > 120, f.maxY < bottom else { continue }
+            let k = "lib-row-\(id.uuidString)"
+            guard let f = live ? windowFrames[k]?() : rowFrame(id), f.minY > 120, f.maxY < bottom else { continue }
             let d = abs(f.midY - aim)
             if picked == nil || d < picked!.distance { picked = (id, d) }
         }
