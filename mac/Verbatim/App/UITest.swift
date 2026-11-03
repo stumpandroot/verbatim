@@ -3332,7 +3332,6 @@ extension UITest {
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 }
-#endif
 
 /// One top-level page on its own, for the self-test's wide shots (`wideShots`).
 private struct WidePage: View {
@@ -3355,3 +3354,4 @@ private struct WidePage: View {
         .background(Refined.paper)
     }
 }
+#endif
