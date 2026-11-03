@@ -171,11 +171,14 @@ enum MeetingBannerKind: Equatable {
     case slept
     /// A short message (a failed start, a saved meeting, the notice copied). Hides after a few seconds.
     case notice(String)
+    /// "Recording your Zoom call": a call you set up started recording with no prompt. Hides after 5 seconds.
+    case started(app: String, title: String?, copied: Bool)
 
     var autoHide: Double? {
         switch self {
         case .call: return 20
         case .notice: return 7
+        case .started: return 5
         case .silent, .slept: return nil
         }
     }
@@ -290,6 +293,7 @@ final class MeetingBannerController {
         case .silent(let app): return MeetingCopy.silentTitle(app)
         case .slept: return MeetingCopy.sleptTitle
         case .notice(let s): return s
+        case .started(let app, let title, let copied): return MeetingCopy.startedTitle(app) + ". " + MeetingCopy.startedDetail(app: app, title: title, copied: copied)
         }
     }
 }
@@ -333,6 +337,18 @@ struct MeetingBannerView: View {
             row(icon: .iconDetails, title: text, detail: nil) {
                 MeetingButton(title: "OK", style: .quiet, target: "meeting-notice-ok") { act(.dismiss) }
             }
+        case .started(let app, let title, let copied):
+            // No buttons: Stop and Pause stay in the meeting's menu bar item, as for any meeting.
+            HStack(alignment: .top, spacing: 12) {
+                Circle().fill(Refined.recordRed).frame(width: 9, height: 9).padding(.top, 5).padding(.horizontal, 6.5).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(MeetingCopy.startedTitle(app)).refinedFont(.rowTitle, weight: .semibold).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(MeetingCopy.startedDetail(app: app, title: title, copied: copied)).refinedFont(.meta).foregroundStyle(Refined.dim)
+                        .lineSpacing(1.5).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
         }
     }
 
@@ -361,11 +377,24 @@ struct MeetingConsentRequest: Equatable {
     var appName: String?
     /// "Don't ask again for <App>" appears (after five recordings with this app).
     var offerSkip: Bool
+    /// Setting up a wait for a call that isn't on yet (Record a call, Record when it starts): the sheet asks which app
+    /// to wait for, and Record becomes Wait for the call. Nil to record now.
+    var wait: CallWaitSetup? = nil
+}
+
+/// The wait's setup in the consent sheet: the app picker's choices and the one chosen, and the event it's for.
+struct CallWaitSetup: Equatable {
+    var choices: [CallWaitChoice]
+    var selected: String
+    /// The calendar event's title, when it's for one.
+    var title: String?
 }
 
 struct MeetingConsentResult: Equatable {
     var copyNotice: Bool
     var dontAskAgain: Bool
+    /// The app picker's choice (`CallWaitChoice.id`), when setting up a wait.
+    var choiceID: String? = nil
 }
 
 @MainActor
@@ -373,6 +402,7 @@ final class MeetingConsentModel: ObservableObject {
     @Published var request: MeetingConsentRequest?
     @Published var copyNotice = true
     @Published var dontAskAgain = false
+    @Published var choiceID = "any"
 }
 
 /// "Record this meeting?" in its own small window near the top of the screen with the pointer, in front of the
@@ -396,6 +426,7 @@ final class MeetingConsentController {
         model.request = request
         model.copyNotice = copyDefault
         model.dontAskAgain = false
+        model.choiceID = request.wait?.selected ?? "any"
         self.completion = completion
         let p = panel ?? make()
         place(p)
@@ -419,7 +450,8 @@ final class MeetingConsentController {
 
     func finish(record: Bool) {
         guard model.request != nil else { return }
-        let result = record ? MeetingConsentResult(copyNotice: model.copyNotice, dontAskAgain: model.dontAskAgain && (model.request?.offerSkip ?? false)) : nil
+        let result = record ? MeetingConsentResult(copyNotice: model.copyNotice, dontAskAgain: model.dontAskAgain && (model.request?.offerSkip ?? false),
+                                                   choiceID: model.request?.wait == nil ? nil : model.choiceID) : nil
         let done = completion
         completion = nil
         model.request = nil
@@ -460,17 +492,25 @@ struct MeetingConsentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(MeetingCopy.consentTitle).font(.system(size: 26, design: .serif)).accessibilityAddTraits(.isHeader)
-            Text(MeetingCopy.consentBody(model.request?.appName)).modifier(ConsentText())
-            Text(MeetingCopy.consentLaw).modifier(ConsentText())
-            MeetingCheckbox(title: MeetingCopy.tellEveryone, isOn: $model.copyNotice, target: "meeting-consent-notice")
-            if model.request?.offerSkip == true, let app = model.request?.appName {
-                MeetingCheckbox(title: MeetingCopy.dontAskAgain(app), isOn: $model.dontAskAgain, target: "meeting-consent-skip")
+            if let wait = model.request?.wait {
+                waitSetup(wait)
+            } else {
+                Text(MeetingCopy.consentTitle).font(.system(size: 26, design: .serif)).accessibilityAddTraits(.isHeader)
+                Text(MeetingCopy.consentBody(model.request?.appName)).modifier(ConsentText())
+                Text(MeetingCopy.consentLaw).modifier(ConsentText())
+                MeetingCheckbox(title: MeetingCopy.tellEveryone, isOn: $model.copyNotice, target: "meeting-consent-notice")
+                if model.request?.offerSkip == true, let app = model.request?.appName {
+                    MeetingCheckbox(title: MeetingCopy.dontAskAgain(app), isOn: $model.dontAskAgain, target: "meeting-consent-skip")
+                }
             }
             HStack(spacing: 8) {
                 Spacer()
                 MeetingButton(title: "Cancel", target: "meeting-consent-cancel", action: cancel)
-                MeetingButton(title: "Record", style: .primary, dot: true, target: "meeting-consent-record", action: record)
+                if model.request?.wait != nil {
+                    MeetingButton(title: "Wait for the call", style: .primary, target: "meeting-consent-wait", action: record)
+                } else {
+                    MeetingButton(title: "Record", style: .primary, dot: true, target: "meeting-consent-record", action: record)
+                }
             }
             .padding(.top, 4)
         }
@@ -478,6 +518,26 @@ struct MeetingConsentView: View {
         .frame(width: MeetingConsentController.width, alignment: .leading)
         .foregroundStyle(Refined.ink)
         .modifier(FloatingCard())
+    }
+
+    /// "Record your next call" (mockup board 3): what happens, which app to wait for, the consent words (you say yes
+    /// here, not when the call starts), and the chat notice.
+    @ViewBuilder private func waitSetup(_ wait: CallWaitSetup) -> some View {
+        Text(MeetingCopy.waitTitle).font(.system(size: 26, design: .serif)).accessibilityAddTraits(.isHeader)
+        if let title = wait.title {
+            Text(title).refinedFont(.rowTitle, weight: .semibold).fixedSize(horizontal: false, vertical: true)
+        }
+        Text(wait.title == nil ? MeetingCopy.waitBodyNoCall : MeetingCopy.waitBody).modifier(ConsentText())
+        HStack(spacing: 10) {
+            Text("Wait for").refinedFont(.body).foregroundStyle(Refined.ink)
+            CallChoicePopUp(choices: wait.choices, selection: $model.choiceID)
+                .fixedSize()
+                .accessibilityLabel("Wait for")
+                .modifier(MeetingTarget(id: "meeting-consent-app"))
+            Spacer(minLength: 0)
+        }
+        Text(MeetingCopy.consentLaw).modifier(ConsentText())
+        MeetingCheckbox(title: MeetingCopy.copyOnStart, isOn: $model.copyNotice, target: "meeting-consent-notice")
     }
 
     private struct ConsentText: ViewModifier {
@@ -495,5 +555,48 @@ struct FloatingCard: ViewModifier {
         content
             .background(Refined.card, in: shape)
             .overlay(shape.strokeBorder(Refined.separator, lineWidth: 1))
+    }
+}
+
+/// The wait's app picker ("Any call app ⌄"): an AppKit pop-up button, which takes clicks in the consent panel
+/// (SwiftUI's menus and pickers can miss them in a non-activating panel, as its buttons do; see TapArea in
+/// Controls.swift). A separator before Google Meet sets the browsers apart.
+struct CallChoicePopUp: NSViewRepresentable {
+    var choices: [CallWaitChoice]
+    @Binding var selection: String
+
+    func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let b = NSPopUpButton(frame: .zero, pullsDown: false)
+        b.controlSize = .regular
+        b.target = context.coordinator
+        b.action = #selector(Coordinator.picked(_:))
+        return b
+    }
+
+    func updateNSView(_ b: NSPopUpButton, context: Context) {
+        context.coordinator.selection = $selection
+        let ids = choices.map(\.id)
+        if context.coordinator.ids != ids {
+            b.removeAllItems()
+            for c in choices {
+                if c.id == CallWaitChoices.meet.id { b.menu?.addItem(.separator()) }
+                let item = NSMenuItem(title: c.name, action: nil, keyEquivalent: "")
+                item.representedObject = c.id
+                b.menu?.addItem(item)
+            }
+            context.coordinator.ids = ids
+        }
+        if let item = b.itemArray.first(where: { ($0.representedObject as? String) == selection }) { b.select(item) }
+    }
+
+    final class Coordinator: NSObject {
+        var selection: Binding<String>
+        var ids: [String] = []
+        init(selection: Binding<String>) { self.selection = selection }
+        @objc func picked(_ sender: NSPopUpButton) {
+            if let id = sender.selectedItem?.representedObject as? String { selection.wrappedValue = id }
+        }
     }
 }

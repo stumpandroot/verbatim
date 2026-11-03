@@ -85,9 +85,17 @@ enum UITest {
             }
             // Call took App audio's place in the default four (November 3, 2026): with no call on, it sets up a wait in the
             // consent panel; Cancel closes it without recording. App audio's picker stays in the Record menu and Edit Home.
-            await step("call tile sets up a call", window, target: HomeView.tileTarget(.call), check: { MeetingCoordinator.shared.consent.isShowing })
-            MeetingCoordinator.shared.consent.finish(record: false)
-            check("call tile: Cancel records nothing", !MeetingSession.shared.isActive && !MeetingCoordinator.shared.consent.isShowing)
+            let calls = MeetingCoordinator.shared
+            await step("call tile sets up a call", window, target: HomeView.tileTarget(.call), check: { calls.consent.isShowing && calls.consent.model.request?.wait != nil })
+            calls.consent.finish(record: false)
+            check("call tile: Cancel records nothing and sets up nothing", !MeetingSession.shared.isActive && !calls.consent.isShowing && calls.wait == nil)
+            // Wait for the call: nothing is watched in the self-test, so the wait only shows; Home's Cancel clears it.
+            await step("call tile sets up a call again", window, target: HomeView.tileTarget(.call), check: { calls.consent.isShowing })
+            calls.consent.finish(record: true)
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            check("call: Wait for the call sets up a wait for any call app and records nothing",
+                  calls.wait?.anyApp == true && !MeetingSession.shared.isActive)
+            await step("call: Home's Cancel stops waiting", window, target: "home-call-cancel", check: { calls.wait == nil })
             check("App audio left the default four for Call and stays in the catalog",
                   HomeLayout.defaults(.mac).tiles == [.dictate, .importMedia, .call, .newThought] && HomeTile.available(on: .mac).contains(.appAudio))
             app.pickApp()

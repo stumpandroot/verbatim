@@ -48,6 +48,10 @@ struct MeetingSidecar: Codable, Equatable {
     /// The transcript the session became. Recovery skips a session that already has one.
     var transcriptID: UUID? = nil
     var stoppedCleanly = false
+    /// A call set up from a calendar event (App/CallCalendar.swift): the event's title names the recording, and its
+    /// attendees become the speaker names to pick from. Nil for other recordings (and in sidecars from before).
+    var title: String? = nil
+    var attendees: [String]? = nil
 
     func track(_ role: MeetingTrack.Role) -> MeetingTrack? { tracks.first { $0.role == role } }
 

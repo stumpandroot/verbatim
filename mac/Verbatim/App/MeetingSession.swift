@@ -76,6 +76,9 @@ final class MeetingSession: ObservableObject {
     private var sleepObservers: [NSObjectProtocol] = []
     private var screenStartedAt: Double = 0
     private var pausedForSleep = false
+    /// The calendar event's title and attendees, for the sidecar (a call set up from Home's Next call card).
+    private var eventTitle: String?
+    private var eventAttendees: [String] = []
 
     @available(macOS 14.4, *)
     private var tap: ProcessTapCapture? { tapObject as? ProcessTapCapture }
@@ -111,11 +114,13 @@ final class MeetingSession: ObservableObject {
 
     // MARK: Start
 
-    func start(app: AppState, target: MeetingAudioTarget, speaker: String) {
+    func start(app: AppState, target: MeetingAudioTarget, speaker: String, title: String? = nil, attendees: [String] = []) {
         guard phase == .idle else { return }
         self.app = app
         self.target = target
         self.speaker = speaker
+        eventTitle = title.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+        eventAttendees = attendees
         remoteSilent = false; slept = false; micOnly = false; pausedForSleep = false
         micName = AudioDevices.current()?.name ?? "Microphone"
         phase = .starting
@@ -148,6 +153,8 @@ final class MeetingSession: ObservableObject {
             MeetingTrack(role: .mic, fileName: micURL.lastPathComponent, speaker: "You"),
             MeetingTrack(role: .system, fileName: systemURL.lastPathComponent, speaker: speaker),
         ])
+        side.title = eventTitle
+        side.attendees = eventAttendees.isEmpty ? nil : eventAttendees
         self.folder = folder; self.micURL = micURL; self.systemURL = systemURL
         sidecar = side
         writeSidecar()
@@ -506,7 +513,9 @@ final class MeetingSession: ObservableObject {
         // A system track of exact zeros (no permission) only adds an empty speaker.
         let systemOK = usable(system) && sidecar.track(.system)?.heardSignal != false
         var side = sidecar
-        let title = "\(recovered ? "Recovered meeting" : "Meeting") · \(side.track(.system)?.speaker ?? side.targetName) · \(Store.stamp(side.createdAt))"
+        // A call set up from a calendar event takes the event's title (November 3, 2026).
+        let title = side.title.map { recovered ? "Recovered: \($0)" : $0 }
+            ?? "\(recovered ? "Recovered meeting" : "Meeting") · \(side.track(.system)?.speaker ?? side.targetName) · \(Store.stamp(side.createdAt))"
         let label = recovered ? "Recovered meeting" : "Meeting"
         if micOK, systemOK, let mic, let system, let micTrack = side.track(.mic), let sysTrack = side.track(.system) {
             let plan = MeetingAlign.plan(side)

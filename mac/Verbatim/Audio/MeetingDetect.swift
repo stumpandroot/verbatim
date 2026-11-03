@@ -251,6 +251,30 @@ enum MeetingCopy {
     static let sleptTitle = "Your Mac went to sleep, so the recording paused"
     static let sleptDetail = "Everything before that is saved."
 
+    // Record a call before it starts (mockup "Verbose Call Recording", November 3, 2026).
+    static let waitTitle = "Record your next call"
+    static let waitBodyNoCall = "No call is on yet. Verbose waits and starts recording when the call does: your microphone and the call app, as two tracks."
+    static let waitBody = "Verbose waits and starts recording when the call does: your microphone and the call app, as two tracks."
+    static let copyOnStart = "Copy the chat notice when recording starts"
+
+    /// "Recording your Zoom call" (the banner when a call you set up starts recording).
+    static func startedTitle(_ app: String) -> String { "Recording your \(app) call" }
+
+    /// "Catalog review with the printer · two tracks. The chat notice is on your clipboard; paste it in the Zoom chat."
+    static func startedDetail(app: String, title: String?, copied: Bool) -> String {
+        let what = "\(title ?? "Your microphone and \(app)") · two tracks."
+        return copied ? "\(what) The chat notice is on your clipboard; paste it in the \(app) chat." : what
+    }
+
+    /// "Zoom left the call" (Stop when the call ends).
+    static func leftTitle(_ app: String) -> String { "\(app) left the call" }
+
+    /// "Recording stops in 15 seconds and saves as “Catalog review with the printer”."
+    static func leftDetail(title: String?, seconds: Int) -> String {
+        let when = "Recording stops in \(seconds) seconds"
+        return title.map { "\(when) and saves as “\($0)”." } ?? "\(when) and saves."
+    }
+
     static func promptTitle(_ app: String) -> String { "\(app) is using your microphone" }
     static func silentTitle(_ app: String) -> String { "Verbose isn't hearing anything from \(app)" }
     static func dontAskAgain(_ app: String) -> String { "Don't ask again for \(app)" }

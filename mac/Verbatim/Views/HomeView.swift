@@ -32,8 +32,9 @@ struct HomeView: View {
     @ObservedObject var layouts = HomeLayoutStore.shared
     @ObservedObject var edit = HomeEditSession.shared
     @ObservedObject private var recordAs = RecordAsStore.shared
-    /// The Call tile's state: a call recording.
+    /// The Call tile's state: a call recording, or waiting for one.
     @ObservedObject private var meeting = MeetingSession.shared
+    @ObservedObject private var calls = MeetingCoordinator.shared
     @AppStorage(YouProfile.nameKey) var storedName = ""
     /// The microphone's name, looked up off the main thread and kept current by Core Audio's notifications. (Looking
     /// it up here, in a `@State` initial value and on every UserDefaults change, ran a full device scan on the main
@@ -124,6 +125,8 @@ struct HomeView: View {
                         .background { popoverAnchors(layout) }
                     // After an update: "What's new in build N", once (WhatsNewPane.swift).
                     WhatsNewHomeLine(top: 16) { app.dictation.openSettings(tab: .whatsNew) }
+                    // Your next call, or the call you're waiting for (CallViews.swift); nothing when there's neither.
+                    HomeCallCard(now: now, top: 16)
                     // Recording with the Record card hidden: the recording card leads Home all the same.
                     if recording && !layout.isVisible(.record) { HomeRecordingCard().padding(.top, 18) }
                     // Only the shown sections, each band identified by its first section.
@@ -235,6 +238,7 @@ struct HomeView: View {
     /// The Call tile's line under its name: the apps it records, or what it's doing now.
     var callTrailing: RefinedRules.TileTrailing {
         if meeting.isActive { return .state("Recording", spoken: "Recording a call. Shows the recording.") }
+        if calls.wait != nil { return .state("Waiting for your call", spoken: "Waiting for your call. Click to stop waiting.") }
         return .state(HomeTile.call.detail, spoken: "Zoom, Google Meet, Teams, FaceTime, and other call apps.")
     }
     var micName: String { mics.device?.name ?? "Microphone" }

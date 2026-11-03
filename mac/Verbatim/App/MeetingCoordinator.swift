@@ -8,6 +8,11 @@ import Combine
 /// after; "Don't ask again" only after five recordings with that app). While recording, it shows the menu bar item
 /// and the notes for a silent meeting app or a Mac that slept. The decisions themselves (which app, when to ask,
 /// one prompt per call, consent counts) are pure and tested in Audio/MeetingDetect.swift.
+///
+/// Record a call (November 3, 2026, mockup "Verbose Call Recording"): Home's Call tile, the Record menus, and the menu
+/// bar record the call that's on (consent sheet first), or, with none on yet, set up a wait. The consent sheet shows at
+/// setup, so when the chosen app starts using the microphone recording starts with no prompt: you already said yes.
+/// The wait, when it fires, and when a call has ended are pure and tested in Audio/CallPlan.swift.
 @MainActor
 final class MeetingCoordinator: ObservableObject {
     static let shared = MeetingCoordinator()
@@ -22,6 +27,8 @@ final class MeetingCoordinator: ObservableObject {
     static var copyNoticeOnStart: Bool { UserDefaults.standard.object(forKey: copyNoticeKey) as? Bool ?? true }
 
     @Published private(set) var book: MeetingAppBook
+    /// Waiting for your call: set up from the Call tile, a Record menu, the menu bar, or Home's Next call card.
+    @Published private(set) var wait: CallWait?
 
     let banner = MeetingBannerController()
     let consent = MeetingConsentController()
@@ -37,6 +44,9 @@ final class MeetingCoordinator: ObservableObject {
     /// A start waiting for the session to record, so the recording counts toward "Don't ask again".
     private var pendingCount: (key: String, name: String)?
     private var lastKeys: Set<String> = []
+    private var waitTracker = CallWaitTracker()
+    /// The call app being recorded (its key), for Stop when the call ends; nil for all system audio.
+    private var recordingKey: String?
 
     private init() {
         book = MeetingAppBook.decode(UserDefaults.standard.data(forKey: Self.bookKey))
@@ -67,7 +77,7 @@ final class MeetingCoordinator: ObservableObject {
     /// Starts or stops watching the microphone when the setting changes. The self-test never watches (it shows a
     /// pretend prompt instead).
     private func preferencesChanged() {
-        let want = Self.noticeCalls && !UITest.enabled && !Bench.isRequested
+        let want = (Self.noticeCalls || wait != nil || MeetingSession.shared.isActive) && !UITest.enabled && !Bench.isRequested
         if want, !detector.isRunning {
             detector.start()
             evaluate()
@@ -98,8 +108,20 @@ final class MeetingCoordinator: ObservableObject {
             lastKeys = keys
         }
         let session = MeetingSession.shared
-        let context = MeetingCallTracker.Context(enabled: Self.noticeCalls, busy: isBusy, recordingMeeting: session.isActive, muted: book.muted)
-        for event in tracker.update(using: keys, now: ProcessInfo.processInfo.systemUptime, context: context) {
+        let now = ProcessInfo.processInfo.systemUptime
+        // Waiting for your call: the chosen app on the microphone starts the recording, before any prompt.
+        if let w = wait {
+            if w.expired(now: Date()) {
+                Log.note("meeting: the wait for \(w.appName) ended without a call")
+                clearWait()
+            } else if let key = waitTracker.update(wait: w, using: keys, now: now, busy: isBusy || session.isActive) {
+                startFromWait(w, key: key)
+            }
+        }
+        // Apps a wait is for never get the prompt: their call starts the recording.
+        let muted = book.muted.union(wait?.keys ?? [])
+        let context = MeetingCallTracker.Context(enabled: Self.noticeCalls, busy: isBusy, recordingMeeting: session.isActive, muted: muted)
+        for event in tracker.update(using: keys, now: now, context: context) {
             switch event {
             case .prompt(let key):
                 if let info = MeetingApps.info(key: key) { prompt(info) }
@@ -110,7 +132,7 @@ final class MeetingCoordinator: ObservableObject {
                 }
             }
         }
-        if !tracker.isIdle || snap.deviceRunning || !keys.isEmpty { startPolling() } else { stopPolling() }
+        if !tracker.isIdle || snap.deviceRunning || !keys.isEmpty || wait != nil { startPolling() } else { stopPolling() }
     }
 
     /// Verbose itself is recording, capturing, dictating, showing captions, or asking for consent: wait.
@@ -180,17 +202,86 @@ final class MeetingCoordinator: ObservableObject {
 
     // MARK: Record a call
 
-    /// Home's Call tile: while a call records, its panel; otherwise Record a call.
+    /// Home's Call tile: while a call records, its panel; while waiting, stop waiting (the tile says so); otherwise
+    /// Record a call.
     func callTileClicked() {
         if MeetingSession.shared.isActive { status.open(); return }
+        if wait != nil { cancelWait(); return }
         recordCall()
     }
 
-    /// Record a call (Home's Call tile, Record's right-click menu, the toolbar's Record menu, and the menu bar panel):
-    /// the meeting capture for the call app using the microphone, consent sheet first.
+    /// Record a call (Home's Call tile, Record's right-click menu, the toolbar's Record menu, and the menu bar panel).
+    /// A call app already using the microphone: the consent sheet you have today, then it records. None: the wait's
+    /// setup (which app, the chat notice, and the consent), then recording starts when the call does.
     func recordCall() {
         guard !MeetingSession.shared.isActive else { return }
-        recordFromMenu()
+        if let info = callAppOnMic() {
+            Log.note("meeting: Record a call with \(info.name) already on the microphone")
+            requestRecording(app: info, target: MeetingSession.target(for: info), speaker: info.name)
+            return
+        }
+        setUpWait(choices: CallWaitChoices.all, preselect: "any", event: nil)
+    }
+
+    /// The call app using the microphone right now, if any (the preferred one when several are).
+    private func callAppOnMic() -> MeetingAppInfo? {
+        guard !UITest.enabled, !Bench.isRequested else { return nil }
+        if !detector.isRunning { detector.start() }
+        let snap = detector.snapshot()
+        let running = Set(NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier?.lowercased() })
+        var keys = Set<String>()
+        if let users = snap.users {
+            for id in users { if let a = MeetingApps.resolve(id, running: running) { keys.insert(a.key) } }
+        } else if snap.deviceRunning, !verboseUsesMic,
+                  let a = MeetingApps.guess(frontmost: NSWorkspace.shared.frontmostApplication?.bundleIdentifier, running: Array(running)) {
+            keys.insert(a.key)
+        }
+        preferencesChanged()
+        return MeetingApps.known.first { keys.contains($0.key) }
+    }
+
+    /// The wait's setup in the consent panel: which app (Any call app, a specific app, or a browser for Meet), the
+    /// chat notice, and the consent words, since this is where you say yes.
+    private func setUpWait(choices: [CallWaitChoice], preselect: String, event: CallEvent?) {
+        let request = MeetingConsentRequest(key: "wait", appName: nil, offerSkip: false,
+                                            wait: CallWaitSetup(choices: choices, selected: preselect, title: event?.title))
+        consent.show(request, copyDefault: Self.copyNoticeOnStart) { [weak self] result in
+            guard let self, let result, let choice = choices.first(where: { $0.id == result.choiceID }) ?? choices.first else { return }
+            self.arm(CallWaitChoices.wait(choice, event: event, copyNotice: result.copyNotice, now: Date()))
+        }
+    }
+
+    /// Sets up the wait: from now on the chosen app's call starts the recording.
+    private func arm(_ w: CallWait) {
+        guard !MeetingSession.shared.isActive else { return }
+        wait = w
+        waitTracker.reset()
+        tracker.settleAll()
+        Log.note("meeting: waiting for \(w.anyApp ? "any call app" : w.appName)\(w.title.map { " (\($0))" } ?? "") until \(w.expires)")
+        preferencesChanged()
+        evaluate()
+    }
+
+    /// Cancel on Home, in the menu bar, or the Call tile while it waits.
+    func cancelWait() {
+        guard wait != nil else { return }
+        Log.note("meeting: wait cancelled")
+        clearWait()
+    }
+
+    private func clearWait() {
+        wait = nil
+        waitTracker.reset()
+        preferencesChanged()
+    }
+
+    /// The wait fired: recording starts with no prompt (the consent sheet showed at setup), titled for the event.
+    private func startFromWait(_ w: CallWait, key: String) {
+        guard let info = MeetingApps.info(key: key) else { return }
+        Log.note("meeting: \(info.name) started using the microphone; recording the call you set up")
+        clearWait()
+        start(key: info.key, name: info.name, target: MeetingSession.target(for: info), speaker: info.name, copy: w.copyNotice,
+              skipFromNowOn: false, title: w.title, attendees: w.attendees, announce: true)
     }
 
     /// The consent sheet, unless you turned it off for this app after five recordings.
@@ -210,16 +301,23 @@ final class MeetingCoordinator: ObservableObject {
         }
     }
 
-    private func start(key: String, name: String, target: MeetingAudioTarget, speaker: String, copy: Bool, skipFromNowOn: Bool) {
+    /// `announce`: a start from a wait says so in a banner ("Recording your Zoom call"), since you weren't looking.
+    private func start(key: String, name: String, target: MeetingAudioTarget, speaker: String, copy: Bool, skipFromNowOn: Bool,
+                       title: String? = nil, attendees: [String] = [], announce: Bool = false) {
         guard let app else { return }
         tracker.settleAll()
+        if wait != nil { clearWait() }
         if skipFromNowOn { book.setSkipConsent(key, true); saveBook() }
         pendingCount = (key, name)
-        if copy {
-            copyChatNotice()
+        recordingKey = MeetingApps.info(key: key)?.key
+        if copy { copyChatNotice() }
+        if announce {
+            banner.show(.started(app: name, title: title, copied: copy))
+        } else if copy {
             banner.show(.notice("The chat notice is copied. Paste it in the meeting chat."))
         }
-        MeetingSession.shared.start(app: app, target: target, speaker: speaker)
+        MeetingSession.shared.start(app: app, target: target, speaker: speaker, title: title, attendees: attendees)
+        preferencesChanged()
     }
 
     func copyChatNotice() {
@@ -235,13 +333,15 @@ final class MeetingCoordinator: ObservableObject {
         case .idle:
             status.hide()
             pendingCount = nil
+            recordingKey = nil
             // The silent and sleep notes belong to the recording; a notice ("The meeting is saved…") stays.
             banner.hide { k in
                 switch k {
                 case .silent, .slept: return true
-                case .call, .notice: return false
+                case .call, .notice, .started: return false
                 }
             }
+            preferencesChanged()
         case .starting, .stopping:
             status.show()
         case .recording, .paused:

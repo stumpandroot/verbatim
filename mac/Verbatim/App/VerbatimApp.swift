@@ -122,12 +122,15 @@ struct VerbatimApp: App {
 /// this view watches the recorder, so the scenes aren't rebuilt.
 struct MenuBarMark: View {
     @ObservedObject var recorder: Recorder
+    /// Waiting for your call: the bars with a dot (CallViews.swift).
+    @ObservedObject private var calls = MeetingCoordinator.shared
 
     var body: some View {
         let warn = recorder.isRecording && recorder.micWarning != nil
+        let armed = calls.wait != nil
         Image(nsImage: warn ? BrandArt.iconAttention.templateImage(size: 16, key: "menubar-mic-warning")
-                            : BrandArt.markBars.templateImage(size: 16, key: "menubar"))
-            .accessibilityLabel(warn ? "Verbose, your mic seems to be muted" : "Verbose")
+                            : armed ? CallMenuBarMark.armed() : BrandArt.markBars.templateImage(size: 16, key: "menubar"))
+            .accessibilityLabel(warn ? "Verbose, your mic seems to be muted" : armed ? "Verbose, waiting for your call" : "Verbose")
     }
 }
 
