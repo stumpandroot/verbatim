@@ -468,6 +468,8 @@ struct TranscriptScreen: View {
                 })
                 }
             }
+            // A tab change crossfades the body as a whole over 150 ms (DESIGN.md §7, view switches).
+            .crossfadeSwitch(on: mode)
         }
     }
 

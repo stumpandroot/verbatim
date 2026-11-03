@@ -24,6 +24,8 @@ struct WordsCalendarScreen: View {
     @EnvironmentObject var app: PhoneState
     @ObservedObject private var flow = FlowSettings.shared
     @AppStorage(WordsCalendar.milestoneSeenKey) private var milestoneSeen = 0
+    /// You › Show milestones; off by default, so the calendar opens on the month.
+    @AppStorage(WordsCalendar.showMilestonesKey) private var showMilestones = false
     @State private var span: Span = .month
     @State private var anchor = Date()
     @State private var now = Date()
@@ -45,7 +47,7 @@ struct WordsCalendarScreen: View {
                     .frame(maxWidth: 240)
                     .id("words.top")
                 if span == .month {
-                    if let m = milestone {
+                    if showMilestones, let m = milestone {
                         WordsMilestoneCard(book: m.book, on: m.on) { span = .year }
                     }
                     WordsMonthView(month: store.wordsMonth(anchor, now: now), extras: store.wordsExtras(anchor, now: now),
@@ -74,8 +76,9 @@ struct WordsCalendarScreen: View {
         .onAppear {
             Self.onScreen += 1
             now = Date()
-            // Shown once: marked seen as soon as it's found, and kept on screen for this visit.
-            if !checkedMilestone {
+            // Shown once: marked seen as soon as it's found, and kept on screen for this visit. Only with Show
+            // milestones on, so turning it on later still shows the newest one.
+            if showMilestones, !checkedMilestone {
                 checkedMilestone = true
                 milestone = WordsCalendar.milestone(store.wordsEntries, seen: milestoneSeen)
                 if let m = milestone { milestoneSeen = max(milestoneSeen, m.book.words) }

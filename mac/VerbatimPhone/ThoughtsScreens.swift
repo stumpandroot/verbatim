@@ -406,7 +406,7 @@ struct ByDayScreen: View {
                     RefinedSegmented(label: "Kind", options: [(RecordingKind.idea, "Thoughts"), (RecordingKind.journal, "Journal")], selection: $kind)
                         .padding(.top, 14)
                 }
-                PhoneMonthCalendar(month: $month, days: Set(pages.map(\.day)), today: app.todayPage, hue: kind.refinedHue, pick: open)
+                PhoneMonthCalendar(month: $month, counts: DayPages.entryCounts(pages), today: app.todayPage, pick: open)
                     .padding(.top, fixed ? 4 : 16)
                 PaperGroup("This month · \(DayPages.count(days.count, "day", "days"))") {
                     if days.isEmpty {
@@ -477,12 +477,13 @@ struct ByDayScreen: View {
 }
 
 /// The month calendar on a card: the month in the section title's serif, previous and next, the weekday letters, a
-/// dot in the kind's color on each day with something (a day with a dot opens its page), and today ringed.
+/// dot in ink on each day with something (a day with a dot opens its page; VoiceOver reads how many entries), and today
+/// ringed.
 private struct PhoneMonthCalendar: View {
     @Binding var month: Date
-    var days: Set<Date>
+    /// How many entries each day with something has.
+    var counts: [Date: Int]
     var today: Date
-    var hue: RefinedHue
     var pick: (Date) -> Void
     private static let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
@@ -524,20 +525,22 @@ private struct PhoneMonthCalendar: View {
     }
 
     @ViewBuilder private func dayCell(_ d: Date, inMonth: Bool) -> some View {
-        let has = days.contains(d)
+        let entries = counts[d] ?? 0
+        let has = entries > 0
         let isToday = d == today
         let cell = VStack(spacing: 2) {
             Text("\(Calendar.current.component(.day, from: d))")
                 .refinedFont(.rowTitle, weight: isToday ? .semibold : .regular).monospacedDigit()
                 .foregroundStyle(isToday ? Refined.accentText : (inMonth ? Refined.ink : Refined.faint))
-            Circle().fill(Refined.badge(hue)).frame(width: 6, height: 6).opacity(has && inMonth ? 1 : 0)
+            // Ink, not the kind's fill: a butter dot on the card was about 1.4:1 (critique; DESIGN.md §14.6).
+            Circle().fill(Refined.ink).frame(width: 6, height: 6).opacity(has && inMonth ? 1 : 0)
         }
         .frame(maxWidth: .infinity).frame(minHeight: 44)
         .background { if isToday { Circle().fill(Refined.persimmonTint).frame(width: 40, height: 40) } }
         if has && inMonth {
             Button { pick(d) } label: { cell.contentShape(Rectangle()) }
                 .buttonStyle(RefinedRowPress())
-                .accessibilityLabel("\(DayPages.dateTitle(d))\(isToday ? ", today" : ""), has entries")
+                .accessibilityLabel("\(DayPages.dateTitle(d))\(isToday ? ", today" : ""), \(DayPages.count(entries, "entry", "entries"))")
                 .accessibilityHint("Opens that day's page")
         } else {
             cell

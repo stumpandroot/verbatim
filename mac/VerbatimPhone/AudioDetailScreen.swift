@@ -193,11 +193,13 @@ struct PhoneAudioDetail: View {
                     PaperList(ms, id: \.id, inset: 14) { n in
                         Button { app.player.play(from: n.at ?? 0) } label: {
                             HStack(spacing: 10) {
-                                MomentChip(time: Marks.clock(n.at ?? 0))
+                                // The chip and the source keep their whole text; the name wraps to a second line instead
+                                // (the chip read "Mo…" beside a long name; critique).
+                                MomentChip(time: Marks.clock(n.at ?? 0)).fixedSize()
                                 Text(n.text.isEmpty ? "Add a name" : n.text).refinedFont(.body)
-                                    .foregroundStyle(n.text.isEmpty ? Refined.mute : Refined.ink).lineLimit(1)
-                                Spacer(minLength: 6)
-                                if let src = Marks.shortSource(n) { Text(src).refinedFont(.meta).foregroundStyle(Refined.mute) }
+                                    .foregroundStyle(n.text.isEmpty ? Refined.mute : Refined.ink).lineLimit(2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                if let src = Marks.shortSource(n) { Text(src).refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize() }
                             }
                             .padding(.horizontal, 14).padding(.vertical, 6)
                             .frame(minHeight: CGFloat(RefinedRules.minTapTarget))

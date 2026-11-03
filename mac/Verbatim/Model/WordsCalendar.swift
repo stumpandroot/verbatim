@@ -445,6 +445,8 @@ enum WordsCalendar {
     // MARK: Milestones
 
     static let milestoneSeenKey = "words.milestoneSeen"
+    /// You › Show milestones (iPhone): the milestone card on the words calendar. Off by default (critique, build 283).
+    static let showMilestonesKey = "words.showMilestones"
 
     /// The newest length on the shelf your words passed that you haven't seen yet, and the day you passed it. Shown
     /// once (`milestoneSeenKey` keeps the words of the last one shown).

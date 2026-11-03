@@ -21,26 +21,46 @@ struct PhoneDocument: View {
     private var tone: Polish.Tone { Polish.Tone(rawValue: transcript.documentTone) ?? .spoken }
     private var visibleLints: [Harper.Lint] { lints.filter { $0.source == text && !ignored.contains($0.original) } }
 
+    private var cleanUpMenu: some View {
+        Menu {
+            ForEach(Polish.Level.allCases) { l in
+                Button { run(level: l, tone: tone) } label: { Text("\(l.rawValue) · \(l.note)") }
+            }
+        } label: { RefinedMenuLabel(title: Self.cleanUpLabel(level)) }
+        .buttonStyle(.plain)
+    }
+
+    private var toneMenu: some View {
+        Menu {
+            ForEach(Polish.Tone.allCases) { t in Button(t.rawValue) { run(level: level == .none ? .light : level, tone: t) } }
+        } label: { RefinedMenuLabel(title: "Tone · \(tone.rawValue)") }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder private var historyButtons: some View {
+        circle("arrow.uturn.backward", label: "Undo") { undo() }
+            .disabled(transcript.documentHistory.isEmpty)
+            .opacity(transcript.documentHistory.isEmpty ? 0.45 : 1)
+        circle("arrow.counterclockwise", label: "Reset to the corrected lines") { confirmReset = true }
+            .disabled(transcript.document == nil)
+            .opacity(transcript.document == nil ? 0.45 : 1)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Menu {
-                    ForEach(Polish.Level.allCases) { l in
-                        Button { run(level: l, tone: tone) } label: { Text("\(l.rawValue) · \(l.note)") }
-                    }
-                } label: { RefinedMenuLabel(title: Self.cleanUpLabel(level)) }
-                .buttonStyle(.plain)
-                Menu {
-                    ForEach(Polish.Tone.allCases) { t in Button(t.rawValue) { run(level: level == .none ? .light : level, tone: t) } }
-                } label: { RefinedMenuLabel(title: "Tone · \(tone.rawValue)") }
-                .buttonStyle(.plain)
-                Spacer()
-                circle("arrow.uturn.backward", label: "Undo") { undo() }
-                    .disabled(transcript.documentHistory.isEmpty)
-                    .opacity(transcript.documentHistory.isEmpty ? 0.45 : 1)
-                circle("arrow.counterclockwise", label: "Reset to the corrected lines") { confirmReset = true }
-                    .disabled(transcript.document == nil)
-                    .opacity(transcript.document == nil ? 0.45 : 1)
+            // One row when Clean up and Tone show their whole values beside Undo and Reset; otherwise Tone moves to a
+            // second row, so a value never reads "Tone · As…" (critique).
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { cleanUpMenu; toneMenu; Spacer(); historyButtons }
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) { cleanUpMenu; Spacer(); historyButtons }
+                    toneMenu
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) { Spacer(); historyButtons }
+                    cleanUpMenu
+                    toneMenu
+                }
             }
             if let by = transcript.cleanedBy {
                 VStack(alignment: .leading, spacing: 4) {

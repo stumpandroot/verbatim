@@ -47,7 +47,7 @@ struct ByDayView: View {
                 HStack(alignment: .top, spacing: 24) {
                     VStack(alignment: .leading, spacing: 16) {
                         DayCalendar(month: Binding(get: { month }, set: { shownMonth = $0 }), selected: day, today: today,
-                                    marked: Set(pages.map(\.day)), hue: kind.refinedHue) { d in selected = d }
+                                    counts: DayPages.entryCounts(pages)) { d in selected = d }
                         dayList(pages, selected: day, month: month)
                     }
                     .frame(width: 280)
@@ -182,8 +182,8 @@ struct DayCalendar: View {
     @Binding var month: Date
     var selected: Date
     var today: Date
-    var marked: Set<Date>
-    var hue: RefinedHue = .butter
+    /// How many entries each day with something has.
+    var counts: [Date: Int]
     var pick: (Date) -> Void
 
     var body: some View {
@@ -215,11 +215,13 @@ struct DayCalendar: View {
     private func dayCell(_ d: Date, inMonth: Bool) -> some View {
         let isSelected = d == selected
         let isToday = d == today
-        let dot = marked.contains(d)
+        let entries = counts[d] ?? 0
+        let dot = entries > 0
         return VStack(spacing: 2) {
             Text("\(Calendar.current.component(.day, from: d))").refinedFont(.rowTitle, weight: isSelected ? .semibold : .regular).monospacedDigit()
                 .foregroundStyle(isSelected ? Refined.accentText : (inMonth ? Refined.ink : Refined.faint))
-            Circle().fill(Refined.badge(hue)).frame(width: 5, height: 5).opacity(dot ? 1 : 0)
+            // Ink, not the kind's fill: a butter dot on the card was about 1.4:1 (critique; DESIGN.md §14.6).
+            Circle().fill(Refined.ink).frame(width: 5, height: 5).opacity(dot ? 1 : 0)
         }
         .frame(maxWidth: .infinity).frame(height: 34)
         .background {
@@ -230,7 +232,7 @@ struct DayCalendar: View {
         .contentShape(Rectangle())
         .tapArea { pick(d); if !inMonth { month = d } }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(DayPages.dateTitle(d))\(isToday ? ", today" : "")\(dot ? ", has entries" : "")")
+        .accessibilityLabel("\(DayPages.dateTitle(d))\(isToday ? ", today" : "")\(dot ? ", " + DayPages.count(entries, "entry", "entries") : "")")
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .uiTarget(dot && inMonth ? "byday-dot-\(Calendar.current.component(.day, from: d))" : "byday-day-\(Calendar.current.component(.day, from: d))")
     }

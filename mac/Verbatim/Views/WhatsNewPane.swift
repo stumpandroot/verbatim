@@ -254,6 +254,7 @@ struct WhatsNewHomeLine: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
     var open: () -> Void
     @AppStorage(ReleaseNotes.lastSeenKey) private var lastSeen = 0
+    @Environment(\.limitMotion) private var limitMotion
     /// The UI self-test shows the note for a build of its choosing.
     static var previewBuild: Int? = nil
     /// The UI self-test asks Home to check for the What's new sheet again, or, with false, closes it as Continue does.
@@ -282,7 +283,8 @@ struct WhatsNewHomeLine: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("What's new in build \(number): \(note.title)")
                 .accessibilityHint("Opens What's new in Settings")
-                Button { lastSeen = max(lastSeen, number) } label: {
+                // The line fades and slides 6 pt as it goes, and Home closes the space smoothly (DESIGN.md §7).
+                Button { withAnimation(Motion.cardAnimation(limited: limitMotion)) { lastSeen = max(lastSeen, number) } } label: {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Refined.mute)
                         .frame(width: 30, height: 30)
                         .contentShape(Rectangle())
@@ -294,7 +296,7 @@ struct WhatsNewHomeLine: View {
             }
             .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
             .padding(.top, top)
-            .transition(.opacity)
+            .transition(Motion.cardTransition(limited: limitMotion))
         }
     }
 }

@@ -79,8 +79,12 @@ struct ContentView: View {
     /// the screen's items, and the search field, and one inspector.
     private var main: some View {
         MacWindow(nav: windowNav, columns: $columns) { detail }
-            .searchable(text: $app.search, placement: .toolbar, prompt: "Search or ask")
+            .searchable(text: $app.search, placement: .toolbar, prompt: ToolbarSearchPrompt.prompt)
+            .modifier(TranscriptSearchMinimized(minimize: app.screen.transcriptID != nil))
             .onSubmit(of: .search) { AskNav.shared.open(mode: .ask, query: app.search, askNow: true) }
+            // The prompt in `mute` once the toolbar exists, and again after each screen change (MacChrome.swift).
+            .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { ToolbarSearchPrompt.apply(to: app.mainWindow) } }
+            .onChange(of: app.navCount) { _, _ in DispatchQueue.main.async { ToolbarSearchPrompt.apply(to: app.mainWindow) } }
     }
 
     /// The screen. One screen is in the window at a time: a navigation swaps the screen in a transaction with no
@@ -88,8 +92,9 @@ struct ContentView: View {
     /// earlier faded the new screen in over the old on `navCount`: with an animated transaction, SwiftUI keeps a removed
     /// view until the animation ends, even with an `.identity` removal, so both screens showed for 120 to 150 ms and the
     /// outgoing one re-rendered with the navigation's publish.) Each screen draws its own paper, so it is opaque from its
-    /// first frame. Opening or leaving a transcript still slides it 12 pt (`ScreenEntrance`); sidebar moves are instant,
-    /// as switching tabs is a frequent action (motion rules: never animate those), and Limit Motion is instant for all.
+    /// first frame. Opening or leaving a transcript still slides it 12 pt (`ScreenEntrance`); a sidebar move fades only the
+    /// new screen in over 150 ms (`ScreenFadeIn`, behind `PageFade.enabled`), with no movement and nothing to wait for,
+    /// and Limit Motion is instant for all.
     /// Record lives in the toolbar (MacChrome.swift), so nothing floats over the content.
     private var detail: some View {
         ZStack {
@@ -99,6 +104,7 @@ struct ContentView: View {
                 screenView.frame(width: g.size.width, height: g.size.height)
                     .background(Refined.paper)
                     .modifier(ScreenEntrance(x: entranceOffset))
+                    .modifier(ScreenFadeIn(on: pageFades))
                     // Each screen change is timed from the click to here: a "Navigate" signpost always, and a
                     // UITEST TIMING line in the self-test.
                     .onAppear {
@@ -159,6 +165,13 @@ struct ContentView: View {
         }
     }
 
+    /// A sidebar move fades the new screen in over 150 ms (`ScreenFadeIn`); the launch screen, transcripts (which slide),
+    /// and Limit Motion arrive at once. Off entirely with `PageFade.enabled`.
+    private var pageFades: Bool {
+        guard PageFade.enabled, !limitMotion, app.navCount > 0 else { return false }
+        return app.direction == .up || app.direction == .down
+    }
+
     /// Opening a transcript slides it in 12 pt from the right, and leaving one slides the screen in from the left; sidebar
     /// moves and Limit Motion don't move at all.
     private var entranceOffset: CGFloat {
@@ -188,6 +201,34 @@ struct ScreenEntrance: ViewModifier {
             .onAppear {
                 guard x != 0 else { return }
                 withAnimation(.easeOut(duration: 0.15)) { x = 0 }
+            }
+    }
+}
+
+/// The sidebar's page fade (DESIGN.md §7). One switch: set `enabled` to false and every sidebar move is instant again.
+///
+/// Risk: macOS 26 left a stale screen in the window when `AppState.go()` changed the screen inside `withAnimation`
+/// (builds 215 and earlier). This fade never animates the navigation's own transaction. The outgoing screen still
+/// leaves in the same unanimated update; only the incoming screen's opacity animates, started from its own `onAppear`
+/// the way `ScreenEntrance` starts its slide. If a stale or doubled screen ever shows again after a sidebar move, turn
+/// this off first.
+enum PageFade {
+    static let enabled = true
+    static let duration = 0.15
+}
+
+/// Fades a screen in from clear when it's made with `on`, over `PageFade.duration`. Taken once, like `ScreenEntrance`:
+/// a later change doesn't fade a screen that's already there. Hit-testing stays on throughout.
+struct ScreenFadeIn: ViewModifier {
+    @State private var shown: Bool
+    init(on: Bool) { _shown = State(initialValue: !on) }
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(.easeOut(duration: PageFade.duration)) { shown = true }
             }
     }
 }

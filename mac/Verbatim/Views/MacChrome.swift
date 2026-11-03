@@ -33,6 +33,13 @@ final class WindowNav: ObservableObject {
         func clamp(_ v: CGFloat) -> CGFloat { Swift.min(max, Swift.max(min, v)) }
     }
     static let textSizes = TextSizes()
+    /// The width right of the sidebar, in 40 pt steps, so the toolbar's tabs can tell when they'd run into Share and
+    /// More (`ToolbarModePicker`). Set by `MacWindow`; stepped so resizing doesn't redraw the toolbar on every point.
+    @Published private(set) var detailWidth: CGFloat = 1000
+    func setDetailWidth(_ w: CGFloat) {
+        let stepped = (w / 40).rounded(.down) * 40
+        if stepped != detailWidth { detailWidth = stepped }
+    }
     /// The passage selected in the open transcript (a note added in the inspector links to it).
     @Published var selectedSegment: UUID?
     /// The Library item whose preview the inspector shows, and the row Back comes back to.
@@ -139,6 +146,13 @@ struct MacWindow<Detail: View>: View {
                 .inspector(isPresented: inspectorShown) {
                     MacInspector(nav: nav)
                         .inspectorColumnWidth(min: 280, ideal: 340, max: 440)
+                }
+                // The width right of the sidebar, where the toolbar's tabs, Share, and More sit: the tabs fold into one
+                // pop-up when it's too narrow for them (`ToolbarModePicker`).
+                .background {
+                    GeometryReader { g in
+                        Color.clear.onChange(of: g.size.width, initial: true) { _, w in nav.setDetailWidth(w) }
+                    }
                 }
         }
         .toolbar { MacToolbar(nav: nav, screen: app.screen) }
@@ -326,12 +340,90 @@ private struct ToolbarModePicker: View {
 
     var body: some View {
         if let t = app.store.transcript(id), !t.showsAudioDetail, t.status == .ready {
-            Picker("View", selection: $nav.mode) {
-                ForEach(TranscriptView.tabs(t, current: nav.mode, templates: app.store.allTemplates), id: \.0) { m, title in Text(title).tag(m) }
+            let tabs = TranscriptView.tabs(t, current: nav.mode, templates: app.store.allTemplates)
+            // The segmented control while it clears Share, More, and the search field; in a narrower window, one
+            // pop-up with the same tabs, so the centered tabs never sit on Share (critique, build 283).
+            if Self.fits(titles: tabs.map(\.1), width: nav.detailWidth) {
+                picker(tabs).pickerStyle(.segmented)
+            } else {
+                picker(tabs).pickerStyle(.menu)
             }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
-            .help("Original keeps every word as said; Cleaned is the tidied text; Summary has the overview")
         }
+    }
+
+    private func picker(_ tabs: [(TranscriptView.Mode, String)]) -> some View {
+        Picker("View", selection: $nav.mode) {
+            ForEach(tabs, id: \.0) { m, title in Text(title).tag(m) }
+        }
+        .labelsHidden().fixedSize()
+        .help("Original keeps every word as said; Cleaned is the tidied text; Summary has the overview")
+    }
+
+    /// Room the trailing items take beside the centered tabs: Share, More, and the inspector's glass group, the
+    /// search field (minimized to its button on a transcript on macOS 26, `TranscriptSearchMinimized`), and the gaps.
+    static var trailingRoom: CGFloat {
+        if #available(macOS 26, *) { return 150 + 52 + 16 }
+        return 150 + 210 + 16
+    }
+
+    /// True when a segmented control with these titles, centered over a screen `width` points wide, clears the
+    /// trailing items. The control's width is estimated from its titles (about 7 pt a character at 13 pt, plus each
+    /// segment's padding), on the safe side.
+    static func fits(titles: [String], width: CGFloat) -> Bool {
+        let control = titles.reduce(CGFloat(8)) { $0 + CGFloat($1.count) * 7.2 + 26 }
+        return width / 2 - control / 2 >= trailingRoom
+    }
+}
+
+/// A transcript's search field minimized to its button (macOS 26), as the dark look already drew it in build 283: the
+/// full field beside Share and More pushed them onto the centered tabs.
+struct TranscriptSearchMinimized: ViewModifier {
+    var minimize: Bool
+    func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content.searchToolbarBehavior(minimize ? .minimize : .automatic)
+        } else {
+            content
+        }
+    }
+}
+
+/// The toolbar's search prompt ("Search or ask") in `mute`, which reaches 4.5:1 on the field's glass in both looks; the
+/// system's placeholder gray measured about 1.7:1 in light and 2.4:1 in dark (critique). SwiftUI's `.searchable` has
+/// no prompt color, so this sets the AppKit field's placeholder once the toolbar exists and again after a screen
+/// change.
+@MainActor
+enum ToolbarSearchPrompt {
+    static let prompt = "Search or ask"
+
+    static func apply(to window: NSWindow?) {
+        guard let window else { return }
+        var fields = (window.toolbar?.items ?? []).compactMap { ($0 as? NSSearchToolbarItem)?.searchField }
+        if fields.isEmpty, let frame = window.contentView?.superview {
+            fields = searchFields(in: frame, skipping: window.contentView, depth: 0)
+        }
+        for f in fields where !styled(f) {
+            var attrs: [NSAttributedString.Key: Any] = [.foregroundColor: color]
+            if let font = f.font { attrs[.font] = font }
+            f.placeholderAttributedString = NSAttributedString(string: prompt, attributes: attrs)
+        }
+    }
+
+    /// True when the field already shows the prompt in `color`.
+    private static func styled(_ f: NSSearchField) -> Bool {
+        guard let p = f.placeholderAttributedString, p.string == prompt, p.length > 0 else { return false }
+        return (p.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor) === color
+    }
+
+    private static let color = NSColor(name: nil) { a in
+        PColor(hex: RefinedHex.mute.value(dark: a.isDark, increased: ContrastSetting.increased))
+    }
+
+    /// The search fields in the window's frame outside its content (the toolbar), a few levels deep.
+    private static func searchFields(in view: NSView, skipping content: NSView?, depth: Int) -> [NSSearchField] {
+        if let f = view as? NSSearchField { return [f] }
+        guard depth < 14 else { return [] }
+        return view.subviews.filter { $0 !== content }.flatMap { searchFields(in: $0, skipping: content, depth: depth + 1) }
     }
 }
 

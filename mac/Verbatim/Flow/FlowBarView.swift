@@ -58,7 +58,7 @@ struct RibbonRings: View {
             }
         }
         .frame(width: size * 1.15, height: size * 1.15, alignment: .bottom)
-        .animation(.linear(duration: 0.08), value: levels)
+        // Drawn straight from each level: a meter changes many times a second and never animates (DESIGN.md §7).
     }
 }
 
@@ -103,12 +103,12 @@ struct FlowBarView: View {
     private var liveWordsShown: Bool { model.phase == .listening && showWords && words.state != .off }
     /// The words as the Ribbon shows them: the end only, so the line stays short to lay out.
     private var liveTail: LiveWords { words.words.tail(model.edge == .bottom ? 90 : 80) }
-    /// The tab grows with the words on the same spring as the state morph; with Reduce Motion or Limit
+    /// The tab eases to its new size when live words start, stop, or change state; with Reduce Motion or Limit
     /// animation, a quick ease instead (no spring).
     private var liveMorph: Animation { reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.3) }
-    /// Keyed on the word count, not the text: a new word grows the tab on the spring, while a word that's revised
-    /// in place (volatile to final) swaps without restarting the animation.
-    private var liveKey: String { liveWordsShown ? "\(words.state)|\(liveTail.text.split(separator: " ").count)" : "" }
+    /// Keyed on the live words' state only: each dictated word is a high-frequency change, so the tab takes the new
+    /// word's width at once instead of re-animating on every word (DESIGN.md §7).
+    private var liveKey: String { liveWordsShown ? "\(words.state)" : "" }
 
     /// Changes to any of these animate the shape.
     private var stateKey: String {
@@ -439,7 +439,6 @@ struct RibbonBars: View {
                 }
             }
             .frame(height: length, alignment: .bottom)
-            .animation(.linear(duration: 0.08), value: levels)
         } else {
             VStack(alignment: edge == .right ? .trailing : .leading, spacing: thickness * 0.65) {
                 ForEach(0..<3, id: \.self) { i in
@@ -447,29 +446,38 @@ struct RibbonBars: View {
                 }
             }
             .frame(width: length, alignment: edge == .right ? .trailing : .leading)
-            .animation(.linear(duration: 0.08), value: levels)
         }
+        // Drawn straight from each level: a meter changes many times a second and never animates (DESIGN.md §7).
     }
 }
 
-/// While writing: a persimmon segment sweeping along a dark track.
+/// While writing: a persimmon segment sweeping along a dark track, 0.9 s each way. A loop, so it's a Canvas on
+/// `LoopTimeline` (paused off screen and while the app is inactive), never a repeatForever animation (DESIGN.md §7).
+/// Reduce Motion or Limit animation holds the segment at the start.
 struct SweepBar: View {
     var edge: BarEdge
     var reduceMotion: Bool
-    @State private var forward = false
     var body: some View {
         let vertical = edge == .bottom
-        ZStack(alignment: vertical ? .top : .leading) {
-            Capsule().fill(RibbonInk.track)
-            Capsule().fill(Refined.persimmonFixed)
-                .frame(width: vertical ? 6 : 14, height: vertical ? 10 : 6)
-                .offset(x: vertical ? 0 : (forward ? 24 : 0), y: vertical ? (forward ? 18 : 0) : 0)
+        LoopTimeline(running: !reduceMotion) { date in
+            Canvas { ctx, size in
+                ctx.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: min(size.width, size.height) / 2),
+                         with: .color(RibbonInk.track))
+                let seg = vertical ? CGSize(width: 6, height: 10) : CGSize(width: 14, height: 6)
+                let along = (vertical ? 18 : 24) * (reduceMotion ? 0 : Self.phase(date))
+                let rect = CGRect(origin: CGPoint(x: vertical ? 0 : along, y: vertical ? along : 0), size: seg)
+                ctx.fill(Path(roundedRect: rect, cornerRadius: min(seg.width, seg.height) / 2), with: .color(Refined.persimmonFixed))
+            }
         }
         .frame(width: vertical ? 6 : 38, height: vertical ? 28 : 6)
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { forward = true }
-        }
+        .accessibilityHidden(true)
+    }
+
+    /// Where the segment is, 0 to 1 and back every 1.8 s, eased in and out.
+    static func phase(_ date: Date) -> CGFloat {
+        let p = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.8) / 0.9
+        let x = p <= 1 ? p : 2 - p
+        return CGFloat((1 - cos(.pi * x)) / 2)
     }
 }
 

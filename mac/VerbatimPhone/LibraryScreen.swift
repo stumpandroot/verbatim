@@ -1,14 +1,15 @@
 import SwiftUI
 
 /// The Library in the refined look (DESIGN.md §6.8 and §13; mockup "Verbose Refined Look", PhoneLibrary), one layout
-///: the large serif "Library" with the count, the system search field (Search or ask), the quick
-/// filter chips (All, Voice notes, Meetings, Thoughts, Audio, Links, Marked), a card of places (Dictations, By day,
-/// Templates, Ask, and Projects when you have one), then each day under its serif title as a card of recordings: the
+///: the large serif "Library" with the count, the system search field (Search or ask), one row of small buttons for
+/// the places (Dictations, By day, Templates, Ask, and Projects when you have one), the quick filter chips (All, Voice
+/// notes, Meetings, Thoughts, Audio, Links, Marked), then each day under its serif title as a card of recordings: the
 /// kind's badge, the title, a meta line (the kind, who, the moments, or where it is while it's being made), and the
 /// length. An Audio only recording plays from its row. Apple draws the chrome: the navigation bar with Filter (every
 /// type, kind, Pinned, In progress, and project, and Sort by) and More (Select recordings, Recently Deleted, New
 /// project), swipe actions, context menus, and selection. A plain, lazy `List`, so rows keep swipe actions and
-/// selection; each row draws its share of the card (`PaperRowBackground`). Nothing enters with an animation.
+/// selection; each row draws its share of the card (`PaperRowBackground`). Nothing enters with an animation; a chip's
+/// change fades the list in as a whole.
 struct LibraryScreen: View {
     @EnvironmentObject var app: PhoneState
     /// The search and the filter, kept when Library is built again (`LibraryKeep`).
@@ -33,6 +34,8 @@ struct LibraryScreen: View {
     @State private var selection = Set<UUID>()
     @State private var showTrash = false
     @State private var showProjects = false
+    /// Clear for a moment after a chip changes the filter, then fades in (`fadeList`).
+    @State private var listShown = true
 
     /// How many Libraries are on screen (the self-test checks there's one).
     static var onScreen = 0
@@ -125,18 +128,19 @@ struct LibraryScreen: View {
         let searching = self.searching, typeFilter = self.typeFilter, sort = self.sort
         let items = app.store.memo("phone.items|\(scopeKey)|\(typeFilter.raw)|\(sort.rawValue)") { sort.sorted(typeFilter.apply(scoped, searching: searching)) }
         let passages = trimmedSearch.count >= 2 ? LibrarySearch.passages(items, query: search, perTranscript: 3, cap: 60) : []
-        let project: UUID? = { if case .project(let p) = filter { return p }; return nil }()
-        let browsing = filter == .all && !searching && typeFilter == .all && !selecting
         return List(selection: $selection) {
             header(items: items, scoped: scoped)
-            if browsing { placesCard }
-            if let p = project, !selecting { addFromLibrary(p) }
-            if searching { askAbout }
-            if !passages.isEmpty { passagesSection(passages) }
-            if items.isEmpty { emptyState(project: project) }
-            ForEach(Self.daySections(lines(items)), id: \.label) { day in
-                daySection(day)
+            Group {
+                if let p = project, !selecting { addFromLibrary(p) }
+                if searching { askAbout }
+                if !passages.isEmpty { passagesSection(passages) }
+                if items.isEmpty { emptyState(project: project) }
+                ForEach(Self.daySections(lines(items)), id: \.label) { day in
+                    daySection(day)
+                }
             }
+            // A chip's change fades the list in as a whole (`fadeList`); each row takes the same opacity, nothing more.
+            .opacity(listShown ? 1 : 0)
         }
         .listStyle(.plain)
         .environment(\.defaultMinListRowHeight, 1)
@@ -218,6 +222,12 @@ struct LibraryScreen: View {
         SystemSearchField(text: $search, prompt: "Search or ask")
             .frame(minHeight: 38)
             .modifier(PageRow(top: isTabRoot ? 4 : 14, bottom: 0))
+        // Dictations, By day, Templates, Ask, and Projects as one row of small buttons, so recordings start higher
+        // (critique, build 283). Not inside a project.
+        if project == nil {
+            placesRow
+                .modifier(PageRow(top: 8, bottom: 0, edge: 0))
+        }
         chips
             .modifier(PageRow(top: 10, bottom: 0, edge: 0))
         let platforms = typeFilter.platformCounts(scoped, searching: searching)
@@ -322,9 +332,25 @@ struct LibraryScreen: View {
     }
 
     private func choose(_ chip: LibraryChip) {
-        filter = chip.kind.map { .kind($0) } ?? .all
-        setType(LibraryFilter(source: chip.source))
+        let next: Filter = chip.kind.map { .kind($0) } ?? .all
+        let type = LibraryFilter(source: chip.source)
+        guard next != filter || type != typeFilter else { return }
+        fadeList {
+            filter = next
+            setType(type)
+        }
     }
+
+    /// A chip's change fades the list in as a whole over 150 ms (DESIGN.md §7, view switches): the rows change at once
+    /// while the list is clear, then it fades in. No row animates on its own, and nothing waits for it.
+    private func fadeList(_ change: () -> Void) {
+        listShown = false
+        change()
+        DispatchQueue.main.async { withAnimation(Motion.crossfade) { listShown = true } }
+    }
+
+    /// The project the Library is on, if any.
+    private var project: UUID? { if case .project(let p) = filter { return p }; return nil }
 
     private func setType(_ f: LibraryFilter) {
         guard f != typeFilter else { return }
@@ -395,15 +421,32 @@ struct LibraryScreen: View {
         }
     }
 
-    /// The places as one card, each row a button that pushes on the stack the Library is on.
-    @ViewBuilder private var placesCard: some View {
-        let all = places
-        ForEach(Array(all.enumerated()), id: \.element.id) { i, p in
-            Button(action: p.open) { IconSquareRow(art: p.art, hue: p.hue, title: p.title, value: p.value) }
+    /// The places as one row of small buttons under the search field, each pushing on the stack the Library is on: the
+    /// glyph, the name, and its value in `mute`, on the card with a hairline so they read apart from the filter chips.
+    /// The row scrolls sideways when it doesn't fit; VoiceOver reads it as "Go to" with each place's name and value.
+    private var placesRow: some View {
+        RefinedChipRow(label: "Go to", margin: 20) {
+            ForEach(places) { p in
+                Button(action: p.open) {
+                    HStack(spacing: 6) {
+                        IconGlyph(art: p.art, size: 15, color: Refined.ink)
+                        Text(p.title).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                        if let v = p.value { Text(v).refinedFont(.hint).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1) }
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Refined.card, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Refined.separator, lineWidth: 1))
+                    .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+                    .contentShape(Rectangle())
+                }
                 .buttonStyle(RefinedPress())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(p.title)
+                .accessibilityValue(p.value ?? "")
                 .accessibilityHint(p.hint)
+                .accessibilityAddTraits(.isButton)
                 .accessibilityIdentifier(p.id)
-                .modifier(CardRow(first: i == 0, last: i == all.count - 1, divider: 56, top: i == 0 ? 16 : 0))
+            }
         }
     }
 

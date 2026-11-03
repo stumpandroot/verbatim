@@ -1501,7 +1501,7 @@ enum PhoneUITest {
         layoutCheck("Home draws once (on screen: \(shown))", shown == 1 && record)
     }
 
-    /// The Library draws once (DESIGN.md §6.8), with the mockup's seven chips and the card of places.
+    /// The Library draws once (DESIGN.md §6.8), with the mockup's seven chips and the row of places.
     private static func libraryLayoutCheck() {
         let shown = LibraryScreen.onScreen
         layoutCheck("the Library draws once (on screen: \(shown))", shown == 1)
@@ -1999,6 +1999,9 @@ enum PhoneUITest {
         let seeded = seedWordsMonth(app.store)
         let key = WordsCalendar.milestoneSeenKey
         UserDefaults.standard.set(0, forKey: key)
+        // Show milestones is off by default; the tour turns it on to check the card, and puts it back after.
+        let showedMilestones = UserDefaults.standard.bool(forKey: WordsCalendar.showMilestonesKey)
+        UserDefaults.standard.set(true, forKey: WordsCalendar.showMilestonesKey)
         NotificationCenter.default.post(name: .verbatimYouPage, object: "calendar")
         try? await Task.sleep(nanoseconds: 900_000_000)
         NotificationCenter.default.post(name: .verbatimWordsCalendar, object: WordsCalendarTour.month(seeded.month))
@@ -2028,6 +2031,7 @@ enum PhoneUITest {
         }
         for id in seeded.ids { if let t = app.store.transcript(id) { app.store.delete(t) } }
         UserDefaults.standard.set(0, forKey: key)
+        UserDefaults.standard.set(showedMilestones, forKey: WordsCalendar.showMilestonesKey)
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 

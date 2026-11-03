@@ -44,6 +44,7 @@ struct HomeView: View {
     /// The What's new sheet after a bigger update (WhatsNewSheet.swift), once.
     @State var whatsNewPopup: ReleaseNote?
     @AppStorage(ReleaseNotes.lastSeenKey) var whatsNewLastSeen = 0
+    @Environment(\.limitMotion) private var limitMotion
 
     /// The gutter between tiles and between two sections in a band.
     static let gap: CGFloat = 12
@@ -123,7 +124,9 @@ struct HomeView: View {
                     // After an update: "What's new in build N", once (WhatsNewPane.swift).
                     WhatsNewHomeLine(top: 16) { app.dictation.openSettings(tab: .whatsNew) }
                     // Recording with the Record card hidden: the recording card leads Home all the same.
-                    if recording && !layout.isVisible(.record) { HomeRecordingCard().padding(.top, 18) }
+                    if recording && !layout.isVisible(.record) {
+                        HomeRecordingCard().padding(.top, 18).transition(Motion.cardTransition(limited: limitMotion))
+                    }
                     // Only the shown sections, each band identified by its first section.
                     ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
                         band(row, width: width, layout: layout)
@@ -131,6 +134,9 @@ struct HomeView: View {
                     }
                     editHomeButton.padding(.top, 32)
                 }
+                // Record → recording: the Record card crossfades into the recording card and Home's space follows,
+                // only when recording starts or stops (DESIGN.md §7).
+                .animation(limitMotion ? Motion.fade : Motion.settle, value: recording)
                 .navMarkWhenLaidOut("home-laid-out")
                 .frame(width: width, alignment: .leading)
                 .padding(.horizontal, Self.margin(geo.size.width)).padding(.top, 18).padding(.bottom, 40)
@@ -173,7 +179,8 @@ struct HomeView: View {
 
     @ViewBuilder private func content(_ item: HomeLayout.Item, layout: HomeLayout) -> some View {
         switch item.section {
-        case .record: if recording { HomeRecordingCard() } else { recordCard(compact: item.size == .compact) }
+        case .record:
+            if recording { HomeRecordingCard().transition(.opacity) } else { recordCard(compact: item.size == .compact).transition(.opacity) }
         case .tiles: tiles(layout.tiles, compact: item.size == .compact)
         case .week: weekCard(large: item.size == .large)
         case .recent: recentCard(item.size)
@@ -483,7 +490,7 @@ struct HomeView: View {
         .padding(.bottom, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
-        .animation(Motion.settle, value: items.map(\.id))
+        // No animation when a recording arrives or changes: rows change often and never animate (DESIGN.md §7).
     }
 
     /// A kind's section (Recent meetings, Recent interviews, Recent talks, Recent brain dumps, Audio only), drawn like

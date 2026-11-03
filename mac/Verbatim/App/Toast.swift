@@ -11,9 +11,22 @@ struct Toast: Identifiable, Equatable {
     static func == (a: Toast, b: Toast) -> Bool { a.id == b.id }
 }
 
+/// The toast at the window's foot: it slides up and fades in, and fades out (as the iPhone's does from the top). The
+/// container stays, so whoever sets `app.toast`, with or without an animation, the toast animates; Limit animation
+/// fades it both ways.
 struct ToastView: View {
     @EnvironmentObject var app: AppState
+    @Environment(\.limitMotion) private var limitMotion
     var body: some View {
+        ZStack { toast }
+            .animation(limitMotion ? Motion.fade : Motion.settle, value: app.toast)
+    }
+
+    private var transition: AnyTransition {
+        limitMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity)
+    }
+
+    @ViewBuilder private var toast: some View {
         if let t = app.toast {
             HStack(spacing: 14) {
                 Text(t.message).font(.system(size: 13)).lineLimit(2)
@@ -34,10 +47,10 @@ struct ToastView: View {
             .foregroundStyle(Refined.paper)
             .frame(maxWidth: 520)
             .padding(.bottom, 24)
-            .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity))
+            .transition(transition)
             .task(id: t.id) {
                 try? await Task.sleep(nanoseconds: 4_500_000_000)
-                if app.toast == t { withAnimation(Motion.settle) { app.toast = nil } }
+                if app.toast == t { app.toast = nil }
             }
         }
     }
