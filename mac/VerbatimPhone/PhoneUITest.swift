@@ -1153,6 +1153,8 @@ enum PhoneUITest {
         check("a voice note from the watch goes to the Library for AutoLabel to name", v?.audioFileName != nil && v?.kind == nil && v?.kindIsAuto == true)
         check("a voice note isn't a thought", v.map { vv in !app.store.todaysThoughts().contains { $0.id == vv.id } } ?? false)
 
+        // The voice note's import lets go of its inbox file a moment after the transcript gets its audio.
+        for _ in 0..<25 where !WatchInbox.pending().isEmpty { try? await Task.sleep(nanoseconds: 200_000_000) }
         check("a file without Verbose's details is ignored", !link.receive(fileAt: tone("watch-selftest-other.wav"), metadata: ["other": 1]) && WatchInbox.pending().isEmpty)
 
         let ctx = PhoneWatchLink.context(app.store)
