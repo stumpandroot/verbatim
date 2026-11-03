@@ -45,12 +45,12 @@ struct DictationsView: View {
         // Filtered and sorted once per render, not once per use.
         let all = allDictations
         let shown = matching(all)
-        ScrollView {
+        // Two columns (mockup "Verbose Mac Columns"): dictations by day, and beside them today, a dictation that
+        // didn't paste, and how long dictations are kept.
+        MacColumns {
             VStack(alignment: .leading, spacing: 18) {
                 RefinedPageHeader(title: "Dictations", count: all.count == 1 ? "1 kept" : "\(all.count.formatted()) kept",
-                                  lede: "Everything you dictated into other apps, with the audio. If a paste went missing, it's here. \u{2303}\u{2318}V pastes the last one again.") {
-                    retentionMenu
-                }
+                                  lede: "Everything you dictated into other apps, with the audio. If a paste went missing, it's here. \u{2303}\u{2318}V pastes the last one again.")
                 RefinedChipRow(label: "Filter") {
                     RefinedChip(title: "All", selected: filter == nil) { filter = nil }
                     ForEach(AppCategory.allCases) { c in RefinedChip(title: c.title, selected: filter == c) { filter = filter == c ? nil : c } }
@@ -76,12 +76,49 @@ struct DictationsView: View {
                     }
                 }
             }
-            .frame(maxWidth: MacColumn.width, alignment: .leading)
-            .padding(.horizontal, 40).padding(.top, 18).padding(.bottom, 40)
-            .frame(maxWidth: .infinity)
+        } side: {
+            todayCard(all)
+            if let missed = all.first(where: { $0.flow?.pastedOK == false && Calendar.current.isDateInToday($0.createdAt) }) {
+                missedCard(missed)
+            }
+            MacSideCard(title: "Keep dictations") { retentionMenu }
         }
-        .softScrollEdges(.top)
         .background(Refined.paper)
+    }
+
+    /// Today: words dictated and the apps they went to.
+    private func todayCard(_ all: [Transcript]) -> some View {
+        let today = all.filter { Calendar.current.isDateInToday($0.createdAt) }
+        let words = today.reduce(0) { $0 + ($1.flow?.pasted ?? $1.text).split(whereSeparator: \.isWhitespace).count }
+        var apps: [String] = []
+        for t in today { if let a = t.flow?.app, !a.isEmpty, !apps.contains(a) { apps.append(a) } }
+        return MacSideCard(title: "Today") {
+            Text(words.formatted()).font(.system(size: 26, weight: .bold)).monospacedDigit().foregroundStyle(Refined.ink)
+            Text(today.isEmpty ? "No dictations yet today." : "words in " + Self.list(Array(apps.prefix(3))) + (apps.count > 3 ? " and more" : ""))
+                .font(.system(size: 12)).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The newest dictation today that didn't paste, with Copy and Paste again (⌃⌘V).
+    private func missedCard(_ t: Transcript) -> some View {
+        MacSideCard(title: "Didn't paste") {
+            Text("\(Formats.style(date: .none, time: .short).string(from: t.createdAt)) · \(t.flow?.app ?? "An app")")
+                .font(.system(size: 12)).foregroundStyle(Refined.dim)
+            HStack(spacing: 8) {
+                Button("Copy") { Paster.copy(t.flow?.pasted ?? t.text) }.buttonStyle(RefinedActionStyle())
+                Button("Paste again") { app.dictation.pasteLast() }.buttonStyle(RefinedActionStyle(kind: .strong))
+            }
+        }
+    }
+
+    /// "Mail, Messages, and Notes".
+    static func list(_ items: [String]) -> String {
+        switch items.count {
+        case 0: return "other apps"
+        case 1: return items[0]
+        case 2: return "\(items[0]) and \(items[1])"
+        default: return items.dropLast().joined(separator: ", ") + ", and " + items.last!
+        }
     }
 
     /// "Keep 30 days ⌄": the retention menu.

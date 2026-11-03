@@ -89,18 +89,12 @@ struct YouView: View {
         // every AppState publish (progress ticks, playback, navigation).
         let summary = YouSummary.of(range, log: log, sites: sites)
         let stats = summary.stats
-        ScrollView {
+        // Two columns (mockup "Verbose Mac Columns"): your numbers on the left; About me, cleanup, and your voice on
+        // the right.
+        MacColumns {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                // Stacks below 780 pt: at You's 660 pt content width the three cards didn't fit side by side, so Cleanup's
-                // control spilled past its slot and Your voice ran under the scroll bar.
-                RatioRow(weights: [1.15, 1, 0.85], spacing: 16, stackBelow: 780) {
-                    aboutCard
-                    cleanupCard
-                    voiceCard
-                }
-                .padding(.top, 26)
-                timeSavedCard(cal).padding(.top, 16)
+                timeSavedCard(cal).padding(.top, 26)
                 RatioRow(weights: [1.6, 1], spacing: 16, stackBelow: 720) {
                     weekCard(range, stats, cal)
                     whereCard(range, summary)
@@ -109,9 +103,11 @@ struct YouView: View {
                 footer.padding(.top, 18)
             }
             .navMarkWhenLaidOut("you-laid-out")
-            .frame(maxWidth: MacColumn.width, alignment: .leading)
-            .padding(.horizontal, 56).padding(.top, 36).padding(.bottom, 32)
-            .frame(maxWidth: .infinity)
+            .padding(.top, 18)
+        } side: {
+            aboutCard
+            cleanupCard
+            voiceCard
         }
         .background(Refined.paper)
         .onAppear { NavMarks.mark("you-appear"); Self.onScreen += 1; log.seedIfNeeded(from: app.store.live); voice.refresh() }
@@ -156,7 +152,7 @@ struct YouView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
-            Text("Counted on this Mac. Nothing leaves it.\nMirrored in Settings.")
+            Text("Counted on this Mac. Nothing leaves it.")
                 .refinedFont(.meta).foregroundStyle(Refined.mute).multilineTextAlignment(.trailing).lineSpacing(3)
                 .fixedSize()
         }
