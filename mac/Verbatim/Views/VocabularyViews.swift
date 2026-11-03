@@ -20,7 +20,9 @@ struct DictionarySuggestions: View {
         let all = VocabularySuggestions.current(aboutMe: aboutMe, extraNames: modelNames, dictionary: app.store.dictionary,
                                                 dismissedRaw: dismissedRaw, pairs: EditLearner.load(pairsData))
         let list = Array(all.prefix(Self.shown))
-        HStack(alignment: .top, spacing: 24) {
+        // Stacked, since the card sits in the Dictionary's 320 pt side column (MacColumns): side by side, the
+        // suggestions squeezed to one letter per line.
+        VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(all.isEmpty ? "Suggestions" : "Suggestions · \(all.count)").refinedFont(.meta).foregroundStyle(Refined.mute)
                     .accessibilityAddTraits(.isHeader)
@@ -32,7 +34,6 @@ struct DictionarySuggestions: View {
                 .help("Pick names from your contacts. Names stay on this Mac.")
                 .padding(.top, 6)
             }
-            .fixedSize()
             VStack(alignment: .leading, spacing: 8) {
                 if list.isEmpty {
                     Text("Names from About me, and fixes you make more than once, show up here.")
