@@ -121,7 +121,11 @@ extension AppState {
             toast = Toast(Store.nothingRecordedNotice)
             return
         }
+        // The free version (public build, no trial or license): a recording past 10 minutes is saved in full, and
+        // its first 10 minutes transcribe (FreeTranscription, the same rule as the iPhone).
+        let freeLimit = FreeTranscription.limit(duration: r.duration, startedWithEverything: false, hasEverythingNow: FeatureGate.hasEverything)
         if let target {
+            if let freeLimit { store.update(target) { $0.freeTranscriptLimit = freeLimit } }
             appendRecording(r.url, to: target, skipped: r.skipped, marks: marks)
             return
         }
@@ -137,13 +141,16 @@ extension AppState {
             toast = Toast(AudioOnlyCopy.saved)
             return
         }
+        t.freeTranscriptLimit = freeLimit
         enqueue(t)
+        if freeLimit != nil { toast = Toast(UnlockCopy.cappedToast) }
     }
 
     /// Transcribe on an Audio only recording (its screen, the Library's menu): the normal queue, filed as a voice note
     /// or as the kind picked with Transcribe As when the words are in.
     func transcribeLater(_ id: UUID, as kind: RecordingKind? = nil) {
         guard let t = store.transcript(id), AudioOnlyRules.canTranscribe(t) else { return }
+        if !FeatureGate.hasEverything, t.duration > FreeTranscription.limit { store.update(id) { $0.freeTranscriptLimit = FreeTranscription.limit } }
         coordinator.transcribeLater(id, as: kind)
     }
 
