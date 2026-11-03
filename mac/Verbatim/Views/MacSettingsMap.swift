@@ -115,7 +115,7 @@ enum MacSettingsMap {
         ]),
         Pane(raw: "meetings", title: "Meetings and captions", sections: [
             Section("Calls", [Setting("meetings.calendar", keys: ["meetings.calendar"]), Setting("meetings.calendars", keys: ["meetings.calendar.hidden"]),
-                              Setting("meetings.stopWhenEnds", keys: ["meetings.stopWhenEnds"])]),
+                              Setting("meetings.stopWhenEnds", keys: ["meetings.stopWhenEnds"]), Setting("meetings.stills", keys: ["meetings.stills"])]),
             Section("Meetings", [Setting("meetings.notice"), Setting("meetings.copyNotice"), Setting("meetings.mic"), Setting("meetings.apps")]),
             Section("Live captions", [Setting("captions.size"), Setting("captions.soon"), Setting("captions.above")]),
         ]),

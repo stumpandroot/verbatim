@@ -372,6 +372,9 @@ struct MeetingsSettingsPane: View {
 struct CallsSettingsGroup: View {
     @ObservedObject private var calendar = CallCalendar.shared
     @AppStorage(MeetingCoordinator.stopWhenEndsKey) private var stopWhenEnds = true
+    @AppStorage(CallStillCapture.enabledKey) private var stills = false
+    /// Screen Recording, looked at again when Settings comes forward (System Settings may have changed it).
+    @State private var screenAllowed = CallStillCapture.allowed
 
     var body: some View {
         SettingsGroup(title: "Calls") {
@@ -397,6 +400,23 @@ struct CallsSettingsGroup: View {
                 }
             }
             SettingsToggleRow("meetings.stopWhenEnds", isOn: $stopWhenEnds)
+            // Stills of shared screens (App/CallStills.swift): off by default. Turning it on asks for Screen Recording
+            // the first time; without it, the row says so and offers System Settings.
+            SettingsRow("meetings.stills", detail: stills && !screenAllowed ? "Needs Screen Recording. Allow Verbose in System Settings › Privacy & Security › Screen & System Audio Recording." : nil,
+                        detailColor: stills && !screenAllowed ? Refined.accentText : Refined.mute) {
+                HStack(spacing: 10) {
+                    if stills && !screenAllowed {
+                        Button("Open System Settings") { NSWorkspace.shared.open(AppPickerSheet.screenCaptureSettings) }
+                            .buttonStyle(.settingsPill)
+                    }
+                    Toggle(SettingsIndex.entry("meetings.stills")?.label ?? "Keep stills of shared screens", isOn: Binding(get: { stills }, set: { on in
+                        stills = on
+                        if on && !CGPreflightScreenCaptureAccess() { screenAllowed = CGRequestScreenCaptureAccess() }
+                    }))
+                    .toggleStyle(.switch).labelsHidden().refinedSwitchTint()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in screenAllowed = CallStillCapture.allowed }
         }
     }
 }

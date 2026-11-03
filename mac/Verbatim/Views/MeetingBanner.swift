@@ -388,6 +388,8 @@ struct MeetingConsentRequest: Equatable {
     /// Setting up a wait for a call that isn't on yet (Record a call, Record when it starts): the sheet asks which app
     /// to wait for, and Record becomes Wait for the call. Nil to record now.
     var wait: CallWaitSetup? = nil
+    /// Stills of shared screens are on (Settings › Meetings): the sheet says so.
+    var stills = false
 }
 
 /// The wait's setup in the consent sheet: the app picker's choices and the one chosen, and the event it's for.
@@ -505,6 +507,7 @@ struct MeetingConsentView: View {
             } else {
                 Text(MeetingCopy.consentTitle).font(.system(size: 26, design: .serif)).accessibilityAddTraits(.isHeader)
                 Text(MeetingCopy.consentBody(model.request?.appName)).modifier(ConsentText())
+                if model.request?.stills == true { Text(MeetingCopy.stillsOn).modifier(ConsentText()) }
                 Text(MeetingCopy.consentLaw).modifier(ConsentText())
                 MeetingCheckbox(title: MeetingCopy.tellEveryone, isOn: $model.copyNotice, target: "meeting-consent-notice")
                 if model.request?.offerSkip == true, let app = model.request?.appName {
@@ -544,6 +547,7 @@ struct MeetingConsentView: View {
                 .modifier(MeetingTarget(id: "meeting-consent-app"))
             Spacer(minLength: 0)
         }
+        if model.request?.stills == true { Text(MeetingCopy.stillsOn).modifier(ConsentText()) }
         Text(MeetingCopy.consentLaw).modifier(ConsentText())
         MeetingCheckbox(title: MeetingCopy.copyOnStart, isOn: $model.copyNotice, target: "meeting-consent-notice")
     }

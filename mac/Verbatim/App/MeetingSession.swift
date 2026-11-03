@@ -80,6 +80,10 @@ final class MeetingSession: ObservableObject {
     /// is what the recording saves as ("Zoom left the call" says so).
     private(set) var eventTitle: String?
     private var eventAttendees: [String] = []
+    /// The call app's bundle ID, for stills of its window; nil for all system audio.
+    private var appBundleID: String?
+    /// Stills of shared screens while it records (Settings › Meetings › Keep stills of shared screens).
+    private var stillCapture: CallStillCapture?
 
     @available(macOS 14.4, *)
     private var tap: ProcessTapCapture? { tapObject as? ProcessTapCapture }
@@ -115,8 +119,9 @@ final class MeetingSession: ObservableObject {
 
     // MARK: Start
 
-    func start(app: AppState, target: MeetingAudioTarget, speaker: String, title: String? = nil, attendees: [String] = []) {
+    func start(app: AppState, target: MeetingAudioTarget, speaker: String, title: String? = nil, attendees: [String] = [], appBundleID: String? = nil) {
         guard phase == .idle else { return }
+        self.appBundleID = appBundleID ?? target.bundleID
         self.app = app
         self.target = target
         self.speaker = speaker
@@ -216,6 +221,21 @@ final class MeetingSession: ObservableObject {
         phase = .recording
         startWatchdog()
         Log.noteNow("meeting: recording; system track via \(path)")
+        startStills(sessionID: side.id)
+    }
+
+    /// Stills of shared screens, when that's on and Screen Recording is allowed, for a call app's window.
+    private func startStills(sessionID: UUID) {
+        guard CallStillCapture.active, let bundle = appBundleID, !UITest.enabled else { return }
+        let c = CallStillCapture(bundleID: bundle, sessionID: sessionID,
+                                 elapsed: { [weak self] in self?.mic.elapsed ?? 0 },
+                                 paused: { [weak self] in self?.phase != .recording })
+        c.onKept = { [weak self] stills in
+            self?.sidecar?.stills = stills
+            self?.writeSidecar()
+        }
+        stillCapture = c
+        c.start()
     }
 
     /// ScreenCaptureKit for the target app: needs Screen & System Audio Recording, and an app (not all system audio).
@@ -440,6 +460,7 @@ final class MeetingSession: ObservableObject {
     }
 
     private func finish() async {
+        if let c = stillCapture { sidecar?.stills = c.stop(); stillCapture = nil }
         guard let app, let folder, var side = sidecar else { reset(); return }
         if let i = side.pauses.indices.last, side.pauses[i].end == nil { side.pauses[i].end = HostClock.now() }
         let micStopped = await mic.stopAndSave()
@@ -495,6 +516,8 @@ final class MeetingSession: ObservableObject {
 
     private func reset() {
         watchdog?.invalidate(); watchdog = nil
+        if let c = stillCapture { _ = c.stop(); stillCapture = nil }
+        appBundleID = nil
         tapObject = nil; screenCapture = nil
         folder = nil; micURL = nil; systemURL = nil; sidecar = nil
         remoteSilent = false; slept = false; pausedForSleep = false; screenStartedAt = 0
@@ -534,6 +557,11 @@ final class MeetingSession: ObservableObject {
             }
             side.transcriptID = id
             try? side.write(in: folder)
+            // Stills of shared screens, on the mixed timeline (the mic track's offset), in the margin as a video's are.
+            if let id, let stills = side.stills, !stills.isEmpty {
+                let shift = plan.offsets.first ?? 0
+                app.store.update(id) { $0.stills = stills.map { VideoStill(at: max(0, $0.at + shift), file: $0.file, aspect: $0.aspect) } }
+            }
             // A calendar call's attendees: the names to pick from for the call's track (S2), kept as speaker
             // suggestions from the calendar (Transcript.calendarNames).
             if let id, let names = side.attendees, !names.isEmpty {
@@ -546,6 +574,7 @@ final class MeetingSession: ObservableObject {
         }
         guard let only = micOK ? mic : (usable(system) ? system : nil) else {
             Log.noteNow("meeting: nothing usable was recorded; session folder removed")
+            for s in side.stills ?? [] { try? fm.removeItem(at: Paths.thumbs.appendingPathComponent(s.file)) }
             try? fm.removeItem(at: folder)
             return
         }
@@ -558,6 +587,7 @@ final class MeetingSession: ObservableObject {
         t.createdAt = side.createdAt
         t.kind = .meeting
         t.titleIsAuto = false
+        if let stills = side.stills, !stills.isEmpty { t.stills = stills.map { VideoStill(at: $0.at, file: $0.file, aspect: $0.aspect) } }
         app.enqueue(t)
         side.transcriptID = t.id
         try? side.write(in: folder)

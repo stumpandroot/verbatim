@@ -243,6 +243,11 @@ struct MeetingAppBook: Codable, Equatable {
 /// Starting points from the meetings report (§8); have a lawyer review them before release.
 enum MeetingCopy {
     static let chatNotice = "Heads-up: I'm recording the audio of this call on my computer so I can keep accurate notes. Let me know if you'd rather I didn't."
+    /// The chat notice while stills of shared screens are on: a shared screen can show other people's documents.
+    static let chatNoticeWithStills = "Heads-up: I'm recording the audio of this call on my computer, and keeping stills of shared screens, so I can keep accurate notes. Let me know if you'd rather I didn't."
+    /// The consent sheet's line while stills of shared screens are on.
+    static let stillsOn = "Stills of shared screens are on: Verbose keeps a picture of the call window when a shared screen or slide changes."
+    static func chatNotice(stills: Bool) -> String { stills ? chatNoticeWithStills : chatNotice }
     static let consentTitle = "Record this meeting?"
     static let consentLaw = "In some places, including California, Florida, Illinois, Pennsylvania, and Washington, everyone on the call must agree before you record."
     static let tellEveryone = "Tell everyone: copy a notice to paste in the chat"

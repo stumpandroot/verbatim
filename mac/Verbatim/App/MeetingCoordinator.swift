@@ -297,7 +297,8 @@ final class MeetingCoordinator: ObservableObject {
     /// chat notice, and the consent words, since this is where you say yes.
     private func setUpWait(choices: [CallWaitChoice], preselect: String, event: CallEvent?) {
         let request = MeetingConsentRequest(key: "wait", appName: nil, offerSkip: false,
-                                            wait: CallWaitSetup(choices: choices, selected: preselect, title: event?.title))
+                                            wait: CallWaitSetup(choices: choices, selected: preselect, title: event?.title),
+                                            stills: CallStillCapture.active)
         consent.show(request, copyDefault: Self.copyNoticeOnStart) { [weak self] result in
             guard let self, let result, let choice = choices.first(where: { $0.id == result.choiceID }) ?? choices.first else { return }
             self.arm(CallWaitChoices.wait(choice, event: event, copyNotice: result.copyNotice, now: Date()))
@@ -347,7 +348,8 @@ final class MeetingCoordinator: ObservableObject {
             start(key: key, name: name ?? speaker, target: target, speaker: speaker, copy: Self.copyNoticeOnStart, skipFromNowOn: false)
             return
         }
-        let request = MeetingConsentRequest(key: key, appName: name, offerSkip: info != nil && book.canOfferSkip(key))
+        let request = MeetingConsentRequest(key: key, appName: name, offerSkip: info != nil && book.canOfferSkip(key),
+                                            stills: info != nil && CallStillCapture.active)
         consent.show(request, copyDefault: Self.copyNoticeOnStart) { [weak self] result in
             guard let self, let result else { return }
             self.start(key: key, name: name ?? speaker, target: target, speaker: speaker, copy: result.copyNotice, skipFromNowOn: result.dontAskAgain)
@@ -369,13 +371,15 @@ final class MeetingCoordinator: ObservableObject {
         } else if copy {
             banner.show(.notice("The chat notice is copied. Paste it in the meeting chat."))
         }
-        MeetingSession.shared.start(app: app, target: target, speaker: speaker, title: title, attendees: attendees)
+        MeetingSession.shared.start(app: app, target: target, speaker: speaker, title: title, attendees: attendees,
+                                    appBundleID: MeetingApps.info(key: key)?.bundleID)
         preferencesChanged()
     }
 
     func copyChatNotice() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(MeetingCopy.chatNotice, forType: .string)
+        // With stills of shared screens on, the notice says so: a shared screen can show other people's documents.
+        NSPasteboard.general.setString(MeetingCopy.chatNotice(stills: CallStillCapture.active), forType: .string)
         Log.note("meeting: chat notice copied")
     }
 
