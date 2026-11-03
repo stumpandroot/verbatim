@@ -208,6 +208,7 @@ struct PhoneAskResult: View {
             Text(result.state == .answered ? "Answer" : "No answer").refinedFont(.meta).foregroundStyle(Refined.mute)
             if let a = result.answer, result.state == .answered {
                 PhoneAskAnswerText(answer: a)
+                GroundingNoteText(note: GroundingChecks.answerNote(a, question: result.question, duration: { app.store.transcript($0)?.duration }))
                 PhoneAskCitations(sources: a.citations)
             } else {
                 Text(result.message(scopeLabel: result.scope.label(projects: Dictionary(uniqueKeysWithValues: app.store.projects.map { ($0.id, $0.name) }))))

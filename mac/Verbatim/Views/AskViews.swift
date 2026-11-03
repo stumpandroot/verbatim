@@ -360,6 +360,7 @@ struct AskResultView: View {
         VStack(alignment: .leading, spacing: 14) {
             if let a = result.answer, result.state == .answered {
                 AskAnswerText(answer: a)
+                GroundingNoteText(note: GroundingChecks.answerNote(a, question: result.question, duration: { app.store.transcript($0)?.duration }))
                 AskCitationChips(sources: a.citations)
             } else {
                 Text(result.message(scopeLabel: result.scope.label(projects: projectNames)))

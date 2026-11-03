@@ -200,6 +200,7 @@ struct MacPlanPanel: View {
                 }
                 PlanSections(plan: plan, recordedAt: day, sent: r.sent, headingSize: 17, textSize: 13,
                              link: { link($0, r) }, onJump: { jump($0, r) }, onSend: { open(plan, r, only: $0) })
+                GroundingNoteText(note: GroundingChecks.dayPlanNote(r, words: { app.store.transcript($0).map(ThoughtText.words) }, aboutMe: AboutMeContext.text))
                 PaperDivider(leading: 0)
                 Text(TemplateCopy.onDevice("Mac") + (source == .note ? " Made from this note" : " Made from this day\u{2019}s thoughts") + "; it can be wrong, so check the plan before you rely on it.")
                     .refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
