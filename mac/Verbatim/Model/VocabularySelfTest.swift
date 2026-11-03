@@ -46,6 +46,20 @@ enum VocabularySelfTest {
         check("vocabulary: look-alike names stay", same("Every day I phone my mom.") && same("We met at Columbia University.")
               && same("He ordered chicken Kiev.") && same("I met Kofi Annan once.") && same("She walked through the open glass door.")
               && same("The birds twitter at dawn.") && same("Let's be real about the budget.") && same("That's a meta AI question."))
+        // Word patch 2 (version 3): specialty fields, off by default, and their terms with the field on.
+        check("vocabulary: patch 2's fields", BuiltInVocabulary.terms.count >= 900
+              && VocabularyField.allCases.filter { !$0.isOnByDefault } == [.medical, .legal, .faith]
+              && VocabularyField(category: "Film and video") == .film && VocabularyField(category: "AI") == nil)
+        let byDefault = BuiltInVocabulary.active(BuiltInVocabulary.terms, on: true, disabled: [], fieldsOff: [.medical, .legal, .faith])
+        let defaultRules = BuiltInVocabulary.rules(for: byDefault)
+        check("vocabulary: specialty fields that are off don't run", !byDefault.contains { $0.term == "metformin" }
+              && BuiltInVocabulary.fix("Start metforman and read phillipians.", rules: defaultRules) == "Start metforman and read phillipians."
+              && BuiltInVocabulary.fix("Shoot h 264.", rules: defaultRules) == "Shoot H.264.")
+        check("vocabulary: medical, legal, and Bible and faith terms", fixes("Start metforman, not ozimpic.", "Start metformin, not Ozempic.")
+              && fixes("It's a prima facia case of tortuous interference.", "It's a prima facie case of tortious interference.")
+              && fixes("Read phillipians 4 and habbakuk 2.", "Read Philippians 4 and Habakkuk 2."))
+        check("vocabulary: specialty look-alikes stay", same("The Philippines meeting moved to Thursday.") && same("The trail was tortuous.")
+              && same("We walked down Hosier Lane.") && same("The pro bonus account pays out in March."))
         check("vocabulary: look-alike names change next to their context words", fixes("We drove to Pittsburg PA.", "We drove to Pittsburgh PA.")
               && fixes("Send it to my Kofi page.", "Send it to my Ko-fi page."))
 

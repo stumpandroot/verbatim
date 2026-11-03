@@ -181,7 +181,9 @@ struct BuiltInVocabularySection: View {
     var body: some View {
         let all = BuiltInVocabulary.terms
         let off = BuiltInVocabulary.disabled(disabledRaw)
-        let active = all.filter { !off.contains($0.id) }.count
+        // Terms of a specialty field that's off (Settings › Dictation and keyboard › Specialty words) don't count.
+        let fieldsOff = VocabularyField.off()
+        let active = BuiltInVocabulary.active(all, on: true, disabled: off, fieldsOff: fieldsOff).count
         VStack(alignment: .leading, spacing: 8) {
             SectionTitle("Built-in vocabulary")
             VStack(spacing: 0) {
@@ -212,7 +214,7 @@ struct BuiltInVocabularySection: View {
                         } else {
                             ScrollView {
                                 LazyVStack(spacing: 0) {
-                                    ForEach(shown) { t in termRow(t, on: !off.contains(t.id)) }
+                                    ForEach(shown) { t in termRow(t, on: !off.contains(t.id), fieldOn: !(t.field.map(fieldsOff.contains) ?? false)) }
                                 }
                             }
                             .frame(height: 320)
@@ -233,7 +235,7 @@ struct BuiltInVocabularySection: View {
         }
     }
 
-    private func termRow(_ t: BuiltInTerm, on termOn: Bool) -> some View {
+    private func termRow(_ t: BuiltInTerm, on termOn: Bool, fieldOn: Bool) -> some View {
         HStack(spacing: 10) {
             WordPill(text: t.term).frame(width: DictionaryColumns.preferred, alignment: .leading)
             Text(t.isContextual ? "Only next to words like \u{201C}call\u{201D} or \u{201C}app\u{201D}: \(t.forms.joined(separator: ", "))" : t.forms.joined(separator: ", "))
@@ -243,8 +245,43 @@ struct BuiltInVocabularySection: View {
             Text(t.category).refinedFont(.caption).foregroundStyle(Refined.mute).frame(width: 100, alignment: .leading)
             Toggle(t.term, isOn: Binding(get: { termOn }, set: { v in disabledRaw = BuiltInVocabulary.setting(t.id, on: v, in: disabledRaw) }))
                 .toggleStyle(.switch).labelsHidden().controlSize(.mini).refinedSwitchTint()
+                .disabled(!fieldOn)
+                .help(fieldOn ? "" : "Turn on \(t.field?.title ?? "its field") in Settings › Dictation and keyboard › Specialty words.")
         }
         .padding(.horizontal, 20).padding(.vertical, 8)
-        .opacity(termOn ? 1 : 0.55)
+        .opacity(termOn && fieldOn ? 1 : 0.55)
+    }
+}
+
+/// Settings › Dictation and keyboard › Specialty words (mockup "Specialty words"): a switch per field of the built-in
+/// vocabulary (VocabularyField), with a few of its terms under each. Turning on Medical shows what a word patch can't
+/// do. The built-in vocabulary's own switch (Personalization and preferences) still turns every field off. The choices
+/// sync with the iPhone in the profile (Store.SyncedProfile).
+struct SpecialtyWordsSettingsGroup: View {
+    @AppStorage(BuiltInVocabulary.enabledKey) private var builtIn = true
+    @AppStorage(VocabularyField.film.key) private var film = VocabularyField.film.isOnByDefault
+    @AppStorage(VocabularyField.business.key) private var business = VocabularyField.business.isOnByDefault
+    @AppStorage(VocabularyField.medical.key) private var medical = VocabularyField.medical.isOnByDefault
+    @AppStorage(VocabularyField.legal.key) private var legal = VocabularyField.legal.isOnByDefault
+    @AppStorage(VocabularyField.faith.key) private var faith = VocabularyField.faith.isOnByDefault
+
+    var body: some View {
+        SettingsGroup(title: "Specialty words",
+                      footer: builtIn ? VocabularyField.groupNote
+                                      : "Built-in vocabulary is off in Personalization and preferences, so these fields don't apply.") {
+            SettingsToggleRow("dictate.specialtyFilm", isOn: $film, disabled: !builtIn)
+            SettingsToggleRow("dictate.specialtyBusiness", isOn: $business, disabled: !builtIn)
+            SettingsToggleRow("dictate.specialtyMedical", isOn: $medical, disabled: !builtIn)
+            if medical && builtIn {
+                Text(VocabularyField.medicalNote)
+                    .font(.system(size: 12.5)).lineSpacing(2).foregroundStyle(Refined.dim)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16).padding(.top, -2).padding(.bottom, 12)
+                    .uiTarget("settings-medical-note")
+            }
+            SettingsToggleRow("dictate.specialtyLegal", isOn: $legal, disabled: !builtIn)
+            SettingsToggleRow("dictate.specialtyFaith", isOn: $faith, disabled: !builtIn)
+        }
     }
 }

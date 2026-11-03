@@ -15,3 +15,4 @@ bitcoin | version 1; the network's name, capitals only
 docker | version 1; the dock-worker sense is rare in dictation; capitals only
 kickstarter | version 1; the brand far outweighs the generic noun in dictation; capitals only
 type-script | version 1; as above
+copd | version 3; a medical acronym that hunspell also lists in lowercase; capitals only (Medical, off by default)

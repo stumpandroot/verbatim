@@ -1835,6 +1835,8 @@ enum UITest {
         VocabularySelfTest.run(check)
         OriginalCleanedSelfTest.run(check)
         check("settings search finds built-in vocabulary", SettingsIndex.search("chatgpt spelling").map(\.id).contains("models.builtInVocabulary"))
+        check("settings search finds specialty words", SettingsIndex.search("medical spelling").map(\.id).contains("dictate.specialtyMedical")
+              && SettingsIndex.search("bible").map(\.id).contains("dictate.specialtyFaith"))
         HomeSelfTest.run(check)
         AudioDuckerSelfTest.run(check)
         check("settings search finds This week", SettingsIndex.search("this week").map(\.id).contains("general.homeWeek"))

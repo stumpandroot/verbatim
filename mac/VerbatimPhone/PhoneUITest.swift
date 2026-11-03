@@ -1358,7 +1358,8 @@ enum PhoneUITest {
         // Rows that show only with a setting on.
         var conditional: Set<String> = []
         if !CloudCleanup.enabled { conditional.insert("cloudProvider") }
-        let rowsChecked: Set<SettingsSubpage> = [.appearance, .speakers, .moreTranscription, .cloudCleanup, .tour, .widgets, .shortcuts]
+        let rowsChecked: Set<SettingsSubpage> = [.appearance, .speakers, .moreTranscription, .cloudCleanup, .tour, .widgets, .shortcuts,
+                                                  .specialtyWords]
         var pages: [SettingsSubpage] = []
         for e in SettingsSearchIndex.all { if case .page(let p) = e.target, !pages.contains(p) { pages.append(p) } }
         for p in pages {
@@ -2571,6 +2572,9 @@ enum PhoneUITest {
         OriginalCleanedSelfTest.run(check)
         check("settings search finds built-in vocabulary",
               SettingsSearchIndex.search("modern words").flatMap(\.entries).contains { $0.id == "builtInVocabulary" })
+        check("settings search finds specialty words",
+              SettingsSearchIndex.search("medical").flatMap(\.entries).contains { $0.id == "specialtyMedical" }
+              && SettingsSearchIndex.search("bible").flatMap(\.entries).contains { $0.id == "specialtyFaith" })
         // Cloud share links, the same cases as the Mac (CloudShareLinkChecks); no network.
         for r in CloudShareLinkChecks.run() { check("iPhone " + r.name, r.ok) }
         check("cloud links aren't podcast shows", !PhoneLinkFetcher.isShowLink(URL(string: "https://www.dropbox.com/s/abc/feed.mp3?dl=0")!))

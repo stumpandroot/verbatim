@@ -1158,9 +1158,15 @@ final class Store: Observable {
     func ingestProjects() { ingestList(list: \.projects, sync: \.projectSync) }
     func ingestDictionary() { ingestList(list: \.dictionary, sync: \.dictionarySync) }
 
-    // MARK: Profile (name and About me), synced as one small file
+    // MARK: Profile (name, About me, and the specialty word switches), synced as one small file
 
-    struct SyncedProfile: Codable, Equatable { var name: String; var aboutMe: String }
+    struct SyncedProfile: Codable, Equatable {
+        var name: String
+        var aboutMe: String
+        /// Settings › Dictation › Specialty words: the switches you've set, by field (VocabularyField.chosen). Missing
+        /// in a file an older build wrote, which then leaves this device's switches alone.
+        var specialtyWords: [String: Bool]? = nil
+    }
     static let profileNameKey = "profile.name", profileAboutKey = "profile.aboutMe"
     private var lastProfile: SyncedProfile?
     /// Launch's read of the profile is on its way (LaunchBudget): nil, or true when CloudSync asked for it meanwhile.
@@ -1169,7 +1175,9 @@ final class Store: Observable {
 
     private var localProfile: SyncedProfile {
         let d = UserDefaults.standard
-        return SyncedProfile(name: d.string(forKey: Self.profileNameKey) ?? "", aboutMe: d.string(forKey: Self.profileAboutKey) ?? "")
+        let fields = VocabularyField.chosen(in: d)
+        return SyncedProfile(name: d.string(forKey: Self.profileNameKey) ?? "", aboutMe: d.string(forKey: Self.profileAboutKey) ?? "",
+                             specialtyWords: fields.isEmpty ? nil : fields)
     }
 
     /// At launch: takes the synced profile where this device has nothing, then writes back when either field changes.
@@ -1199,7 +1207,10 @@ final class Store: Observable {
     private func startProfileSync(read d: Data?) {
         if let d, let p = try? Self.dec.decode(SyncedProfile.self, from: d) {
             let here = localProfile
-            let merged = SyncedProfile(name: here.name.isEmpty ? p.name : here.name, aboutMe: here.aboutMe.isEmpty ? p.aboutMe : here.aboutMe)
+            // A switch set on this device wins over the file's; the file fills in the ones never set here.
+            let fields = (p.specialtyWords ?? [:]).merging(here.specialtyWords ?? [:]) { _, mine in mine }
+            let merged = SyncedProfile(name: here.name.isEmpty ? p.name : here.name, aboutMe: here.aboutMe.isEmpty ? p.aboutMe : here.aboutMe,
+                                       specialtyWords: fields.isEmpty ? nil : fields)
             apply(merged)
             lastProfile = p
         }
@@ -1213,17 +1224,18 @@ final class Store: Observable {
         let d = UserDefaults.standard
         if d.string(forKey: Self.profileNameKey) ?? "" != p.name { d.set(p.name, forKey: Self.profileNameKey) }
         if d.string(forKey: Self.profileAboutKey) ?? "" != p.aboutMe { d.set(p.aboutMe, forKey: Self.profileAboutKey) }
+        if let fields = p.specialtyWords { VocabularyField.apply(fields, to: d) }
     }
 
     private func saveProfileIfChanged() {
         let p = localProfile
-        guard p != lastProfile, !(p.name.isEmpty && p.aboutMe.isEmpty && lastProfile == nil) else { return }
+        guard p != lastProfile, !(p.name.isEmpty && p.aboutMe.isEmpty && p.specialtyWords == nil && lastProfile == nil) else { return }
         lastProfile = p
         // On the write queue, in order, so the main thread never waits on iCloud (LaunchBudget).
         if let d = try? JSONEncoder().encode(p) { TranscriptFiles.queue.async { Cloud.write(d, to: Paths.profileFile) } }
     }
 
-    /// The other device changed your name or About me: the newer file wins.
+    /// The other device changed your name, About me, or a specialty word switch: the newer file wins.
     func ingestProfile() {
         if profileLate != nil { profileLate = true; return }
         guard let d = Cloud.read(Paths.profileFile), let p = try? Self.dec.decode(SyncedProfile.self, from: d), p != localProfile else { return }

@@ -1,5 +1,5 @@
 {
- "version": 2,
+ "version": 3,
  "about": "Built-in modern vocabulary. heard: replaced in any case. exact: replaced only when written exactly so. context: replaced only next to a context word or capitalized mid-sentence. after: extra context words for this term. boost: false keeps a term out of recognition boosting.",
  "terms": [
   {
@@ -8583,6 +8583,989 @@
     "shamalon",
     "shymalan",
     "shyamalam"
+   ]
+  },
+  {
+   "term": "metformin",
+   "category": "Medical",
+   "heard": [
+    "metforman",
+    "met formin"
+   ]
+  },
+  {
+   "term": "adalimumab",
+   "category": "Medical",
+   "heard": [
+    "a dalimumab",
+    "adalimamab"
+   ]
+  },
+  {
+   "term": "risankizumab",
+   "category": "Medical",
+   "heard": [
+    "rezenquizumab",
+    "risankizimab"
+   ]
+  },
+  {
+   "term": "Biktarvy",
+   "category": "Medical",
+   "heard": [
+    "bactarvy",
+    "biktarvy",
+    "bik tarvy"
+   ]
+  },
+  {
+   "term": "spironolactone",
+   "category": "Medical",
+   "heard": [
+    "spinal lactone",
+    "spirono lactone"
+   ]
+  },
+  {
+   "term": "Xarelto",
+   "category": "Medical",
+   "heard": [
+    "zarelto",
+    "xarelto"
+   ]
+  },
+  {
+   "term": "Ozempic",
+   "category": "Medical",
+   "heard": [
+    "ozempic",
+    "ozempik",
+    "ozimpic"
+   ]
+  },
+  {
+   "term": "Wegovy",
+   "category": "Medical",
+   "heard": [
+    "wegovy",
+    "wegovi",
+    "weegovy"
+   ]
+  },
+  {
+   "term": "Mounjaro",
+   "category": "Medical",
+   "heard": [
+    "mounjaro",
+    "monjaro",
+    "mon jaro",
+    "moon jaro"
+   ]
+  },
+  {
+   "term": "Zepbound",
+   "category": "Medical",
+   "heard": [
+    "zepbound",
+    "zep bound"
+   ]
+  },
+  {
+   "term": "semaglutide",
+   "category": "Medical",
+   "heard": [
+    "semiglutide",
+    "sema glutide",
+    "semi glutide"
+   ]
+  },
+  {
+   "term": "tirzepatide",
+   "category": "Medical",
+   "heard": [
+    "tirzepitide",
+    "tirzapatide",
+    "terzepatide"
+   ]
+  },
+  {
+   "term": "Eliquis",
+   "category": "Medical",
+   "heard": [
+    "eliquis",
+    "eloquis",
+    "elequis"
+   ]
+  },
+  {
+   "term": "Jardiance",
+   "category": "Medical",
+   "heard": [
+    "jardiance",
+    "jardians"
+   ]
+  },
+  {
+   "term": "Dupixent",
+   "category": "Medical",
+   "heard": [
+    "dupixent",
+    "dupixant"
+   ]
+  },
+  {
+   "term": "Skyrizi",
+   "category": "Medical",
+   "heard": [
+    "skyrizi",
+    "sky rizi",
+    "skyrisi"
+   ]
+  },
+  {
+   "term": "Rinvoq",
+   "category": "Medical",
+   "heard": [
+    "rinvoq",
+    "rinvoke",
+    "rinvok"
+   ]
+  },
+  {
+   "term": "Keytruda",
+   "category": "Medical",
+   "heard": [
+    "keytruda",
+    "key truda"
+   ]
+  },
+  {
+   "term": "levothyroxine",
+   "category": "Medical",
+   "heard": [
+    "levothyroxin",
+    "levo thyroxine",
+    "levathyroxine"
+   ]
+  },
+  {
+   "term": "acetaminophen",
+   "category": "Medical",
+   "heard": [
+    "acetometaphen",
+    "acetaminophin",
+    "acetaminofen"
+   ]
+  },
+  {
+   "term": "amoxicillin",
+   "category": "Medical",
+   "heard": [
+    "amoxacillin",
+    "amoxicilin",
+    "amoxicillan"
+   ]
+  },
+  {
+   "term": "ibuprofen",
+   "category": "Medical",
+   "heard": [
+    "ibuprofin",
+    "ibuprophen"
+   ]
+  },
+  {
+   "term": "hydrochlorothiazide",
+   "category": "Medical",
+   "heard": [
+    "hydro chlorothiazide",
+    "hydrochlorathiazide"
+   ]
+  },
+  {
+   "term": "lisinopril",
+   "category": "Medical",
+   "heard": [
+    "lysinopril",
+    "lisinipril"
+   ]
+  },
+  {
+   "term": "gabapentin",
+   "category": "Medical",
+   "heard": [
+    "gabapenten",
+    "gaba pentin"
+   ]
+  },
+  {
+   "term": "Klebsiella",
+   "category": "Medical",
+   "heard": [
+    "klebsiela"
+   ]
+  },
+  {
+   "term": "molluscum contagiosum",
+   "category": "Medical",
+   "heard": [
+    "molested contagiosum",
+    "mollusk contagiosum"
+   ]
+  },
+  {
+   "term": "alopecia universalis",
+   "category": "Medical",
+   "heard": [
+    "alopecia universe alice"
+   ]
+  },
+  {
+   "term": "seborrheic keratoses",
+   "category": "Medical",
+   "heard": [
+    "systolic keratoses",
+    "seborrhic keratoses",
+    "seborheic keratoses"
+   ]
+  },
+  {
+   "term": "Crohn's disease",
+   "category": "Medical",
+   "heard": [
+    "crones disease",
+    "crone's disease",
+    "crohns disease",
+    "chrons disease",
+    "chron's disease"
+   ]
+  },
+  {
+   "term": "Sjögren's",
+   "category": "Medical",
+   "heard": [
+    "sjögrens",
+    "showgrens"
+   ]
+  },
+  {
+   "term": "Ehlers-Danlos",
+   "category": "Medical",
+   "heard": [
+    "ehlers danlos",
+    "ehler danlos",
+    "ellers danlos"
+   ]
+  },
+  {
+   "term": "Guillain-Barré",
+   "category": "Medical",
+   "heard": [
+    "guillain barre",
+    "guillain-barre",
+    "guillain barré"
+   ]
+  },
+  {
+   "term": "MRSA",
+   "category": "Medical",
+   "heard": [
+    "mersa",
+    "mrsa",
+    "m r s a"
+   ]
+  },
+  {
+   "term": "C. diff",
+   "category": "Medical",
+   "heard": [
+    "c diff",
+    "c-diff"
+   ]
+  },
+  {
+   "term": "COPD",
+   "category": "Medical",
+   "heard": [
+    "copd",
+    "c o p d"
+   ]
+  },
+  {
+   "term": "GERD",
+   "category": "Medical",
+   "heard": [
+    "g e r d"
+   ],
+   "boost": false
+  },
+  {
+   "term": "A1C",
+   "category": "Medical",
+   "heard": [
+    "a1c"
+   ]
+  },
+  {
+   "term": "SpO2",
+   "category": "Medical",
+   "heard": [
+    "spo2",
+    "sp o2",
+    "s p o 2",
+    "sp o 2"
+   ]
+  },
+  {
+   "term": "EKG",
+   "category": "Medical",
+   "heard": [
+    "e k g"
+   ]
+  },
+  {
+   "term": "DVT",
+   "category": "Medical",
+   "heard": [
+    "d v t"
+   ]
+  },
+  {
+   "term": "PRN",
+   "category": "Medical",
+   "heard": [
+    "p r n"
+   ]
+  },
+  {
+   "term": "NPO",
+   "category": "Medical",
+   "heard": [
+    "n p o"
+   ]
+  },
+  {
+   "term": "habeas corpus",
+   "category": "Legal",
+   "heard": [
+    "habeus corpus",
+    "habius corpus",
+    "habeas corpse"
+   ],
+   "context": [
+    "have this corpus"
+   ],
+   "after": [
+    "petition",
+    "petitions",
+    "relief"
+   ],
+   "strict": true
+  },
+  {
+   "term": "pro bono",
+   "category": "Legal",
+   "context": [
+    "pro bonus"
+   ],
+   "after": [
+    "work",
+    "basis",
+    "case",
+    "cases",
+    "attorney",
+    "attorneys",
+    "lawyer",
+    "lawyers",
+    "representation",
+    "clients"
+   ],
+   "strict": true
+  },
+  {
+   "term": "voir dire",
+   "category": "Legal",
+   "heard": [
+    "vwar dire",
+    "voir deer",
+    "voire dire",
+    "vwah deer"
+   ],
+   "context": [
+    "war dire"
+   ],
+   "after": [
+    "jury",
+    "juror",
+    "jurors",
+    "process",
+    "questioning",
+    "examination"
+   ],
+   "strict": true
+  },
+  {
+   "term": "res judicata",
+   "category": "Legal",
+   "heard": [
+    "res judicada",
+    "race judicata",
+    "res judicatta"
+   ]
+  },
+  {
+   "term": "res ipsa loquitur",
+   "category": "Legal",
+   "heard": [
+    "res ipsa loquiter",
+    "res ipsa loquitor"
+   ]
+  },
+  {
+   "term": "stare decisis",
+   "category": "Legal",
+   "heard": [
+    "starry decisis",
+    "stary decisis",
+    "stare decises",
+    "stare decisus"
+   ]
+  },
+  {
+   "term": "certiorari",
+   "category": "Legal",
+   "heard": [
+    "certiori",
+    "certierari",
+    "certioari"
+   ]
+  },
+  {
+   "term": "amicus curiae",
+   "category": "Legal",
+   "heard": [
+    "amicus curie",
+    "amicus curae",
+    "amicus curiea"
+   ]
+  },
+  {
+   "term": "mens rea",
+   "category": "Legal",
+   "heard": [
+    "mens ria",
+    "men's rea",
+    "mens reya"
+   ]
+  },
+  {
+   "term": "actus reus",
+   "category": "Legal",
+   "heard": [
+    "actus rheus",
+    "actus reas"
+   ]
+  },
+  {
+   "term": "prima facie",
+   "category": "Legal",
+   "heard": [
+    "prima facia",
+    "prima fascia"
+   ]
+  },
+  {
+   "term": "sua sponte",
+   "category": "Legal",
+   "heard": [
+    "sua spontay",
+    "sua sponti",
+    "sue a sponte"
+   ]
+  },
+  {
+   "term": "in limine",
+   "category": "Legal",
+   "heard": [
+    "in limini",
+    "in liminy"
+   ]
+  },
+  {
+   "term": "nolo contendere",
+   "category": "Legal",
+   "heard": [
+    "nolo contendre",
+    "nolo contender"
+   ]
+  },
+  {
+   "term": "en banc",
+   "category": "Legal",
+   "heard": [
+    "en bank"
+   ]
+  },
+  {
+   "term": "pro hac vice",
+   "category": "Legal",
+   "heard": [
+    "pro hoc vice"
+   ]
+  },
+  {
+   "term": "duces tecum",
+   "category": "Legal",
+   "heard": [
+    "duces tekum",
+    "duchess tecum"
+   ]
+  },
+  {
+   "term": "affidavit",
+   "category": "Legal",
+   "heard": [
+    "affidavid"
+   ]
+  },
+  {
+   "term": "lis pendens",
+   "category": "Legal",
+   "heard": [
+    "lis pendins",
+    "liss pendens"
+   ]
+  },
+  {
+   "term": "quantum meruit",
+   "category": "Legal",
+   "heard": [
+    "quantum meriut"
+   ]
+  },
+  {
+   "term": "qui tam",
+   "category": "Legal",
+   "heard": [
+    "kwee tam"
+   ]
+  },
+  {
+   "term": "mandamus",
+   "category": "Legal",
+   "heard": [
+    "mandamous",
+    "man damus"
+   ]
+  },
+  {
+   "term": "force majeure",
+   "category": "Legal",
+   "heard": [
+    "force majeur",
+    "force majure"
+   ]
+  },
+  {
+   "term": "spoliation",
+   "category": "Legal",
+   "heard": [
+    "spoilation"
+   ]
+  },
+  {
+   "term": "tortious",
+   "category": "Legal",
+   "context": [
+    "tortuous"
+   ],
+   "after": [
+    "interference",
+    "liability"
+   ],
+   "strict": true
+  },
+  {
+   "term": "eminent domain",
+   "category": "Legal",
+   "heard": [
+    "imminent domain"
+   ]
+  },
+  {
+   "term": "12(b)(6)",
+   "category": "Legal",
+   "heard": [
+    "12 b 6",
+    "12b6",
+    "12 b six",
+    "twelve b six",
+    "12(b) six"
+   ]
+  },
+  {
+   "term": "TRO",
+   "category": "Legal",
+   "heard": [
+    "t r o"
+   ]
+  },
+  {
+   "term": "NDA",
+   "category": "Legal",
+   "heard": [
+    "n d a"
+   ]
+  },
+  {
+   "term": "SCOTUS",
+   "category": "Legal",
+   "heard": [
+    "scotus"
+   ]
+  },
+  {
+   "term": "per curiam",
+   "category": "Legal",
+   "heard": [
+    "per curium",
+    "per curriam"
+   ]
+  },
+  {
+   "term": "estoppel",
+   "category": "Legal",
+   "heard": [
+    "estopple",
+    "estoppal"
+   ]
+  },
+  {
+   "term": "codicil",
+   "category": "Legal",
+   "heard": [
+    "codisil",
+    "codicile"
+   ]
+  },
+  {
+   "term": "Philippians",
+   "category": "Bible and faith",
+   "heard": [
+    "phillipians",
+    "philipians",
+    "phillippians"
+   ]
+  },
+  {
+   "term": "Hosea",
+   "category": "Bible and faith",
+   "context": [
+    "Hosier"
+   ],
+   "after": [
+    "chapter",
+    "verse",
+    "verses",
+    "prophet"
+   ],
+   "strict": true
+  },
+  {
+   "term": "Habakkuk",
+   "category": "Bible and faith",
+   "heard": [
+    "habakkuk",
+    "habakuk",
+    "habbakuk",
+    "habbakkuk"
+   ]
+  },
+  {
+   "term": "Nebuchadnezzar",
+   "category": "Bible and faith",
+   "heard": [
+    "nebuchadnezzer",
+    "nebuchadnezar",
+    "nebuchanezzar",
+    "nebuchadnezer",
+    "nebakanezzar"
+   ]
+  },
+  {
+   "term": "Melchizedek",
+   "category": "Bible and faith",
+   "heard": [
+    "melchizedec",
+    "melchezedek",
+    "melkizedek"
+   ]
+  },
+  {
+   "term": "Ecclesiastes",
+   "category": "Bible and faith",
+   "heard": [
+    "ecclesiates",
+    "eclesiastes",
+    "ecclesiasties"
+   ]
+  },
+  {
+   "term": "Gethsemane",
+   "category": "Bible and faith",
+   "heard": [
+    "gethsemene",
+    "gethsemany",
+    "gethsemanie",
+    "gethsamane"
+   ]
+  },
+  {
+   "term": "Zephaniah",
+   "category": "Bible and faith",
+   "heard": [
+    "zepheniah"
+   ]
+  },
+  {
+   "term": "Thessalonians",
+   "category": "Bible and faith",
+   "heard": [
+    "thessalonions",
+    "thesselonians",
+    "thessolonians"
+   ]
+  },
+  {
+   "term": "Colossians",
+   "category": "Bible and faith",
+   "heard": [
+    "collosians",
+    "colosians",
+    "collossians"
+   ]
+  },
+  {
+   "term": "Ephesians",
+   "category": "Bible and faith",
+   "heard": [
+    "ephesions",
+    "ephisians",
+    "efesians"
+   ]
+  },
+  {
+   "term": "Galatians",
+   "category": "Bible and faith",
+   "heard": [
+    "galations",
+    "galacians"
+   ]
+  },
+  {
+   "term": "Deuteronomy",
+   "category": "Bible and faith",
+   "heard": [
+    "deutoronomy",
+    "duteronomy",
+    "deuteronomey"
+   ]
+  },
+  {
+   "term": "Abednego",
+   "category": "Bible and faith",
+   "heard": [
+    "abednigo",
+    "abendigo",
+    "abednago"
+   ]
+  },
+  {
+   "term": "Beelzebub",
+   "category": "Bible and faith",
+   "heard": [
+    "beezlebub",
+    "bealzebub",
+    "beelzebubb"
+   ]
+  },
+  {
+   "term": "Methuselah",
+   "category": "Bible and faith",
+   "heard": [
+    "methusela",
+    "methusaleh",
+    "methuseleh"
+   ]
+  },
+  {
+   "term": "Barabbas",
+   "category": "Bible and faith",
+   "heard": [
+    "barrabas",
+    "barabus",
+    "barrabbas"
+   ]
+  },
+  {
+   "term": "Capernaum",
+   "category": "Bible and faith",
+   "heard": [
+    "capernum",
+    "caperneum",
+    "capernaam"
+   ]
+  },
+  {
+   "term": "Galilee",
+   "category": "Bible and faith",
+   "heard": [
+    "gallilee",
+    "galillee",
+    "gallilea"
+   ]
+  },
+  {
+   "term": "Golgotha",
+   "category": "Bible and faith",
+   "heard": [
+    "golgatha",
+    "gogotha"
+   ]
+  },
+  {
+   "term": "Sanhedrin",
+   "category": "Bible and faith",
+   "heard": [
+    "sanhedren",
+    "san hedrin"
+   ]
+  },
+  {
+   "term": "Sadducees",
+   "category": "Bible and faith",
+   "heard": [
+    "saducees",
+    "sadduces",
+    "sadducess"
+   ]
+  },
+  {
+   "term": "Septuagint",
+   "category": "Bible and faith",
+   "heard": [
+    "septuigint",
+    "septuagent"
+   ]
+  },
+  {
+   "term": "Pentateuch",
+   "category": "Bible and faith",
+   "heard": [
+    "pentatuch",
+    "pentatuke",
+    "penta tuke"
+   ]
+  },
+  {
+   "term": "Yahweh",
+   "category": "Bible and faith",
+   "heard": [
+    "yahweh",
+    "yaweh",
+    "yahwe"
+   ]
+  },
+  {
+   "term": "eschatology",
+   "category": "Bible and faith",
+   "heard": [
+    "escatology",
+    "eschatalogy",
+    "eschotology"
+   ]
+  },
+  {
+   "term": "soteriology",
+   "category": "Bible and faith",
+   "heard": [
+    "soterology",
+    "sotieriology"
+   ]
+  },
+  {
+   "term": "pneumatology",
+   "category": "Bible and faith",
+   "heard": [
+    "neumatology",
+    "numatology",
+    "pneumotology"
+   ]
+  },
+  {
+   "term": "propitiation",
+   "category": "Bible and faith",
+   "heard": [
+    "propiciation",
+    "propitation"
+   ]
+  },
+  {
+   "term": "hermeneutics",
+   "category": "Bible and faith",
+   "heard": [
+    "hermaneutics",
+    "hermenutics",
+    "her meneutics"
+   ]
+  },
+  {
+   "term": "eisegesis",
+   "category": "Bible and faith",
+   "heard": [
+    "isegesis",
+    "eisegisis",
+    "icegesis"
+   ]
+  },
+  {
+   "term": "exegesis",
+   "category": "Bible and faith",
+   "heard": [
+    "exegisis",
+    "exogesis"
+   ]
+  },
+  {
+   "term": "imago Dei",
+   "category": "Bible and faith",
+   "heard": [
+    "imago day",
+    "imago dei"
+   ]
+  },
+  {
+   "term": "sola scriptura",
+   "category": "Bible and faith",
+   "heard": [
+    "sola scripture",
+    "sola scriptora"
+   ]
+  },
+  {
+   "term": "premillennialism",
+   "category": "Bible and faith",
+   "heard": [
+    "premillenialism",
+    "pre millennialism",
+    "pre-millenialism"
+   ]
+  },
+  {
+   "term": "amillennialism",
+   "category": "Bible and faith",
+   "heard": [
+    "amillenialism"
    ]
   }
  ]

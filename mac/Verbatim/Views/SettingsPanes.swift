@@ -161,6 +161,7 @@ struct DictationForm: View {
                 SettingsToggleRow("dictate.boost", isOn: $flow.boostVocabulary)
                 SettingsToggleRow("dictate.autoLearn", isOn: $flow.autoLearn)
             }
+            SpecialtyWordsSettingsGroup()
             SettingsGroup(title: "Snippets") {
                 SettingsRow("dictate.snippets", stacked: true) {
                     VStack(alignment: .leading, spacing: 8) {

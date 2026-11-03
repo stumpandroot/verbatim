@@ -42,8 +42,8 @@ NEGATIVES = os.path.join(FIXTURES, "negatives.txt")
 
 # The categories the Settings list shows. A new one is a deliberate choice: add it here.
 CATEGORIES = {"AI", "Software", "Platforms", "Devices", "Internet", "Creative tools", "Brands", "Finance", "Places",
-              "People", "Film and video", "Business", "General"}
-TERM_KEYS = {"term", "category", "heard", "exact", "context", "after", "boost"}
+              "People", "Film and video", "Business", "General", "Medical", "Legal", "Bible and faith"}
+TERM_KEYS = {"term", "category", "heard", "exact", "context", "after", "boost", "strict"}
 RESEARCH_KEYS = {"confidence", "why", "sources", "risk", "existing"}
 
 # BuiltInVocabulary.beforeWords and .afterWords.
@@ -88,8 +88,9 @@ def pattern(form):
 
 
 class Rule:
-    def __init__(self, term, form, kind, after, order):
+    def __init__(self, term, form, kind, after, order, strict=False):
         self.term, self.form, self.kind, self.after, self.order = term, form, kind, after, order
+        self.strict = strict
         self.key = words(form)[0] if words(form) else None
         self.re = re.compile(pattern(form), 0 if kind == "exact" else re.IGNORECASE)
 
@@ -100,12 +101,12 @@ def rules_for(terms):
         after = {a.lower() for a in t.get("after", [])}
         for kind in ("heard", "exact", "context"):
             for f in t.get(kind, []):
-                raw.append((t["term"], f, {"heard": "always"}.get(kind, kind), after))
+                raw.append((t["term"], f, {"heard": "always"}.get(kind, kind), after, bool(t.get("strict"))))
     # Longest forms first, ties in file order (Swift's sort compares Character counts; ASCII-safe here).
     ordered = sorted(enumerate(raw), key=lambda e: (-len(e[1][1]), e[0]))
     out = []
-    for i, (_, (term, form, kind, after)) in enumerate(ordered):
-        r = Rule(term, form, kind, after, i)
+    for i, (_, (term, form, kind, after, strict)) in enumerate(ordered):
+        r = Rule(term, form, kind, after, i, strict)
         if r.key:
             out.append(r)
     return out
@@ -148,7 +149,11 @@ def word_after(s):
     return t[:j].lower() or None
 
 
-def context_allows(text, span, extra, capital_counts=True):
+def context_allows(text, span, extra, capital_counts=True, shared=True):
+    if not shared:
+        # A strict term: only its own `after` words, right after the form.
+        w = word_after(text[span[1]:])
+        return bool(w and w in extra)
     found = text[span[0]:span[1]]
     if capital_counts and found[:1].isupper() and not is_sentence_start(text, span[0]):
         return True
@@ -170,7 +175,7 @@ def allowed(rule, text):
             continue
         if any(g[0] < s[1] and s[0] < g[1] for g in guarded):
             continue
-        if rule.kind == "context" and not context_allows(text, s, rule.after, not rule.form[:1].isupper()):
+        if rule.kind == "context" and not context_allows(text, s, rule.after, not rule.form[:1].isupper(), not rule.strict):
             continue
         out.append(s)
     return out
@@ -288,6 +293,8 @@ def check_schema(data):
                     fail(f"{where}: after holds single words (the pass compares one word before or after)")
         if "boost" in t and not isinstance(t["boost"], bool):
             fail(f"{where}: boost must be true or false")
+        if "strict" in t and (t["strict"] is not True or not t.get("context") or not t.get("after")):
+            fail(f"{where}: strict is true or left out, and needs context forms and after words")
         if not any(t.get(k) for k in ("heard", "exact", "context")):
             fail(f"{where}: no forms")
         for f in t.get("exact", []):
@@ -387,11 +394,18 @@ def check_order(terms, vocab):
                 elif vocab.fix(got) != got:
                     fail(f"order: {f!r} isn't stable: {got!r} then {vocab.fix(got)!r}")
         for f in t.get("context", []):
-            s = f"I opened it on {f} today."
-            want = f"I opened it on {term} today."
-            got = vocab.fix(s)
-            if got != want:
-                fail(f"order: context form {f!r} of {term!r} gives {got!r}, not {want!r}")
+            if t.get("strict"):
+                # Only its own after words count: they change it, and the shared context words don't.
+                a = t["after"][0]
+                cases = [(f"Then {f} {a} was fine.", f"Then {term} {a} was fine."), (f"I opened it on {f} today.", None),
+                         (f"Then {f} account was fine.", None)]
+            else:
+                cases = [(f"I opened it on {f} today.", f"I opened it on {term} today.")]
+            for s, want in cases:
+                want = s if want is None else want
+                got = vocab.fix(s)
+                if got != want:
+                    fail(f"order: context form {f!r} of {term!r} gives {got!r}, not {want!r}")
     # Shorter forms inside longer ones for another term, reported for the record (the checks above decide).
     pairs = 0
     forms = [(t["term"], f) for t in terms for k in ("heard", "exact") for f in t.get(k, [])]
@@ -543,6 +557,7 @@ def main():
             vocab_inputs += [f for k in ("heard", "exact") for f in t.get(k, [])]
             vocab_inputs += [f"I opened it on {f} today." for f in t.get("context", [])]
             vocab_inputs += [f"Then {f} was fine." for f in t.get("context", [])]
+            vocab_inputs += [f"Then {f} {a} was fine." for f in t.get("context", []) for a in t.get("after", [])[:2]]
         every_inputs = list(negatives) + [p[0] for fx, _ in fixes for p in fx["examples"]] + [k for fx, _ in fixes for k in fx["keep"]]
         cases = {"vocabulary": [[x, vocab.fix(x)] for x in vocab_inputs],
                  "everyday": [[x, everyday_apply(fixes, x)] for x in every_inputs]}
