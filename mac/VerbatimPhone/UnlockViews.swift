@@ -207,6 +207,7 @@ struct UnlockHomeCard: View {
     /// Space above the card, only while it shows.
     var top: CGFloat = 0
     @ObservedObject private var unlock = UnlockStore.shared
+    @Environment(\.limitMotion) private var limitMotion
     /// The card Home drew last, for the self-test.
     static var shown: UnlockCard? = nil
 
@@ -224,7 +225,8 @@ struct UnlockHomeCard: View {
                             .refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText)
                             .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
                             .accessibilityIdentifier("home.unlockCard.unlock")
-                        Button(UnlockCopy.cardDismiss(card)) { unlock.dismiss(card) }
+                        // The card fades and slides 6 pt as it goes, and Home closes the space smoothly (DESIGN.md §7).
+                        Button(UnlockCopy.cardDismiss(card)) { withAnimation(Motion.cardAnimation(limited: limitMotion)) { unlock.dismiss(card) } }
                             .refinedFont(.hint, weight: .medium).foregroundStyle(Refined.mute)
                             .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
                             .accessibilityHint("Hides this card")
@@ -236,8 +238,11 @@ struct UnlockHomeCard: View {
                 .padding(.top, top)
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("home.unlockCard")
+                .transition(Motion.cardTransition(limited: limitMotion))
             }
         }
+        // A card that arrives (or changes) on its own fades in the same way.
+        .animation(Motion.cardAnimation(limited: limitMotion), value: card)
         .onAppear { Self.shown = card }
         .onChange(of: card) { _, c in Self.shown = c }
     }

@@ -168,9 +168,11 @@ struct TranscriptDetails: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
     @Binding var open: Bool
+    @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
-        DisclosureGroup(isExpanded: $open) {
+        // Opening and closing settle (DESIGN.md §7); a crossfade under Limit animation.
+        DisclosureGroup(isExpanded: $open.animation(limitMotion ? Motion.fade : Motion.settle)) {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
                 row("Source", transcript.provenanceSource)
                 row("Engine", transcript.model.isEmpty ? "—" : transcript.model)

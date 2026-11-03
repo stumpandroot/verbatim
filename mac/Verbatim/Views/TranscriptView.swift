@@ -315,6 +315,13 @@ struct TranscriptView: View {
         if t.status == .processing { processing(t) }
         else if t.status == .failed { failed(t) }
         else {
+            // A tab change crossfades the body as a whole over 150 ms (DESIGN.md §7, view switches).
+            tabBody(t).crossfadeSwitch(on: view)
+        }
+    }
+
+    @ViewBuilder private func tabBody(_ t: Transcript) -> some View {
+        Group {
             switch view {
             case .original: original(t)
             case .document: DocumentView(transcript: t)

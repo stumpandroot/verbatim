@@ -4,7 +4,7 @@ import SwiftUI
 //
 // Pasting a link shows a centered card over a light scrim: the thumbnail as soon as it's known, the title (a
 // shimmering placeholder until then), and the download as it happens. When the audio is in the queue, or when you
-// choose Keep downloading (Done once it's queued), the card folds in place into a small sage video tile, which then
+// choose Continue in background (Done once it's queued), the card folds in place into a small sage video tile, which then
 // flies to the Queue item (Mac sidebar) or the Library tab (iPhone) and the count there goes up. Downloading keeps
 // going either way.
 //
@@ -234,22 +234,11 @@ struct LinkAddedCard: View {
             }
             // Buttons that say what happens to the download (review M-19): the quiet one stops it, the strong one closes
             // the card and keeps it going.
-            HStack(spacing: 8) {
-                Button(action: onCancel) { label(Self.cancelTitle(imp.phase)) }
-                    .buttonStyle(LinkCardButtonStyle(dark: false))
-                if failed {
-                    Button(action: onRetry) { label("Retry") }
-                        .buttonStyle(LinkCardButtonStyle(dark: true))
-                        .keyboardShortcut(.defaultAction)
-                } else {
-                    // Escape is Keep downloading (Done once queued), not Cancel: closing the card never throws a
-                    // download away.
-                    Button(action: onDone) { label(Self.doneTitle(imp.phase)) }
-                        .buttonStyle(LinkCardButtonStyle(dark: true))
-                        .keyboardShortcut(.cancelAction)
-                        .help("Close this card (Esc). The download keeps going and the link joins the queue.")
-                        .accessibilityHint("Closes this card. The download keeps going and the link joins the queue.")
-                }
+            // Side by side when both labels fit whole; stacked, the strong one first, when they don't (the iPhone's
+            // card is too narrow for "Cancel download" beside "Continue in background").
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { cancelButton; strongButton }
+                VStack(spacing: 8) { strongButton; cancelButton }
             }
         }
         .padding(metrics.padding)
@@ -260,10 +249,31 @@ struct LinkAddedCard: View {
 
     private var failed: Bool { if case .failed = imp.phase { return true }; return false }
 
-    /// While the audio is still coming: "Cancel download" and "Keep downloading", so neither reads as stop or hide by
+    private var cancelButton: some View {
+        Button(action: onCancel) { label(Self.cancelTitle(imp.phase)) }
+            .buttonStyle(LinkCardButtonStyle(dark: false))
+    }
+
+    @ViewBuilder private var strongButton: some View {
+        if failed {
+            Button(action: onRetry) { label("Retry") }
+                .buttonStyle(LinkCardButtonStyle(dark: true))
+                .keyboardShortcut(.defaultAction)
+        } else {
+            // Escape is Continue in background (Done once queued), not Cancel: closing the card never throws a
+            // download away.
+            Button(action: onDone) { label(Self.doneTitle(imp.phase)) }
+                .buttonStyle(LinkCardButtonStyle(dark: true))
+                .keyboardShortcut(.cancelAction)
+                .help("Close this card (Esc). The download keeps going and the link joins the queue.")
+                .accessibilityHint("Closes this card. The download keeps going and the link joins the queue.")
+        }
+    }
+
+    /// While the audio is still coming: "Cancel download" and "Continue in background", so neither reads as stop or hide by
     /// guesswork (review P-42, M-19). Once it's queued or sent, or it failed: "Cancel" and "Done".
     static func cancelTitle(_ phase: LinkImport.Phase) -> String { downloading(phase) ? "Cancel download" : "Cancel" }
-    static func doneTitle(_ phase: LinkImport.Phase) -> String { downloading(phase) ? "Keep downloading" : "Done" }
+    static func doneTitle(_ phase: LinkImport.Phase) -> String { downloading(phase) ? "Continue in background" : "Done" }
     private static func downloading(_ phase: LinkImport.Phase) -> Bool {
         switch phase {
         case .resolving, .downloading: return true
@@ -272,7 +282,7 @@ struct LinkAddedCard: View {
     }
 
     private func label(_ s: String) -> some View {
-        Text(s).font(.system(size: 13.5, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.85)
+        Text(s).font(.system(size: 13.5, weight: .semibold)).lineLimit(1)
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, minHeight: metrics.buttonHeight)
             .contentShape(Capsule())

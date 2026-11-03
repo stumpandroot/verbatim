@@ -68,7 +68,7 @@ struct VoiceBars: View {
             }
         }
         .frame(height: height)
-        .animation(.linear(duration: 0.08), value: levels)
+        // Drawn straight from each level: a meter changes many times a second and never animates (DESIGN.md §7).
         .accessibilityHidden(true)
     }
 

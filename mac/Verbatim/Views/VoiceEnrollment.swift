@@ -579,7 +579,6 @@ struct VoiceQualityPanel: View {
 struct VoicePassageCard: View {
     @ObservedObject var model: VoiceEnrollment
     var size: CGFloat = 23
-    @Environment(\.limitMotion) private var limitMotion
 
     /// The passage split into the words read so far and the rest. Display words and comparable words line up,
     /// except for stray punctuation tokens, which count as read along with the word before them.
@@ -604,7 +603,7 @@ struct VoicePassageCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, size > 22 ? 24 : 18).padding(.vertical, size > 22 ? 22 : 18)
             .cardSurface(radius: Radius.tile, fill: Refined.card)
-            .animation(limitMotion ? nil : Motion.touch, value: model.wordsRead)
+            // Each word you read turns ink at once: a word is a high-frequency change and never animates (DESIGN.md §7).
             .id(model.passageIndex)
             .transition(.opacity)
             .accessibilityElement(children: .ignore)

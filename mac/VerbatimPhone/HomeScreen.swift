@@ -208,6 +208,8 @@ struct HomeScreen: View {
             .scaleEffect(pressed && !limitMotion ? 0.98 : 1)
             .opacity(pressed && limitMotion ? 0.8 : 1)
             .animation(limitMotion ? Motion.fade : Motion.press, value: pressed)
+            // Ready → Recording: the status and hint settle into place only when recording starts or stops (DESIGN.md §7).
+            .animation(limitMotion ? Motion.fade : Motion.settle, value: app.recordingActive)
             // Touch and hold: the Record as tray (Voice note, Meeting, Thought, Brain dump, Audio only, and the rows you add).
             .recordTrayPress(.card, onPhase: { recordPress = $0 }) { RecordTray.shared.tap() }
             .recordCardAccessibility(app, value: recordStatus, id: compact ? "home.record.compact" : "home.record",

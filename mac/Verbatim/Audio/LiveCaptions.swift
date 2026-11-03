@@ -261,7 +261,6 @@ struct CaptionLinesView: View {
     var spacing: CGFloat
     /// Characters of the current line to show (its end).
     var currentLimit = 160
-    @Environment(\.limitMotion) private var limitMotion
 
     private var ink: Color { Refined.ink }
     private var accent: Color { Refined.accentText }
@@ -274,16 +273,14 @@ struct CaptionLinesView: View {
             ForEach(Array(past.enumerated()), id: \.element.id) { i, line in
                 let style = older[min(older.count - 1, past.count - 1 - i)]
                 lineText(line, size: style.0, color: style.1, highlight: false)
-                    .transition(limitMotion ? .opacity : .opacity.combined(with: .move(edge: .bottom)))
             }
             ForEach(feed.current) { line in
                 lineText(line, size: size, color: ink, highlight: true)
                     .accessibilityHidden(true)
-                    .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(limitMotion ? Motion.fade : Motion.settle, value: feed.history.last?.id)
+        // A new line arrives every few seconds while you read: lines move up at once, with no animation (DESIGN.md §7).
     }
 
     private func lineText(_ line: CaptionLine, size: CGFloat, color: Color, highlight: Bool) -> some View {

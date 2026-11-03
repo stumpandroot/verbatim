@@ -130,6 +130,11 @@ enum DayPages {
     /// "1 thought", "6 thoughts".
     static func count(_ n: Int, _ one: String, _ many: String) -> String { n == 1 ? "1 \(one)" : "\(n) \(many)" }
 
+    /// How many entries each page's day has (the by-day calendars' dots and what VoiceOver reads on them).
+    static func entryCounts<T>(_ pages: [(day: Date, items: [T])]) -> [Date: Int] {
+        Dictionary(pages.map { ($0.day, $0.items.count) }, uniquingKeysWith: +)
+    }
+
     // MARK: Calendar
 
     /// One month's grid, whole weeks from the calendar's first weekday: the days before and after the month fill the

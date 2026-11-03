@@ -20,6 +20,8 @@ struct LibraryView: View {
     @State private var selection: Set<UUID> = ScreenPlaces.shared.tableSelection
     /// Where a Shift-click range starts: the last row clicked or ⌘-clicked.
     @State private var anchor: UUID? = nil
+    /// Clear for a moment after a chip changes the filter, then fades in (`fadeList`).
+    @State private var listShown = true
     @FocusState private var focused: Bool
 
     /// How many Libraries are on screen, and their rows' order (the self-test).
@@ -119,14 +121,17 @@ struct LibraryView: View {
                 }
                 .padding(.top, 8)
             }
-            if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
-                PassageResults(query: app.search, list: lists.list).padding(.top, 16)
+            Group {
+                if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
+                    PassageResults(query: app.search, list: lists.list).padding(.top, 16)
+                }
+                if rows.isEmpty {
+                    emptyState.padding(.top, 16)
+                } else {
+                    table(rows, order: order, columns: LibraryColumns(width: width)).padding(.top, 16)
+                }
             }
-            if rows.isEmpty {
-                emptyState.padding(.top, 16)
-            } else {
-                table(rows, order: order, columns: LibraryColumns(width: width)).padding(.top, 16)
-            }
+            .opacity(listShown ? 1 : 0)
         }
     }
 
@@ -194,8 +199,20 @@ struct LibraryView: View {
     }
 
     private func choose(_ chip: LibraryChip) {
-        app.libraryKind = chip.kind
-        app.libraryFilter = LibraryFilter(source: chip.source)
+        let filter = LibraryFilter(source: chip.source)
+        guard app.libraryKind != chip.kind || app.libraryFilter != filter else { return }
+        fadeList {
+            app.libraryKind = chip.kind
+            app.libraryFilter = filter
+        }
+    }
+
+    /// A chip's change fades the list in as a whole over 150 ms (DESIGN.md §7, view switches): the rows change at once
+    /// while the list is clear, then it fades in. No row animates on its own, and nothing waits for it.
+    private func fadeList(_ change: () -> Void) {
+        listShown = false
+        change()
+        DispatchQueue.main.async { withAnimation(Motion.crossfade) { listShown = true } }
     }
 
     /// Every type and kind the chips don't name, as a menu at the end of the chips.

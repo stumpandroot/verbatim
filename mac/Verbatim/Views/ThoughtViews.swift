@@ -26,7 +26,9 @@ struct ThoughtGlyph: View {
             ThoughtBulbShape().stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
             ThoughtWaveShape(amplitude: amp).stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
         }
-        .animation(limitMotion || level == nil ? .easeOut(duration: 0.18) : .easeOut(duration: 0.09), value: amp)
+        // While recording, the wave is drawn straight from each level (a meter never animates, DESIGN.md §7); only the
+        // return to rest eases.
+        .animation(level == nil ? .easeOut(duration: 0.18) : nil, value: amp)
         .aspectRatio(1, contentMode: .fit)
         .accessibilityHidden(true)
     }

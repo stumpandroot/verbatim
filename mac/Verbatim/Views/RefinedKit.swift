@@ -746,12 +746,13 @@ struct SystemSearchField: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UISearchTextField {
         let f = UISearchTextField()
-        f.placeholder = prompt
+        f.attributedPlaceholder = Self.placeholder(prompt)
         f.accessibilityLabel = prompt
         f.font = .preferredFont(forTextStyle: .body)
         f.adjustsFontForContentSizeCategory = true
         f.backgroundColor = Refined.uiColor(RefinedHex.field)
         f.textColor = Refined.uiColor(RefinedHex.ink)
+        f.leftView?.tintColor = Refined.uiColor(RefinedHex.mute)
         f.returnKeyType = .search
         f.autocorrectionType = .no
         f.autocapitalizationType = .none
@@ -765,7 +766,13 @@ struct SystemSearchField: UIViewRepresentable {
     func updateUIView(_ f: UISearchTextField, context: Context) {
         context.coordinator.parent = self
         if f.text != text { f.text = text }
-        if f.placeholder != prompt { f.placeholder = prompt; f.accessibilityLabel = prompt }
+        if f.placeholder != prompt { f.attributedPlaceholder = Self.placeholder(prompt); f.accessibilityLabel = prompt }
+    }
+
+    /// The prompt in `mute`, which reaches 4.5:1 on the field in both modes (the system's placeholder gray was about
+    /// 1.7:1 in light and 2.4:1 in dark; critique). The magnifying glass takes `mute` too.
+    static func placeholder(_ prompt: String) -> NSAttributedString {
+        NSAttributedString(string: prompt, attributes: [.foregroundColor: Refined.uiColor(RefinedHex.mute)])
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -817,9 +824,17 @@ struct RefinedSegmented<Value: Hashable>: View {
     }
 
     private func track(equal: Bool) -> some View {
-        HStack(spacing: 0) {
-            ForEach(options, id: \.0) { value, title in
-                segment(value, title, equal: equal)
+        Group {
+            if equal {
+                // Equal segments while the widest label fits whole in an equal share; otherwise each segment takes its
+                // label's width plus an even share of what's left, so "Scenarios" never reads "Scenari…" (critique).
+                SegmentRowLayout {
+                    ForEach(options, id: \.0) { value, title in segment(value, title, equal: true) }
+                }
+            } else {
+                HStack(spacing: 0) {
+                    ForEach(options, id: \.0) { value, title in segment(value, title, equal: false) }
+                }
             }
         }
         .padding(2)
@@ -844,6 +859,37 @@ struct RefinedSegmented<Value: Hashable>: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// `RefinedSegmented`'s full-width row. Its ideal width is the sum of the labels' own widths, so a `ViewThatFits` falls
+/// back to scrolling only when the labels can't all show whole. Given more room: equal widths when the widest label fits
+/// in an equal share, else each label's width plus an even share of the rest.
+struct SegmentRowLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let ideals = subviews.map { $0.sizeThatFits(.unspecified) }
+        let height = ideals.map(\.height).max() ?? 0
+        let natural = ideals.reduce(0) { $0 + $1.width }
+        return CGSize(width: proposal.width ?? natural, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let widths = Self.widths(ideal: subviews.map { $0.sizeThatFits(.unspecified).width }, available: bounds.width)
+        var x = bounds.minX
+        for (i, sub) in subviews.enumerated() {
+            sub.place(at: CGPoint(x: x, y: bounds.midY), anchor: .leading, proposal: ProposedViewSize(width: widths[i], height: bounds.height))
+            x += widths[i]
+        }
+    }
+
+    /// The segments' widths for labels `ideal` points wide in `available` points.
+    static func widths(ideal: [CGFloat], available: CGFloat) -> [CGFloat] {
+        guard !ideal.isEmpty else { return [] }
+        let n = CGFloat(ideal.count)
+        let total = ideal.reduce(0, +)
+        if (ideal.max() ?? 0) * n <= available { return ideal.map { _ in available / n } }
+        if total <= available { return ideal.map { $0 + (available - total) / n } }
+        return ideal.map { $0 * available / max(total, 1) }
     }
 }
 

@@ -21,6 +21,7 @@ struct YouScreen: View {
     @AppStorage("profile.name") private var storedName = ""
     @AppStorage(Profile.aboutMeKey) private var aboutMe = ""
     @AppStorage(CloudCleanup.enabledKey) private var cloudCleanup = false
+    @AppStorage(WordsCalendar.showMilestonesKey) private var showMilestones = false
     @ObservedObject private var flow = FlowSettings.shared
     @ObservedObject private var voice = VoiceProfileStatus.shared
     /// All time's words and talking time, kept after you delete dictations (DictationTally.swift).
@@ -185,6 +186,12 @@ struct YouScreen: View {
                     SettingsValue(pace.map { "\($0) wpm" } ?? "–")
                 }
                 .accessibilityLabel(pace.map { "Your pace, \($0) words per minute" } ?? "Your pace: not enough dictation yet")
+            }
+            PaperCard {
+                SettingsToggleRow(title: "Show milestones",
+                                  subtitle: "A card on your words calendar when your words pass a book's length",
+                                  isOn: $showMilestones)
+                    .accessibilityIdentifier("you.showMilestones")
             }
             if week.words == 0 {
                 Text("Dictate with the Verbose keyboard or the Action button. Your totals show up here.")

@@ -19,6 +19,7 @@ struct WhatsNewScreen: View {
     @State private var detailsOpen: Set<String> = []
     @ScaledMetric(relativeTo: .body) private var itemSize: CGFloat = 15
     @AppStorage(ReleaseNotes.lastSeenKey) private var lastSeen = 0
+    @Environment(\.limitMotion) private var limitMotion
     /// How many What's new screens are on screen, for the UI tour's checks. A count rather than a flag, so a screen
     /// that appears before the one it replaces has gone can't leave it stuck.
     static var onScreen = 0
@@ -74,7 +75,9 @@ struct WhatsNewScreen: View {
     /// A version's header: a chevron, "Version 1.0 beta", and how many builds. Tapping it shows or hides the builds.
     private func versionHeader(_ version: ReleaseVersion, open: Bool) -> some View {
         Button {
-            if toggled.contains(version.id) { toggled.remove(version.id) } else { toggled.insert(version.id) }
+            withAnimation(limitMotion ? Motion.fade : Motion.settle) {
+                if toggled.contains(version.id) { toggled.remove(version.id) } else { toggled.insert(version.id) }
+            }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "chevron.right")
@@ -162,7 +165,10 @@ struct WhatsNewScreen: View {
     /// "Also on Mac" and how many items fold under it: tap to show or hide them.
     private func alsoRow(_ note: ReleaseNote, title: String, count: Int, open: Bool) -> some View {
         Button {
-            if open { alsoOpened.remove(note.id) } else { alsoOpened.insert(note.id) }
+            // The folded items open and close with `settle` (DESIGN.md §7); a crossfade under Limit animation.
+            withAnimation(limitMotion ? Motion.fade : Motion.settle) {
+                if open { alsoOpened.remove(note.id) } else { alsoOpened.insert(note.id) }
+            }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
@@ -261,6 +267,7 @@ struct WhatsNewBanner: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
     var open: () -> Void
     @AppStorage(ReleaseNotes.lastSeenKey) private var lastSeen = 0
+    @Environment(\.limitMotion) private var limitMotion
     /// The UI tour shows the note for a build of its choosing (the simulator's build has no entry).
     static var previewBuild: Int? = nil
 
@@ -286,7 +293,8 @@ struct WhatsNewBanner: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Opens What's new")
-                Button { lastSeen = max(lastSeen, number) } label: {
+                // The note fades and slides 6 pt as it goes, and Home closes the space smoothly (DESIGN.md §7).
+                Button { withAnimation(Motion.cardAnimation(limited: limitMotion)) { lastSeen = max(lastSeen, number) } } label: {
                     Image(systemName: "xmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.mute)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
@@ -298,7 +306,7 @@ struct WhatsNewBanner: View {
             }
             .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
             .padding(.top, top)
-            .transition(.opacity)
+            .transition(Motion.cardTransition(limited: limitMotion))
         }
     }
 }

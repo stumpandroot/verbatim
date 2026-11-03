@@ -333,6 +333,34 @@ enum Motion {
     static let snap = Animation.smooth(duration: 0.24)
     /// What replaces movement when motion is limited: a short crossfade.
     static let fade = Animation.easeOut(duration: 0.2)
+    /// A view switch in place (a transcript's Original, Cleaned, and Summary; a list's filter): 150 ms.
+    static let crossfade = Animation.easeOut(duration: 0.15)
+
+    /// A card that comes and goes on a dashboard (Home's What's new, the Unlock card): it fades and slides 6 pt,
+    /// and the space it leaves closes with `settle`. Under Limit animation it only fades.
+    static func cardTransition(limited: Bool) -> AnyTransition {
+        limited ? .opacity : .opacity.combined(with: .offset(y: 6))
+    }
+    /// The animation that goes with `cardTransition`: `settle`, or `fade` under Limit animation.
+    static func cardAnimation(limited: Bool) -> Animation { limited ? fade : settle }
+}
+
+/// Crossfades a view as a whole when `key` changes (DESIGN.md §7, view switches): the old view fades out as the new one
+/// fades in, over `Motion.crossfade`, with no movement, so Limit animation keeps it. The view gets a new identity per
+/// key, and only that switch animates; nothing inside (rows, lines) animates on its own.
+struct CrossfadeSwitch<Key: Hashable>: ViewModifier {
+    var key: Key
+    func body(content: Content) -> some View {
+        ZStack(alignment: .topLeading) {
+            content.id(key).transition(.opacity)
+        }
+        .animation(Motion.crossfade, value: key)
+    }
+}
+
+extension View {
+    /// See `CrossfadeSwitch`.
+    func crossfadeSwitch<Key: Hashable>(on key: Key) -> some View { modifier(CrossfadeSwitch(key: key)) }
 }
 
 // MARK: - Limit animation
