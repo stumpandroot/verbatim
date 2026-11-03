@@ -2,9 +2,9 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-// Library › By day (mockup "Thoughts", section 03), on the refined kit (DESIGN.md §13): Thoughts
-// and Journal, one page a day. A month calendar marks each day with entries with a dot, a day list sits under it, and
-// the selected day's page fills the right side. Thoughts adds New thought, Copy, Send to, Export, and Open as pad;
+// Library › By day (mockup "Thoughts", section 03; two columns since "Verbose Mac Columns"), on the refined kit
+// (DESIGN.md §13): Thoughts and Journal, one page a day. The selected day's page is the main column; a month calendar
+// marking each day with entries, and the day list under it, are the side column. Thoughts adds New thought, Copy, Send to, Export, and Open as pad;
 // Journal's entries show a title, a play button with the length, and the first line. Thoughts are butter and journal
 // entries petal (the kinds' colors, §13), on their dots and squares; the selected day takes the persimmon tint with
 // accent text, and today a ring. A page is every recording of the kind that started that day (Model/DayPages.swift),
@@ -38,33 +38,25 @@ struct ByDayView: View {
         let items = pages.first { $0.day == day }?.items ?? []
         let month = shownMonth ?? day
         let _ = NavMarks.mark("byday")
-        ScrollView {
+        // Two columns (mockup "Verbose Mac Columns"): the day's page on the left, the calendar and days on the right.
+        MacColumns(mainMax: MacColumnsMetrics.readingMax) {
             VStack(alignment: .leading, spacing: 20) {
                 RefinedPageHeader(title: name, count: titleCount(pages, today: today),
                                   lede: isThoughts ? "One page per day. Pick a day to read it." : "One page per day, from your journal recordings.") {
                     if isThoughts { titleControls }
                 }
-                HStack(alignment: .top, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        DayCalendar(month: Binding(get: { month }, set: { shownMonth = $0 }), selected: day, today: today,
-                                    marked: Set(pages.map(\.day)), hue: kind.refinedHue) { d in selected = d }
-                        dayList(pages, selected: day, month: month)
-                    }
-                    .frame(width: 280)
-                    // minWidth 0: the page takes what's left and never asks for more, so the window's split view never
-                    // squeezes the sidebar off its edge.
-                    DayPageCard(kind: kind, day: day, today: today, items: items)
-                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
-                }
+                // minWidth 0: the page takes what's left and never asks for more, so the window's split view never
+                // squeezes the sidebar off its edge.
+                DayPageCard(kind: kind, day: day, today: today, items: items)
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
             }
-            .padding(.horizontal, 32).padding(.top, 18).padding(.bottom, 40)
-            // Two panes (the calendar and the day's page), so wider than `MacColumn`, and centered like it.
-            .frame(minWidth: 0, maxWidth: 960, alignment: .leading)
-            .frame(maxWidth: .infinity)
             .scrollPlace(ScreenPlaces.scrollKey(isThoughts ? "byday-thoughts" : "byday-journal"))
             .navMarkWhenLaidOut("byday-laid-out")
+        } side: {
+            DayCalendar(month: Binding(get: { month }, set: { shownMonth = $0 }), selected: day, today: today,
+                        marked: Set(pages.map(\.day)), hue: kind.refinedHue) { d in selected = d }
+            dayList(pages, selected: day, month: month)
         }
-        .softScrollEdges(.top)
         .background(Refined.paper)
         .onAppear { NavMarks.mark("byday-appear") }
         .onChange(of: kind) { _, _ in selected = nil }

@@ -76,15 +76,16 @@ struct TemplateCardSurface: ViewModifier {
     }
 }
 
-/// A Make page's column: the content's widest, its margins, and the paper under it.
+/// A Make page's column: the full width between the Mac columns' margins (mockup "Verbose Mac Columns": no wide
+/// empty gutter on the right), and the paper under it. The library's own list and 320 pt detail card make its two
+/// columns.
 private struct MakePage<Content: View>: View {
-    var maxWidth: CGFloat = 1180
     @ViewBuilder var content: Content
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) { content }
-                .padding(.horizontal, 40).padding(.top, 18).padding(.bottom, 40)
-                .frame(maxWidth: maxWidth, alignment: .leading)
+                .padding(.leading, MacColumnsMetrics.leading).padding(.trailing, MacColumnsMetrics.trailing)
+                .padding(.top, 18).padding(.bottom, 40)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .softScrollEdges(.top)
@@ -124,16 +125,16 @@ struct TemplateLibraryPane: View {
                     .uiTarget("templates-new")
             }
             chips(all, settings, textIDs: textIDs, texts: texts.count)
-            HStack(alignment: .top, spacing: 22) {
+            HStack(alignment: .top, spacing: MacColumnsMetrics.gap) {
                 list(shown, settings, textIDs: textIDs, texts: shownTexts, selected: pickedTemplate?.id ?? fallbackText?.id)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 if let t = pickedTemplate {
                     TemplateDetailCard(template: t, scope: TemplateScope.of(template: t.id, textActions: textIDs))
-                        .frame(width: 340)
+                        .frame(width: MacColumnsMetrics.side)
                         .id(t.id)
                 } else if let a = fallbackText {
                     TextActionDetailCard(actionID: a.id)
-                        .frame(width: 340)
+                        .frame(width: MacColumnsMetrics.side)
                         .id(a.id)
                 }
             }
@@ -391,7 +392,7 @@ struct RunAutomaticallyPane: View {
     var body: some View {
         let all = app.store.allTemplates
         let settings = auto.settings.pruned(existing: Set(all.map(\.id)))
-        return MakePage(maxWidth: 1000) {
+        return MakePage {
             RefinedPageHeader(title: "Run automatically", count: "\(settings.assignedCount) of \(AutoRunSettings.kinds.count) kinds",
                               lede: "When a recording of a kind finishes, its template runs after the transcript and summary.") {
                 TemplatesPaneSwitch()

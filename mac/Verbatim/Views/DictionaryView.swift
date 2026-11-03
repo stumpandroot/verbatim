@@ -27,7 +27,8 @@ struct DictionaryView: View {
     var body: some View {
         let count = app.store.dictionary.count
         let list = entries
-        ScrollView {
+        // Two columns (mockup "Verbose Mac Columns"): your words on the left, suggestions on the right.
+        MacColumns {
             VStack(alignment: .leading, spacing: 18) {
                 RefinedPageHeader(title: "Dictionary", count: count == 1 ? "1 word" : "\(count.formatted()) words",
                                   lede: "Right-click a word in any transcript, choose Correct, and turn on Remember. Fixes are listed on each transcript, so nothing changes silently.") {
@@ -37,9 +38,6 @@ struct DictionaryView: View {
                 }
                 RefinedSearchField(text: $filter, prompt: count == 1 ? "Search 1 word" : "Search \(count.formatted()) words")
                     .frame(maxWidth: 360)
-
-                // About me names, repeated fixes, and Contacts (VocabularyViews.swift).
-                DictionarySuggestions()
 
                 if !app.store.projects.isEmpty {
                     RefinedChipRow(label: "Where words apply") {
@@ -61,9 +59,9 @@ struct DictionaryView: View {
 
                 BuiltInVocabularySection()
             }
-            .frame(maxWidth: 900, alignment: .leading)
-            .padding(.horizontal, 40).padding(.top, 18).padding(.bottom, 40)
-            .frame(maxWidth: .infinity)
+        } side: {
+            // About me names, repeated fixes, and Contacts (VocabularyViews.swift).
+            DictionarySuggestions()
         }
         .softScrollEdges(.top)
         .background(Refined.paper)

@@ -538,7 +538,9 @@ struct AskView: View {
         NavMarks.mark("ask")
         let recipes = RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty)
         let pane: AskPane = recipes ? nav.pane : .questions
-        return ScrollView {
+        // Two columns (mockup "Verbose Mac Columns"): the question and answer on the left, recent questions on the
+        // right. Recipes keep their own list and digest columns.
+        return MacColumns(mainMax: pane == .questions ? MacColumnsMetrics.readingMax : nil) {
             VStack(alignment: .leading, spacing: 18) {
                 RefinedPageHeader(title: "Ask", count: recipes ? AskResult.plural(app.store.recipes.count, "recipe", "recipes") : nil,
                                   lede: pane == .questions ? "Ask about your recordings. Verbose finds the passages first, then answers on this Mac."
@@ -572,28 +574,30 @@ struct AskView: View {
                     .uiTarget("ask-more")
                 }
                 switch pane {
-                case .questions: AskQuestionsPane()
+                case .questions: AskQuestionsPane(part: .main)
                 case .recipes: AskRecipesPane()
                 }
             }
-            .padding(.horizontal, 40).padding(.top, 18).padding(.bottom, 40)
-            .frame(maxWidth: 1180, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        } side: {
+            if pane == .questions { AskQuestionsPane(part: .side) }
         }
-        .softScrollEdges(.top)
         .background(Refined.paper)
         .sheet(item: $nav.editing) { d in RecipeEditorSheet(draft: d).environmentObject(app) }
     }
 }
 
-/// Ask › Questions: the field, the scope, the answer, and recent questions on this Mac.
+/// Ask › Questions: the field, the scope, and the answer (`.main`), and recent questions on this Mac (`.side`, the
+/// page's side column).
 struct AskQuestionsPane: View {
+    enum Part { case main, side }
+    var part: Part = .main
     @EnvironmentObject var app: AppState
     @ObservedObject private var nav = AskNav.shared
     @ObservedObject private var center = AskCenter.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            if part == .main {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 12) {
                     IconGlyph(art: .iconAsk, size: 20, color: Refined.accentText)
@@ -612,7 +616,13 @@ struct AskQuestionsPane: View {
             }
             .padding(20)
             .modifier(TemplateCardSurface())
-            if !center.history.isEmpty {
+            }
+            if part == .side, center.history.isEmpty {
+                MacSideCard(title: "Recent questions") {
+                    Text("Questions you ask show here.").font(.system(size: 12)).foregroundStyle(Refined.dim)
+                }
+            }
+            if part == .side, !center.history.isEmpty {
                 PaperGroup("Recent questions · \(center.history.count)") {
                     ForEach(Array(center.history.enumerated()), id: \.element.id) { i, r in
                         if i > 0 { PaperDivider(leading: 48, trailing: 14) }
