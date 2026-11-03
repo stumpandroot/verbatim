@@ -2227,23 +2227,35 @@ private struct UIWindowTarget: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let v = Probe()
         v.id = id
-        let earlier = UITest.windowFrames[id]
-        UITest.windowFrames[id] = { [weak v] in v?.frameInWindow ?? earlier?() }
+        v.register()
         return v
     }
-    func updateNSView(_ v: NSView, context: Context) {}
+    /// A lazy list can hand this view to another row: it takes the new row's name, and the old row's handle stops
+    /// answering for it (a stale handle sent a click to the wrong row in the Library's Back steps).
+    func updateNSView(_ v: NSView, context: Context) {
+        guard let p = v as? Probe, p.id != id else { return }
+        p.id = id
+        p.register()
+    }
 
     final class Probe: NSView {
         var id = ""
+        /// Points `id`'s handle at this view while it still carries that name; otherwise at the earlier handle.
+        func register() {
+            guard !id.isEmpty else { return }
+            let name = id
+            let earlier = UITest.windowFrames[name]
+            UITest.windowFrames[name] = { [weak self] in
+                guard let self, self.id == name, let f = self.frameInWindow else { return earlier?() }
+                return f
+            }
+        }
         /// The one in the window wins: a lazy list can make a row's view ahead of time and drop it, and its handle
         /// (registered when made) then pointed at nothing.
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             // A copy SwiftUI keeps hidden (or drops) mustn't hide the one on screen: fall back to the earlier handle.
-            if window != nil, !id.isEmpty {
-                let earlier = UITest.windowFrames[id]
-                UITest.windowFrames[id] = { [weak self] in self?.frameInWindow ?? earlier?() }
-            }
+            if window != nil { register() }
         }
         var frameInWindow: CGRect? {
             guard let w = window, let content = w.contentView, !isHiddenOrHasHiddenAncestor else { return nil }
@@ -2989,7 +3001,8 @@ extension UITest {
         ScreenPlaces.shared.scrollLive(key, by: 600)
         try? await Task.sleep(nanoseconds: 800_000_000)
         let h = window.contentView?.bounds.height ?? 0
-        func rowFrame(_ id: UUID) -> CGRect? { frames["lib-row-\(id.uuidString)"] }
+        // The window's handle first, the same one the click uses, so the row chosen is the row clicked.
+        func rowFrame(_ id: UUID) -> CGRect? { windowFrames["lib-row-\(id.uuidString)"]?() ?? frames["lib-row-\(id.uuidString)"] }
         // The row nearest the window's lower middle, well inside the list.
         var picked: (id: UUID, distance: CGFloat)?
         let aim = h * 0.6
