@@ -751,12 +751,15 @@ struct SupportSettingsPane: View {
 
 // MARK: - Account and plan
 
-/// Your name. Verbose has no account, so this pane is small on purpose (plans come with the pricing decision).
+/// Your name, and Verbose for Mac's license (MacLicenseViews.swift). Verbose has no account.
 struct AccountSettingsPane: View {
     var body: some View {
         SettingsPane(tab: .account) {
             SettingsGroup {
                 YourNameSettingsRow()
+            }
+            SettingsGroup(title: "License") {
+                MacLicenseSettingsRow()
             }
         }
     }

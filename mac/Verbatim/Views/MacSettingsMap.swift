@@ -145,6 +145,7 @@ enum MacSettingsMap {
         ]),
         Pane(raw: "account", title: "Account and plan", sections: [
             Section(nil, [Setting("general.name", keys: ["profile.name"])]),
+            Section("License", [Setting("account.license")]),
         ]),
         Pane(raw: "about", title: "Support and feedback", sections: [
             Section(nil, [

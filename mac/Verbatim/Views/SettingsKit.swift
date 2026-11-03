@@ -141,6 +141,7 @@ enum SettingsIndex {
         .init("general.beta", .support, "Get beta builds", "Beta builds arrive with every change to Verbose; leave this off for tested releases only.", keywords: "update prerelease"),
         .init("general.version", .support, "Check for updates", "A check sends your IP address and Verbose's version to GitHub, nothing else.", keywords: "version update check now"),
         .init("general.name", .account, "Your name", "Shown on the You page.", keywords: "profile name you"),
+        .init("account.license", .account, "Verbose for Mac license", "Try it free for 7 days, buy a license for up to 3 Macs, or paste your license key.", keywords: "license key buy purchase trial polar activate deactivate unlock"),
         .init("general.aboutMe", .personalization, "About me", "A few lines about you. Verbose uses this to spell names correctly and to write titles and summaries.", keywords: "profile context bio titles summaries you"),
         .init("general.countSites", .privacy, "Count websites", "When you dictate into Safari, Chrome, Arc, Edge, or Brave, the You page shows which websites, by domain only, never full addresses. macOS asks once per browser.", keywords: "domains browser where you dictate activity stats privacy"),
 

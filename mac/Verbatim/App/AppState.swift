@@ -146,6 +146,12 @@ final class AppState: ObservableObject {
         // Settings › Privacy: the network activity log, before anything can use the network.
         NetworkActivityLog.install()
         Log.note("AppState init")
+        // Verbose for Mac's license: enforced in the public build only (MacLicenseStore.swift). A locked feature opens
+        // Settings › Account and plan › License.
+        MacLicenseStore.shared.start()
+        FeatureGate.onDenied = { [weak self] _ in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.dictation.openSettings(tab: .account) } }
+        }
         // The Store isn't forwarded: it's Observable, so views that read the library re-render on its changes and
         // the rest don't (Store.swift).
         for o in [recorder.objectWillChange.eraseToAnyPublisher(),
