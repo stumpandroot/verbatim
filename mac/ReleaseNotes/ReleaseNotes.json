@@ -2,8 +2,116 @@
   "notes": [
     {
       "build": "next",
-      "title": "Recordings that never stop",
+      "title": "Calls, two columns, and recordings that never stop",
       "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Record a call",
+          "icon": "speakers",
+          "text": "Home's Call tile records a call, and it can wait for the call to start.",
+          "detail": "Your mic and the call app as two tracks. App audio moves to Edit Home and the Record menu."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Calls from Calendar",
+          "icon": "calendar",
+          "text": "Your next call shows on Home with Record when it starts.",
+          "detail": "Turn it on from Home or Settings › Meetings. The recording takes the event's title, and attendees become speaker names."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Stops when the call ends",
+          "icon": "time",
+          "text": "Recording stops 15 seconds after the call app leaves, with Keep recording to undo it."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Shared screens",
+          "icon": "film",
+          "text": "Keep stills of shared screens from a call in the transcript's margin.",
+          "detail": "Settings › Meetings. Off until you turn it on; it needs Screen Recording."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Calls from iPhone",
+          "icon": "speakers",
+          "text": "Record a call in the Record tray: your Mac records it, or record on speaker.",
+          "detail": "Your Mac waits for the call through iCloud. Home shows the wait, with Cancel."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Two columns",
+          "icon": "appearance",
+          "text": "Pages use the window's width: a large column and a side column, no wide gutters.",
+          "detail": "Home, Library, Dictations, Thoughts, Journal, You, Templates, Ask, and Dictionary. Narrow windows keep one column."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Smoother motion",
+          "icon": "appearance",
+          "text": "Pages fade in, transcript tabs crossfade, and Home cards arrive and leave smoothly.",
+          "detail": "Meters and live words stay steady. Limit Motion and Reduce Motion keep it to a short fade."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Check this",
+          "icon": "ai",
+          "text": "Summaries, results, and answers point out numbers and names not in the transcript."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Specialty words",
+          "icon": "dictionary",
+          "text": "Settings › Dictation has switches for medical, legal, and Bible and faith words.",
+          "detail": "They fix spelling only. Your choices sync between your Mac and iPhone when iCloud sync is on."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Library places",
+          "icon": "library",
+          "text": "Library's places sit in one row under search, so recordings start higher."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Clearer screens",
+          "icon": "accessibility",
+          "text": "Labels show in full, and search prompts and calendar dots are easier to see.",
+          "detail": "On the Mac, the transcript's tabs fold into a menu when the window is too narrow for them beside Share."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Milestones",
+          "icon": "words",
+          "text": "Milestones on your words calendar are off unless you turn on Show milestones."
+        },
         {
           "platforms": [
             "iphone"
@@ -49,7 +157,8 @@
           "icon": "privacy",
           "text": "The tour and microphone screen say where audio can go: only your own iCloud, with sync on."
         }
-      ]
+      ],
+      "big": true
     },
     {
       "build": "283",
