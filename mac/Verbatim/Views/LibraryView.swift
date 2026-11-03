@@ -29,7 +29,6 @@ struct LibraryView: View {
     static var shownOrder: [UUID] = []
 
     private static let margin: CGFloat = 40
-    private static let maxContent: CGFloat = 1100
 
     init() {
         let (c, d) = LibraryTableSort.column(forLibrarySort: UserDefaults.standard.string(forKey: LibrarySort.key) ?? LibrarySort.newest.rawValue)
@@ -45,13 +44,18 @@ struct LibraryView: View {
         if UITest.enabled { Self.shownOrder = order }
         return VStack(spacing: 0) {
             GeometryReader { geo in
+                // Two columns (mockup "Verbose Mac Columns"): the table takes the width, and a 320 pt side column holds
+                // the collections and the selected recording. Narrow windows keep one column.
+                let wide = MacColumnsMetrics.twoColumns(geo.size.width) && app.projectFilter == nil
                 let margin = geo.size.width < 760 ? 24 : Self.margin
-                let width = min(Self.maxContent, max(320, geo.size.width - 2 * margin))
+                let width = wide ? MacColumnsMetrics.mainWidth(geo.size.width) : max(320, geo.size.width - 2 * margin)
+                HStack(alignment: .top, spacing: wide ? MacColumnsMetrics.gap : 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
                         page(lists: lists, rows: rows, order: order, width: width)
                             .frame(width: width, alignment: .leading)
-                            .padding(.horizontal, margin).padding(.top, 18)
+                            .padding(.leading, wide ? MacColumnsMetrics.leading : margin)
+                            .padding(.trailing, wide ? 0 : margin).padding(.top, 18)
                             .padding(.bottom, selection.count > 1 ? 90 : 40)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             // Back and the sidebar bring the Library back where you left it (App/NavTrail.swift).
@@ -77,6 +81,18 @@ struct LibraryView: View {
                         return .handled
                     }
                 }
+                .frame(width: wide ? width + MacColumnsMetrics.leading : geo.size.width)
+                if wide {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) { sideColumn(order: order) }
+                            .frame(width: MacColumnsMetrics.side, alignment: .topLeading)
+                            .padding(.top, 18).padding(.bottom, 40)
+                    }
+                    .scrollIndicators(.never)
+                    .frame(width: MacColumnsMetrics.side)
+                    .padding(.trailing, MacColumnsMetrics.trailing)
+                }
+                }
             }
         }
         .background(Refined.paper)
@@ -100,6 +116,51 @@ struct LibraryView: View {
             }
         }
         .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
+    }
+
+    // MARK: Side column
+
+    /// The collections that used to be separate places, and the one selected recording with Play and Open.
+    @ViewBuilder private func sideColumn(order: [UUID]) -> some View {
+        let all = app.store.live
+        let today = all.filter { Calendar.current.isDateInToday($0.createdAt) }
+        MacSideCard(title: "Collections") {
+            sideLink("Dictations", value: "\(today.filter { $0.flow != nil }.count) today") { app.go(.dictations) }
+            sideLink("Thoughts by day", value: "\(today.filter { $0.kind == .idea }.count) today") { app.go(.byDay(.idea)) }
+            sideLink("Journal", value: nil) { app.go(.byDay(.journal)) }
+            sideLink("Templates", value: "\(app.store.allTemplates.count)") { app.go(.templates) }
+            sideLink("Ask", value: nil) { app.go(.ask) }
+        }
+        if let t = single {
+            MacSideCard(title: "Selected") {
+                Text(t.title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Refined.ink).lineLimit(2)
+                Text(selectedMeta(t)).font(.system(size: 12)).foregroundStyle(Refined.dim).lineLimit(2)
+                if let first = t.segments.first?.text, !first.isEmpty {
+                    Text("\u{201C}\(first.prefix(140))\u{201D}").font(.system(size: 12)).foregroundStyle(Refined.dim).lineLimit(3)
+                }
+                HStack(spacing: 8) {
+                    if t.audioFileName != nil, t.status == .ready {
+                        Button("Play") { _ = playSelected() }.buttonStyle(RefinedActionStyle())
+                    }
+                    Button("Open") { _ = openSelected() }.buttonStyle(RefinedActionStyle(kind: .strong))
+                }
+            }
+        }
+    }
+
+    private func sideLink(_ title: String, value: String?, action: @escaping () -> Void) -> some View {
+        Button(action: action) { MacSideLine(label: title, value: value).contentShape(Rectangle()) }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens \(title)")
+    }
+
+    private func selectedMeta(_ t: Transcript) -> String {
+        var parts: [String] = [t.kind?.label ?? "Recording"]
+        if t.duration > 0 { parts.append(RefinedRules.time(t.duration)) }
+        if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
+        let moments = t.notes.filter { $0.at != nil }.count
+        if moments > 0 { parts.append(moments == 1 ? "1 moment" : "\(moments) moments") }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: Page
