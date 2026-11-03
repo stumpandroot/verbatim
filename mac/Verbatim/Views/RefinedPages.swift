@@ -124,12 +124,14 @@ struct RefinedRowPress: ButtonStyle {
 struct PaperGroup<Content: View, Trailing: View>: View {
     var title: String?
     var serif = false
+    /// Marks the card's top for a Mac side column to line up with (MacColumnsTopKey).
+    var markTop = false
     @ViewBuilder var trailing: Trailing
     @ViewBuilder var content: Content
     private let mac = RefinedPlatform.mac
 
-    init(_ title: String?, serif: Bool = false, @ViewBuilder trailing: () -> Trailing, @ViewBuilder content: () -> Content) {
-        self.title = title; self.serif = serif; self.trailing = trailing(); self.content = content()
+    init(_ title: String?, serif: Bool = false, markTop: Bool = false, @ViewBuilder trailing: () -> Trailing, @ViewBuilder content: () -> Content) {
+        self.title = title; self.serif = serif; self.markTop = markTop; self.trailing = trailing(); self.content = content()
     }
 
     var body: some View {
@@ -147,15 +149,19 @@ struct PaperGroup<Content: View, Trailing: View>: View {
                 }
                 .padding(.horizontal, serif ? 0 : (mac ? 4 : 14))
             }
+            #if os(macOS)
+            PaperCard { content }.macColumnsTop(markTop)
+            #else
             PaperCard { content }
+            #endif
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 extension PaperGroup where Trailing == EmptyView {
-    init(_ title: String?, serif: Bool = false, @ViewBuilder content: () -> Content) {
-        self.init(title, serif: serif, trailing: { EmptyView() }, content: content)
+    init(_ title: String?, serif: Bool = false, markTop: Bool = false, @ViewBuilder content: () -> Content) {
+        self.init(title, serif: serif, markTop: markTop, trailing: { EmptyView() }, content: content)
     }
 }
 

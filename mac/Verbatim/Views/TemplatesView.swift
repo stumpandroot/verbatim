@@ -100,6 +100,8 @@ struct TemplateLibraryPane: View {
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @ObservedObject private var flow = FlowSettings.shared
     @State private var confirmRestore = false
+    /// How far the first card sits below the top of the list, so the detail card starts level with it.
+    @State private var sideTop: CGFloat = 0
 
     var body: some View {
         let all = app.store.allTemplates
@@ -132,12 +134,16 @@ struct TemplateLibraryPane: View {
                     TemplateDetailCard(template: t, scope: TemplateScope.of(template: t.id, textActions: textIDs))
                         .frame(width: MacColumnsMetrics.side)
                         .id(t.id)
+                        .padding(.top, sideTop)
                 } else if let a = fallbackText {
                     TextActionDetailCard(actionID: a.id)
                         .frame(width: MacColumnsMetrics.side)
                         .id(a.id)
+                        .padding(.top, sideTop)
                 }
             }
+            .coordinateSpace(name: MacColumnsMetrics.space)
+            .onPreferenceChange(MacColumnsTopKey.self) { v in let t = max(0, (v ?? 0).rounded()); if sideTop != t { sideTop = t } }
         }
         .confirmationDialog("Restore the text actions that come with Verbose?", isPresented: $confirmRestore) {
             Button("Restore", role: .destructive) { flow.actions = FlowAction.builtIn; nav.selected = nil }
@@ -173,11 +179,12 @@ struct TemplateLibraryPane: View {
 
     /// Each origin's templates in a card under its label ("Scenarios · 8"), then the text actions.
     private func list(_ shown: [TranscriptTemplate], _ s: AutoRunSettings, textIDs: Set<UUID>, texts: [FlowAction], selected: UUID?) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let firstOrigin = TemplateOrigin.allCases.first { o in shown.contains { $0.origin == o } }
+        return VStack(alignment: .leading, spacing: 16) {
             ForEach(TemplateOrigin.allCases) { o in
                 let items = shown.filter { $0.origin == o }
                 if !items.isEmpty {
-                    PaperGroup("\(o.title) · \(items.count)") {
+                    PaperGroup("\(o.title) · \(items.count)", markTop: o == firstOrigin) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
                             if i > 0 { PaperDivider(leading: 48, trailing: 14) }
                             row(t, s, scope: TemplateScope.of(template: t.id, textActions: textIDs), selected: t.id == selected)
@@ -186,7 +193,7 @@ struct TemplateLibraryPane: View {
                 }
             }
             if !texts.isEmpty {
-                PaperGroup("Text actions · \(texts.count)") {
+                PaperGroup("Text actions · \(texts.count)", markTop: firstOrigin == nil) {
                     ForEach(Array(texts.enumerated()), id: \.element.id) { i, a in
                         if i > 0 { PaperDivider(leading: 48, trailing: 14) }
                         textRow(a, selected: a.id == selected)

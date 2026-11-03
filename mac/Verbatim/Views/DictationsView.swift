@@ -63,7 +63,9 @@ struct DictationsView: View {
                 } else {
                     // Lazy: only the dictations on screen are built (people keep hundreds).
                     LazyVStack(alignment: .leading, spacing: 16) {
-                        ForEach(Self.days(shown), id: \.0) { day, items in
+                        ForEach(Array(Self.days(shown).enumerated()), id: \.element.0) { n, group in
+                            let day = group.0
+                            let items = group.1
                             VStack(alignment: .leading, spacing: 8) {
                                 SectionTitle(day)
                                 VStack(spacing: 0) {
@@ -73,10 +75,10 @@ struct DictationsView: View {
                                     }
                                 }
                                 .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+                                .macColumnsTop(n == 0)
                             }
                         }
                     }
-                    .macColumnsTop()
                 }
             }
         } side: {
