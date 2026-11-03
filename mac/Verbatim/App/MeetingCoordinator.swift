@@ -323,17 +323,18 @@ final class MeetingCoordinator: ObservableObject {
         clearWait()
     }
 
-    private func clearWait() {
+    /// `refresh`: stop watching the microphone if nothing else needs it (a start that follows does its own).
+    private func clearWait(refresh: Bool = true) {
         wait = nil
         waitTracker.reset()
-        preferencesChanged()
+        if refresh { preferencesChanged() }
     }
 
     /// The wait fired: recording starts with no prompt (the consent sheet showed at setup), titled for the event.
     private func startFromWait(_ w: CallWait, key: String) {
         guard let info = MeetingApps.info(key: key) else { return }
         Log.note("meeting: \(info.name) started using the microphone; recording the call you set up")
-        clearWait()
+        clearWait(refresh: false)
         start(key: info.key, name: info.name, target: MeetingSession.target(for: info), speaker: info.name, copy: w.copyNotice,
               skipFromNowOn: false, title: w.title, attendees: w.attendees, announce: true)
     }
@@ -361,7 +362,7 @@ final class MeetingCoordinator: ObservableObject {
                        title: String? = nil, attendees: [String] = [], announce: Bool = false) {
         guard let app else { return }
         tracker.settleAll()
-        if wait != nil { clearWait() }
+        if wait != nil { clearWait(refresh: false) }
         if skipFromNowOn { book.setSkipConsent(key, true); saveBook() }
         pendingCount = (key, name)
         recordingKey = MeetingApps.info(key: key)?.key
