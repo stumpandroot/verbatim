@@ -3019,9 +3019,21 @@ extension UITest {
         }
         let target = "lib-row-\(row.uuidString)"
         let before = ScreenPlaces.shared.liveOffset(key) ?? scrolled
+        // Where each row on screen says it is, by the window's handle and by SwiftUI, to tell which one a stray
+        // click believed.
+        let spots = ids.enumerated().compactMap { i, id -> String? in
+            let k = "lib-row-\(id.uuidString)"
+            let w = windowFrames[k]?(), g = frames[k]
+            guard w != nil || g != nil else { return nil }
+            return "\(i)\(id == row ? "*" : ""):\(app.store.transcript(id)?.title ?? "?") w\(w.map { "\(Int($0.minY))" } ?? "-") g\(g.map { "\(Int($0.minY))" } ?? "-")"
+        }
+        Log.note("UITEST detail: \(tag): rows \(spots.joined(separator: ", "))")
         // A click selects and a double-click opens (the Library table, DESIGN.md §6.8).
         await step("\(tag): double-clicking a row in the scrolled Library opens it", window, target: target, clicks: 2,
                    check: { app.screen == .transcript(row) })
+        if case .transcript(let opened) = app.screen, opened != row {
+            Log.note("UITEST detail: \(tag): opened \(app.store.transcript(opened)?.title ?? "?") (row \(ids.firstIndex(of: opened).map(String.init) ?? "-")) instead of \(app.store.transcript(row)?.title ?? "?")")
+        }
         oneScreen("opening a transcript from the scrolled Library", app: app)
 
         // 2. Back: the same row, offset, search, and filter. Frames come from the Library built by Back, not this one.
