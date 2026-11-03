@@ -8,7 +8,7 @@ struct DictionaryScreen: View {
     @State private var heard = ""
     var body: some View {
         List {
-            RefinedListTitle(title: "Dictionary", count: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)",
+            RefinedListTitle(title: "Dictionary", count: app.store.dictionary.isEmpty ? nil : HomeCounts.countLabel(app.store.dictionary.count, "word", "words"),
                              lede: "Words Verbose should spell your way, and what it hears instead.")
             // About me names, repeated fixes, and Contacts (VocabularyPhone.swift).
             PhoneDictionarySuggestions()

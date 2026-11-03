@@ -9,7 +9,8 @@ import SwiftUI
 enum HomeSpacing {
     /// The gap above a section (the mockup's 14 between cards; 22 above a titled section; 18 under the greeting).
     static func top(_ item: HomeLayout.Item, after previous: HomeLayout.Item?) -> CGFloat {
-        guard previous != nil else { return 18 }
+        // The first section sits 18 pt under the pinned title: 10 under its strip, 8 here.
+        guard previous != nil else { return 8 }
         return item.headed ? 22 : 14
     }
 

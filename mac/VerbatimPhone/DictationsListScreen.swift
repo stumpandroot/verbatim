@@ -13,6 +13,8 @@ struct DictationsRoute: Hashable {}
 struct DictationsListScreen: View {
     @EnvironmentObject var app: PhoneState
     @State private var search = ""
+    /// The Dictations tab's first screen: the title pins (PinnedTitle.swift). Pushed, it keeps Apple's bar.
+    var tabRoot = false
 
     private var items: [Transcript] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
@@ -30,13 +32,19 @@ struct DictationsListScreen: View {
         let order = days.keys.sorted(by: >)
         List {
             VStack(alignment: .leading, spacing: 6) {
-                LargeSerifTitle(title: "Dictations", count: "\(keptCount) kept")
-                    .accessibilityElement(children: .combine)
+                if !tabRoot {
+                    LargeSerifTitle(title: "Dictations", count: "\(keptCount) kept")
+                        .accessibilityElement(children: .combine)
+                }
                 Text("Everything you dictated with the Verbose keyboard, with the audio.")
                     .refinedFont(.body).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
+                // On the page, as in Library: a pinned title has no bar to hold a search drawer.
+                SystemSearchField(text: $search, prompt: "Find a dictation")
+                    .frame(minHeight: 38)
+                    .padding(.top, 8)
             }
-            .padding(.top, 8)
+            .padding(.top, tabRoot ? 4 : 8)
             .modifier(DictationPageRow())
             if items.isEmpty {
                 RefinedEmptyState(art: .iconDictations, hue: .butter,
@@ -81,7 +89,7 @@ struct DictationsListScreen: View {
         .navigationTitle("Dictations")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
-        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Find a dictation")
+        .pinnedTitle(tabRoot) { TitleRow(title: "Dictations", count: "\(keptCount) kept") { EmptyView() } }
     }
 
     /// Opens the transcript on whichever stack this list is on.

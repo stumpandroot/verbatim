@@ -33,8 +33,12 @@ struct DayPageScreen: View {
     /// For the self-test: the page on screen, its day, and its entries' IDs in order.
     static var shown: (kind: RecordingKind, day: Date, ids: [UUID])?
 
-    init(kind: RecordingKind = .idea, day: Date) {
+    /// The Thoughts tab's first screen: the title pins with its buttons (PinnedTitle.swift). Pushed, it keeps Apple's bar.
+    private let tabRoot: Bool
+
+    init(kind: RecordingKind = .idea, day: Date, tabRoot: Bool = false) {
         self.kind = kind
+        self.tabRoot = tabRoot
         _day = State(initialValue: Calendar.current.startOfDay(for: day))
     }
 
@@ -52,12 +56,14 @@ struct DayPageScreen: View {
         let items = self.items
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                LargeSerifTitle(title: name, eyebrow: eyebrow(items.count))
-                    .padding(.top, 8)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityAddTraits(.isHeader)
+                if !tabRoot {
+                    LargeSerifTitle(title: name, eyebrow: eyebrow(items.count))
+                        .padding(.top, 8)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(.isHeader)
+                }
                 dayArrows
-                    .padding(.top, 14)
+                    .padding(.top, tabRoot ? 4 : 14)
                 // Organize today's thoughts: Plan my day over the page (PhonePlanViews.swift).
                 if thoughts, !items.isEmpty {
                     ThoughtsOrganizeRow(day: day, isToday: isToday, thoughts: items).padding(.top, 14)
@@ -97,6 +103,21 @@ struct DayPageScreen: View {
                 Button { copyPage(items) } label: {
                     Image(systemName: "doc.on.doc")   // brand: system surface (toolbar)
                 }
+                .disabled(ThoughtText.joined(items).isEmpty)
+                .accessibilityLabel("Copy the day")
+            }
+        }
+        .pinnedTitle(tabRoot) {
+            TitleRow(title: name, eyebrow: eyebrow(items.count)) {
+                NavigationLink(value: ByDayRoute(kind: kind)) {
+                    TitleCircle { IconGlyph(art: .iconCalendar, size: 18, color: Refined.ink) }
+                }
+                .buttonStyle(RefinedPress())
+                .accessibilityLabel("By day")
+                Button { copyPage(items) } label: {
+                    TitleCircle { IconGlyph(art: .iconCopy, size: 18, color: Refined.ink) }
+                }
+                .buttonStyle(RefinedPress())
                 .disabled(ThoughtText.joined(items).isEmpty)
                 .accessibilityLabel("Copy the day")
             }
@@ -375,16 +396,18 @@ struct ByDayScreen: View {
         let days = inMonth(pages)
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                LargeSerifTitle(title: name, eyebrow: "By day", count: DayPages.count(pages.count, "day", "days"))
-                    .padding(.top, 8)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityAddTraits(.isHeader)
+                if !fixed {
+                    LargeSerifTitle(title: name, eyebrow: "By day", count: DayPages.count(pages.count, "day", "days"))
+                        .padding(.top, 8)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(.isHeader)
+                }
                 if !fixed {
                     RefinedSegmented(label: "Kind", options: [(RecordingKind.idea, "Thoughts"), (RecordingKind.journal, "Journal")], selection: $kind)
                         .padding(.top, 14)
                 }
                 PhoneMonthCalendar(month: $month, days: Set(pages.map(\.day)), today: app.todayPage, hue: kind.refinedHue, pick: open)
-                    .padding(.top, 16)
+                    .padding(.top, fixed ? 4 : 16)
                 PaperGroup("This month · \(DayPages.count(days.count, "day", "days"))") {
                     if days.isEmpty {
                         Text(kind == .journal ? "No journal entries this month." : "No thoughts this month.")
@@ -406,6 +429,10 @@ struct ByDayScreen: View {
         .navigationTitle("By day")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
+        // The Journal tab's first screen pins its title (PinnedTitle.swift).
+        .pinnedTitle(fixed) {
+            TitleRow(title: name, eyebrow: "By day", count: DayPages.count(pages.count, "day", "days")) { EmptyView() }
+        }
         .onAppear { note(pages) }
         .onChange(of: kind) { _, _ in note(self.pages) }
         .onChange(of: month) { _, _ in note(self.pages) }

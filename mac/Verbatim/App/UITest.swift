@@ -153,7 +153,7 @@ enum UITest {
             }
 
             // Noisy recordings: Transcribe again with Whisper Turbo, unclear chips, and Reduce background noise.
-            await NoisyAudioChecks.run(store: app.store, player: app.player, start: { app.transcribeAgainWithTurbo($0) }, cancel: { app.cancel($0) }) { name, ok in
+            await NoisyAudioChecks.run(store: app.store, player: app.player, start: { app.transcribeAgainWithTurbo($0) }, again: { app.transcribeAgain($0) }, cancel: { app.cancel($0) }) { name, ok in
                 if ok { pass += 1 } else { fail += 1 }
                 Log.note("UITEST \(ok ? "PASS" : "FAIL") noisy: \(name)")
             }

@@ -593,6 +593,11 @@ struct TranscriptScreen: View {
                     if t.audioFileName != nil, t.pendingAppend == nil, !t.isAudioOnly {
                         Button { app.player.stop(); app.continueRecording(t.id) } label: { Label("Continue recording", systemImage: "mic.badge.plus") }   // brand: system surface (menu)
                     }
+                    // The same recording again on this iPhone, keeping the words it replaces (TurboRerun.swift).
+                    if t.audioFileName != nil, t.multitrack == nil {
+                        Button { app.transcribeAgain(t.id) } label: { Label(TranscribeAgain.title, systemImage: "arrow.counterclockwise") }
+                            .disabled(TranscribeAgain.unavailableReason(t) != nil)
+                    }
                     // Whisper Turbo on the original audio, run by your Mac; and back to the words it replaced. Shown only
                     // when a Mac transcribes for this library, so nothing points elsewhere without one (App Review AR-12).
                     if app.macCanTranscribe {

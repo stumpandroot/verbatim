@@ -317,6 +317,8 @@ struct TranscriptMoreItems: View {
             .disabled(!ready)
         Toggle("Follow Playback", isOn: $nav.follow)
         Divider()
+        Button(TranscribeAgain.title) { app.transcribeAgain(t.id) }
+            .disabled(!ready || TranscribeAgain.unavailableReason(t) != nil)
         Button(TurboRerun.title + "…") { app.turboAsk = t.id }
             .disabled(!ready || TurboRerun.unavailableReason(t) != nil)
         if let other = TurboRerun.switchTitle(t) { Button(other) { app.switchTranscriptVersion(t.id) } }

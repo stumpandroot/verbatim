@@ -38,9 +38,29 @@ enum TurboRerun {
     /// "Switch to Parakeet TDT v2": the menu item that swaps in the kept words. nil when none are kept.
     static func switchTitle(_ t: Transcript) -> String? {
         guard let v = t.previousVersion else { return nil }
-        return "Switch to " + (v.model.isEmpty ? "the earlier words" : v.model)
+        // Transcribed again with the same model (Transcribe again): the name wouldn't say which words you get.
+        if v.model.isEmpty { return "Switch to the earlier words" }
+        if v.model == t.model { return "Switch to the other words" }
+        return "Switch to " + v.model
     }
 
     /// No Mac works on this library: what the iPhone says instead of waiting.
     static let needsMac = "Whisper Turbo runs on a Mac. Set up Verbose on your Mac with the same iCloud account, and this transcript can go there."
+}
+
+/// Transcribe again: the same recording, on this device, with your engine and settings (Settings › Transcription).
+/// For a transcript that came out wrong, or one made before a setting changed. The words it replaces stay, to switch
+/// back to, as with Whisper Turbo, so it runs without asking first.
+enum TranscribeAgain {
+    static let title = "Transcribe again"
+
+    /// Why it can't run on this transcript right now, or nil when it can.
+    static func unavailableReason(_ t: Transcript) -> String? {
+        if t.status != .ready { return "The transcript is still being made." }
+        if t.audioFileName == nil { return "This transcript has no audio to transcribe again." }
+        if t.pendingAppend != nil { return "A new recording is still being added." }
+        if t.multitrack != nil { return "Multi-track recordings can't be transcribed again yet." }
+        if t.rerunRequest != nil { return "It's already being transcribed again." }
+        return nil
+    }
 }

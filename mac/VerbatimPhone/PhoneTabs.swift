@@ -196,6 +196,8 @@ struct ProjectsScreen: View {
     @State private var projectName = ""
     /// For the self-test: whether the Projects tab's root is on screen.
     static var visible = false
+    /// The Projects tab's first screen: the title pins with New project (PinnedTitle.swift). Pushed, Apple's bar stays.
+    var tabRoot = false
 
     var body: some View {
         let counts = app.store.memo("phone.project-counts") { () -> [UUID: Int] in
@@ -206,8 +208,10 @@ struct ProjectsScreen: View {
         let projects = app.store.projects
         return ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                LargeSerifTitle(title: "Projects", count: HomeCounts.countLabel(projects.count, "project", "projects"))
-                    .accessibilityElement(children: .combine)
+                if !tabRoot {
+                    LargeSerifTitle(title: "Projects", count: HomeCounts.countLabel(projects.count, "project", "projects"))
+                        .accessibilityElement(children: .combine)
+                }
                 if projects.isEmpty {
                     RefinedEmptyState(art: .iconProject, hue: .sage, title: "No projects yet",
                                       message: "Projects group recordings. Make one here, or from a recording's menu.",
@@ -223,7 +227,7 @@ struct ProjectsScreen: View {
                     }
                 }
             }
-            .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
+            .padding(.horizontal, 20).padding(.top, tabRoot ? 4 : 8).padding(.bottom, 24)
         }
         .background(Refined.paper.ignoresSafeArea())
         .navigationTitle("")
@@ -231,6 +235,15 @@ struct ProjectsScreen: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { newProject = true } label: { Image(systemName: "plus") }.accessibilityLabel("New project")
+            }
+        }
+        .pinnedTitle(tabRoot) {
+            TitleRow(title: "Projects", count: HomeCounts.countLabel(projects.count, "project", "projects")) {
+                Button { newProject = true } label: {
+                    TitleCircle { Image(systemName: "plus").font(.system(size: 16, weight: .semibold)).foregroundStyle(Refined.ink) }
+                }
+                .buttonStyle(RefinedPress())
+                .accessibilityLabel("New project")
             }
         }
         .alert("New project", isPresented: $newProject) {

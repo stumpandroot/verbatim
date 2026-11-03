@@ -148,6 +148,8 @@ struct LibraryScreen: View {
         .navigationTitle(tabTitle ?? "Library")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
+        // A tab's Library pins its title with its buttons, as Verbose Tasks does; a pushed one keeps Apple's bar.
+        .pinnedTitle(isTabRoot) { titleRow(items: items) }
         .navigationDestination(isPresented: $showTrash) { TrashScreen() }
         .navigationDestination(isPresented: $showProjects) { ProjectsScreen() }
         .onChange(of: search) { _, v in if route == nil { LibraryKeep.librarySearch = v } }
@@ -207,13 +209,15 @@ struct LibraryScreen: View {
 
     /// The serif title with the count, the search field, the chips, and a platform row under Links.
     @ViewBuilder private func header(items: [Transcript], scoped: [Transcript]) -> some View {
-        LargeSerifTitle(title: title, count: countText(items))
-            .padding(.top, 8)
-            .accessibilityElement(children: .combine)
-            .modifier(PageRow(top: 0, bottom: 0))
+        if !isTabRoot {
+            LargeSerifTitle(title: title, count: countText(items))
+                .padding(.top, 8)
+                .accessibilityElement(children: .combine)
+                .modifier(PageRow(top: 0, bottom: 0))
+        }
         SystemSearchField(text: $search, prompt: "Search or ask")
             .frame(minHeight: 38)
-            .modifier(PageRow(top: 14, bottom: 0))
+            .modifier(PageRow(top: isTabRoot ? 4 : 14, bottom: 0))
         chips
             .modifier(PageRow(top: 10, bottom: 0, edge: 0))
         let platforms = typeFilter.platformCounts(scoped, searching: searching)
@@ -227,6 +231,27 @@ struct LibraryScreen: View {
                 }
             }
             .modifier(PageRow(top: 0, bottom: 0, edge: 0))
+        }
+    }
+
+    /// Library as a tab's first screen (the Library tab, or a kind's tab like Meetings), not pushed from elsewhere.
+    private var isTabRoot: Bool { route == nil || tabTitle != nil }
+
+    /// The pinned title: the count over the title, with Filter and More, or Done and the selection's menu while
+    /// selecting.
+    @ViewBuilder private func titleRow(items: [Transcript]) -> some View {
+        TitleRow(title: title, count: countText(items)) {
+            if selecting {
+                selectionMenu.padding(.horizontal, 8).frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+                Button { selecting = false; selection = [] } label: {
+                    Text("Done").refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText)
+                        .padding(.horizontal, 8).frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+                }
+                .buttonStyle(RefinedPress())
+            } else {
+                filterMenu(circle: true)
+                moreMenu(circle: true)
+            }
         }
     }
 
@@ -461,8 +486,8 @@ struct LibraryScreen: View {
             }
             ToolbarItem(placement: .topBarTrailing) { selectionMenu }
         } else {
-            ToolbarItem(placement: .topBarTrailing) { filterMenu }
-            ToolbarItem(placement: .topBarTrailing) { moreMenu }
+            ToolbarItem(placement: .topBarTrailing) { filterMenu(circle: false) }
+            ToolbarItem(placement: .topBarTrailing) { moreMenu(circle: false) }
         }
     }
 
@@ -487,7 +512,7 @@ struct LibraryScreen: View {
     }
 
     /// The filter menu: Show (every type, kind, Pinned, In progress, and project) and Sort by.
-    private var filterMenu: some View {
+    private func filterMenu(circle: Bool) -> some View {
         Menu {
             Picker(selection: Binding(get: { choice }, set: { setChoice($0) })) {
                 Text("All recordings").tag("all")
@@ -508,7 +533,11 @@ struct LibraryScreen: View {
                 .pickerStyle(.menu)
             }
         } label: {
-            Image(systemName: "line.3.horizontal.decrease")   // brand: system surface (toolbar)
+            if circle {
+                TitleCircle { Image(systemName: "line.3.horizontal.decrease").font(.system(size: 15, weight: .semibold)).foregroundStyle(Refined.ink) }   // brand: system surface (the Filter menu's button)
+            } else {
+                Image(systemName: "line.3.horizontal.decrease")   // brand: system surface (toolbar)
+            }
         }
         .accessibilityLabel("Filter")
         .accessibilityValue(choice == "all" ? "All recordings" : (otherFilterName ?? currentChip?.label ?? ""))
@@ -516,12 +545,18 @@ struct LibraryScreen: View {
     }
 
     /// More: Select recordings, Recently Deleted, and New project.
-    private var moreMenu: some View {
+    private func moreMenu(circle: Bool) -> some View {
         Menu {
             Button { selecting = true } label: { Label("Select recordings", systemImage: "checkmark.circle") }   // brand: system surface (menu)
             Button { showTrash = true } label: { Label("Recently Deleted", systemImage: "trash") }
             Button { newProject = true } label: { Label("New project…", systemImage: "folder.badge.plus") }   // brand: system surface (menu)
-        } label: { Image(systemName: "ellipsis") }
+        } label: {
+            if circle {
+                TitleCircle { Image(systemName: "ellipsis").font(.system(size: 15, weight: .semibold)).foregroundStyle(Refined.ink) }
+            } else {
+                Image(systemName: "ellipsis")
+            }
+        }
         .accessibilityLabel("More")
         .accessibilityIdentifier("library.more")
     }

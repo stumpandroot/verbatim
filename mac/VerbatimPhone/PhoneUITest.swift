@@ -146,7 +146,7 @@ enum PhoneUITest {
         Task { @MainActor in
             await MediaImportSelfTest.run { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") import: \(name)") }
             // Noisy recordings (shared with the Mac): Whisper Turbo's request, unclear chips, Reduce background noise.
-            await NoisyAudioChecks.run(store: app.store, player: app.player, start: nil, cancel: { app.cancel($0) }) { name, ok in
+            await NoisyAudioChecks.run(store: app.store, player: app.player, start: nil, again: { app.transcribeAgain($0) }, cancel: { app.cancel($0) }) { name, ok in
                 Log.note("UITEST \(ok ? "PASS" : "FAIL") noisy: \(name)")
             }
             noisyPhoneChecks(app)

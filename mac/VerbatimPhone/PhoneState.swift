@@ -1150,6 +1150,13 @@ extension PhoneState: TranscriptionHost {
         coordinator.rerun(id, language: language)
     }
 
+    /// Transcribe again on this iPhone with your engine, keeping the words it replaces (TurboRerun.swift).
+    func transcribeAgain(_ id: UUID) {
+        guard let t = store.transcript(id), TranscribeAgain.unavailableReason(t) == nil else { return }
+        player.stop()
+        coordinator.transcribeAgain(id)
+    }
+
     /// Whether a Mac can take Transcribe again with Whisper Turbo: the library syncs and a Mac has worked on it.
     var macCanTranscribe: Bool { Cloud.enabled && macSeen }
 

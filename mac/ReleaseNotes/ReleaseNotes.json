@@ -1,6 +1,49 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Titles that stay put",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Pinned titles",
+          "icon": "home",
+          "text": "Home, Library, Thoughts, and other tabs keep their title at the top as you scroll.",
+          "detail": "The title's buttons, like Filter and More in Library, sit in round buttons beside it. Pushed from another screen, a page keeps Back at the top."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Counts over titles",
+          "icon": "appearance",
+          "text": "A page's count sits on the line above its title, like the date on Home.",
+          "detail": "Matches Verbose Tasks. On the Mac, that line is in small capitals."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Transcribe again",
+          "icon": "swap",
+          "text": "More › Transcribe again listens to a recording again with your current settings.",
+          "detail": "The words it replaces stay. Choose Switch to the other words in More to go back. Your edits stay with the words you made them on."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Search in Dictations",
+          "icon": "words",
+          "text": "Find a dictation sits on the page, under the title."
+        }
+      ]
+    },
+    {
       "build": "278",
       "date": "2026-11-02",
       "version": "1.0 beta",

@@ -10,7 +10,7 @@ struct TrashScreen: View {
         // `store.trash` filters and sorts every transcript; read it once per render.
         let trash = app.store.trash
         List {
-            RefinedListTitle(title: "Recently Deleted", count: trash.isEmpty ? nil : "\(trash.count)")
+            RefinedListTitle(title: "Recently Deleted", count: trash.isEmpty ? nil : HomeCounts.countLabel(trash.count, "transcript", "transcripts"))
             if trash.isEmpty {
                 Section {
                     RefinedEmptyState(art: .iconDeleted, title: "Nothing here",

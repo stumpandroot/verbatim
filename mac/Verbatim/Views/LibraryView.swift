@@ -133,7 +133,8 @@ struct LibraryView: View {
     /// The title (a project's name, or "Library") and the count; in a project, Add from Library; for Thoughts and
     /// Journal, Read by day.
     private func titleRow(count: Int) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        // The last baseline: controls line up with the title, not the count over it.
+        HStack(alignment: .lastTextBaseline, spacing: 12) {
             LargeSerifTitle(title: projectName ?? "Library", count: HomeCounts.countLabel(count, "recording", "recordings"))
                 .accessibilityElement(children: .combine)
             Spacer(minLength: 8)

@@ -20,7 +20,8 @@ struct RefinedPageHeader<Trailing: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: RefinedPlatform.mac ? 6 : 4) {
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                // The last baseline: controls line up with the title, not the count over it.
+                HStack(alignment: .lastTextBaseline, spacing: 12) {
                     LargeSerifTitle(title: title, count: count).accessibilityElement(children: .combine)
                     Spacer(minLength: 12)
                     HStack(spacing: 8) { trailing }

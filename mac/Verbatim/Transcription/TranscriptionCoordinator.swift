@@ -266,6 +266,13 @@ final class TranscriptionCoordinator: ObservableObject {
         if let fresh = store.transcript(id) { retry(fresh) }
     }
 
+    /// Transcribe again: the same recording on this device with your engine and settings, keeping the words it
+    /// replaces to switch back to, as Whisper Turbo does (speakers, notes, and moments carry over).
+    func transcribeAgain(_ id: UUID) {
+        let s = settings
+        rerun(id, engine: s.engineId, model: s.model)
+    }
+
     /// A rerun stopped (failed or cancelled): the transcript goes back to its words as they were.
     private func restoreAfterRerun(_ id: UUID, error: Error?) {
         store.update(id) { x in
@@ -651,11 +658,16 @@ final class TranscriptionCoordinator: ObservableObject {
         let logsJobs = config.logsJobs
         let progress = progressHandler(id)
         let options = jobOptions(id, t)
+        // Transcribe again: the words it replaces stay as the version to switch back to.
+        let keepsVersion = t.rerunRequest != nil
         runningTask = Task.detached(priority: .userInitiated) {
             do {
                 // A recording just handed to iCloud is moved into the audio folder in the background first.
                 await self.store.waitForAdoption(of: url)
-                if waitForDownload { _ = await Cloud.ensureDownloaded(url) }
+                if waitForDownload || keepsVersion { _ = await Cloud.ensureDownloaded(url) }
+                if keepsVersion, !FileManager.default.fileExists(atPath: url.path) {
+                    throw NSError(domain: "Verbatim", code: 23, userInfo: [NSLocalizedDescriptionKey: "The audio file is missing."])
+                }
                 // Audio only's file (48 kHz, 24-bit) is heard through a 16 kHz copy, removed when the job ends.
                 let work = try TranscriptionInput.prepare(url)
                 defer { TranscriptionInput.finish(work, original: url) }
@@ -665,6 +677,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 let proceed = await MainActor.run { () -> Bool in
                     guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { self.finished(id, token: token); return false }
                     self.store.update(id) { x in
+                        let old: TranscriptVersion? = keepsVersion ? x.currentVersion : nil
                         x.original = out.original; x.segments = out.fixed; x.speakers = []; x.corrections = out.corrections; x.unclear = out.unclear
                         x.status = .ready; x.stage = findSpeakers ? "Finding speakers" : nil; x.engine = out.engine; x.model = out.model; x.language = out.language
                         x.processingDevice = nil; x.processingDeviceName = nil
@@ -672,6 +685,11 @@ final class TranscriptionCoordinator: ObservableObject {
                         if !out.wave.isEmpty { x.waveform = out.wave }
                         if x.mayAutoTitle(autoTitle), !x.titleByModel, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
+                        if let old {
+                            x.previousVersion = old
+                            x.carryOver(from: old)
+                            x.rerunRequest = nil
+                        }
                     }
                     self.dropSections(t)
                     self.host?.transcriptReady(id, corrections: out.corrections.count, queueEmpty: self.queue.isEmpty)
@@ -707,6 +725,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
                     guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { return }
+                    if keepsVersion { self.restoreAfterRerun(id, error: error); return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.host?.jobFailed(id, error: error)
                 }

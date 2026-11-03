@@ -9,7 +9,8 @@ import AVFoundation
 enum NoisyAudioChecks {
     /// `start` starts Transcribe again with Whisper Turbo the way the app's menu does (the Mac runs it; the iPhone's
     /// request needs a Mac, so its self-test passes nil and checks the request instead). `cancel` stops a job.
-    static func run(store: Store, player: Player, start: ((UUID) -> Void)?, cancel: @escaping (UUID) -> Void,
+    /// `again` starts Transcribe again (your engine, on this device) the way the menu does.
+    static func run(store: Store, player: Player, start: ((UUID) -> Void)?, again: (UUID) -> Void, cancel: @escaping (UUID) -> Void,
                     check: (String, Bool) -> Void) async {
         check("turbo: the action's model is Whisper Large v3 Turbo",
               Engines.displayName(engine: Transcript.turboEngine, model: Transcript.turboModel) == Transcript.turboName
@@ -53,6 +54,23 @@ enum NoisyAudioChecks {
             store.update(id) { $0.rerunRequest = nil }
         }
 
+        // Transcribe again with your engine: offered on the same terms, it starts a job that keeps the words, and one
+        // that can't run (the audio is missing on purpose) leaves the transcript as it was.
+        check("again: offered for a ready transcript with audio", TranscribeAgain.unavailableReason(t) == nil)
+        var mt = t; mt.multitrack = MultitrackInfo(tracks: [])
+        check("again: not offered for a multi-track recording", TranscribeAgain.unavailableReason(mt) != nil)
+        again(id)
+        let againStarted = store.transcript(id).map { $0.rerunRequest != nil && $0.status == .processing } ?? false
+        check("again: Transcribe again starts a job that keeps the current words", againStarted)
+        for _ in 0..<50 {
+            if let x = store.transcript(id), x.status == .ready, x.rerunRequest == nil { break }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        if store.transcript(id)?.status == .processing { cancel(id) }
+        let againBack = store.transcript(id)
+        check("again: a job that can't run leaves the transcript as it was",
+              againBack?.status == .ready && againBack?.segments == words && againBack?.rerunRequest == nil && againBack?.previousVersion == nil)
+
         // Switching between the kept words and the new ones.
         store.update(id) { x in
             let old = x.currentVersion
@@ -61,6 +79,10 @@ enum NoisyAudioChecks {
             x.previousVersion = old
         }
         check("turbo: Switch to … names the kept words", store.transcript(id).flatMap(TurboRerun.switchTitle) == "Switch to Parakeet TDT v2")
+        if var same = store.transcript(id) {
+            same.model = same.previousVersion?.model ?? ""
+            check("again: kept words from the same model read \"Switch to the other words\"", TurboRerun.switchTitle(same) == "Switch to the other words")
+        }
         store.update(id) { _ = $0.switchVersion() }
         check("turbo: switching brings the kept words back", store.transcript(id)?.segments == words)
 

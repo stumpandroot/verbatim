@@ -14,6 +14,14 @@ extension AppState {
         coordinator.rerun(id, engine: Transcript.turboEngine, model: Transcript.turboModel)
     }
 
+    /// Transcribe again on this Mac with your engine, keeping the words it replaces (TurboRerun.swift).
+    func transcribeAgain(_ id: UUID) {
+        guard let t = store.transcript(id), TranscribeAgain.unavailableReason(t) == nil else { return }
+        player.stop()
+        Log.note("transcribe again: engine from settings")
+        coordinator.transcribeAgain(id)
+    }
+
     /// Swaps the words with the kept version (Switch to …). Notes and moments follow by time.
     func switchTranscriptVersion(_ id: UUID) {
         guard store.transcript(id)?.previousVersion != nil else { return }

@@ -40,14 +40,10 @@ struct HomeScreen: View {
         let drawn = HomeSpacing.drawn(layout)
         return scroller {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top, spacing: 12) {
-                    LargeSerifTitle(title: greeting, eyebrow: HomeGreeting.dateLine(now))
-                    Spacer(minLength: 0)
-                    HomeSettingsButton { app.openSettings() }
-                }
-                .id("home-top")
+                // The top of the page, under the pinned title, for scrolling back to.
+                Color.clear.frame(height: 0).id("home-top").accessibilityHidden(true)
                 // After an update: "What's new in build N", once (WhatsNewScreen.swift).
-                WhatsNewBanner(top: 14) { Self.openWhatsNew(app) }
+                WhatsNewBanner(top: 4) { Self.openWhatsNew(app) }
                 // Verbose Unlock's one card: the trial ends tomorrow or ended, a free recording saved its first 10
                 // minutes, or shared items wait for Import (UnlockViews.swift).
                 UnlockHomeCard(top: 14)
@@ -59,11 +55,17 @@ struct HomeScreen: View {
                 }
                 EditHomeButton { editingHome = true }.padding(.top, 28)
             }
-            .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 32)
+            .padding(.horizontal, 20).padding(.bottom, 32)
         }
         .background(Refined.paper.ignoresSafeArea())
         .navigationTitle("")
         .toolbar(.hidden, for: .navigationBar)
+        // The date over the greeting, with Settings, pinned while Home scrolls (as Today in Verbose Tasks).
+        .pinnedTitle(true) {
+            TitleRow(title: greeting, eyebrow: HomeGreeting.dateLine(now)) {
+                HomeSettingsButton { app.openSettings() }
+            }
+        }
         .sheet(isPresented: $editingHome) {
             NavigationStack { EditHomeView(onDone: { editingHome = false }) }
                 .environmentObject(app)

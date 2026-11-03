@@ -1404,22 +1404,33 @@ struct PaperSection<Content: View>: View {
 
 // MARK: - Titles
 
-/// A screen's large title in the serif (Home's greeting, Library, Settings), with an optional line above it (the
-/// date) and a count beside it ("47 recordings").
+/// A screen's large title in the serif (Home's greeting, Library, Settings), with one line above it, as in Verbose
+/// Tasks: the date, a count ("47 recordings"), or both ("By day · 12 days"). On the Mac that line is small capitals,
+/// as in Tasks' Mac pages.
 struct LargeSerifTitle: View {
     var title: String
     var eyebrow: String? = nil
     var count: String? = nil
 
+    /// The line above the title: the eyebrow and the count, joined.
+    static func line(eyebrow: String?, count: String?) -> String? {
+        let parts = [eyebrow, count].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: RefinedPlatform.mac ? 4 : 2) {
-            if let eyebrow { Text(eyebrow).refinedFont(.meta).foregroundStyle(Refined.mute) }
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(title).refinedFont(.largeTitle).foregroundStyle(Refined.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-                if let count { Text(count).refinedFont(.hint).foregroundStyle(Refined.mute) }
+            if let line = Self.line(eyebrow: eyebrow, count: count) {
+                if RefinedPlatform.mac {
+                    Text(line.uppercased()).refinedFont(.caption, weight: .semibold).kerning(0.6)
+                        .foregroundStyle(Refined.mute).accessibilityLabel(line)
+                } else {
+                    Text(line).refinedFont(.meta).foregroundStyle(Refined.mute)
+                }
             }
+            Text(title).refinedFont(.largeTitle).foregroundStyle(Refined.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
         }
     }
 }

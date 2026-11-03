@@ -90,11 +90,11 @@ struct PhoneRoot: View {
         case .home: HomeScreen()
         case .library: LibraryScreen()
         // Today's Thoughts page; its calendar button opens By day.
-        case .thoughts: DayPageScreen(kind: .idea, day: app.todayPage)
+        case .thoughts: DayPageScreen(kind: .idea, day: app.todayPage, tabRoot: true)
         // Journal By day (Thoughts phase B).
         case .journal: ByDayScreen(kind: .journal, fixed: true)
-        case .dictations: DictationsListScreen()
-        case .projects: ProjectsScreen()
+        case .dictations: DictationsListScreen(tabRoot: true)
+        case .projects: ProjectsScreen(tabRoot: true)
         // A kind's tab: the Library already on its kind, titled for the tab ("Meetings").
         case .meetings, .interviews, .talks, .brainDumps, .audioOnly:
             LibraryScreen(route: LibraryRoute(request: t.kindRaw), tabTitle: t.title)

@@ -10,7 +10,7 @@ struct SnippetsScreen: View {
 
     var body: some View {
         List {
-            RefinedListTitle(title: "Snippets", count: app.store.snippets.isEmpty ? nil : "\(app.store.snippets.count)")
+            RefinedListTitle(title: "Snippets", count: app.store.snippets.isEmpty ? nil : HomeCounts.countLabel(app.store.snippets.count, "snippet", "snippets"))
             Section {
                 TextField("Trigger (my address)", text: $trigger)
                     .textInputAutocapitalization(.never)
