@@ -790,6 +790,10 @@ struct PhoneLines: View {
                     .foldedAway(fold.map { !openSponsors.contains($0.span.id) } ?? false)
             }
             if let spans = chips[segs.count] { unclearChips(spans) }
+            // A free recording's words stop at 10 minutes; the rest is saved and plays (FreeTranscription).
+            if transcript.status == .ready, FreeTranscription.hasUntranscribed(limit: transcript.freeTranscriptLimit, duration: transcript.duration) {
+                FreeTranscriptNote(transcript: transcript).padding(.top, 14)
+            }
         }
         .alert("Name this speaker", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("First and last name", text: $newName).textInputAutocapitalization(.words)

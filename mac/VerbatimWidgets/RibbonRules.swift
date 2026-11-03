@@ -10,8 +10,8 @@ import Foundation
 ///   presses start and stop takes without switching apps.
 /// - When the Verbose keyboard is open in the app you're typing in, the words go straight into the text field and
 ///   the clipboard is left alone. Otherwise they go on the clipboard and into the keyboard's Recent row.
-/// - An idle session ends itself after 2 hours unless you choose 10 or 30 minutes, 1 or 4 hours, or Until I end it
-///   (October 2026; it was 30 minutes, and anyone who never changed that moves to 2 hours).
+/// - An idle session ends itself after 30 minutes unless you choose 10 minutes, 1, 2, or 4 hours, or Until I end it
+///   (November 2026; it was 2 hours from October, and anyone who never changed that moves to 30 minutes).
 /// - A phone or FaceTime call (or Siri) pauses the session instead of ending it; it picks up when the call ends.
 /// - A session that ends by itself stays in the Dynamic Island and on the Lock Screen for 15 minutes as Session
 ///   ended, with Restart.
@@ -188,10 +188,11 @@ enum Ribbon {
     /// Settings › Keyboard › End keyboard sessions after and Settings › Action button: 10 or 30 minutes, 1, 2, or
     /// 4 hours, or Until I end it (0: no idle timeout; the 8-hour Live Activity limit still ends it, `sessionCap`).
     static let timeoutChoices: [Int] = [600, 1800, 3600, 7200, 14_400, 0]
-    /// 2 hours for new installs, and for anyone who never chose (owner decision, October 2026).
-    static let defaultTimeout = 7200
-    /// The old default (30 minutes). The app never wrote it on its own, so a stored value always came from a pick.
-    static let oldDefaultTimeout = 1800
+    /// 30 minutes for new installs, and for anyone who never chose (owner decision, November 3, 2026, after the
+    /// critique: an idle microphone session shouldn't outlast the work; it was 2 hours from October 2026).
+    static let defaultTimeout = 1800
+    /// The October default (2 hours). The app never wrote it on its own, so a stored value always came from a pick.
+    static let oldDefaultTimeout = 7200
 
     /// A stored timeout as one of the choices: missing means the default; 0 (and below) is Until I end it; any
     /// other old value moves to the nearest choice (1 and 5 minutes become 10; 15 becomes 10, ties go shorter).
@@ -203,8 +204,8 @@ enum Ribbon {
     }
 
     /// The timeout to use at launch, from the stored seconds and whether you picked them (`userSet`, written with
-    /// each pick since October 2026; nil before). Never chose: the default (2 hours), which also moves anyone who
-    /// was on the old 30-minute default. A pick always stays. Before the flag existed the app wrote the value only
+    /// each pick since October 2026; nil before). Never chose: the default (30 minutes), which also moves anyone who
+    /// was on the 2-hour default. A pick always stays. Before the flag existed the app wrote the value only
     /// when you picked one, so a stored value without the flag counts as a pick; `userSet == false` follows the
     /// default.
     static func launchTimeout(stored: Int?, userSet: Bool?) -> Int {

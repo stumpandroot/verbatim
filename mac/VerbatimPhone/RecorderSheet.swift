@@ -60,7 +60,7 @@ struct RecorderSheet: View {
                     header.padding(.top, 14)
                     RecorderLivePanel(live: app.recorder.live, status: status, moments: app.recordingMoments)
                         .padding(.top, 16)
-                    // A free recording from 9:00: "Saves at 10:00 · Unlock to keep going" (Verbose Unlock, UnlockViews.swift).
+                    // A free recording from 9:00: where the free transcript ends; the recording keeps going (UnlockViews.swift).
                     RecordingLimitChip().padding(.top, 8)
                     if paused, let reason = app.autoPauseReason { autoPause(reason).padding(.top, 12) }
                     if !paused, let w = app.recorder.micWarning, let note = PhoneState.mutedNote(w) { mutedMic(note).padding(.top, 12) }

@@ -327,7 +327,8 @@ struct TranscriptView: View {
                                  },
                                  onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
                     // Make notes, a plan, or a draft from it; the result gets a tab of its own.
-                    if t.shownTemplateResults.isEmpty, TemplateCenter.shared.busyTemplate(t.id) == nil {
+                    // Not when Apple Intelligence can't run: templates need it too, so it would be a dead end (critique).
+                    if t.shownTemplateResults.isEmpty, TemplateCenter.shared.busyTemplate(t.id) == nil, TemplateCenter.unavailableReason == nil {
                         RunTemplateMenu(transcript: t, title: "Run a template", templates: app.store.allTemplates)
                             .uiTarget("transcript-run-template")
                     }

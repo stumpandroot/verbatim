@@ -122,8 +122,8 @@ final class UnlockStore: ObservableObject {
     @Published private(set) var cards = UnlockCardMemory.load()
     /// Files and links waiting in the share inbox while Import is locked.
     @Published private(set) var sharedWaiting = 0
-    /// The running recording against the limit: the recorder's chip shows from `.warning`.
-    @Published private(set) var capPhase: RecordingCap.Phase = .none
+    /// The running recording against the free transcription: the recorder's chip shows from `.warning`.
+    @Published private(set) var capPhase: FreeTranscription.Phase = .none
 
     let backend: PurchaseBackend
     private(set) var records: [PurchaseRecord]
@@ -132,10 +132,10 @@ final class UnlockStore: ObservableObject {
     private var timer: Timer? = nil
     /// The screens that can present the sheet, in the order they appeared; the last one presents.
     private var hosts: [UUID] = []
-    /// Whether a recording is running for the limit to watch, and whether it started with everything allowed.
+    /// Whether a recording is running for the limit to watch, and whether it started with everything allowed (kept
+    /// after it stops, so the saved recording takes the right limit).
     private var capActive = false
     private var capStartedWithEverything = true
-    private var capStopping = false
 
     /// TestFlight builds (CI's internal and public tracks, compiled with BETA_UNLOCK): everything is unlocked with no
     /// purchase screens, for you and your beta testers, and StoreKit isn't asked. The store track's N.2, the build you
@@ -302,33 +302,36 @@ final class UnlockStore: ObservableObject {
     /// The share inbox's waiting items while Import is locked (PhoneInbox.swift).
     func setSharedWaiting(_ n: Int) { if sharedWaiting != n { sharedWaiting = n } }
 
-    // MARK: The 10-minute limit
+    // MARK: Free transcription
 
     /// A recording started or ended. The limit applies only to one that starts without the trial or Verbose Unlock, so a
-    /// recording running when the trial ends keeps going until it's stopped.
+    /// recording running when the trial ends is transcribed in full.
     private func capSession(_ active: Bool) {
         capActive = active
-        capStopping = false
         if active { capStartedWithEverything = state.hasEverything } else if capPhase != .none { capPhase = .none }
     }
 
-    /// Each tick of the recorder's clock: where the recording is against the limit, and at 10:00 a free recording stops
-    /// and saves like any other (`RecordingCap`).
+    /// Each tick of the recorder's clock: where the recording is against the free transcription. Nothing stops; the
+    /// chip says what happens (`FreeTranscription`). Audio only has no transcript, so no chip.
     private func capTick(_ elapsed: TimeInterval) {
         guard let app, capActive else { return }
-        let phase = RecordingCap.phase(elapsed: elapsed, startedWithEverything: capStartedWithEverything, hasEverythingNow: state.hasEverything)
+        let audioOnly = app.continuing == nil && app.recordKind == .audio
+        let phase = audioOnly ? .none : FreeTranscription.phase(elapsed: elapsed, startedWithEverything: capStartedWithEverything,
+                                                                 hasEverythingNow: state.hasEverything)
         if phase != capPhase { capPhase = phase }
-        // Only a real recording stops; the self-test's stand-in shows the chip.
-        guard phase == .stop, app.recorder.isRecording, !app.savingRecording, !capStopping else { return }
-        capStopping = true
-        let choice = app.recordingChoice
-        let audioOnly = app.continuing == nil && choice == .kind(.audio)
-        let noun = app.continuing != nil || audioOnly ? "recording" : choice.name.lowercased()
-        cards = UnlockCards.capped(cards, noun: noun, transcribes: !audioOnly)
+    }
+
+    /// The free transcription limit a just-saved recording of `duration` takes, or nil.
+    func freeLimit(forDuration duration: TimeInterval) -> Double? {
+        FreeTranscription.limit(duration: duration, startedWithEverything: capStartedWithEverything, hasEverythingNow: state.hasEverything)
+    }
+
+    /// A free recording ran past 10 minutes and was saved in full: Home's card explains once, and a toast says so.
+    func savedPastFreeTranscription(noun: String) {
+        cards = UnlockCards.capped(cards, noun: noun, transcribes: true)
         cards.save()
-        Log.note("unlock: a free recording reached 10 minutes; it saves and transcribes")
-        app.stopRecording()
-        app.say(UnlockCopy.cappedToast)
+        Log.note("unlock: a free recording ran past 10 minutes; saved in full, its first 10 minutes transcribe")
+        app?.say(UnlockCopy.cappedToast)
     }
 
     // MARK: Self-test

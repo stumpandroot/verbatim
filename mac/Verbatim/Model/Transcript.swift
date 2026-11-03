@@ -522,7 +522,8 @@ struct Transcript: Codable, Identifiable, Equatable {
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
              summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited, schemaVersion,
-             speakerSuggestions, unclear, previousVersion, rerunRequest, templateResults, autoRun, remindersSent, stills
+             speakerSuggestions, unclear, previousVersion, rerunRequest, templateResults, autoRun, remindersSent, stills,
+             freeTranscriptLimit
     }
     /// Every key this build reads or writes, including the legacy path keys: anything else is a newer build's.
     static let knownKeys: Set<String> = Set(CodingKeys.allCases.map(\.stringValue) + LegacyKeys.allCases.map(\.stringValue))
@@ -612,6 +613,10 @@ struct Transcript: Codable, Identifiable, Equatable {
     var flow: FlowInfo? = nil
     /// Continue recording: an audio file (in Paths.audio) recorded after this one, waiting to be transcribed and joined on.
     var pendingAppend: String? = nil
+    /// A free recording longer than the free transcription (Verbose Unlock, `FreeTranscription`): the seconds of each
+    /// recording that are transcribed while the iPhone is free. The audio is saved in full; a run with the trial,
+    /// Verbose Unlock, or on a Mac transcribes all of it and clears this.
+    var freeTranscriptLimit: Double? = nil
     /// Multi-track recordings: one file per mic, each transcribed on its own and woven together by time.
     var multitrack: MultitrackInfo? = nil
     /// An imported video's stills, one where the picture changes (VideoStill.pick), shown in the transcript's margin.
@@ -713,6 +718,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         originalMedia = path(.originalMedia, .original)
         processingDevice = try c.decodeIfPresent(String.self, forKey: .processingDevice)
         processingDeviceName = try c.decodeIfPresent(String.self, forKey: .processingDeviceName)
+        freeTranscriptLimit = try? c.decodeIfPresent(Double.self, forKey: .freeTranscriptLimit)
         pendingLink = try c.decodeIfPresent(Bool.self, forKey: .pendingLink) ?? false
         flow = try c.decodeIfPresent(FlowInfo.self, forKey: .flow)
         pendingAppend = try LibraryFile.checked(c.decodeIfPresent(String.self, forKey: .pendingAppend), field: "continued recording")
@@ -794,6 +800,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         try c.encodeIfPresent(link, forKey: .link)
         try c.encodeIfPresent(processingDevice, forKey: .processingDevice)
         try c.encodeIfPresent(processingDeviceName, forKey: .processingDeviceName)
+        try c.encodeIfPresent(freeTranscriptLimit, forKey: .freeTranscriptLimit)
         try c.encode(pendingLink, forKey: .pendingLink)
         try c.encodeIfPresent(flow, forKey: .flow)
         try c.encodeIfPresent(pendingAppend, forKey: .pendingAppend)

@@ -62,7 +62,7 @@ struct PhoneOnboarding: View {
             .padding(.top, 22)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
             title(Refined.tagline)
-            para("Record a thought, an interview, or a call, or paste a link to a video or podcast. Verbose writes it down on this iPhone. Everything stays on this iPhone unless you turn on iCloud sync.")
+            para("Record a thought, an interview, or a call, or paste a link to a video or podcast. Verbose writes it down on this iPhone. Everything stays on this iPhone unless you turn on iCloud sync or Cloud cleanup.")
             BrandGlyph(art: .diagramCapture, color: Refined.ink, minLineWidth: 1.2)
                 .frame(width: 170, height: 220).frame(maxWidth: .infinity).padding(.top, 50)
                 .accessibilityHidden(true)
@@ -72,7 +72,7 @@ struct PhoneOnboarding: View {
     private var microphone: some View {
         VStack(alignment: .leading, spacing: 0) {
             title("Let Verbose hear you.")
-            para("Only while you record. Audio is transcribed on this iPhone and isn't uploaded anywhere except your own iCloud, when sync is on.")
+            para("Only while you record, or while a keyboard session is on. Audio is transcribed on this iPhone and isn't uploaded anywhere except your own iCloud, when sync is on.")
             HStack(spacing: 14) {
                 IconSquare(art: .capture, hue: .persimmon)
                 VStack(alignment: .leading, spacing: 2) {

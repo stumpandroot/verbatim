@@ -92,7 +92,7 @@ extension PhoneState {
     /// simulated recording through here too.
     @discardableResult
     func fileThought(url: URL, duration: Double, envelope: [Float], startedAt: Date, skipped: [ClosedRange<Double>] = [],
-                     moments: [RecordingMoment] = []) -> UUID? {
+                     moments: [RecordingMoment] = [], freeLimit: Double? = nil) -> UUID? {
         guard let name = store.adoptRecording(url) else {
             say("Couldn't save the thought. Its audio is kept in Verbose's recordings folder.")
             Haptics.play(.failed)
@@ -104,6 +104,7 @@ extension PhoneState {
         t.kindIsAuto = false
         t.waveform = envelope
         t.notes = Store.skippedNotes(skipped) + RecordingMoment.notes(moments)
+        t.freeTranscriptLimit = freeLimit
         coordinator.enqueue(t)
         lastThought = t.id
         Log.note("thought: added \(String(format: "%.1f", duration)) s; transcribing")

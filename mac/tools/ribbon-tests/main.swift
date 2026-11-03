@@ -56,7 +56,7 @@ check("presses alternate begin and finish", actions == ["begin", "finish", "begi
 // MARK: Idle timeout and the 8-hour cap
 
 check("timeout choices: 10 and 30 minutes, 1, 2, and 4 hours, and Until I end it", Ribbon.timeoutChoices == [600, 1800, 3600, 7200, 14_400, 0])
-check("no stored timeout: 2 hours", Ribbon.normalizedTimeout(nil) == 7200 && Ribbon.defaultTimeout == 7200)
+check("no stored timeout: 30 minutes", Ribbon.normalizedTimeout(nil) == 1800 && Ribbon.defaultTimeout == 1800)
 check("a stored choice stays", Ribbon.timeoutChoices.allSatisfy { Ribbon.normalizedTimeout($0) == $0 })
 check("old 1 and 5 minutes become 10", Ribbon.normalizedTimeout(60) == 600 && Ribbon.normalizedTimeout(300) == 600)
 check("old 15 minutes becomes 10 (nearest, ties go shorter)", Ribbon.normalizedTimeout(900) == 600)
@@ -68,9 +68,10 @@ check("timeout labels", Ribbon.timeoutLabel(600) == "10 minutes" && Ribbon.timeo
 check("short labels", Ribbon.timeoutShortLabel(600) == "10 min" && Ribbon.timeoutShortLabel(7200) == "2 hr" && Ribbon.timeoutShortLabel(0) == "Until I end it")
 
 // The migration to the 2-hour default: only a pick is kept.
-check("a new install gets 2 hours", Ribbon.launchTimeout(stored: nil, userSet: nil) == 7200)
-check("someone who never chose (nothing stored, the old 30-minute default) moves to 2 hours", Ribbon.launchTimeout(stored: nil, userSet: false) == 7200)
-check("a value written for you, not picked, follows the new default", Ribbon.launchTimeout(stored: 1800, userSet: false) == 7200)
+check("a new install gets 30 minutes", Ribbon.launchTimeout(stored: nil, userSet: nil) == 1800)
+check("someone who never chose (nothing stored, the 2-hour default) gets 30 minutes", Ribbon.launchTimeout(stored: nil, userSet: false) == 1800)
+check("a value written for you, not picked, follows the new default", Ribbon.launchTimeout(stored: 7200, userSet: false) == 1800)
+check("a pick of 2 hours stays", Ribbon.launchTimeout(stored: 7200, userSet: true) == 7200)
 check("a pick of 30 minutes stays", Ribbon.launchTimeout(stored: 1800, userSet: true) == 1800)
 check("a stored value from before the flag counts as a pick (the old app wrote only picks)",
       Ribbon.launchTimeout(stored: 600, userSet: nil) == 600 && Ribbon.launchTimeout(stored: 3600, userSet: nil) == 3600 && Ribbon.launchTimeout(stored: 1800, userSet: nil) == 1800)

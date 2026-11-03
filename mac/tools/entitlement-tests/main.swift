@@ -72,15 +72,28 @@ FeatureGate.onDenied = nil
 
 // MARK: The 10-minute limit
 
-check("the limit is 10 minutes, the chip at 9", RecordingCap.limit == 600 && RecordingCap.warnAt == 540)
-check("free: nothing before 9:00", RecordingCap.phase(elapsed: 539, startedWithEverything: false, hasEverythingNow: false) == .none)
-check("free: the chip from 9:00", RecordingCap.phase(elapsed: 540, startedWithEverything: false, hasEverythingNow: false) == .warning
-      && RecordingCap.phase(elapsed: 599.9, startedWithEverything: false, hasEverythingNow: false) == .warning)
-check("free: stops at 10:00", RecordingCap.phase(elapsed: 600, startedWithEverything: false, hasEverythingNow: false) == .stop
-      && RecordingCap.phase(elapsed: 900, startedWithEverything: false, hasEverythingNow: false) == .stop)
-check("unlocking mid-recording removes the limit", RecordingCap.phase(elapsed: 580, startedWithEverything: false, hasEverythingNow: true) == .none
-      && RecordingCap.phase(elapsed: 700, startedWithEverything: false, hasEverythingNow: true) == .none)
-check("a recording started in the trial keeps going after it ends", RecordingCap.phase(elapsed: 3600, startedWithEverything: true, hasEverythingNow: false) == .none)
+check("free transcription covers 10 minutes, the chip at 9", FreeTranscription.limit == 600 && FreeTranscription.warnAt == 540)
+check("free: nothing before 9:00", FreeTranscription.phase(elapsed: 539, startedWithEverything: false, hasEverythingNow: false) == .none)
+check("free: the chip from 9:00", FreeTranscription.phase(elapsed: 540, startedWithEverything: false, hasEverythingNow: false) == .warning
+      && FreeTranscription.phase(elapsed: 599.9, startedWithEverything: false, hasEverythingNow: false) == .warning)
+check("free: past 10:00 the recording goes on", FreeTranscription.phase(elapsed: 600, startedWithEverything: false, hasEverythingNow: false) == .past
+      && FreeTranscription.phase(elapsed: 3600, startedWithEverything: false, hasEverythingNow: false) == .past)
+check("unlocking mid-recording removes the limit", FreeTranscription.phase(elapsed: 580, startedWithEverything: false, hasEverythingNow: true) == .none
+      && FreeTranscription.phase(elapsed: 700, startedWithEverything: false, hasEverythingNow: true) == .none)
+check("a recording started in the trial keeps going after it ends", FreeTranscription.phase(elapsed: 3600, startedWithEverything: true, hasEverythingNow: false) == .none)
+check("a free recording past 10 minutes saves with a 10-minute limit; shorter ones and trial ones with none",
+      FreeTranscription.limit(duration: 1800, startedWithEverything: false, hasEverythingNow: false) == 600
+      && FreeTranscription.limit(duration: 600, startedWithEverything: false, hasEverythingNow: false) == nil
+      && FreeTranscription.limit(duration: 1800, startedWithEverything: true, hasEverythingNow: false) == nil
+      && FreeTranscription.limit(duration: 1800, startedWithEverything: false, hasEverythingNow: true) == nil)
+check("a run trims only while free; the trial, Unlock, and the Mac transcribe all of it",
+      FreeTranscription.runLimit(600, hasEverything: false) == 600 && FreeTranscription.runLimit(600, hasEverything: true) == nil
+      && FreeTranscription.runLimit(nil, hasEverything: false) == nil)
+check("the transcript's note shows only when audio runs past the words",
+      FreeTranscription.hasUntranscribed(limit: 600, duration: 1800) && !FreeTranscription.hasUntranscribed(limit: 600, duration: 600.5)
+      && !FreeTranscription.hasUntranscribed(limit: nil, duration: 1800))
+check("copy: the transcript's note and button", UnlockCopy.untranscribedNote(duration: 1930).contains("32 minutes")
+      && UnlockCopy.transcribeAll(duration: 1930) == "Transcribe all 32 minutes" && UnlockCopy.minutes(50) == "1 minute")
 
 // MARK: Home's cards
 
@@ -140,10 +153,10 @@ check("copy: the trial's fine print states its length, no charge or renewal, and
       UnlockCopy.trialFinePrint.contains("7 days") && UnlockCopy.trialFinePrint.contains("free") && UnlockCopy.trialFinePrint.contains("doesn't renew")
       && UnlockCopy.trialFinePrint.contains("free version") && UnlockCopy.trialFinePrint.contains("nothing is charged") && UnlockCopy.trialFinePrint.contains("lock again"))
 check("copy: the approved lines", UnlockCopy.sheetTitle == "Get all of Verbose." && UnlockCopy.tryFree == "Try it free for 7 days"
-      && UnlockCopy.unlockButton(price: "$14.99") == "Unlock for $14.99" && UnlockCopy.recorderChip == "Saves at 10:00 \u{00B7} Unlock to keep going"
+      && UnlockCopy.unlockButton(price: "$14.99") == "Unlock for $14.99" && UnlockCopy.recorderChip == "Free transcript ends at 10:00. Recording keeps going."
       && UnlockCopy.cardTitle(.trialEndsSoon(today: false)) == "Your free trial ends tomorrow" && UnlockCopy.cardTitle(.trialEnded) == "Your free trial ended"
-      && UnlockCopy.cardTitle(.savedFirstTen(noun: "meeting", transcribes: true)) == "Saved the first 10 minutes"
-      && UnlockCopy.cardBody(.savedFirstTen(noun: "meeting", transcribes: true)).hasPrefix("Your meeting is transcribing.")
+      && UnlockCopy.cardTitle(.savedFirstTen(noun: "meeting", transcribes: true)) == "Saved in full"
+      && UnlockCopy.cardBody(.savedFirstTen(noun: "meeting", transcribes: true)).hasPrefix("Your meeting is saved in full, and its first 10 minutes are transcribing.")
       && UnlockCopy.cardDismiss(.trialEnded) == "OK" && UnlockCopy.cardDismiss(.trialEndsSoon(today: false)) == "Not now"
       && UnlockCopy.cardAction(.trialEndsSoon(today: false), price: "$14.99") == "Unlock for $14.99" && UnlockCopy.cardAction(.savedFirstTen(noun: "x", transcribes: true), price: "$14.99") == "Unlock")
 check("copy: the sheet lists five things", UnlockCopy.items.count == 5)
@@ -200,7 +213,8 @@ check("sources: exports beyond plain text ask first", read("VerbatimPhone/PhoneE
 check("sources: Cloud cleanup returns nothing while locked on iPhone", read("Verbatim/Flow/CloudCleanup.swift").contains("FeatureGate.allows(.cloudCleanup)"))
 check("sources: templates, Ask, and Recipes check the gate", read("Verbatim/Transcription/TemplateRunner.swift").contains("FeatureGate.allowsTemplate")
       && read("Verbatim/Transcription/AskEngine.swift").contains("FeatureGate.allows(.ask") && read("Verbatim/Transcription/AskEngine.swift").contains("FeatureGate.allows(.recipes"))
-check("sources: the recorder shows the chip and the limit stops it", read("VerbatimPhone/RecorderSheet.swift").contains("RecordingLimitChip") && unlockFile.contains("RecordingCap.phase"))
+check("sources: the recorder shows the chip, and nothing stops a recording", read("VerbatimPhone/RecorderSheet.swift").contains("RecordingLimitChip") && unlockFile.contains("FreeTranscription.phase") && !unlockFile.contains("stopRecording()"))
+check("sources: the coordinator trims only by the free limit", read("Verbatim/Transcription/TranscriptionCoordinator.swift").contains("FreeTranscription.runLimit"))
 check("sources: Settings has the row and Restore Purchases", read("VerbatimPhone/SettingsScreen.swift").contains("UnlockSettingsRow") && read("VerbatimPhone/SettingsScreen.swift").contains("restorePurchases"))
 check("sources: the welcome tour offers the trial", read("VerbatimPhone/PhoneOnboarding.swift").contains("UnlockTourOffer"))
 check("sources: Home shows the unlock cards", read("VerbatimPhone/HomeScreen.swift").contains("UnlockHomeCard"))

@@ -52,7 +52,8 @@ struct TemplateResultsSection: View {
                 offerRow(offer)
             }
             ForEach(results) { r in card(r, templates) }
-            if runRow, results.isEmpty, busy == nil, transcript.status == .ready, transcript.autoRunWaitingText == nil {
+            if runRow, results.isEmpty, busy == nil, transcript.status == .ready, transcript.autoRunWaitingText == nil,
+               TemplateCenter.unavailableReason == nil {
                 runMenu(title: "Run a template", replacing: nil, templates: templates)
                     .uiTarget("transcript-run-template")
             }

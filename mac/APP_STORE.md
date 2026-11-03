@@ -157,7 +157,7 @@ In App Store Connect › Verbose › Monetization › In-App Purchases, create t
 | Reference name | Product ID | Price | Display name | Description |
 |---|---|---|---|---|
 | 7-day free trial | `co.stumpandroot.verbatim.ios.trial7` | Free (tier 0, $0.00) | 7-day free trial | Everything in Verbose Unlock for 7 days. It's free, and it doesn't renew. |
-| Verbose Unlock | `co.stumpandroot.verbatim.ios.unlock` | $14.99 (US) | Verbose Unlock | Recordings of any length, imports, app audio, templates, and every export. One purchase. |
+| Verbose Unlock | `co.stumpandroot.verbatim.ios.unlock` | $14.99 (US) | Verbose Unlock | Full transcripts of any length, imports, app audio, templates, and every export. One purchase. |
 
 For each one:
 

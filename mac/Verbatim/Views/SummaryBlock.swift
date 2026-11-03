@@ -92,11 +92,15 @@ struct SummaryBlock: View {
         }
     }
 
-    /// No summary yet: Summarize, or why it can't run here.
+    /// No summary yet: Summarize, or why it can't run here and what works without it (writing one yourself), so the
+    /// screen never ends at a dead end (critique, November 3, 2026).
     @ViewBuilder private var empty: some View {
         Text("No summary yet").refinedFont(.sectionTitle).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
         if let why = SummaryAction.unavailableReason {
-            Text(why).refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+            Text(why + " " + Self.withoutAI).refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+            Button("Write a summary") { draft = ""; editing = true }
+                .buttonStyle(RefinedActionStyle(kind: .strong))
+                .disabled(transcript.status != .ready)
         } else {
             Text("Apple Intelligence writes an overview and the key points from the transcript, on this device.")
                 .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
@@ -105,6 +109,9 @@ struct SummaryBlock: View {
                 .disabled(transcript.status != .ready)
         }
     }
+
+    /// What still works when Apple Intelligence can't run.
+    static let withoutAI = "You can write one yourself, and copy, search, and export the transcript as always."
 
     private var progressRow: some View {
         HStack(spacing: 8) {

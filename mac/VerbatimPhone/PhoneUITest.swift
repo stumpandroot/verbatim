@@ -1256,7 +1256,7 @@ enum PhoneUITest {
         check("a failed copy is reported", Ribbon.resultPhase(.clipboard, copied: false) == .failed)
         check("presses alternate", Ribbon.decide(.idle, .toggle, sessionOn: true) == .begin
               && { let i = UUID(); return Ribbon.decide(.listening(i), .toggle, sessionOn: true) == .finish(i) }())
-        check("default idle timeout is 2 hours", Ribbon.normalizedTimeout(nil) == 7200)
+        check("default idle timeout is 30 minutes", Ribbon.normalizedTimeout(nil) == 1800)
         // The start screen's way-back coach: counted in UserDefaults, full five times, then the reminder.
         let keepCoach = UserDefaults.standard.object(forKey: Ribbon.coachCountKey)
         UserDefaults.standard.removeObject(forKey: Ribbon.coachCountKey)
@@ -1902,6 +1902,12 @@ enum PhoneUITest {
         app.recorder.live.setElapsed(553)
         await settle(600)
         check("unlocking mid-recording removes the limit", unlock.capPhase == .none)
+        unlock.useForSelfTest(ended)
+        app.recorder.live.setElapsed(660)
+        await settle(600)
+        check("a free recording past 10:00 keeps going, and the chip says so", unlock.capPhase == .past && RecordingLimitChip.visible && app.previewRecording)
+        unlock.useForSelfTest(ended + [bought])
+        await settle(300)
         app.minimizeRecorder()
         app.previewRecording = false
         app.recordingWords.clearScreenshots()
@@ -1925,7 +1931,7 @@ enum PhoneUITest {
         memory.trialEndedDismissed = true
         unlock.useForSelfTest(ended, cards: UnlockCards.capped(memory, noun: "meeting", transcribes: true))
         await show("p15d-unlock-saved-ten")
-        check("Home: Saved the first 10 minutes", UnlockHomeCard.shown == .savedFirstTen(noun: "meeting", transcribes: true))
+        check("Home: Saved in full", UnlockHomeCard.shown == .savedFirstTen(noun: "meeting", transcribes: true))
         let cal = Calendar.current
         let tomorrowNoon = cal.date(byAdding: .hour, value: 12, to: cal.startOfDay(for: cal.date(byAdding: .day, value: 1, to: now) ?? now)) ?? now
         unlock.useForSelfTest([trial(tomorrowNoon.addingTimeInterval(-7 * day))], cards: UnlockCardMemory())

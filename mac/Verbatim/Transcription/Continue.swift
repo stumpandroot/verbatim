@@ -77,11 +77,14 @@ enum Continuation {
 
     /// Transcribes `part` (recorded after `existing` ended), joins the audio into `combined`, and works out speakers.
     static func run(existing: Transcript, existingAudio: URL, part: URL, combined: URL,
-                    engineId: String, model: String, wantSpeakers: Bool, dictionary: [DictionaryEntry],
+                    engineId: String, model: String, wantSpeakers: Bool, dictionary: [DictionaryEntry], partLimit: Double? = nil,
                     progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> Outcome {
         let joined = try join(existingAudio, part, to: combined)
         let offset = joined.first > 0 ? joined.first : existing.duration
-        let result = try await Engines.engine(for: engineId).transcribe(url: part, model: model, progress: progress)
+        // Free: only the new part's first 10 minutes are transcribed (FreeTranscription); all of it is joined.
+        let heardPart = try partLimit.flatMap { try TranscriptionInput.trimmed(part, to: $0) } ?? part
+        defer { if heardPart != part { try? FileManager.default.removeItem(at: heardPart) } }
+        let result = try await Engines.engine(for: engineId).transcribe(url: heardPart, model: model, progress: progress)
         let shifted = result.segments.map { s -> Segment in
             var x = s; x.start += offset; x.end += offset
             x.words = s.words?.map { w in var v = w; v.start += offset; v.end += offset; return v }

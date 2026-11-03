@@ -13,8 +13,14 @@ enum TranscriptionInput {
         return SoundFormat.isSoundFile(url, rate: f.processingFormat.sampleRate)
     }
 
-    /// `url` itself, or a 16 kHz mono copy of it in the temporary folder. Call `finish` with the result when done.
-    static func prepare(_ url: URL) throws -> URL {
+    /// `url` itself, or a 16 kHz mono copy of it in the temporary folder. With `limit`, only its first `limit` seconds
+    /// (free transcription, `FreeTranscription`). Call `finish` with the result when done.
+    static func prepare(_ url: URL, limit: Double? = nil) throws -> URL {
+        if let limit, let cut = try trimmed(url, to: limit) {
+            guard needsCopy(cut) else { return cut }
+            defer { try? FileManager.default.removeItem(at: cut) }
+            return try prepare(cut)
+        }
         guard needsCopy(url) else { return url }
         let dest = FileManager.default.temporaryDirectory.appendingPathComponent("transcribe-\(UUID().uuidString).wav")
         let started = Date()
@@ -25,6 +31,40 @@ enum TranscriptionInput {
             try? FileManager.default.removeItem(at: dest)
             throw error
         }
+        return dest
+    }
+
+    /// The first `seconds` of `url` as a WAV in the temporary folder, in the file's own format, or nil when it's no
+    /// longer than that.
+    static func trimmed(_ url: URL, to seconds: Double) throws -> URL? {
+        let file = try AVAudioFile(forReading: url)
+        let rate = file.processingFormat.sampleRate
+        let keep = AVAudioFramePosition(seconds * rate)
+        guard file.length > keep, keep > 0 else { return nil }
+        let dest = FileManager.default.temporaryDirectory.appendingPathComponent("transcribe-free-\(UUID().uuidString).wav")
+        do {
+            // Integer PCM at the file's rate and channels: 24-bit for a sound file, 16-bit otherwise.
+            let bits = SoundFormat.isSoundFile(url, rate: rate) ? 24 : 16
+            let settings: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: rate,
+                                           AVNumberOfChannelsKey: file.processingFormat.channelCount, AVLinearPCMBitDepthKey: bits,
+                                           AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false]
+            let out = try AVAudioFile(forWriting: dest, settings: settings, commonFormat: file.processingFormat.commonFormat,
+                                      interleaved: file.processingFormat.isInterleaved)
+            let chunk: AVAudioFrameCount = 65_536
+            guard let buf = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: chunk) else { throw CocoaError(.fileWriteUnknown) }
+            var left = keep
+            while left > 0 {
+                let want = AVAudioFrameCount(min(AVAudioFramePosition(chunk), left))
+                try file.read(into: buf, frameCount: want)
+                if buf.frameLength == 0 { break }
+                try out.write(from: buf)
+                left -= AVAudioFramePosition(buf.frameLength)
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: dest)
+            throw error
+        }
+        Log.note("transcribe: free transcription, the first \(Int(seconds)) s of \(url.lastPathComponent)")
         return dest
     }
 

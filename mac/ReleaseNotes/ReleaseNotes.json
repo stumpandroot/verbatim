@@ -1,6 +1,58 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Recordings that never stop",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "No more 10-minute stop",
+          "icon": "mic",
+          "text": "A free recording keeps going as long as you need. It's saved in full.",
+          "detail": "Free transcription covers the first 10 minutes. The rest plays, and Transcribe all at the end of the words finishes it with the trial or Verbose Unlock."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Summary without AI",
+          "icon": "summary",
+          "text": "When Apple Intelligence can't run, Summary lets you write one yourself.",
+          "detail": "Run a template no longer appears there, since templates need Apple Intelligence too."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "What Unlock covers",
+          "icon": "settings",
+          "text": "The Unlock sheet says it's for Verbose on iPhone and restores on your other iPhones.",
+          "detail": "On an iPhone that can't run Apple Intelligence, it also says that templates and Ask need it."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Shorter keyboard sessions",
+          "icon": "time",
+          "text": "An idle keyboard session ends after 30 minutes unless you choose a different time.",
+          "detail": "Settings › Keyboard › End keyboard sessions after. A time you already picked stays."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Clearer privacy",
+          "icon": "privacy",
+          "text": "The tour and microphone screen say where audio can go: only your own iCloud, with sync on."
+        }
+      ]
+    },
+    {
       "build": "283",
       "date": "2026-11-03",
       "version": "1.0 beta",

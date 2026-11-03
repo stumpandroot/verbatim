@@ -16,7 +16,7 @@ struct MicSheet: View {
             .accessibilityHidden(true)
             .padding(.bottom, 2)
             Text("Verbose wants to use the microphone").refinedFont(.sectionTitle).foregroundStyle(Refined.ink).multilineTextAlignment(.center)
-            Text("Voice notes are recorded and transcribed on this Mac. Nothing is uploaded.")
+            Text("Voice notes are recorded and transcribed on this Mac. The audio goes only to your own iCloud, when sync is on.")
                 .refinedFont(.body).foregroundStyle(Refined.dim).multilineTextAlignment(.center)
             HStack(spacing: 8) {
                 Button("Not now") { app.showMicSheet = false }.keyboardShortcut(.cancelAction).uiTarget("sheet-notnow")

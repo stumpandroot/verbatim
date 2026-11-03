@@ -67,7 +67,7 @@ struct OnboardingView: View {
             .padding(.top, 18)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
             title(Refined.tagline)
-            para("Record, import, or dictate. Verbose turns it into text you can use, and it all stays on your Mac.")
+            para("Record, import, or dictate. Verbose turns it into text you can use, on your Mac. Your recordings go only to your own iCloud, when sync is on.")
             HStack(spacing: 12) {
                 pillar("Capture", "Record, import, a link", .capture, .persimmon)
                 pillar("Refine", "Clean up, original kept", .refine, .petal)

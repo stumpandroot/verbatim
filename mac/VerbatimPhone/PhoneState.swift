@@ -478,16 +478,22 @@ final class PhoneState: ObservableObject {
             else { say("Couldn't move the recording. Verbose recovers it the next time it opens."); Haptics.play(.failed) }
             return
         }
+        // A free recording past 10 minutes is saved in full; its first 10 minutes transcribe (FreeTranscription).
+        let freeLimit = UnlockStore.shared.freeLimit(forDuration: r.duration)
         if let target {
             let offset = store.transcript(target)?.duration ?? 0
+            if let freeLimit { store.update(target) { $0.freeTranscriptLimit = freeLimit } }
             guard coordinator.queueAppend(recording: r.url, to: target) else { say("Couldn't save the recording."); Haptics.play(.failed); return }
+            if freeLimit != nil { UnlockStore.shared.savedPastFreeTranscription(noun: "recording") }
             for n in Store.skippedNotes(r.skipped, offset: offset) + RecordingMoment.notes(moments, offset: offset) { store.addNote(n, to: target) }
             readyOnce.newRecording(target)
             return
         }
         if let thoughtStart {
             // A thought joins its day at once, with its time, and transcribes after ("Saved as audio. Transcribing…").
-            fileThought(url: r.url, duration: r.duration, envelope: r.envelope, startedAt: thoughtStart, skipped: r.skipped, moments: moments)
+            let id = fileThought(url: r.url, duration: r.duration, envelope: r.envelope, startedAt: thoughtStart, skipped: r.skipped,
+                                 moments: moments, freeLimit: freeLimit)
+            if id != nil, freeLimit != nil { UnlockStore.shared.savedPastFreeTranscription(noun: "thought") }
             return
         }
         guard let name = store.adoptRecording(r.url) else { say("Couldn't save the recording."); Haptics.play(.failed); return }
@@ -496,12 +502,14 @@ final class PhoneState: ObservableObject {
         t.notes = Store.skippedNotes(r.skipped) + RecordingMoment.notes(moments)
         t.pickKindAtStart(kind)
         if t.isAudioOnly {
-            // Audio only: kept as sound, never queued ("Saved. No transcript.").
+            // Audio only: kept as sound, never queued ("Saved. No transcript."). No limit: there's nothing to transcribe.
             coordinator.keepAudioOnly(t)
             say(AudioOnlyCopy.saved)
             return
         }
+        t.freeTranscriptLimit = freeLimit
         enqueue(t)
+        if freeLimit != nil { UnlockStore.shared.savedPastFreeTranscription(noun: kind.map { RecordChoice.kind($0).name.lowercased() } ?? "voice note") }
     }
 
     /// Mark a moment (Model/Marks.swift): a bookmark at the recording's current time, saved with it when you stop. From
@@ -533,6 +541,10 @@ final class PhoneState: ObservableObject {
     /// voice note or as the kind picked with Transcribe as when the words are in (AudioOnly.swift).
     func transcribeLater(_ id: UUID, as kind: RecordingKind? = nil) {
         guard let t = store.transcript(id), AudioOnlyRules.canTranscribe(t) else { return }
+        // Free: an Audio only recording past 10 minutes transcribes its first 10 (FreeTranscription).
+        if !UnlockStore.shared.state.hasEverything, t.duration > FreeTranscription.limit {
+            store.update(id) { $0.freeTranscriptLimit = FreeTranscription.limit }
+        }
         coordinator.transcribeLater(id, as: kind)
         warmModel()
     }

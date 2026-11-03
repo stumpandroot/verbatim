@@ -85,7 +85,7 @@ enum KeyboardSessionChecks {
         check("session timeouts are 10 and 30 minutes, 1, 2, and 4 hours, and Until I end it (owner decision)", seconds == [600, 1800, 3600, 7200, 14_400, 0])
         check("timeout labels", KeyboardSession.label(1800) == "30 minutes" && KeyboardSession.label(3600) == "1 hour"
               && KeyboardSession.label(7200) == "2 hours" && KeyboardSession.label(0) == "Until I end it")
-        check("new installs end idle sessions after 2 hours", Ribbon.launchTimeout(stored: nil, userSet: nil) == 7200)
+        check("new installs end idle sessions after 30 minutes", Ribbon.launchTimeout(stored: nil, userSet: nil) == 1800)
         let route = KeyboardBridge.sessionLink(in: KeyboardBridge.sessionURL(request: d, host: nil, dictation: nil))
         check("the keyboard's Start a session link opens the session route", route?.request == d && route?.source == nil)
 

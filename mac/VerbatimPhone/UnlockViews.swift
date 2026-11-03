@@ -178,12 +178,17 @@ struct UnlockSheet: View {
         .frame(maxWidth: .infinity).frame(minHeight: 50)
     }
 
+    /// The state's fine print, what the purchase covers, and, when this iPhone can't run Apple Intelligence, which
+    /// unlocked features need it.
     private func finePrint(_ state: EntitlementState) -> String {
+        let base: String
         switch state {
-        case .free: return UnlockCopy.trialFinePrint
-        case .trial(_, let days): return UnlockCopy.inTrialFinePrint(daysLeft: days)
-        case .trialEnded, .unlocked: return UnlockCopy.onceFinePrint
+        case .free: base = UnlockCopy.trialFinePrint
+        case .trial(_, let days): base = UnlockCopy.inTrialFinePrint(daysLeft: days)
+        case .trialEnded, .unlocked: base = UnlockCopy.onceFinePrint
         }
+        let ai = Polish.status.reason.map { " " + UnlockCopy.needsAI($0) } ?? ""
+        return base + " " + UnlockCopy.scope + ai
     }
 
     private func quiet(_ title: String, action: @escaping () -> Void) -> some View {
@@ -238,6 +243,35 @@ struct UnlockHomeCard: View {
     }
 }
 
+// MARK: - The transcript
+
+/// Where a free recording's words end (`FreeTranscription`): what's saved, and Transcribe all, which needs the trial or
+/// Verbose Unlock (the sheet otherwise) and runs Transcribe again on the whole recording, keeping the first words to
+/// switch back to.
+struct FreeTranscriptNote: View {
+    let transcript: Transcript
+    @EnvironmentObject private var app: PhoneState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(UnlockCopy.untranscribedNote(duration: transcript.duration)).refinedFont(.hint).foregroundStyle(Refined.dim)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(UnlockCopy.transcribeAll(duration: transcript.duration)) {
+                guard app.allow(.longRecordings) else { return }
+                app.transcribeAgain(transcript.id)
+            }
+            .refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText)
+            .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
+            .accessibilityIdentifier("transcript.transcribeAll")
+        }
+        .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("transcript.freeNote")
+    }
+}
+
 // MARK: - Settings
 
 /// The row under Settings' search field, above the groups (mockup, "Settings"): the free version ("Try it free for 7
@@ -285,9 +319,9 @@ struct UnlockSettingsRow: View {
 
 // MARK: - The recorder
 
-/// The recorder's chip from 9:00 on a free recording (mockup, "The limit, while recording"): "Saves at 10:00 · Unlock to
-/// keep going" on the persimmon tint, centered under the clock. A tap opens the unlock sheet over the recorder;
-/// unlocking removes the limit and the chip, and the recording goes on. Nothing interrupts before 9:00.
+/// The recorder's chip from 9:00 on a free recording: where the free transcript ends ("Free transcript ends at 10:00.
+/// Recording keeps going."), then from 10:00 that the recording goes on, on the persimmon tint, centered under the
+/// clock. A tap opens the unlock sheet over the recorder; unlocking removes the limit and the chip. Nothing stops.
 struct RecordingLimitChip: View {
     @ObservedObject private var unlock = UnlockStore.shared
     /// Whether the chip drew, for the self-test.
@@ -295,9 +329,9 @@ struct RecordingLimitChip: View {
 
     var body: some View {
         Group {
-            if unlock.capPhase == .warning {
+            if unlock.capPhase != .none {
                 Button { unlock.ask(.longRecordings) } label: {
-                    Text(UnlockCopy.recorderChip).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText)
+                    Text(unlock.capPhase == .past ? UnlockCopy.recorderChipPast : UnlockCopy.recorderChip).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText)
                         .lineLimit(2).multilineTextAlignment(.center)
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .background(Refined.persimmonTint, in: Capsule())
@@ -306,7 +340,7 @@ struct RecordingLimitChip: View {
                 }
                 .buttonStyle(RefinedPress())
                 .frame(maxWidth: .infinity)
-                .accessibilityHint("Opens Verbose Unlock. Free recordings save at 10 minutes.")
+                .accessibilityHint("Opens Verbose Unlock. Free transcription covers the first 10 minutes; the recording keeps going.")
                 .accessibilityIdentifier("recorder.limitChip")
                 .onAppear { Self.visible = true }
                 .onDisappear { Self.visible = false }

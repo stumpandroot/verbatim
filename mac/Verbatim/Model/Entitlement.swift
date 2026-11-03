@@ -114,7 +114,7 @@ enum Entitlement {
 /// sheet. Nothing the person already made locks: existing transcripts, results, and synced items stay readable and
 /// shareable as text.
 enum LockedFeature: String, CaseIterable {
-    /// Recordings past 10 minutes (`RecordingCap`).
+    /// Transcribing recordings past their first 10 minutes (`FreeTranscription`). The audio is always saved.
     case longRecordings
     /// Import: files, Photos, links, and what the share extension leaves in the inbox.
     case importMedia
@@ -132,7 +132,7 @@ enum LockedFeature: String, CaseIterable {
 
 /// What stays free, as the Mac's free tier does. Listed for the docs and the checks; nothing gates these.
 enum FreeFeature: String, CaseIterable {
-    case dictate, keyboard, keyboardSessions, recordingsUpToTenMinutes, watchRecordings, transcripts, speakers, search,
+    case dictate, keyboard, keyboardSessions, recordingsAnyLength, watchRecordings, transcripts, speakers, search,
          thoughts, journal, planMyDay, sendToReminders, iCloudSync, copyAndShareText, exportEverythingZip
 }
 
@@ -183,26 +183,45 @@ enum FeatureGate {
     }
 }
 
-// MARK: - The 10-minute limit
+// MARK: - Free transcription
 
-/// A free recording saves at 10 minutes instead of stopping cold (mockup, "The limit, while recording"): at 9:00 the
-/// recorder shows a chip ("Saves at 10:00 · Unlock to keep going"), and at 10:00 the recording stops, saves like any
-/// other, and transcribes. Unlocking mid-recording removes the limit. A recording that started with the trial or the
-/// purchase never has one, so a recording running when the trial ends keeps going until you stop it. The limit counts
-/// the recording's own length (paused time doesn't count); a Continue recording counts only the new part.
-enum RecordingCap {
+/// A free recording never stops (critique triage, November 3, 2026): free transcription covers its first 10 minutes,
+/// and the audio is saved in full. From 9:00 the recorder's chip says where the free transcript ends, and from 10:00
+/// that recording goes on. The saved transcript records the limit (`Transcript.freeTranscriptLimit`); the words stop
+/// at 10:00 until a run with the trial or Verbose Unlock transcribes all of it. A recording that started with the
+/// trial or the purchase never has a limit, so one running when the trial ends is transcribed in full. The limit
+/// counts the recording's own length (paused time doesn't count); a Continue recording counts only the new part.
+enum FreeTranscription {
     static let limit: TimeInterval = 600
     static let warnAt: TimeInterval = 540
 
-    enum Phase: Equatable { case none, warning, stop }
+    enum Phase: Equatable { case none, warning, past }
 
     /// Where a recording is: `startedWithEverything` is the entitlement when it started, `hasEverythingNow` the
     /// entitlement now.
     static func phase(elapsed: TimeInterval, startedWithEverything: Bool, hasEverythingNow: Bool) -> Phase {
         guard !startedWithEverything, !hasEverythingNow else { return .none }
-        if elapsed >= limit { return .stop }
+        if elapsed >= limit { return .past }
         if elapsed >= warnAt { return .warning }
         return .none
+    }
+
+    /// The limit a saved recording takes: 10 minutes when it ran past them without the trial or Verbose Unlock.
+    static func limit(duration: TimeInterval, startedWithEverything: Bool, hasEverythingNow: Bool) -> Double? {
+        guard !startedWithEverything, !hasEverythingNow, duration > limit else { return nil }
+        return limit
+    }
+
+    /// The seconds a run transcribes: the transcript's limit while the device is free, otherwise all of it.
+    static func runLimit(_ stored: Double?, hasEverything: Bool) -> Double? {
+        guard let stored, !hasEverything else { return nil }
+        return stored
+    }
+
+    /// Whether a transcript has audio past its words for this reason (the note at the end of its words).
+    static func hasUntranscribed(limit stored: Double?, duration: TimeInterval) -> Bool {
+        guard let stored else { return false }
+        return duration > stored + 1
     }
 }
 
@@ -210,7 +229,8 @@ enum RecordingCap {
 
 /// One card at the top of Home, where What's new shows (mockup). One at a time, in this order of importance.
 enum UnlockCard: Equatable {
-    /// A free recording stopped at 10 minutes. `noun` is what it was ("meeting"), `transcribes` false for Audio only.
+    /// A free recording ran past 10 minutes: saved in full, its first 10 minutes transcribed. `noun` is what it was
+    /// ("meeting"); `transcribes` is false for Audio only, which never shows the card.
     case savedFirstTen(noun: String, transcribes: Bool)
     /// Files and links shared to Verbose wait in the inbox while Import is locked.
     case sharedWaiting(count: Int)
@@ -224,7 +244,8 @@ enum UnlockCard: Equatable {
 struct UnlockCardMemory: Codable, Equatable {
     var trialEndingDismissed = false
     var trialEndedDismissed = false
-    /// A recording stopped at 10 minutes and its card hasn't been closed: what it was, and whether it transcribes.
+    /// A recording ran past the free transcription and its card hasn't been closed: what it was, and whether it
+    /// transcribes.
     var savedTenNoun: String? = nil
     var savedTenTranscribes = true
     /// How many shared items were waiting when Not now was tapped; the card comes back when more arrive.
@@ -280,7 +301,7 @@ enum UnlockCards {
         return m
     }
 
-    /// The memory after a recording stopped at 10 minutes.
+    /// The memory after a recording ran past the free transcription.
     static func capped(_ memory: UnlockCardMemory, noun: String, transcribes: Bool) -> UnlockCardMemory {
         var m = memory
         m.savedTenNoun = noun
@@ -328,7 +349,7 @@ enum UnlockCopy {
     static let sheetTitle = "Get all of Verbose."
     static let sheetLede = "One purchase, yours on every iPhone signed in to your Apple Account. No subscription, and nothing renews."
     static let items: [(title: String, detail: String)] = [
-        ("Record as long as you need", "Meetings, lectures, and interviews"),
+        ("Transcribe recordings of any length", "Meetings, lectures, and interviews"),
         ("Import files and links", "Voice Memos, videos, and podcasts"),
         ("App audio and live captions", "Transcribe what's playing"),
         ("Templates and Ask", "Meeting notes, recipes, and answers"),
@@ -340,6 +361,10 @@ enum UnlockCopy {
     /// (guideline 3.1.1). The list above it says what locks again.
     static let trialFinePrint = "The trial is free and doesn't renew, so nothing is charged. After 7 days, the features above lock again and Verbose goes back to the free version unless you unlock it."
     static let onceFinePrint = "One-time purchase. No subscription."
+    /// What the purchase covers, on the sheet in every state (critique, November 3, 2026).
+    static let scope = "Verbose Unlock is for Verbose on iPhone. Restore it on another iPhone with the same Apple Account."
+    /// When this iPhone can't run Apple Intelligence, before anyone pays for what needs it.
+    static func needsAI(_ reason: String) -> String { "Templates and Ask need Apple Intelligence. " + reason }
     static func inTrialFinePrint(daysLeft: Int) -> String {
         "Your free trial has \(daysCount(daysLeft)) left. Unlocking keeps everything, with no subscription."
     }
@@ -358,13 +383,24 @@ enum UnlockCopy {
     static let nothingToRestore = "No purchases to restore for this Apple Account."
 
     // The recorder
-    static let recorderChip = "Saves at 10:00 \u{00B7} Unlock to keep going"
-    static let cappedToast = "Saved the first 10 minutes"
+    static let recorderChip = "Free transcript ends at 10:00. Recording keeps going."
+    static let recorderChipPast = "Recording keeps going. Unlock to transcribe past 10:00."
+    static let cappedToast = "Saved. The first 10 minutes are transcribing."
+
+    // The transcript's note where the free words end
+    static func untranscribedNote(duration: TimeInterval) -> String {
+        "Free transcription covers the first 10 minutes. The rest of this \(minutes(duration)) recording is saved and plays."
+    }
+    static func transcribeAll(duration: TimeInterval) -> String { "Transcribe all \(minutes(duration))" }
+    static func minutes(_ d: TimeInterval) -> String {
+        let m = max(1, Int((d / 60).rounded()))
+        return m == 1 ? "1 minute" : "\(m) minutes"
+    }
 
     // Home's cards
     static func cardTitle(_ c: UnlockCard) -> String {
         switch c {
-        case .savedFirstTen: return "Saved the first 10 minutes"
+        case .savedFirstTen: return "Saved in full"
         case .sharedWaiting(let n): return n == 1 ? "1 shared item is waiting" : "\(n) shared items are waiting"
         case .trialEnded: return "Your free trial ended"
         case .trialEndsSoon(let today): return today ? "Your free trial ends today" : "Your free trial ends tomorrow"
@@ -374,14 +410,14 @@ enum UnlockCopy {
     static func cardBody(_ c: UnlockCard) -> String {
         switch c {
         case .savedFirstTen(let noun, let transcribes):
-            let what = transcribes ? "Your \(noun) is transcribing." : "Your \(noun) is saved."
-            return what + " Free recordings stop at 10 minutes. Unlock Verbose to record as long as you need."
+            let what = transcribes ? "Your \(noun) is saved in full, and its first 10 minutes are transcribing." : "Your \(noun) is saved in full."
+            return what + " Unlock Verbose to transcribe the rest."
         case .sharedWaiting(let n):
             return "Unlock Verbose to import the files and links you share. " + (n == 1 ? "It waits here" : "They wait here") + " until you do."
         case .trialEnded:
-            return "Everything you made stays: recordings, transcripts, imports, and template results. Dictate and recordings up to 10 minutes stay free."
+            return "Everything you made stays: recordings, transcripts, imports, and template results. Dictate stays free, and recordings of any length are transcribed free for their first 10 minutes."
         case .trialEndsSoon:
-            return "After that, recordings save at 10 minutes, and imports, app audio, most templates, and exports need Verbose Unlock."
+            return "After that, free transcription covers the first 10 minutes of each recording, and imports, app audio, most templates, and exports need Verbose Unlock."
         }
     }
 
@@ -397,7 +433,7 @@ enum UnlockCopy {
     static func cardDismiss(_ c: UnlockCard) -> String { c == .trialEnded ? "OK" : "Not now" }
 
     // Settings
-    static let rowPitch = "Recordings of any length, imports, templates, and every export"
+    static let rowPitch = "Full transcripts of any length, imports, templates, and every export"
     static func trialRowTitle(daysLeft: Int) -> String { "Free trial \u{00B7} " + (daysLeft <= 1 ? "ends today" : "\(daysCount(daysLeft)) left") }
     static let trialRowSubtitle = "Unlock to keep everything."
     static let thanks = "Thank you. Everything is unlocked."
@@ -406,7 +442,7 @@ enum UnlockCopy {
 
     // The welcome tour's last step
     static let tourTitle = "Try everything free for 7 days"
-    static let tourBody = "Recordings of any length, imports, templates, and every export. It's free, nothing renews, and after 7 days Verbose goes back to the free version."
+    static let tourBody = "Full transcripts of any length, imports, templates, and every export. It's free, nothing renews, and after 7 days Verbose goes back to the free version."
     static let tourStart = "Start free trial"
     static let notNow = "Not now"
 
@@ -419,8 +455,9 @@ enum UnlockCopy {
     /// Every fixed line, for the checks.
     static var allLines: [String] {
         var lines = [productName, sheetTitle, sheetLede, tryFree, unlockButton(price: "$14.99"), unlockButton(price: nil), trialFinePrint,
-                     onceFinePrint, inTrialFinePrint(daysLeft: 5), restore, terms, privacy, unlockedToast, trialStartedToast, pending, failed,
-                     offline, restoredUnlock, restoredTrial, nothingToRestore, recorderChip, cappedToast, rowPitch, trialRowTitle(daysLeft: 5),
+                     onceFinePrint, scope, needsAI("This iPhone can't run Apple Intelligence."), inTrialFinePrint(daysLeft: 5), restore, terms, privacy, unlockedToast, trialStartedToast, pending, failed,
+                     offline, restoredUnlock, restoredTrial, nothingToRestore, recorderChip, recorderChipPast, cappedToast,
+                     untranscribedNote(duration: 1930), transcribeAll(duration: 1930), rowPitch, trialRowTitle(daysLeft: 5),
                      trialRowSubtitle, thanks, tourTitle, tourBody, tourStart, notNow, cloudCleanupLocked, exportLocked]
         lines += items.flatMap { [$0.title, $0.detail] }
         let cards: [UnlockCard] = [.savedFirstTen(noun: "meeting", transcribes: true), .savedFirstTen(noun: "recording", transcribes: false),

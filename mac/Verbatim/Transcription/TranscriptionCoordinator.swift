@@ -539,6 +539,7 @@ final class TranscriptionCoordinator: ObservableObject {
         let progress = progressHandler(id)
         let options = jobOptions(id, t)
         let keepsVersion = t.rerunRequest != nil
+        let freeLimit = FreeTranscription.runLimit(t.freeTranscriptLimit, hasEverything: FeatureGate.hasEverything)
         runningTask = Task.detached(priority: .userInitiated) {
             do {
                 // A recording just handed to iCloud is moved into the audio folder in the background first.
@@ -553,7 +554,8 @@ final class TranscriptionCoordinator: ObservableObject {
                 if waitForDownload || keepsVersion { _ = await Cloud.ensureDownloaded(url) }
                 if keepsVersion, !FileManager.default.fileExists(atPath: url.path) { throw missing }
                 // Audio only's file (48 kHz, 24-bit) is heard through a 16 kHz copy, removed when the job ends.
-                let work = try TranscriptionInput.prepare(url)
+                // Free: only the first 10 minutes of a longer recording (FreeTranscription).
+                let work = try TranscriptionInput.prepare(url, limit: freeLimit)
                 defer { TranscriptionInput.finish(work, original: url) }
                 let out = try await TranscriptionJob.run(url: work, engineId: engineId, model: model, wantSpeakers: wantSpeakers,
                                                          dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
@@ -576,6 +578,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.model = out.model
                         x.language = out.language
                         x.processingDevice = nil; x.processingDeviceName = nil
+                        if freeLimit == nil { x.freeTranscriptLimit = nil }
                         self.promoteAudioOnly(&x, id)
                         if !wave.isEmpty { x.waveform = wave }
                         if x.mayAutoTitle(autoTitle), !x.titleByModel, let auto = Transcript.titleFrom(fixed) { x.title = auto }
@@ -660,6 +663,7 @@ final class TranscriptionCoordinator: ObservableObject {
         let options = jobOptions(id, t)
         // Transcribe again: the words it replaces stay as the version to switch back to.
         let keepsVersion = t.rerunRequest != nil
+        let freeLimit = FreeTranscription.runLimit(t.freeTranscriptLimit, hasEverything: FeatureGate.hasEverything)
         runningTask = Task.detached(priority: .userInitiated) {
             do {
                 // A recording just handed to iCloud is moved into the audio folder in the background first.
@@ -669,7 +673,8 @@ final class TranscriptionCoordinator: ObservableObject {
                     throw NSError(domain: "Verbatim", code: 23, userInfo: [NSLocalizedDescriptionKey: "The audio file is missing."])
                 }
                 // Audio only's file (48 kHz, 24-bit) is heard through a 16 kHz copy, removed when the job ends.
-                let work = try TranscriptionInput.prepare(url)
+                // Free: only the first 10 minutes of a longer recording (FreeTranscription).
+                let work = try TranscriptionInput.prepare(url, limit: freeLimit)
                 defer { TranscriptionInput.finish(work, original: url) }
                 let out = try await TranscriptionJob.run(url: work, engineId: engineId, model: model, wantSpeakers: false,
                                                          dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
@@ -681,6 +686,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.original = out.original; x.segments = out.fixed; x.speakers = []; x.corrections = out.corrections; x.unclear = out.unclear
                         x.status = .ready; x.stage = findSpeakers ? "Finding speakers" : nil; x.engine = out.engine; x.model = out.model; x.language = out.language
                         x.processingDevice = nil; x.processingDeviceName = nil
+                        if freeLimit == nil { x.freeTranscriptLimit = nil }
                         self.promoteAudioOnly(&x, id)
                         if !out.wave.isEmpty { x.waveform = out.wave }
                         if x.mayAutoTitle(autoTitle), !x.titleByModel, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
@@ -745,6 +751,7 @@ final class TranscriptionCoordinator: ObservableObject {
         let failedStage = config.appendFailedStage
         let logsJobs = config.logsJobs
         let progress = progressHandler(id)
+        let freeLimit = FreeTranscription.runLimit(t.freeTranscriptLimit, hasEverything: FeatureGate.hasEverything)
         store.setStage(id, "Adding the new recording")
         runningTask = Task.detached(priority: .userInitiated) {
             do {
@@ -754,7 +761,7 @@ final class TranscriptionCoordinator: ObservableObject {
                     throw NSError(domain: "Verbatim", code: 22, userInfo: [NSLocalizedDescriptionKey: "The recordings haven't finished downloading from iCloud."])
                 }
                 let out = try await Continuation.run(existing: t, existingAudio: url, part: part, combined: combined, engineId: engineId, model: model,
-                                                     wantSpeakers: wantSpeakers, dictionary: dict, progress: progress)
+                                                     wantSpeakers: wantSpeakers, dictionary: dict, partLimit: freeLimit, progress: progress)
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
                     guard self.runToken == token, !Task.isCancelled, self.store.transcript(id)?.pendingAppend == partName,
