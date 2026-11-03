@@ -126,6 +126,10 @@ enum HomeTile: String, CaseIterable, Sendable {
     /// in Record as does, on both apps (the Mac's Meeting is the meeting capture, consent sheet first). Offered in Edit
     /// Home, never picked by default.
     case meeting, interview, talk, audioOnly
+    /// Call (November 3, 2026, mockup "Verbose Call Recording"; Mac only): records a call as two tracks. With a call app
+    /// already using the microphone it's the meeting capture (consent sheet first); with none, it sets up a wait and
+    /// recording starts when the call does. It took App audio's place in the Mac's default four.
+    case call
 
     var title: String {
         switch self {
@@ -145,6 +149,7 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .interview: return "Interview"
         case .talk: return "Talk"
         case .audioOnly: return "Audio only"
+        case .call: return "Call"
         }
     }
 
@@ -182,6 +187,7 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .interview: return "Record an interview"
         case .talk: return "Record a talk"
         case .audioOnly: return "Keeps the sound, no transcript"
+        case .call: return "Zoom, Meet, Teams…"
         }
     }
 
@@ -190,7 +196,7 @@ enum HomeTile: String, CaseIterable, Sendable {
     var platformOnly: HomePlatform? {
         switch self {
         case .whatsPlaying: return .phone
-        case .appAudio, .thoughtPad: return .mac
+        case .appAudio, .thoughtPad, .call: return .mac
         default: return nil
         }
     }
@@ -211,6 +217,8 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .dictate: return .butter
         case .importMedia: return .sage
         case .whatsPlaying, .appAudio: return .petal
+        // Call records another app's sound with your microphone, so it keeps App audio's petal (the mockup's third tile).
+        case .call: return .petal
         case .interview, .talk: return .sage
         case .audioOnly: return .petal
         default: return nil
@@ -291,11 +299,14 @@ struct HomeLayout: Equatable, Sendable {
     }
 
     /// The four tiles a new install starts with (consolidation, October 28, 2026): Dictate, Import, What's playing (iPhone)
-    /// or App audio (Mac), and New thought. Live captions left the four and stays in the catalog, the menus, and the
-    /// shortcuts.
+    /// or Call (Mac; App audio until November 3, 2026), and New thought. Live captions and App audio stay in the catalog,
+    /// the menus, and the shortcuts.
     static func defaultTiles(_ platform: HomePlatform) -> [HomeTile] {
-        platform == .phone ? [.dictate, .importMedia, .whatsPlaying, .newThought] : [.dictate, .importMedia, .appAudio, .newThought]
+        platform == .phone ? [.dictate, .importMedia, .whatsPlaying, .newThought] : [.dictate, .importMedia, .call, .newThought]
     }
+
+    /// The Mac's default four before Call took App audio's place (`HomeCallTileMigration`).
+    static let macTilesBeforeCall: [HomeTile] = [.dictate, .importMedia, .appAudio, .newThought]
 
     /// The four every install had before, which an install from before keeps when it never picked its own.
     static func earlierTiles(_ platform: HomePlatform) -> [HomeTile] {
@@ -523,6 +534,35 @@ enum HomeRefinedMigration {
     }
 }
 
+// MARK: - The Call tile (November 3, 2026)
+
+/// Call took App audio's place in the Mac's default four. A Mac that stored the earlier default four, untouched, gets
+/// Call in App audio's slot, once; a Mac whose tiles were picked in Edit Home (or kept from before the consolidation)
+/// keeps them. App audio stays in Edit Home's catalog and the Record menu.
+enum HomeCallTileMigration {
+    static let key = "home.callTile.v1"
+
+    /// The tiles with Call in App audio's place when they're exactly the earlier default four; otherwise as they are.
+    static func apply(_ layout: HomeLayout) -> HomeLayout {
+        guard layout.tiles == HomeLayout.macTilesBeforeCall, let i = layout.tiles.firstIndex(of: .appAudio) else { return layout }
+        var l = layout
+        l.tiles[i] = .call
+        return l
+    }
+
+    /// Runs once per Mac over the stored layout. Returns whether it ran.
+    @discardableResult
+    static func runOnce(_ defaults: UserDefaults, platform: HomePlatform) -> Bool {
+        guard platform == .mac, !defaults.bool(forKey: key) else { return false }
+        if let data = defaults.data(forKey: HomeLayout.key), let stored = HomeLayout.decode(data, platform) {
+            let moved = apply(stored)
+            if moved != stored, let out = moved.encoded() { defaults.set(out, forKey: HomeLayout.key) }
+        }
+        defaults.set(true, forKey: key)
+        return true
+    }
+}
+
 // MARK: - Today's thoughts and Journal
 
 /// What Home's Today's thoughts section shows (both apps): Large lists the latest few of today's thoughts in the order
@@ -634,6 +674,8 @@ final class HomeLayoutStore: ObservableObject {
             // is turned on once for a layout saved before it (HomeRefinedMigration).
             HomeLookMigration.runOnce(defaults)
             HomeRefinedMigration.runOnce(defaults, platform: platform)
+            // The Mac's untouched default four get Call in App audio's place, once (HomeCallTileMigration).
+            HomeCallTileMigration.runOnce(defaults, platform: platform)
         }
         if persist, let data = defaults.data(forKey: HomeLayout.key), let l = HomeLayout.decode(data, platform) {
             layout = l

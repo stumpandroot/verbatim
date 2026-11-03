@@ -306,12 +306,15 @@ struct ToolbarRecordMenu: View {
     @EnvironmentObject var app: AppState
 
     /// The items above the kinds, in order (the self-test reads them).
-    static let extras = ["Dictate", "Live Captions", "Import…"]
+    static let extras = ["Dictate", "Live Captions", "Import…", "Record a Call…", "App Audio…"]
 
     var body: some View {
         Button { app.goHome(); app.captureMode = "dictate" } label: { Label(Self.extras[0], systemImage: "text.bubble") }   // brand: system surface
         Button { app.toggleLiveCaptions() } label: { Label(Self.extras[1], systemImage: "captions.bubble") }   // brand: system surface
         Button { app.chooseFiles() } label: { Label(Self.extras[2], systemImage: "square.and.arrow.down") }   // brand: system surface
+        // A call (waited for when none is on yet) and App audio, which left Home's default four for Call.
+        Button { MeetingCoordinator.shared.recordCall() } label: { Label(Self.extras[3], image: RecordChoice.kind(.meeting).symbolName) }
+        Button { app.pickApp() } label: { Label(Self.extras[4], image: RecordChoice.kind(.audio).symbolName) }
         Divider()
         Section("Record As") { RecordKindMenuItems() }
     }

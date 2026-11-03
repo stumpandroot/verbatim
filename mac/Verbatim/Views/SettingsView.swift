@@ -371,6 +371,8 @@ struct MenuBarPanel: View {
                 Spacer()
                 HStack(spacing: 5) { Keycap(keys: "⌥⇧R", size: 10.5); Text("to record") }.font(.system(size: 11)).foregroundStyle(Refined.mute)
             }
+            // Calls (CallViews.swift): Record a call, before the call starts.
+            MenuBarCallsSection()
             ThoughtsMenuSection()
             if app.recorder.isRecording || app.capture.isCapturing {
                 // The refined recording card, compact (RecordingStatus.swift).

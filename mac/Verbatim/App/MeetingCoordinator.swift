@@ -178,6 +178,21 @@ final class MeetingCoordinator: ObservableObject {
     /// Stop from the File menu.
     func stopFromMenu() { MeetingSession.shared.stop() }
 
+    // MARK: Record a call
+
+    /// Home's Call tile: while a call records, its panel; otherwise Record a call.
+    func callTileClicked() {
+        if MeetingSession.shared.isActive { status.open(); return }
+        recordCall()
+    }
+
+    /// Record a call (Home's Call tile, Record's right-click menu, the toolbar's Record menu, and the menu bar panel):
+    /// the meeting capture for the call app using the microphone, consent sheet first.
+    func recordCall() {
+        guard !MeetingSession.shared.isActive else { return }
+        recordFromMenu()
+    }
+
     /// The consent sheet, unless you turned it off for this app after five recordings.
     private func requestRecording(app info: MeetingAppInfo?, target: MeetingAudioTarget, speaker: String) {
         guard !MeetingSession.shared.isActive else { return }

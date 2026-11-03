@@ -32,6 +32,8 @@ struct HomeView: View {
     @ObservedObject var layouts = HomeLayoutStore.shared
     @ObservedObject var edit = HomeEditSession.shared
     @ObservedObject private var recordAs = RecordAsStore.shared
+    /// The Call tile's state: a call recording.
+    @ObservedObject private var meeting = MeetingSession.shared
     @AppStorage(YouProfile.nameKey) var storedName = ""
     /// The microphone's name, looked up off the main thread and kept current by Core Audio's notifications. (Looking
     /// it up here, in a `@State` initial value and on every UserDefaults change, ran a full device scan on the main
@@ -229,6 +231,12 @@ struct HomeView: View {
     // MARK: Record
 
     var recording: Bool { app.recorder.isRecording || app.capture.isCapturing }
+
+    /// The Call tile's line under its name: the apps it records, or what it's doing now.
+    var callTrailing: RefinedRules.TileTrailing {
+        if meeting.isActive { return .state("Recording", spoken: "Recording a call. Shows the recording.") }
+        return .state(HomeTile.call.detail, spoken: "Zoom, Google Meet, Teams, FaceTime, and other call apps.")
+    }
     var micName: String { mics.device?.name ?? "Microphone" }
 
     var recordStatus: String {
@@ -239,7 +247,7 @@ struct HomeView: View {
     /// The Record card: a click records a voice note; right-click has Record As's ways and the microphone. VoiceOver
     /// reads one button with each way to record as an action.
     private func recordCard(compact: Bool) -> some View {
-        RecordCard(status: recordStatus, hint: "Click for a voice note, right-click for a meeting, a thought, and more · ⌥⇧R",
+        RecordCard(status: recordStatus, hint: "Click for a voice note, right-click for a call, a thought, and more · ⌥⇧R",
                    accessibilityHint: "Starts a voice note. Shortcut: Option Shift R. Right-click for more ways to record.",
                    compact: compact,
                    actions: recordAs.visible.map { c in RecordCardAction(name: c.actionName) { app.startRecordChoice(c) } }) {
@@ -283,6 +291,8 @@ struct HomeView: View {
         // A kind's tile starts that kind, as File › Record As does (Meeting is the meeting capture, consent sheet first).
         case .meeting, .interview, .talk, .audioOnly:
             if let k = t.kindRaw.flatMap(RecordingKind.init(rawValue:)) { app.startRecordChoice(.kind(k)) }
+        // Call: the meeting capture when a call is on, else a wait for one (App/MeetingCoordinator.swift).
+        case .call: MeetingCoordinator.shared.callTileClicked()
         case .whatsPlaying: break
         }
     }
@@ -312,6 +322,7 @@ struct HomeView: View {
         case .captions:
             return captions.isOpen ? .state("On screen now", spoken: "Live captions are on screen.") : .shortcut("⌥⌘C")
         case .newThought: return .shortcut(Thoughts.hotkey)
+        case .call: return callTrailing
         default: return nil
         }
     }
@@ -340,6 +351,7 @@ struct HomeView: View {
         case .interview: return "Records an interview, with every voice kept."
         case .talk: return "Records a talk, with every voice kept."
         case .audioOnly: return "Records the sound only, with no transcript."
+        case .call: return "Records your microphone and the call app as two tracks. With no call on yet, it waits for one."
         case .whatsPlaying: return ""
         }
     }
@@ -387,6 +399,13 @@ struct HomeView: View {
             base.popover(isPresented: dictateOpen, arrowEdge: .bottom) { DictateControls().padding(16).environmentObject(app) }
                 .contextMenu { DictateMenu() }
                 .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
+        case .call:
+            base.contextMenu {
+                Button("Record a call…") { MeetingCoordinator.shared.recordCall() }
+                // App audio left the default four for Call; its picker stays here, in Edit Home, and in the Record menu.
+                Button("Capture an app's audio…") { app.pickApp() }
+            }
+            .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
         case .appAudio:
             base.contextMenu {
                 Button("Choose an app…") { app.pickApp() }

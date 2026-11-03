@@ -353,6 +353,8 @@ enum RefinedRules {
         case "meeting", "interview": return .captionLines
         case "talk": return .waves
         case "audioOnly": return .offsetCircles
+        // A call is voices taking turns, as a meeting is.
+        case "call": return .captionLines
         default: return nil
         }
     }
