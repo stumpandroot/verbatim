@@ -9,7 +9,7 @@ import Foundation
 
 /// Why Verbatim used the network.
 enum NetworkPurpose: String, Codable, CaseIterable {
-    case cloudCleanup, modelDownload, linkDownload, updateCheck
+    case cloudCleanup, modelDownload, linkDownload, updateCheck, licenseCheck
 
     /// The name the activity list shows.
     var label: String {
@@ -18,6 +18,7 @@ enum NetworkPurpose: String, Codable, CaseIterable {
         case .modelDownload: return "Model download"
         case .linkDownload: return "Link download"
         case .updateCheck: return "Update check"
+        case .licenseCheck: return "License check"
         }
     }
 }
@@ -122,6 +123,7 @@ enum LocalOnly {
         case .linkDownload: return "Local Only is on. Turn it off in Settings › Privacy to download this link."
         case .cloudCleanup: return "Local Only is on, so your words were cleaned on this device instead of in the cloud."
         case .updateCheck: return "Local Only is on. Turn it off in Settings › Privacy to check for updates."
+        case .licenseCheck: return "Local Only is on. Turn it off in Settings › Privacy to activate your license. A license already on this Mac keeps working."
         }
     }
 
