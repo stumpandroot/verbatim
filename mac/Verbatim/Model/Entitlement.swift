@@ -361,8 +361,6 @@ enum UnlockCopy {
     /// (guideline 3.1.1). The list above it says what locks again.
     static let trialFinePrint = "The trial is free and doesn't renew, so nothing is charged. After 7 days, the features above lock again and Verbose goes back to the free version unless you unlock it."
     static let onceFinePrint = "One-time purchase. No subscription."
-    /// What the purchase covers, on the sheet in every state (critique, November 3, 2026).
-    static let scope = "Verbose Unlock is for Verbose on iPhone. Restore it on another iPhone with the same Apple Account."
     /// When this iPhone can't run Apple Intelligence, before anyone pays for what needs it.
     static func needsAI(_ reason: String) -> String { "Templates and Ask need Apple Intelligence. " + reason }
     static func inTrialFinePrint(daysLeft: Int) -> String {
@@ -455,7 +453,7 @@ enum UnlockCopy {
     /// Every fixed line, for the checks.
     static var allLines: [String] {
         var lines = [productName, sheetTitle, sheetLede, tryFree, unlockButton(price: "$14.99"), unlockButton(price: nil), trialFinePrint,
-                     onceFinePrint, scope, needsAI("This iPhone can't run Apple Intelligence."), inTrialFinePrint(daysLeft: 5), restore, terms, privacy, unlockedToast, trialStartedToast, pending, failed,
+                     onceFinePrint, needsAI("This iPhone can't run Apple Intelligence."), inTrialFinePrint(daysLeft: 5), restore, terms, privacy, unlockedToast, trialStartedToast, pending, failed,
                      offline, restoredUnlock, restoredTrial, nothingToRestore, recorderChip, recorderChipPast, cappedToast,
                      untranscribedNote(duration: 1930), transcribeAll(duration: 1930), rowPitch, trialRowTitle(daysLeft: 5),
                      trialRowSubtitle, thanks, tourTitle, tourBody, tourStart, notNow, cloudCleanupLocked, exportLocked]

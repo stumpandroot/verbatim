@@ -27,10 +27,9 @@
           "platforms": [
             "iphone"
           ],
-          "head": "What Unlock covers",
-          "icon": "settings",
-          "text": "The Unlock sheet says it's for Verbose on iPhone and restores on your other iPhones.",
-          "detail": "On an iPhone that can't run Apple Intelligence, it also says that templates and Ask need it."
+          "head": "Unlock and Apple Intelligence",
+          "icon": "ai",
+          "text": "If this iPhone can't run Apple Intelligence, Unlock says templates and Ask need it."
         },
         {
           "platforms": [

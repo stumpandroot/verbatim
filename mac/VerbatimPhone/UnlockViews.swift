@@ -178,8 +178,8 @@ struct UnlockSheet: View {
         .frame(maxWidth: .infinity).frame(minHeight: 50)
     }
 
-    /// The state's fine print, what the purchase covers, and, when this iPhone can't run Apple Intelligence, which
-    /// unlocked features need it.
+    /// The state's fine print and, when this iPhone can't run Apple Intelligence, which unlocked features need it
+    /// (critique, November 3, 2026). What the purchase covers is in the lede: every iPhone on your Apple Account.
     private func finePrint(_ state: EntitlementState) -> String {
         let base: String
         switch state {
@@ -188,7 +188,7 @@ struct UnlockSheet: View {
         case .trialEnded, .unlocked: base = UnlockCopy.onceFinePrint
         }
         let ai = Polish.status.reason.map { " " + UnlockCopy.needsAI($0) } ?? ""
-        return base + " " + UnlockCopy.scope + ai
+        return base + ai
     }
 
     private func quiet(_ title: String, action: @escaping () -> Void) -> some View {
