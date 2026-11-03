@@ -586,6 +586,7 @@ struct PhoneTemplateResults: View {
                                    ink: AnyShapeStyle(Refined.ink), dim: AnyShapeStyle(Refined.mute))
                     .padding(.top, 4)
             }
+            GroundingNoteText(note: GroundingChecks.resultNote(r, in: transcript, aboutMe: AboutMeContext.text))
             Rectangle().fill(Refined.separator).frame(height: 1)
             Text(TemplateCopy.footer(madeOn: r.madeOn, here: TemplateCenter.here)).refinedFont(.meta).foregroundStyle(Refined.mute)
                 .fixedSize(horizontal: false, vertical: true)

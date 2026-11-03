@@ -509,6 +509,7 @@ struct ThoughtsPlanScreen: View {
                              link: { item in link(item, r) },
                              onJump: { _ in dismiss() },
                              onSend: { item in openSheet(plan, r, only: item) })
+                GroundingNoteText(note: GroundingChecks.dayPlanNote(r, words: { app.store.transcript($0).map(ThoughtText.words) }, aboutMe: AboutMeContext.text))
                 if let toast { PhoneSentToast(message: toast) }
                 Text(TemplateCopy.onDevice("iPhone") + " Made from this page\u{2019}s thoughts; it can be wrong, so check the plan before you rely on it.")
                     .refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)

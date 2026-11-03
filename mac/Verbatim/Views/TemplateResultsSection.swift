@@ -109,6 +109,7 @@ struct TemplateResultsSection: View {
                 TemplateResultBody(text: r.text, heading: .system(size: inline ? 19 : 17, design: .serif), textFont: .system(size: 13.5),
                                    ink: AnyShapeStyle(Refined.ink), dim: AnyShapeStyle(Refined.mute))
             }
+            GroundingNoteText(note: GroundingChecks.resultNote(r, in: transcript, aboutMe: AboutMeContext.text))
             Rectangle().fill(Refined.separator).frame(height: 1)
             Text(TemplateCopy.footer(madeOn: r.madeOn, here: TemplateCenter.here)).refinedFont(.meta).foregroundStyle(Refined.dim)
                 .fixedSize(horizontal: false, vertical: true)

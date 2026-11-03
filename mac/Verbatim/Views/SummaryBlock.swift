@@ -76,7 +76,10 @@ struct SummaryBlock: View {
             if transcript.summaryByModel {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     IconGlyph(art: .iconAI, size: 13, color: Refined.mute)
-                    Text(AIGeneratedNote.summary).refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(AIGeneratedNote.summary).refinedFont(.meta).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
+                        GroundingNoteText(note: GroundingChecks.summaryNote(transcript, aboutMe: AboutMeContext.text))
+                    }
                 }
                 .accessibilityElement(children: .combine)
             }
@@ -148,6 +151,20 @@ struct SummaryBlock: View {
                 }
                 link("Cancel") { editing = false }
             }
+        }
+    }
+}
+
+/// The AI output checks' note under generated text (Model/Grounding.swift): the numbers, names, quotes, and days the
+/// source doesn't have, as one quiet line beside Apple Intelligence's note ("Check this: 32% and “Harrisburg” aren't in
+/// the transcript."). Nothing when the checks found nothing; it never hides or changes the result. Shared by the
+/// Summary tab, template results, Ask's answers, and day plans on the Mac and iPhone.
+struct GroundingNoteText: View {
+    var note: String?
+
+    var body: some View {
+        if let note {
+            Text(note).refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
         }
     }
 }
