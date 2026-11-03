@@ -149,6 +149,8 @@ final class AppState: ObservableObject {
         // Verbose for Mac's license: enforced in the public build only (MacLicenseStore.swift). A locked feature opens
         // Settings › Account and plan › License.
         MacLicenseStore.shared.start()
+        // Record a call from the iPhone: the Mac's side of the relay (CallRelayHost.swift).
+        DispatchQueue.main.async { CallRelayHost.shared.start() }
         FeatureGate.onDenied = { [weak self] _ in
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.dictation.openSettings(tab: .account) } }
         }

@@ -316,6 +316,23 @@ final class MeetingCoordinator: ObservableObject {
         evaluate()
     }
 
+    /// The iPhone request a wait came from (CallRelayHost), so the iPhone can show it and cancel it.
+    @Published private(set) var phoneRequestID: String? = nil
+
+    /// A wait your iPhone asked for (Record a call › On your Mac, CallRelay.swift). The iPhone showed the consent words
+    /// and the chat notice choice when you set it up, so no panel shows here. For a calendar call, the Mac's event (its
+    /// title and attendees); otherwise any call app.
+    @discardableResult
+    func armFromPhone(eventID: String?, copyNotice: Bool, requestID: String) -> Bool {
+        guard !MeetingSession.shared.isActive else { return false }
+        let event = eventID.flatMap { id in CallCalendar.shared.events.first { $0.id == id } }
+        let choice = event.map { CallWaitChoices.forService($0.service) } ?? CallWaitChoices.all[0]
+        Log.note("meeting: your iPhone set up a wait for \(event == nil ? "any call app" : "a calendar call")")
+        arm(CallWaitChoices.wait(choice, event: event, copyNotice: copyNotice, now: Date()))
+        phoneRequestID = requestID
+        return true
+    }
+
     /// Cancel on Home, in the menu bar, or the Call tile while it waits.
     func cancelWait() {
         guard wait != nil else { return }
@@ -326,6 +343,7 @@ final class MeetingCoordinator: ObservableObject {
     /// `refresh`: stop watching the microphone if nothing else needs it (a start that follows does its own).
     private func clearWait(refresh: Bool = true) {
         wait = nil
+        if !MeetingSession.shared.isActive { phoneRequestID = nil }
         waitTracker.reset()
         if refresh { preferencesChanged() }
     }

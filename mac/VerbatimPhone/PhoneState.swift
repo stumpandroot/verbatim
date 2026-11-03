@@ -67,6 +67,8 @@ final class PhoneState: ObservableObject {
     @Published var showImportChoices = false
     /// Edit Record as (the tray's foot, the Record menu's last item): which ways to record the tray shows.
     @Published var showRecordAsEditor = false
+    /// Record a call (the Record tray's Call card): the three ways that work on iPhone (PhoneCallRelay.swift).
+    @Published var showCallSheet = false
     /// Transcript screens on screen, one token each, so a second onAppear can't leave Record's accessory off after you
     /// leave (build 233). The tab bar's Record accessory turns off while you read (RecordAccessory.swift).
     @Published var readingScreens: Set<UUID> = []

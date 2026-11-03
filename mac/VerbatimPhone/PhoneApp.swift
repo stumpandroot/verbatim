@@ -193,6 +193,7 @@ struct PhoneRoot: View {
         }
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
         .sheet(isPresented: $app.showRecordAsEditor) { PhoneRecordAsEditor() }
+        .sheet(isPresented: $app.showCallSheet) { PhoneCallSheet().environmentObject(app) }
         .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet().environmentObject(app) }
         .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }
         // A pasted link that turned out to be a whole show or feed: pick the episode.

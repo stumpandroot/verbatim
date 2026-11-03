@@ -436,6 +436,7 @@ struct RecordTrayLayer: View {
                 .contentShape(Rectangle())
                 .gesture(dismissDrag)
             rows(maxHeight: maxHeight)
+            callRow.padding(.top, 6)
             editRow
         }
         .padding(.top, 8).padding(.horizontal, 10).padding(.bottom, 8)
@@ -501,6 +502,31 @@ struct RecordTrayLayer: View {
             }
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { tray.listFrame = $0 }
+    }
+
+    /// Record a call (approved mockup "Verbose License and Calls"): a tap opens the ways that work on iPhone. Not a
+    /// slide target like the kinds, since it opens a sheet instead of recording.
+    private var callRow: some View {
+        Button {
+            tray.close()
+            app.showCallSheet = true
+        } label: {
+            HStack(spacing: 12) {
+                IconSquare(art: .iconMeeting, hue: .petal)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Record a call").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                    Text("On your Mac, on speaker, or from the Phone app").refinedFont(.hint).foregroundStyle(Refined.dim)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Shows the ways to record a call.")
+        .accessibilityIdentifier("tray.recordCall")
     }
 
     /// The tray's foot: Edit Record as, where the rows you hid (Interview, Journal entry, and Talk start hidden) come back.
