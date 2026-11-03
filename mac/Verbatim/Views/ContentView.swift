@@ -80,7 +80,6 @@ struct ContentView: View {
     private var main: some View {
         MacWindow(nav: windowNav, columns: $columns) { detail }
             .searchable(text: $app.search, placement: .toolbar, prompt: ToolbarSearchPrompt.prompt)
-            .modifier(TranscriptSearchMinimized(minimize: app.screen.transcriptID != nil))
             .onSubmit(of: .search) { AskNav.shared.open(mode: .ask, query: app.search, askNow: true) }
             // The prompt in `mute` once the toolbar exists, and again after each screen change (MacChrome.swift).
             .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { ToolbarSearchPrompt.apply(to: app.mainWindow) } }

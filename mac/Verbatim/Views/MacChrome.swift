@@ -359,12 +359,11 @@ private struct ToolbarModePicker: View {
         .help("Original keeps every word as said; Cleaned is the tidied text; Summary has the overview")
     }
 
-    /// Room the trailing items take beside the centered tabs: Share, More, and the inspector's glass group, the
-    /// search field (minimized to its button on a transcript on macOS 26, `TranscriptSearchMinimized`), and the gaps.
-    static var trailingRoom: CGFloat {
-        if #available(macOS 26, *) { return 150 + 52 + 16 }
-        return 150 + 210 + 16
-    }
+    /// Room the trailing items can take beside the centered tabs: Share, More, and the inspector's glass group, the
+    /// search field at full width, and the gaps (build 283's light screenshot: 312 pt from Share to the window's edge).
+    /// AppKit sometimes shows the field as its button instead (the dark screenshot), but SwiftUI can't ask for that on
+    /// the Mac, so the tabs make room for the full field either way.
+    static let trailingRoom: CGFloat = 320
 
     /// True when a segmented control with these titles, centered over a screen `width` points wide, clears the
     /// trailing items. The control's width is estimated from its titles (about 7 pt a character at 13 pt, plus each
@@ -372,19 +371,6 @@ private struct ToolbarModePicker: View {
     static func fits(titles: [String], width: CGFloat) -> Bool {
         let control = titles.reduce(CGFloat(8)) { $0 + CGFloat($1.count) * 7.2 + 26 }
         return width / 2 - control / 2 >= trailingRoom
-    }
-}
-
-/// A transcript's search field minimized to its button (macOS 26), as the dark look already drew it in build 283: the
-/// full field beside Share and More pushed them onto the centered tabs.
-struct TranscriptSearchMinimized: ViewModifier {
-    var minimize: Bool
-    func body(content: Content) -> some View {
-        if #available(macOS 26, *) {
-            content.searchToolbarBehavior(minimize ? .minimize : .automatic)
-        } else {
-            content
-        }
     }
 }
 
