@@ -18,7 +18,9 @@ import UIKit
 
 /// The accessory's content: Record at rest, the live recording while one runs.
 struct RecordAccessory: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
+    /// Watched directly (PhoneState doesn't pass its changes on): Record, or the live recording (`recordingActive`).
+    @EnvironmentObject private var recorder: Recorder
     /// How many accessories are on screen (expanded and inline copies count once each), for the self-test.
     static var onScreen = 0
     /// True when the accessory shows Record at rest (false while a recording runs), for the self-test.
@@ -65,7 +67,7 @@ private struct PlacementReader<Content: View>: View {
 /// The record disc, "Record" over "Voice note", and Dictate at the trailing end. A tap is the plain Record; touch and
 /// hold opens Record as (the system menu, with its own haptic on each row).
 struct AccessoryRecordButton: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var inline = false
     @ObservedObject private var auto = TemplateSettingsModel.shared
     /// At accessibility text sizes the accessory drops its subtitle, so "Record" keeps its room.
@@ -136,7 +138,7 @@ extension AccessoryRecordButton {
 /// Guide and Share), then the ways to record with what each one does. A menu is system chrome, so its items carry SF
 /// Symbols in the label color, like every item in Apple's menus; the system's highlight shows where a lift lands.
 struct RecordAsMenu: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var settings: AutoRunSettings
     var templates: [TranscriptTemplate]
     @ObservedObject private var rows = RecordAsStore.shared
@@ -192,18 +194,18 @@ extension View {
 }
 
 private struct RecordTabChrome: ViewModifier {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var hidden: Bool
 
     func body(content: Content) -> some View {
         if #available(iOS 26.2, *) {
             content
-                .tabViewBottomAccessory(isEnabled: !hidden) { RecordAccessory().environmentObject(app) }
+                .tabViewBottomAccessory(isEnabled: !hidden) { RecordAccessory().phoneState(app) }
                 .tabBarMinimizeBehavior(.onScrollDown)
         } else if #available(iOS 26, *) {
             // Before 26.2 the accessory can't be turned off; an empty one hides on 26.0.
             content
-                .tabViewBottomAccessory { if !hidden { RecordAccessory().environmentObject(app) } }
+                .tabViewBottomAccessory { if !hidden { RecordAccessory().phoneState(app) } }
                 .tabBarMinimizeBehavior(.onScrollDown)
         } else {
             content

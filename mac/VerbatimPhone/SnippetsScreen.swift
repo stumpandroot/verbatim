@@ -4,7 +4,7 @@ import SwiftUI
 /// Mac's (synced through iCloud with the Dictionary), and the Verbatim keyboard's Snippets chip inserts them too. On
 /// the refined kit (DESIGN.md §13).
 struct SnippetsScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @State private var trigger = ""
     @State private var expansion = ""
 

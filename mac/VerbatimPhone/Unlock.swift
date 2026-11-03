@@ -177,7 +177,7 @@ final class UnlockStore: ObservableObject {
         Task { await refresh() }
         // The limit: a recording starts (or the self-test's stand-in does), then the recorder's clock ticks about 14 times
         // a second while it records, in the background too.
-        app.recorder.$isRecording.combineLatest(app.$previewRecording)
+        app.recorder.$isRecording.combineLatest(app.previewRecordingValues)
             .map { $0 || $1 }
             .removeDuplicates()
             .sink { [weak self] active in MainActor.assumeIsolated { self?.capSession(active) } }

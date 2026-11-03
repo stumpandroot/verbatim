@@ -280,7 +280,7 @@ struct FirstDictationNote: View {
 /// How to add the Verbatim keyboard, the session's idle timeout, and what a session does with the microphone.
 /// Google developer documentation style: second person, numbered steps.
 struct KeyboardSetupScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.openURL) private var openURL
     /// In the App Group, so the keyboard reads it too (`KeyboardBridge.autoStart`).
     @AppStorage(KeyboardBridge.Key.autoStart, store: KeyboardBridge.defaults) private var autoStart = true

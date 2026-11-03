@@ -86,7 +86,7 @@ extension View {
 
 /// Settings › Speakers: who's talking in a recording, and the voices you've named.
 struct SpeakersSettingsScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
     /// Recognize voices I've named (SpeakerVoices): on device only, never synced.
     @AppStorage(SpeakerVoices.enabledKey) private var recognizeVoices = true
@@ -97,7 +97,7 @@ struct SpeakersSettingsScreen: View {
         SettingsPageScaffold(title: "Speakers") {
             SettingsPageGroup(footer: "Speaker labels are made on this iPhone and add a little time to each transcript.", first: true) {
                 SettingsToggleRow(title: "Identify speakers",
-                                  subtitle: "Labels turns as Speaker 1, Speaker 2, and so on, so you can name them", isOn: $app.identifySpeakers)
+                                  subtitle: "Labels turns as Speaker 1, Speaker 2, and so on, so you can name them", isOn: Bindable(app).identifySpeakers)
                     .settingsSearchTarget("speakers", flash: nil)
                 SettingsDivider()
                 SettingsToggleRow(title: "Main speaker only",
@@ -133,7 +133,7 @@ struct SpeakersSettingsScreen: View {
 
 /// Settings › More transcription options: the switches people rarely change.
 struct MoreTranscriptionScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
     @AppStorage(Transcript.skipSponsorsKey) private var skipSponsors = true
     @AppStorage(AudioTracksPreference.key) private var audioTracks = AudioTracksPreference.mix.rawValue
@@ -146,7 +146,7 @@ struct MoreTranscriptionScreen: View {
                     .settingsSearchTarget("hideFiller", flash: nil)
                 SettingsDivider()
                 SettingsToggleRow(title: "Apply Dictionary",
-                                  subtitle: "Fixes words listed under \u{201C}Heard as\u{201D} in new transcripts", isOn: $app.applyDictionary)
+                                  subtitle: "Fixes words listed under \u{201C}Heard as\u{201D} in new transcripts", isOn: Bindable(app).applyDictionary)
                     .settingsSearchTarget("applyDictionary", flash: nil)
                 SettingsDivider()
                 Menu {
@@ -191,7 +191,10 @@ struct CloudCleanupScreen: View {
 
 /// Settings › Welcome tour: show it again now, or each time Verbose opens.
 struct WelcomeTourScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
+    /// `Onboarding.showOnLaunch`, read and written through its key so the switch follows (PhoneState no longer
+    /// publishes on its behalf).
+    @AppStorage(Onboarding.showKey) private var showOnLaunch = false
 
     var body: some View {
         SettingsPageScaffold(title: "Welcome tour") {
@@ -204,7 +207,7 @@ struct WelcomeTourScreen: View {
                 .settingsSearchTarget("tour", flash: nil)
                 SettingsDivider()
                 SettingsToggleRow(title: "Show it when Verbose opens",
-                                  isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0; app.objectWillChange.send() }))
+                                  isOn: $showOnLaunch)
                     .settingsSearchTarget("tourOnLaunch", flash: nil)
             }
         }

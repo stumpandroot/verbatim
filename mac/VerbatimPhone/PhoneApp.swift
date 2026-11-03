@@ -26,7 +26,7 @@ struct VerbatimPhoneApp: App {
     var body: some Scene {
         WindowGroup {
             PhoneRoot()
-                .environmentObject(app)
+                .phoneState(app)
                 .tint(Refined.accentText)   // the accent outside the tabs (DESIGN.md §13)
                 .limitMotionRoot()   // Reduce Motion or Settings › Limit animation → \.limitMotion everywhere
         }
@@ -40,7 +40,11 @@ struct VerbatimPhoneApp: App {
 /// is there, and the recording rides in it once minimized (RecordAccessory.swift); the recorder is a sheet
 /// (RecorderSheet.swift).
 struct PhoneRoot: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
+    /// Watched directly (PhoneState doesn't pass its changes on): a recording keeps Record's accessory on
+    /// (`hidesRecordChrome`), and the queue sets the Library badge (`libraryBadgeCount`).
+    @EnvironmentObject private var recorder: Recorder
+    @EnvironmentObject private var queue: TranscriptionCoordinator
     @Environment(\.scenePhase) private var scenePhase
     @State private var newProjectName = ""
     @State private var photoPicks: [PhotosPickerItem] = []
@@ -55,7 +59,7 @@ struct PhoneRoot: View {
 
     /// The tabs in the bar, left to right.
     private var tabs: some View {
-        TabView(selection: $app.tab) {
+        TabView(selection: Bindable(app).tab) {
             ForEach(tabBar.bar.tabs, id: \.self) { t in
                 tabRoot(t)
                     .tabItem { Label { Text(t.title) } icon: { tabIcon(t) } }
@@ -111,25 +115,25 @@ struct PhoneRoot: View {
         tabs
         // The recorder: one sheet with a grabber (RecorderSheet.swift). Swiping it down minimizes it; the
         // recording goes on.
-        .sheet(isPresented: $app.showRecorder) {
-            RecorderSheet().environmentObject(app)
+        .sheet(isPresented: Bindable(app).showRecorder) {
+            RecorderSheet().phoneState(app)
         }
         // Settings, from the round button beside Home's date (October 31, 2026; it was the last tab).
-        .sheet(isPresented: $app.showSettings) {
-            SettingsSheet().environmentObject(app)
+        .sheet(isPresented: Bindable(app).showSettings) {
+            SettingsSheet().phoneState(app)
         }
         // Verbose Unlock's sheet, from a locked feature or a Home card (UnlockViews.swift). Settings, the recorder, and
         // the export sheet present it over themselves.
         .unlockSheetHost(root: true)
         // Record as's Import, from Photos, files, or a link (RecordAccessory.swift).
-        .confirmationDialog("Import", isPresented: $app.showImportChoices, titleVisibility: .hidden) {
+        .confirmationDialog("Import", isPresented: Bindable(app).showImportChoices, titleVisibility: .hidden) {
             Button("Choose from Photos") { app.showPhotoPicker = true }
             Button("Choose files…") { app.showImporter = true }
             Button("Paste a link") { app.showLinkSheet = true }
             Button("Cancel", role: .cancel) {}
         }
-        .fullScreenCover(isPresented: $app.showCaptions) {
-            LiveCaptionsScreen(captions: app.captions, feed: app.captions.feed).environmentObject(app)
+        .fullScreenCover(isPresented: Bindable(app).showCaptions) {
+            LiveCaptionsScreen(captions: app.captions, feed: app.captions.feed).phoneState(app)
         }
         // The "link added" card, above the tab bar (PhoneLinkCard.swift).
         .overlay { PhoneLinkCardLayer() }
@@ -144,7 +148,7 @@ struct PhoneRoot: View {
         // The Action button's control is named for the choice in Settings › Action button (ActionButtonScreen.swift).
         // Verbose Unlock: the trial's days, and the prices if the App Store hadn't answered (Unlock.swift).
         .onChange(of: scenePhase) { _, phase in if phase == .active { UnlockStore.shared.becameActive(); app.importInbox(); app.importWatchInbox(); app.takeVerboseTasksReceipts(); AskRecipeCenter.shared.runDue(); ActionChoiceMirror.sync() } }
-        .alert("Before you record others", isPresented: $app.showConsentNotice) {
+        .alert("Before you record others", isPresented: Bindable(app).showConsentNotice) {
             Button("Not now", role: .cancel) { app.dismissConsentNotice() }
             Button("Record") { app.acknowledgeConsentNotice() }
         } message: {
@@ -167,7 +171,7 @@ struct PhoneRoot: View {
         } message: {
             Text(app.v3Offer?.message ?? "")
         }
-        .alert("Microphone access is off", isPresented: $app.showMicDenied) {
+        .alert("Microphone access is off", isPresented: Bindable(app).showMicDenied) {
             Button("Not now", role: .cancel) {}
             Button("Open Settings") { app.openAppSettings() }
         } message: {
@@ -187,17 +191,17 @@ struct PhoneRoot: View {
             Button("Cancel", role: .cancel) { rename.target = nil }
             Button("Rename") { rename.commit(app.store); app.say("Renamed") }
         }
-        .fullScreenCover(isPresented: $app.showOnboarding) {
-            PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app)
+        .fullScreenCover(isPresented: Bindable(app).showOnboarding) {
+            PhoneOnboarding(startStep: PhoneUITest.onboardingStep).phoneState(app)
                 .tint(Refined.accentText)
         }
-        .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
-        .sheet(isPresented: $app.showRecordAsEditor) { PhoneRecordAsEditor() }
-        .sheet(isPresented: $app.showCallSheet) { PhoneCallSheet().environmentObject(app) }
-        .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet().environmentObject(app) }
-        .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }
+        .sheet(isPresented: Bindable(app).showLinkSheet) { LinkSheet() }
+        .sheet(isPresented: Bindable(app).showRecordAsEditor) { PhoneRecordAsEditor() }
+        .sheet(isPresented: Bindable(app).showCallSheet) { PhoneCallSheet().phoneState(app) }
+        .sheet(isPresented: Bindable(app).showPlayingSheet) { WhatsPlayingSheet().phoneState(app) }
+        .sheet(item: Bindable(app).exportRequest) { r in PhoneExportSheet(ids: r.ids).phoneState(app) }
         // A pasted link that turned out to be a whole show or feed: pick the episode.
-        .sheet(item: $app.episodeChoice) { choice in
+        .sheet(item: Bindable(app).episodeChoice) { choice in
             NavigationStack {
                 EpisodePicker(link: choice.link, show: choice.show,
                               onPick: { ep in app.episodeChoice = nil; app.addLink(ep.link) },
@@ -206,10 +210,10 @@ struct PhoneRoot: View {
             }
             .presentationDetents([.large])
         }
-        .fileImporter(isPresented: $app.showImporter, allowedContentTypes: MediaImport.pickerTypes, allowsMultipleSelection: true) { r in
+        .fileImporter(isPresented: Bindable(app).showImporter, allowedContentTypes: MediaImport.pickerTypes, allowsMultipleSelection: true) { r in
             if case .success(let urls) = r { app.importPicked(urls) }
         }
-        .photosPicker(isPresented: $app.showPhotoPicker, selection: $photoPicks, maxSelectionCount: 5,
+        .photosPicker(isPresented: Bindable(app).showPhotoPicker, selection: $photoPicks, maxSelectionCount: 5,
                       matching: .videos, preferredItemEncoding: .current)
         .onChange(of: photoPicks) { _, picks in
             guard !picks.isEmpty else { return }
@@ -243,6 +247,18 @@ final class PhoneHolder: ObservableObject {
         _ = UnlockStore.shared
         app = PhoneState()
         UnlockStore.shared.attach(app)
+    }
+}
+
+extension View {
+    /// PhoneState for the views below (`@Environment(PhoneState.self)`), with the recorder, the player, and the
+    /// transcription queue beside it. PhoneState is @Observable and doesn't pass their changes on, so a view that shows
+    /// one of them watches it itself (`@EnvironmentObject private var recorder: Recorder`).
+    func phoneState(_ app: PhoneState) -> some View {
+        environment(app)
+            .environmentObject(app.recorder)
+            .environmentObject(app.player)
+            .environmentObject(app.coordinator)
     }
 }
 
@@ -320,7 +336,7 @@ extension Cloud {
 /// Settings as a sheet (`PhoneState.openSettings`): its own navigation stack for the pages, and Done beside the title.
 /// Swiping down closes it too.
 struct SettingsSheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
 
     var body: some View {
         NavigationStack { SettingsScreen(onDone: { app.closeSettings() }) }

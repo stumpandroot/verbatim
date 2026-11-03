@@ -7,7 +7,7 @@ import SwiftUI
 /// Changes reach the bar at once and are kept on this iPhone (PhoneTabBar.swift). On the refined kit (DESIGN.md §13)
 ///: the large serif title, the preview with Record above the tabs, and the rows in cards.
 struct TabBarSettingsScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     /// Done, when presented as a sheet (from Edit Home). Nil when pushed from Settings.
     var onDone: (() -> Void)? = nil
     @ObservedObject private var store = PhoneTabBarStore.shared

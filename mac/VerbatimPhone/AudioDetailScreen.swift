@@ -10,7 +10,10 @@ import UIKit
 // as it does in a transcript, except while a recording exists (`PhoneState.readingTabBar`).
 
 struct PhoneAudioDetail: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
+    /// Watched directly (PhoneState doesn't pass its changes on): a recording keeps the tab bar
+    /// (`readingTabBar`).
+    @EnvironmentObject private var recorder: Recorder
     var id: UUID
     @Environment(\.dismiss) private var dismiss
     @State private var shareItems: [Any]? = nil
@@ -245,7 +248,7 @@ struct PhoneAudioDetail: View {
 /// The player that is an Audio only recording's main content (the kit's `AudioPlayerCard`): its waveform, the time
 /// and length, back 5 seconds, play, and the speed. Observes the player and the clock, so playback redraws this alone.
 struct PhoneAudioPlayer: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
     @ObservedObject var player: Player
     @ObservedObject var clock: PlayerClock
@@ -272,7 +275,7 @@ struct PhoneAudioPlayer: View {
 /// play disc is sage (sage means playback), the played part of the waveform follows playback while this recording is
 /// the one playing, and its moments are butter ticks.
 struct PhoneAudioRowPlayer: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
 
     var body: some View { RowPlayer(transcript: transcript, clock: app.player.clock) }
@@ -280,13 +283,15 @@ struct PhoneAudioRowPlayer: View {
 
 /// The row player's body, observing only the playhead's clock.
 private struct RowPlayer: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
+    /// Watched directly (PhoneState doesn't pass its changes on): Play or Pause.
+    @EnvironmentObject private var player: Player
     var transcript: Transcript
     @ObservedObject var clock: PlayerClock
 
     private var url: URL? { app.store.audioURL(for: transcript) }
     private var isMine: Bool { url != nil && clock.loadedURL == url }
-    private var playing: Bool { isMine && app.player.isPlaying }
+    private var playing: Bool { isMine && player.isPlaying }
     private var played: Double { isMine && clock.duration > 0 ? clock.time / clock.duration : 0 }
 
     var body: some View {

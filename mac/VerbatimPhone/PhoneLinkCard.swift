@@ -8,7 +8,7 @@ import UIKit
 /// frame from UIKit (the tab bar's buttons, in window coordinates), falling back to an equal share of the tab
 /// bar's width. The overlay ignores the safe area, so window coordinates are its own.
 struct PhoneLinkCardLayer: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @State private var libraryItem: CGRect? = nil
 
     var body: some View {

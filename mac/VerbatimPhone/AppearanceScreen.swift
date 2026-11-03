@@ -3,7 +3,7 @@ import SwiftUI
 /// Settings › Appearance (DESIGN.md §13): the palette (Full or Soft), then light or dark (Limit animation is a switch
 /// on the Settings root). The palette is stored per device in the App Group (`AppearanceStore`); it never syncs.
 struct AppearanceScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     /// The palette (DESIGN.md §13), stored in the App Group.
     @AppStorage(AppPalette.key, store: AppearanceStore.defaults) private var palette: AppPalette = .full
     /// Whether Appearance is on screen, for the UI tour's checks.

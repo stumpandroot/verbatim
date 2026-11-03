@@ -11,7 +11,7 @@ struct DictationsRoute: Hashable {}
 /// land). Tap a row, or its round button, to copy the words; the button turns into a check for 1.6 seconds. A butter
 /// card at the end (butter means Dictate) explains the keyboard.
 struct DictationsListScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @State private var search = ""
     /// The Dictations tab's first screen: the title pins (PinnedTitle.swift). Pushed, it keeps Apple's bar.
     var tabRoot = false

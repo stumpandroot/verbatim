@@ -12,7 +12,9 @@ struct HomeScreen: View {
     /// Ticks `now` once a minute: one timer for every render. Built in `body`, each render made a new timer and
     /// restarted the minute, so under frequent renders (transcribing, playing, dictating) it never fired.
     private static let minute = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
+    /// Watched directly (PhoneState doesn't pass its changes on): the Record card's status while a recording runs.
+    @EnvironmentObject private var recorder: Recorder
     @Environment(\.limitMotion) private var limitMotion
     /// Your name for the greeting (the Mac's key); empty means a greeting without a name.
     @AppStorage("profile.name") private var storedName = ""
@@ -70,7 +72,7 @@ struct HomeScreen: View {
         }
         .sheet(isPresented: $editingHome) {
             NavigationStack { EditHomeView(onDone: { editingHome = false }) }
-                .environmentObject(app)
+                .phoneState(app)
         }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimEditHome)) { note in
             editingHome = (note.object as? Bool) ?? true
@@ -196,7 +198,7 @@ struct HomeScreen: View {
     /// runs (a tap brings the recorder back).
     private var recordStatus: String {
         if app.savingRecording { return "Saving…" }
-        if app.recordingActive { return app.recorder.isPaused ? "Paused" : "Recording" }
+        if app.recordingActive { return recorder.isPaused ? "Paused" : "Recording" }
         return readyText
     }
 
@@ -422,7 +424,7 @@ struct DocumentRoute: Hashable { let id: UUID }
 
 /// Long-press actions shared by every list.
 struct RowActions: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
     var body: some View {
         Button { app.togglePin(transcript.id) } label: { Label(transcript.pinned ? "Unpin" : "Pin", systemImage: transcript.pinned ? "pin.slash" : "pin") }
@@ -460,7 +462,7 @@ struct RowActions: View {
 }
 
 struct LinkSheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.dismiss) private var dismiss
     @State private var link = ""
     @FocusState private var focused: Bool

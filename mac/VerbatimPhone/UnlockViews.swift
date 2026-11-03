@@ -255,7 +255,7 @@ struct UnlockHomeCard: View {
 /// switch back to.
 struct FreeTranscriptNote: View {
     let transcript: Transcript
-    @EnvironmentObject private var app: PhoneState
+    @Environment(PhoneState.self) private var app
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

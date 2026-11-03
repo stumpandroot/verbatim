@@ -197,7 +197,9 @@ final class RecordingLiveText: ObservableObject {
 /// its Record card is there; while a recording exists, on every screen (`RecordChromeRule`). From iOS 26 the tab bar's
 /// accessory carries it (RecordAccessory.swift) and this adds nothing.
 struct MiniRecorderInset: ViewModifier {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
+    /// Watched directly (PhoneState doesn't pass its changes on): a recording shows the bar (`hidesRecordChrome`).
+    @EnvironmentObject private var recorder: Recorder
     var tab: PhoneState.Tab
     @ObservedObject private var layouts = HomeLayoutStore.shared
 
@@ -223,11 +225,13 @@ extension View {
 /// The minimized recorder with the app's recording: the kit's `MiniRecordingBar` (the persimmon dot, "Recording ·
 /// 4:12", your newest words or the kind, Pause or Resume, and Stop), the same.
 struct PhoneMiniRecorder: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
+    /// Watched directly (PhoneState doesn't pass its changes on): Pause and Resume.
+    @EnvironmentObject private var recorder: Recorder
     var inline = false
 
     var body: some View {
-        MiniRecordingBar(live: app.recorder.live, paused: app.recorder.isPaused, saving: app.savingRecording, inline: inline,
+        MiniRecordingBar(live: recorder.live, paused: recorder.isPaused, saving: app.savingRecording, inline: inline,
                          onOpen: { app.openRecorder() }, onPause: { app.togglePause() }, onStop: { app.stopRecording() }) {
             MiniRecorderDetail(words: app.recordingWords, kind: app.recordingChoice.name, saving: app.savingRecording)
         }

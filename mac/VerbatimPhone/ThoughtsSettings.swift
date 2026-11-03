@@ -10,7 +10,7 @@ import WidgetKit
 // don't sync with the Mac, which keeps its own New page each day at.
 
 struct ThoughtsSettingsScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.openURL) private var openURL
     @AppStorage(ThoughtRules.inPlaceKey) private var inPlace = true
     @AppStorage(ThoughtRules.islandWordsKey) private var islandWords = true

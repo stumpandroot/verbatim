@@ -15,7 +15,7 @@ struct TemplatesAutoRoute: Hashable {}
 // MARK: - Library
 
 struct TemplatesScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @State private var filter: TemplateOrigin? = nil
     @State private var editing: TranscriptTemplate? = nil
@@ -68,7 +68,7 @@ struct TemplatesScreen: View {
                     .accessibilityLabel("New template")
             }
         }
-        .sheet(item: $editing) { t in PhoneTemplateEditor(draft: t, isNew: true).environmentObject(app) }
+        .sheet(item: $editing) { t in PhoneTemplateEditor(draft: t, isNew: true).phoneState(app) }
         .onAppear { Self.shown = (shown.count, filter) }
         .onChange(of: filter) { _, f in Self.shown = (all.filter { f == nil || $0.origin == f }.count, f) }
     }
@@ -87,7 +87,7 @@ struct TemplatesScreen: View {
 // MARK: - A template
 
 struct TemplateDetailScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.dismiss) private var dismiss
     var id: UUID
     @ObservedObject private var auto = TemplateSettingsModel.shared
@@ -171,8 +171,8 @@ struct TemplateDetailScreen: View {
                 }
             }
         }
-        .sheet(item: $editing) { e in PhoneTemplateEditor(draft: e, isNew: editingIsNew).environmentObject(app) }
-        .sheet(item: $tryOn) { x in PhoneTemplateTryOnSheet(template: x.template, transcriptID: x.transcript).environmentObject(app) }
+        .sheet(item: $editing) { e in PhoneTemplateEditor(draft: e, isNew: editingIsNew).phoneState(app) }
+        .sheet(item: $tryOn) { x in PhoneTemplateTryOnSheet(template: x.template, transcriptID: x.transcript).phoneState(app) }
         .alert("Delete \u{201C}\(t.name)\u{201D}?", isPresented: $confirmDelete) {
             Button("Delete", role: .destructive) {
                 auto.removed(t.id)
@@ -196,7 +196,7 @@ struct TemplateDetailScreen: View {
 /// Settings › Templates and Library › Templates › Run automatically: one template or Off per kind, and Skip short
 /// recordings, Show the result first, and Notify me when it's done. Kept on this iPhone; the results sync.
 struct TemplatesAutoScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @ObservedObject private var auto = TemplateSettingsModel.shared
     /// Ask's recipes, hidden until you show them (consolidation, `RecipesSetting`).
     @AppStorage(RecipesSetting.key) private var showRecipes = false
@@ -276,7 +276,7 @@ struct TemplatesAutoScreen: View {
 
 /// New template, Duplicate and edit, or Edit: the name, the kinds it suits, what it should write, and its sections.
 struct PhoneTemplateEditor: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.dismiss) private var dismiss
     @State private var draft: TranscriptTemplate
     var isNew: Bool
@@ -351,7 +351,7 @@ struct PhoneTemplateEditor: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focused = false } }
             }
-            .sheet(item: $tryOn) { x in PhoneTemplateTryOnSheet(template: x.template, transcriptID: x.transcript).environmentObject(app) }
+            .sheet(item: $tryOn) { x in PhoneTemplateTryOnSheet(template: x.template, transcriptID: x.transcript).phoneState(app) }
         }
         // Try on is part of Verbose Unlock: its sheet opens over the editor.
         .unlockSheetHost()
@@ -415,7 +415,7 @@ struct PhoneTemplateEditor: View {
 
 /// A template's result on one recording, made on this iPhone and never saved: copy it, or close.
 struct PhoneTemplateTryOnSheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.dismiss) private var dismiss
     var template: TranscriptTemplate
     var transcriptID: UUID
@@ -465,7 +465,7 @@ struct PhoneTemplateTryOnSheet: View {
 /// A transcript's template results, the tab beside Original and Cleaned: the template's name, why it ran, Run again
 /// and Edit, the sections, and the footer. The kind-change offer and the waiting line live here too.
 struct PhoneTemplateResults: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
     /// A plan task's time: play that line in the transcript.
     var onJump: ((Double) -> Void)? = nil

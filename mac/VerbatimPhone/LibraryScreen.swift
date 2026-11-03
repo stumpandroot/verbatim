@@ -11,7 +11,7 @@ import SwiftUI
 /// selection; each row draws its share of the card (`PaperRowBackground`). Nothing enters with an animation; a chip's
 /// change fades the list in as a whole.
 struct LibraryScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     /// The search and the filter, kept when Library is built again (`LibraryKeep`).
     @State private var search = LibraryKeep.librarySearch
     @State private var filter: Filter = LibraryKeep.libraryFilter
@@ -169,18 +169,19 @@ struct LibraryScreen: View {
             if let r = route.request { applyRequest(r) } else { filter = .all }
         }
         .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
-        .onReceive(app.$libraryFilterRequest) { r in
+        .onReceive(app.libraryFilterRequestValues) { r in
             // The screenshot tour (and anything else) can open Library on a kind, or back on All; Home's tiles and
             // sections open it on what's transcribing ("working") or on a project ("project:<id>"). For the Library
             // tab only; a pushed Library has its own (`route`).
             guard let r, route == nil else { return }
             applyRequest(r)
-            // `$libraryFilterRequest` publishes before the value is stored, so clearing it here was overwritten by
-            // `r`: the request stayed set, and each later subscription applied it again. Cleared on the next turn.
+            // Cleared on the next turn, never inside the publish: when this was `$libraryFilterRequest`, which publishes
+            // before the value is stored, clearing it here was overwritten by `r` and each later subscription applied it
+            // again.
             DispatchQueue.main.async { if app.libraryFilterRequest == r { app.libraryFilterRequest = nil } }
         }
         .sheet(isPresented: Binding(get: { app.addFromLibrary != nil }, set: { if !$0 { app.addFromLibrary = nil } })) {
-            if let p = app.addFromLibrary { PhoneAddFromLibrarySheet(project: p).environmentObject(app) }
+            if let p = app.addFromLibrary { PhoneAddFromLibrarySheet(project: p).phoneState(app) }
         }
         .alert("New project", isPresented: $newProject) {
             TextField("Name", text: $projectName)
@@ -687,7 +688,7 @@ struct LibraryScreen: View {
 /// yet plays from here: its sage play button and waveform sit under the title. VoiceOver reads the title, the meta
 /// line (the kind first), and the length.
 private struct LibraryRow: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
     var selecting: Bool
 
@@ -762,7 +763,7 @@ private struct LibraryScrollEdge: ViewModifier {
 
 /// One transcript's matching lines from a search: tap a line to open the transcript there, with the audio cued to it.
 struct PhonePassageCard: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var transcript: Transcript
     var lines: [Segment]
     var count: Int

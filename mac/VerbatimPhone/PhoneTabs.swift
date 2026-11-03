@@ -191,7 +191,7 @@ extension View {
 /// with its folder square and how many recordings it holds, and New project in the navigation bar. A project opens the
 /// Library on it, inside this tab. With none, one card says what projects are and offers New project.
 struct ProjectsScreen: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @State private var newProject = false
     @State private var projectName = ""
     /// For the self-test: whether the Projects tab's root is on screen.

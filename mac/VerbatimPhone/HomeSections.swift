@@ -89,7 +89,7 @@ struct HomeDictionaryRoute: Hashable {}
 /// A tile's button: Import opens its menu (Photos, files, or a link); every other tile runs its action. While Import is
 /// locked (Verbose Unlock), its tile is a plain button that opens the unlock sheet.
 struct HomeTileButton<Face: View>: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var tile: HomeTile
     @ViewBuilder var label: () -> Face
     @ObservedObject private var unlock = UnlockStore.shared
@@ -123,7 +123,7 @@ struct HomeTileButton<Face: View>: View {
 /// (the Thoughts tab, or Library › By day); New thought opens the recorder on a thought. Thoughts are a kind, so the
 /// section stays in ink, and New thought is a quiet button, never a second persimmon fill beside Record.
 struct HomeThoughtsSection: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var size: HomeCardSize
 
     /// For the self-test: how many of today's thoughts the section counted when it last drew.
@@ -233,7 +233,7 @@ struct HomeThoughtsSection: View {
 /// a play button with the length) over this week's days as dots. Compact: one row with the newest title and the dots.
 /// A tap opens Journal By day (the Journal tab, or inside Library); play opens the entry playing.
 struct HomeJournalSection: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     var size: HomeCardSize
     var now: Date
 

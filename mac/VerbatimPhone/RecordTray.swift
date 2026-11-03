@@ -371,7 +371,7 @@ private struct RecordChoiceActions: ViewModifier {
 }
 
 struct RecordTrayLayer: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     /// The rows you show (consolidation, October 28, 2026: five by default; Edit Record as turns the others on).
     @ObservedObject private var recordAs = RecordAsStore.shared
     @ObservedObject private var tray = RecordTray.shared

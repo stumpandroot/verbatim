@@ -8,7 +8,7 @@ import UIKit
 /// Every format beyond plain text is part of Verbose Unlock (DESIGN.md §21): the formats stay in the picker, and
 /// picking one while locked opens the unlock sheet over this one and keeps plain text.
 struct PhoneExportSheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.dismiss) private var dismiss
     var ids: [UUID]
     @State private var format = ExportOptions.savedFormat

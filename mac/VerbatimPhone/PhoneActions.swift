@@ -16,7 +16,7 @@ struct PhoneActionItems: View {
 /// Intelligence's, before anything is kept. Edit it, copy it, share it, or save it as a note; closing is the undo. On
 /// the refined kit (DESIGN.md §13).
 struct PhoneActionSheet: View {
-    @EnvironmentObject var app: PhoneState
+    @Environment(PhoneState.self) var app
     @Environment(\.dismiss) private var dismiss
     let action: TranscriptActionSpec
     let transcript: Transcript
