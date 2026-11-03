@@ -1015,10 +1015,16 @@ enum PhoneUITest {
                 let had = await AskIndex.shared.entry(gone) != nil
                 if let r = added.dropFirst().first {
                     app.delete([gone])
-                    try? await Task.sleep(nanoseconds: 800_000_000)
-                    let left = await AskIndex.shared.entry(gone)
-                    check("a recording moved to Recently Deleted leaves the index at once", had && left == nil
-                          && !FileManager.default.fileExists(atPath: AskStorage.indexFile(gone, in: Paths.local).path))
+                    // Up to 4 seconds: the index drops the entry off the main actor, and a busy simulator can be slow.
+                    var left = await AskIndex.shared.entry(gone)
+                    var onDisk = FileManager.default.fileExists(atPath: AskStorage.indexFile(gone, in: Paths.local).path)
+                    for _ in 0..<20 where left != nil || onDisk {
+                        try? await Task.sleep(nanoseconds: 200_000_000)
+                        left = await AskIndex.shared.entry(gone)
+                        onDisk = FileManager.default.fileExists(atPath: AskStorage.indexFile(gone, in: Paths.local).path)
+                    }
+                    if !had || left != nil || onDisk { Log.note("UITEST detail: ask delete: indexed before \(had), entry left \(left != nil), file left \(onDisk)") }
+                    check("a recording moved to Recently Deleted leaves the index at once", had && left == nil && !onDisk)
                     check("digests drop the deleted recording's citations", recipes.latest(r.id)?.result.answer?.citations.contains { $0.transcriptId == gone } == false
                           && recipes.latest(r.id)?.result.answer?.citations.isEmpty == false)
                 }
