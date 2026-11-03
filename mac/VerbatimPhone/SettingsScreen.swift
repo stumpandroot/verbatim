@@ -46,6 +46,15 @@ struct SettingsScreen: View {
     @ObservedObject private var flow = FlowSettings.shared
     /// The tab bar's picks, for the Tab bar row's value.
     @ObservedObject private var tabBarStore = PhoneTabBarStore.shared
+    /// Specialty words' value: how many fields are on, read with the fields' switches below so the row follows them.
+    @AppStorage(VocabularyField.film.key) private var fieldFilm = VocabularyField.film.isOnByDefault
+    @AppStorage(VocabularyField.business.key) private var fieldBusiness = VocabularyField.business.isOnByDefault
+    @AppStorage(VocabularyField.medical.key) private var fieldMedical = VocabularyField.medical.isOnByDefault
+    @AppStorage(VocabularyField.legal.key) private var fieldLegal = VocabularyField.legal.isOnByDefault
+    @AppStorage(VocabularyField.faith.key) private var fieldFaith = VocabularyField.faith.isOnByDefault
+    private var specialtyWordsValue: String {
+        "\([fieldFilm, fieldBusiness, fieldMedical, fieldLegal, fieldFaith].filter { $0 }.count) on"
+    }
     /// "Library, Thoughts": the tabs after Home, or "Home only" with none.
     private var tabBarValue: String {
         let m = tabBarStore.bar.middle
@@ -222,6 +231,7 @@ struct SettingsScreen: View {
         case .thoughts: ThoughtsSettingsScreen()
         case .tabBar: TabBarSettingsScreen()
         case .templates: TemplatesAutoScreen()
+        case .specialtyWords: SpecialtyWordsScreen()
         }
     }
 
@@ -379,7 +389,9 @@ struct SettingsScreen: View {
             squareDivider
             pageRow("snippetsRow", .snippets, 3, art: .iconQuote, title: "Snippets", value: "\(app.store.snippets.count)")
             squareDivider
-            pageRow("cloudCleanupRow", .cloudCleanup, 4, art: .iconServer, title: "Cloud cleanup", value: cloudCleanupOn ? "On" : "Off")
+            pageRow("specialtyWordsRow", .specialtyWords, 4, art: .iconDictionary, title: "Specialty words", value: specialtyWordsValue)
+            squareDivider
+            pageRow("cloudCleanupRow", .cloudCleanup, 5, art: .iconServer, title: "Cloud cleanup", value: cloudCleanupOn ? "On" : "Off")
         }
         PaperCard {
             SettingsToggleRow(title: "Spoken corrections", isOn: $spokenCorrections)

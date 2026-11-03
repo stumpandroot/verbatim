@@ -159,7 +159,8 @@ struct PhoneBuiltInVocabularySection: View {
     var body: some View {
         let all = BuiltInVocabulary.terms
         let off = BuiltInVocabulary.disabled(disabledRaw)
-        let active = all.filter { !off.contains($0.id) }.count
+        // Terms of a specialty field that's off (Settings › Specialty words) don't count.
+        let active = BuiltInVocabulary.active(all, on: true, disabled: off, fieldsOff: VocabularyField.off()).count
         Section {
             Toggle(isOn: $on) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -212,5 +213,56 @@ struct PhoneBuiltInTermsScreen: View {
         .overlay { if shown.isEmpty { Text("Nothing matches \u{201C}\(query)\u{201D}").refinedFont(.body).foregroundStyle(Refined.mute) } }
         .refinedListPage("Built-in vocabulary")
         .searchable(text: $query, prompt: "Search \(BuiltInVocabulary.terms.count) terms")
+    }
+}
+
+/// Settings › Specialty words (mockup "Specialty words"): a switch per field of the built-in vocabulary
+/// (VocabularyField), with a few of its terms under each. Turning on Medical shows what a word patch can't do. The
+/// built-in vocabulary's own switch (Dictionary) still turns every field off. The choices sync with the Mac in the
+/// profile (Store.SyncedProfile) while iCloud sync is on.
+struct SpecialtyWordsScreen: View {
+    @AppStorage(BuiltInVocabulary.enabledKey) private var builtIn = true
+    @AppStorage(VocabularyField.film.key) private var film = VocabularyField.film.isOnByDefault
+    @AppStorage(VocabularyField.business.key) private var business = VocabularyField.business.isOnByDefault
+    @AppStorage(VocabularyField.medical.key) private var medical = VocabularyField.medical.isOnByDefault
+    @AppStorage(VocabularyField.legal.key) private var legal = VocabularyField.legal.isOnByDefault
+    @AppStorage(VocabularyField.faith.key) private var faith = VocabularyField.faith.isOnByDefault
+
+    /// The group's note: what the switches do, and whether they really sync.
+    private var footer: String {
+        var parts = [VocabularyField.groupNote]
+        if !builtIn { parts.append("Built-in vocabulary is off on the Dictionary page, so these fields don't apply.") }
+        parts.append(Cloud.enabled ? "Synced with your Mac through iCloud." : "Kept on this iPhone while iCloud sync is off.")
+        return parts.joined(separator: " ")
+    }
+
+    var body: some View {
+        SettingsPageScaffold(title: "Specialty words") {
+            SettingsPageGroup(footer: footer, first: true) {
+                row(.film, $film, id: "specialtyFilm")
+                SettingsDivider()
+                row(.business, $business, id: "specialtyBusiness")
+                SettingsDivider()
+                row(.medical, $medical, id: "specialtyMedical")
+                if medical && builtIn {
+                    Text(VocabularyField.medicalNote)
+                        .refinedFont(.meta).foregroundStyle(Refined.dim)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14).padding(.bottom, 12)
+                        .accessibilityIdentifier("settings.medicalNote")
+                }
+                SettingsDivider()
+                row(.legal, $legal, id: "specialtyLegal")
+                SettingsDivider()
+                row(.faith, $faith, id: "specialtyFaith")
+            }
+        }
+    }
+
+    private func row(_ f: VocabularyField, _ on: Binding<Bool>, id: String) -> some View {
+        SettingsToggleRow(title: f.title, subtitle: f.examples, isOn: on)
+            .disabled(!builtIn)
+            .settingsSearchTarget(id, flash: nil)
     }
 }

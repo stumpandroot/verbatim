@@ -95,6 +95,14 @@ enum PhoneSettingsMap {
             Row(id: "cleanup", settings: [Setting("cleanup", keys: ["flow.cleanup"])]),
             Row(id: "spokenCorrections", settings: [Setting("spokenCorrections", keys: ["flow.spokenCorrections"])]),
             Row(id: "snippetsRow", page: "snippets", settings: [Setting("snippets")]),
+            // Specialty words (VocabularyField): a switch per field of the built-in vocabulary, synced with the Mac.
+            Row(id: "specialtyWordsRow", page: "specialtyWords", settings: [
+                Setting("specialtyFilm", keys: ["vocabulary.field.film"]),
+                Setting("specialtyBusiness", keys: ["vocabulary.field.business"]),
+                Setting("specialtyMedical", keys: ["vocabulary.field.medical"]),
+                Setting("specialtyLegal", keys: ["vocabulary.field.legal"]),
+                Setting("specialtyFaith", keys: ["vocabulary.field.faith"]),
+            ]),
             Row(id: "cloudCleanupRow", page: "cloudCleanup", settings: [
                 Setting("cloudCleanup", keys: ["cleanup.cloud.enabled"]),
                 Setting("cloudProvider", keys: ["cleanup.cloud.provider"]),

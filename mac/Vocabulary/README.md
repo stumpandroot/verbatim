@@ -7,7 +7,12 @@ Verbose spells modern words right without any setup. Two files ship in both apps
 - `Verbatim/Resources/EverydayFixes.json`: everyday mix-ups such as "could of been" (`Flow/EverydayFixes.swift`).
   They run on dictation only, right before Harper's grammar pass.
 
-Settings › Built-in vocabulary turns both off. A word patch is a change to either file that ships in a normal
+Settings › Built-in vocabulary turns both off. Settings › Dictation › Specialty words has a switch per field
+(`VocabularyField` in `BuiltInVocabulary.swift`): a term's category decides its field. Film production ("Film and
+video") and Business and marketing ("Business") are on by default; Medical, Legal, and Bible and faith start off. Every
+other category is general and runs whenever the built-in vocabulary is on. A field that's off neither fixes its terms
+nor boosts them. The switches sync between the Mac and iPhone with your name and About me (`Store.SyncedProfile`,
+`profile.json` in iCloud Drive) while iCloud sync is on. A word patch is a change to either file that ships in a normal
 build: the gate and the self-test check it, and the version notes list it.
 
 ## Rules for what goes in
@@ -16,7 +21,8 @@ build: the gate and the self-test check it, and the version notes list it.
    form is also English, use `context` with context words in `after`, or leave the term out.
 2. Every form passes the gate (below).
 3. Use the official spelling from the brand's own site. Don't copy spellings from engine docs.
-4. Medical, legal, and Bible and faith terms wait for their per-field switches in Settings (patch 2).
+4. Medical, legal, and Bible and faith terms go in their own categories, so they run only when you turn the field
+   on. Fix spelling only: never a drug heard as another drug (Humira as Humalog), and never a claim beyond spelling.
 5. Fix an everyday mix-up only with a rule that's always right where it fires. Anything that depends on a comma the
    speaker didn't dictate stays out.
 6. Don't auto-fix names with several spellings (Sean, Shawn; Caitlin, Kaitlyn).
@@ -33,7 +39,8 @@ build: the gate and the self-test check it, and the version notes list it.
   "exact": ["Linked In"],
   "context": ["zoom"],
   "after": ["call", "meeting"],
-  "boost": false
+  "boost": false,
+  "strict": true
 }
 ```
 
@@ -49,6 +56,9 @@ build: the gate and the self-test check it, and the version notes list it.
   capitalized: then only a context word counts, because the capital says nothing.
 - `after`: single words that mark the term when they come right after a `context` form.
 - `boost`: `false` keeps the term out of recognition boosting.
+- `strict`: `true` limits `context` forms to the term's own `after` words, right after the form. The shared context
+  words and a mid-sentence capital don't count, so "pro bonus work" changes and "the pro bonus account" stays. Use it
+  for specialty terms, where a shared word like "account" or "meeting" is no sign of the field.
 
 Longer forms run first, so "iphone air" becomes "iPhone Air" before "iphone" is considered.
 
@@ -73,10 +83,14 @@ results as the gate on every case. The gate checks:
 - **Corpus:** nothing changes a line of `mac/tools/vocab-fixtures/negatives.txt`, a file of ordinary sentences,
   lists, and look-alike names.
 - **Everyday fixes:** every pattern compiles, every `examples` pair becomes its fix, and every `keep` sentence stays.
+- **Fields:** the Swift run (`vocabulary-tests/main.swift`) checks which categories each specialty field covers, that
+  the specialty fields start off, that a field that's off changes nothing, and real sentences per field that must
+  change and ordinary ones that must not.
 
 Other options:
 
-- `python3 mac/tools/vocab_check.py --fix "some text"` shows what the app makes of a sentence and which rule fired.
+- `python3 mac/tools/vocab_check.py --fix "some text"` shows what the app makes of a sentence and which rule fired,
+  with every field on.
 - `python3 mac/tools/vocab_check.py --phrases` lists `heard` phrases made only of common words, for a review by hand.
 - `python3 mac/tools/vocab_check.py --corpus book1.txt book2.txt` reports every change on prose that uses the right
   words. Project Gutenberg books work well. Don't commit the corpus.
@@ -112,3 +126,4 @@ Where to look each month:
 | Patch | Vocabulary | Contents |
 |---|---|---|
 | 1 (October 2026) | Version 2, 824 terms | New names, names and places, film and video, business, four general terms (HIPAA, COVID-19, per se, bona fide), and 72 everyday fixes. The research is in `research/2026-10/`. |
+| 2 (November 2026) | Version 3, 936 terms | Specialty fields with a switch each: 43 medical, 33 legal, and 36 Bible and faith terms (off by default), and `strict` context forms. From `research/2026-10/specialty.json`. |

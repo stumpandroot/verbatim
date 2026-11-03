@@ -91,6 +91,14 @@ enum MacSettingsMap {
                 Setting("dictate.styles"), Setting("dictate.emailLines"), Setting("dictate.emailParagraphs"), Setting("dictate.context"),
             ]),
             Section("Accuracy", [Setting("dictate.boost"), Setting("dictate.autoLearn")]),
+            // A switch per field of the built-in vocabulary (VocabularyField); synced with the iPhone in the profile.
+            Section("Specialty words", [
+                Setting("dictate.specialtyFilm", keys: ["vocabulary.field.film"]),
+                Setting("dictate.specialtyBusiness", keys: ["vocabulary.field.business"]),
+                Setting("dictate.specialtyMedical", keys: ["vocabulary.field.medical"]),
+                Setting("dictate.specialtyLegal", keys: ["vocabulary.field.legal"]),
+                Setting("dictate.specialtyFaith", keys: ["vocabulary.field.faith"]),
+            ]),
             Section("Snippets", [Setting("dictate.snippets")]),
             // Settings › Actions moved into Templates (consolidation, October 28, 2026); this row points there.
             Section("Text actions", [Setting("dictate.textActions")]),

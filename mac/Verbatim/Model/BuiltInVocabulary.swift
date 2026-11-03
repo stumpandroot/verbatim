@@ -17,14 +17,108 @@ struct BuiltInTerm: Codable, Identifiable, Hashable {
     var after: [String]? = nil
     /// false keeps the term out of recognition boosting.
     var boost: Bool? = nil
+    /// true: a `context` form changes only right before one of this term's own `after` words, never for the shared
+    /// context words or a capital ("pro bonus work", not "pro bonus account").
+    var strict: Bool? = nil
 
     var id: String { term }
+    /// The specialty field the term belongs to (from its category), or nil for a general term that's always on.
+    var field: VocabularyField? { VocabularyField(category: category) }
     /// Every way the term is listed as heard, for search and display.
     var forms: [String] { (heard ?? []) + (exact ?? []) + (context ?? []) }
     /// Only fixed next to a context word.
     var isContextual: Bool { (heard ?? []).isEmpty && (exact ?? []).isEmpty }
     /// Worth boosting: not an ordinary word, and long enough that the keyword spotter can't confuse it with others.
     var boostable: Bool { (boost ?? true) && term.count >= 4 && !isContextual }
+}
+
+/// A specialty field (Settings › Dictation › Specialty words): the terms of its categories run only while it's on.
+/// Film production and business are on unless you turn them off; medical, legal, and Bible and faith start off. Terms
+/// in the other categories (apps, AI, devices, names, places, and the rest) are general: they run whenever the
+/// built-in vocabulary is on, and no switch lists them. The choices sync between your Mac and iPhone with your name
+/// and About me (Store.SyncedProfile).
+enum VocabularyField: String, CaseIterable, Identifiable {
+    case film, business, medical, legal, faith
+
+    var id: String { rawValue }
+
+    /// The switch's title in Settings.
+    var title: String {
+        switch self {
+        case .film: return "Film production"
+        case .business: return "Business and marketing"
+        case .medical: return "Medical"
+        case .legal: return "Legal"
+        case .faith: return "Bible and faith"
+        }
+    }
+
+    /// A few of the field's own terms, for the line under the switch.
+    var examples: String {
+        switch self {
+        case .film: return "ARRI, Blackmagic RAW, S-Log3, and more"
+        case .business: return "ROAS, EBITDA, Shopify POS, and more"
+        case .medical: return "Ozempic, metformin, COPD, and more"
+        case .legal: return "Prima facie, voir dire, habeas corpus, and more"
+        case .faith: return "Habakkuk, Philippians, exegesis, and more"
+        }
+    }
+
+    /// The categories in ModernVocabulary.json whose terms are in this field.
+    var categories: Set<String> {
+        switch self {
+        case .film: return ["Film and video"]
+        case .business: return ["Business"]
+        case .medical: return ["Medical"]
+        case .legal: return ["Legal"]
+        case .faith: return ["Bible and faith"]
+        }
+    }
+
+    var isOnByDefault: Bool { self == .film || self == .business }
+
+    /// The line under the Specialty words group, on the Mac and iPhone.
+    static let groupNote = "Fix how dictation spells the words of a field you work in."
+    /// Shown under Medical while it's on: a word patch fixes spelling, never one drug heard as another.
+    static let medicalNote = "Verbose fixes how drug names are spelled. It can't tell when one drug was heard as another, such as Humira heard as Humalog. Check medication names before you rely on them."
+
+    /// The UserDefaults key for the field's switch (a Bool; missing means the default).
+    var key: String {
+        switch self {
+        case .film: return "vocabulary.field.film"
+        case .business: return "vocabulary.field.business"
+        case .medical: return "vocabulary.field.medical"
+        case .legal: return "vocabulary.field.legal"
+        case .faith: return "vocabulary.field.faith"
+        }
+    }
+
+    /// The field a category belongs to; nil for a general category.
+    init?(category: String) {
+        guard let f = Self.allCases.first(where: { $0.categories.contains(category) }) else { return nil }
+        self = f
+    }
+
+    /// Whether the field is on in `defaults`.
+    func isOn(in defaults: UserDefaults = .standard) -> Bool { defaults.object(forKey: key) as? Bool ?? isOnByDefault }
+
+    /// The fields that are off in `defaults`.
+    static func off(in defaults: UserDefaults = .standard) -> Set<VocabularyField> { Set(allCases.filter { !$0.isOn(in: defaults) }) }
+
+    /// The switches you've set in `defaults` (fields you never touched are left out), by raw value, for syncing.
+    static func chosen(in defaults: UserDefaults = .standard) -> [String: Bool] {
+        var out: [String: Bool] = [:]
+        for f in allCases { if let v = defaults.object(forKey: f.key) as? Bool { out[f.rawValue] = v } }
+        return out
+    }
+
+    /// Sets the switches in `chosen` (by raw value) that differ in `defaults`; unknown fields are ignored.
+    static func apply(_ chosen: [String: Bool], to defaults: UserDefaults = .standard) {
+        for (raw, v) in chosen {
+            guard let f = VocabularyField(rawValue: raw), defaults.object(forKey: f.key) as? Bool != v else { continue }
+            defaults.set(v, forKey: f.key)
+        }
+    }
 }
 
 /// Modern words Verbatim spells right without any setup: apps, AI, devices, platforms, brands, and internet terms.
@@ -73,11 +167,19 @@ enum BuiltInVocabulary {
         return set.sorted().joined(separator: "\n")
     }
 
-    /// The terms in use: none when the switch is off, and never the ones you turned off.
+    /// The terms in use: none when the switch is off, never the ones you turned off, and none from a specialty field
+    /// that's off.
     static var activeTerms: [BuiltInTerm] {
-        guard isOn else { return [] }
-        let off = disabledIDs
-        return off.isEmpty ? terms : terms.filter { !off.contains($0.id) }
+        active(terms, on: isOn, disabled: disabledIDs, fieldsOff: VocabularyField.off())
+    }
+
+    /// `terms` filtered by the switches (a pure function, so the Linux tests can check it).
+    static func active(_ terms: [BuiltInTerm], on: Bool, disabled: Set<String>, fieldsOff: Set<VocabularyField>) -> [BuiltInTerm] {
+        guard on else { return [] }
+        if disabled.isEmpty && fieldsOff.isEmpty { return terms }
+        return terms.filter { t in
+            !disabled.contains(t.id) && !(t.field.map(fieldsOff.contains) ?? false)
+        }
     }
 
     /// Whether anything can be fixed (callers skip the pass when neither this nor the Dictionary has words).
@@ -111,6 +213,8 @@ enum BuiltInVocabulary {
         let kind: Kind
         let re: NSRegularExpression
         let after: Set<String>
+        /// Only `after` counts as context (BuiltInTerm.strict).
+        var strict = false
         /// The form's first word, lowercased: a passage without it can't match.
         let key: String
         let order: Int
@@ -138,12 +242,13 @@ enum BuiltInVocabulary {
     }
 
     static func rules(for terms: [BuiltInTerm]) -> [Rule] {
-        var list: [(term: String, form: String, kind: Kind, after: Set<String>)] = []
+        var list: [(term: String, form: String, kind: Kind, after: Set<String>, strict: Bool)] = []
         for t in terms {
             let after = Set((t.after ?? []).map { $0.lowercased() })
-            for f in t.heard ?? [] { list.append((t.term, f, .always, after)) }
-            for f in t.exact ?? [] { list.append((t.term, f, .exact, after)) }
-            for f in t.context ?? [] { list.append((t.term, f, .context, after)) }
+            let strict = t.strict ?? false
+            for f in t.heard ?? [] { list.append((t.term, f, .always, after, strict)) }
+            for f in t.exact ?? [] { list.append((t.term, f, .exact, after, strict)) }
+            for f in t.context ?? [] { list.append((t.term, f, .context, after, strict)) }
         }
         // Longest forms first, so "macbook pro" is fixed as a whole before "macbook".
         let sorted = list.enumerated().sorted { a, b in
@@ -153,7 +258,7 @@ enum BuiltInVocabulary {
         for (i, r) in sorted.map({ $0.element }).enumerated() {
             guard let key = words(r.form).first,
                   let re = try? NSRegularExpression(pattern: pattern(r.form), options: r.kind == .exact ? [] : [.caseInsensitive]) else { continue }
-            out.append(Rule(term: r.term, form: r.form, kind: r.kind, re: re, after: r.after, key: key, order: i))
+            out.append(Rule(term: r.term, form: r.form, kind: r.kind, re: re, after: r.after, strict: r.strict, key: key, order: i))
         }
         return out
     }
@@ -238,7 +343,7 @@ enum BuiltInVocabulary {
         return matches.map(\.range).filter { m in
             if ns.substring(with: m) == r.term { return false }
             if guarded.contains(where: { NSIntersectionRange($0, m).length > 0 }) { return false }
-            if r.kind == .context, !contextAllows(ns, m, extra: r.after, capitalCounts: r.form.first?.isUppercase != true) { return false }
+            if r.kind == .context, !contextAllows(ns, m, extra: r.after, capitalCounts: r.form.first?.isUppercase != true, shared: !r.strict) { return false }
             return true
         }
     }
@@ -246,7 +351,12 @@ enum BuiltInVocabulary {
     /// A contextual form changes only when the engine capitalized it mid-sentence, or a context word sits right
     /// before or after it. A form listed with a capital ("I phone", "Kiev", "Columbia") is a name or a capital
     /// that's always written so, where a capital says nothing (`capitalCounts` false): only a context word counts.
-    static func contextAllows(_ ns: NSString, _ range: NSRange, extra: Set<String>, capitalCounts: Bool = true) -> Bool {
+    /// A strict term (`shared` false) counts only its own `extra` words after the form.
+    static func contextAllows(_ ns: NSString, _ range: NSRange, extra: Set<String>, capitalCounts: Bool = true, shared: Bool = true) -> Bool {
+        if !shared {
+            guard let w = wordAfter(ns.substring(from: NSMaxRange(range))) else { return false }
+            return extra.contains(w)
+        }
         let found = ns.substring(with: range)
         if capitalCounts, found.first?.isUppercase == true, !isSentenceStart(ns, at: range.location) { return true }
         if let w = wordBefore(ns.substring(to: range.location)), beforeWords.contains(w) { return true }

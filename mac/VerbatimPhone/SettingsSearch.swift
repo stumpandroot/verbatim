@@ -13,7 +13,7 @@ enum SettingsSearchTarget: Equatable {
 enum SettingsSubpage: String, CaseIterable, Equatable {
     case aboutMe, dictionary, keyboard, snippets, actionButton, appearance, whatsNew
     case speakers, moreTranscription, cloudCleanup, privacy, tour, widgets, shortcuts, customizeHome, thoughts, tabBar
-    case templates
+    case templates, specialtyWords
 
     /// The page's title, as its navigation bar shows it.
     var title: String {
@@ -36,6 +36,7 @@ enum SettingsSubpage: String, CaseIterable, Equatable {
         case .thoughts: return "Thoughts"
         case .tabBar: return "Tab bar"
         case .templates: return "Templates"
+        case .specialtyWords: return "Specialty words"
         }
     }
 }
@@ -168,6 +169,22 @@ enum SettingsSearchIndex {
         .init(id: "spokenCorrections", section: dictation, label: "Understand spoken corrections",
               keywords: ["scratch that", "delete the last sentence", "start over", "actually", "no wait", "self-correction", "correction", "undo", "never mind", "spoken corrections"],
               description: "Say \u{201C}scratch that,\u{201D} \u{201C}delete the last sentence,\u{201D} or \u{201C}let me start over\u{201D} to fix what you said"),
+        // Settings › Specialty words.
+        .init(id: "specialtyFilm", section: dictation, label: VocabularyField.film.title,
+              keywords: ["specialty words", "field", "vocabulary", "spelling", "film", "video", "camera", "codec", "production"],
+              description: VocabularyField.film.examples, target: .page(.specialtyWords)),
+        .init(id: "specialtyBusiness", section: dictation, label: VocabularyField.business.title,
+              keywords: ["specialty words", "field", "vocabulary", "spelling", "business", "marketing", "acronyms", "ads", "ecommerce"],
+              description: VocabularyField.business.examples, target: .page(.specialtyWords)),
+        .init(id: "specialtyMedical", section: dictation, label: VocabularyField.medical.title,
+              keywords: ["specialty words", "field", "vocabulary", "spelling", "medical", "medicine", "drug", "drugs", "medication", "doctor", "nurse", "health"],
+              description: VocabularyField.medical.examples, target: .page(.specialtyWords)),
+        .init(id: "specialtyLegal", section: dictation, label: VocabularyField.legal.title,
+              keywords: ["specialty words", "field", "vocabulary", "spelling", "legal", "law", "lawyer", "attorney", "court", "latin"],
+              description: VocabularyField.legal.examples, target: .page(.specialtyWords)),
+        .init(id: "specialtyFaith", section: dictation, label: VocabularyField.faith.title,
+              keywords: ["specialty words", "field", "vocabulary", "spelling", "bible", "faith", "church", "sermon", "scripture", "pastor", "theology"],
+              description: VocabularyField.faith.examples, target: .page(.specialtyWords)),
         .init(id: "snippets", section: dictation, label: "Snippets in the keyboard", keywords: ["snippets", "trigger", "text expansion", "shortcut", "saved text"],
               description: "Say a trigger, get your saved text", target: .page(.snippets)),
         // Settings › Cloud cleanup.
@@ -278,6 +295,11 @@ enum SettingsSearchIndex {
         case "aboutMe": return (d.string(forKey: Profile.aboutMeKey) ?? "").isEmpty ? "Add" : "Added"
         case "dictionary": return "\(app.store.dictionary.count)"
         case "builtInVocabulary": return onOff(BuiltInVocabulary.isOn)
+        case "specialtyFilm": return onOff(VocabularyField.film.isOn())
+        case "specialtyBusiness": return onOff(VocabularyField.business.isOn())
+        case "specialtyMedical": return onOff(VocabularyField.medical.isOn())
+        case "specialtyLegal": return onOff(VocabularyField.legal.isOn())
+        case "specialtyFaith": return onOff(VocabularyField.faith.isOn())
         case "palette": return AppPalette.current.label
         case "appearance": return app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"
         case "limitMotion": return onOff(d.bool(forKey: MotionPreference.key))
