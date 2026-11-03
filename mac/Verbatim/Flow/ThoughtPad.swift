@@ -116,7 +116,11 @@ final class ThoughtPadController {
         p.allowsKey = false
         p.orderOut(nil)
         if app?.bundleIdentifier != Bundle.main.bundleIdentifier { app?.activate() }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { p.orderFrontRegardless() }   // back on screen, not key
+        // Back on screen, not key, unless the page closed meanwhile: `close()` yields the keyboard first, and without
+        // this check the emptied panel came back as a blank window.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            MainActor.assumeIsolated { if self?.state.shown == true { p.orderFrontRegardless() } }
+        }
     }
 
     private func build() {

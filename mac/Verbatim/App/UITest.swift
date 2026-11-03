@@ -2404,6 +2404,9 @@ extension UITest {
         ThoughtPadController.shared.setMode(.note)
         await show("08k-today-note\(suffix)")
         ThoughtPadController.shared.close()
+        // Closing while the note has the keyboard used to bring the emptied panel back 0.1 s later, as a blank window.
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        check("today note: closing it while typing leaves no blank window\(suffix)", ThoughtPadController.shared.panelWindow?.isVisible != true)
         if let savedNote { app.store.updateDayPlan(today, source: .note) { $0 = savedNote } } else { app.store.plans.removeAll { $0.source == .note && $0.day == DayPlanRecord.dayKey(today) } }
         guard suffix.isEmpty else { return }
         let capture = ThoughtCapture.shared
