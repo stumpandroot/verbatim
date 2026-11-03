@@ -39,7 +39,7 @@ struct ByDayView: View {
         let month = shownMonth ?? day
         let _ = NavMarks.mark("byday")
         // Two columns (mockup "Verbose Mac Columns"): the day's page on the left, the calendar and days on the right.
-        MacColumns(mainMax: MacColumnsMetrics.readingMax) {
+        MacColumns(mainMax: MacColumnsMetrics.readingMax, sideFirstWhenStacked: true) {
             VStack(alignment: .leading, spacing: 20) {
                 RefinedPageHeader(title: name, count: titleCount(pages, today: today),
                                   lede: isThoughts ? "One page per day. Pick a day to read it." : "One page per day, from your journal recordings.") {

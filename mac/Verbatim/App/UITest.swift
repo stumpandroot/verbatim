@@ -2955,8 +2955,11 @@ extension UITest {
         await step("thoughts: the sidebar's Thoughts opens By day", window, target: "side-thoughts", check: { app.screen == .byDay(.idea) })
         try? await Task.sleep(nanoseconds: 600_000_000)
         let day = Calendar.current.component(.day, from: today)
-        check("thoughts: By day shows the calendar with a dot on today, and the day's page",
-              frames["byday-calendar"] != nil && frames["byday-dot-\(day)"] != nil && frames["byday-page"] != nil && frames["byday-thoughts"] != nil)
+        let bydayParts = ["byday-calendar", "byday-dot-\(day)", "byday-page", "byday-thoughts"]
+        if bydayParts.contains(where: { frames[$0] == nil }) {
+            Log.note("UITEST detail: By day missing \(bydayParts.filter { frames[$0] == nil }), byday frames \(frames.keys.filter { $0.hasPrefix("byday") }.sorted())")
+        }
+        check("thoughts: By day shows the calendar with a dot on today, and the day's page", bydayParts.allSatisfy { frames[$0] != nil })
         frames = frames.filter { !$0.key.hasPrefix("byday") }
         await step("thoughts: the sidebar's Journal opens its By day", window, target: "side-journal", check: { app.screen == .byDay(.journal) })
         try? await Task.sleep(nanoseconds: 600_000_000)

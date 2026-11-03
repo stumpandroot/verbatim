@@ -26,6 +26,8 @@ enum MacColumnsMetrics {
 struct MacColumns<Main: View, Side: View>: View {
     /// Caps the main column (reading pages); extra space goes to the margins evenly.
     var mainMax: CGFloat? = nil
+    /// In one column, the side comes first (Thoughts and Journal: the calendar picks the day you read).
+    var sideFirstWhenStacked = false
     @ViewBuilder var main: () -> Main
     @ViewBuilder var side: () -> Side
 
@@ -58,8 +60,13 @@ struct MacColumns<Main: View, Side: View>: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        main()
-                        VStack(alignment: .leading, spacing: 12) { side() }
+                        if sideFirstWhenStacked {
+                            VStack(alignment: .leading, spacing: 12) { side() }
+                            main()
+                        } else {
+                            main()
+                            VStack(alignment: .leading, spacing: 12) { side() }
+                        }
                     }
                     .frame(maxWidth: mainMax ?? .infinity, alignment: .topLeading)
                     .padding(.horizontal, 32).padding(.top, 18).padding(.bottom, 40)
