@@ -512,7 +512,7 @@ struct RecordTrayLayer: View {
             app.showCallSheet = true
         } label: {
             HStack(spacing: 12) {
-                IconSquare(art: .iconMeeting, hue: .petal)
+                IconSquare(art: .iconSpeakers, hue: .petal)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Record a call").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
                     Text("On your Mac, on speaker, or from the Phone app").refinedFont(.hint).foregroundStyle(Refined.dim)
