@@ -802,8 +802,39 @@ enum UITest {
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
         NSApplication.shared.appearance = nil
+        await wideShots(app: app)
+        app.go(.home)
         timingSummary("tour")
         write(show: "done")
+    }
+
+    /// The two-column pages (mockup "Verbose Mac Columns") at 1,440 × 880, wider than the CI display: each page drawn in
+    /// a borderless window off screen and saved as a PNG beside the log (wide/), which CI copies into the tour.
+    private static func wideShots(app: AppState) async {
+        let dir = Log.file.deletingLastPathComponent().appendingPathComponent("wide", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let pages: [(String, Screen)] = [("w01-home", .home), ("w02-library", .library), ("w03-dictations", .dictations),
+                                        ("w04-thoughts", .byDay(.idea)), ("w05-templates", .templates), ("w06-ask", .ask),
+                                        ("w07-you", .activity), ("w08-dictionary", .dictionary)]
+        let size = NSSize(width: 1440 - 232, height: 880)
+        let win = NSWindow(contentRect: NSRect(origin: NSPoint(x: -4000, y: -4000), size: size), styleMask: [.borderless], backing: .buffered, defer: false)
+        win.isReleasedWhenClosed = false
+        for (name, screen) in pages {
+            app.go(screen)
+            let host = NSHostingView(rootView: WidePage(screen: screen).environmentObject(app).limitMotionRoot())
+            host.frame = NSRect(origin: .zero, size: size)
+            win.contentView = host
+            win.orderFrontRegardless()
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            host.layoutSubtreeIfNeeded()
+            if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+                host.cacheDisplay(in: host.bounds, to: rep)
+                if let png = rep.representation(using: .png, properties: [:]) { try? png.write(to: dir.appendingPathComponent(name + ".png")) }
+            }
+            Log.note("UITEST wide shot \(name)")
+        }
+        win.orderOut(nil)
+        win.contentView = nil
     }
 
     /// Edit Home (EditHome.swift, HomeLayout.swift), clicked: Edit Home at the end of Home opens the inspector; then
@@ -3302,3 +3333,25 @@ extension UITest {
     }
 }
 #endif
+
+/// One top-level page on its own, for the self-test's wide shots (`wideShots`).
+private struct WidePage: View {
+    var screen: Screen
+    var body: some View {
+        Group {
+            switch screen {
+            case .home: HomeView()
+            case .library: LibraryView()
+            case .dictations: DictationsView()
+            case .activity: YouView()
+            case .byDay(let k): ByDayView(kind: k)
+            case .templates: TemplatesView()
+            case .ask: AskView()
+            case .dictionary: DictionaryView()
+            default: EmptyView()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Refined.paper)
+    }
+}

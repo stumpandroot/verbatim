@@ -397,6 +397,8 @@ jobs:
             fi
             sleep 0.5
           done
+          # The two-column pages at 1,440 pt, wider than this display, drawn by the app off screen (UITest.wideShots).
+          cp "$HOME/Library/Logs/Verbatim/wide/"*.png "$TOUR/" 2>/dev/null || true
           (cd "$PUB" && zip -qr "screens-${N}.zip" "screens-${N}" && rm -rf "screens-${N}") || true
           PID="$(pgrep -x Verbatim | head -1 || true)"
           # Main-thread spin shows as sustained CPU on an idle app. Sample three times, 2 s apart.
