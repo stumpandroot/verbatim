@@ -156,6 +156,14 @@
           "head": "Clearer privacy",
           "icon": "privacy",
           "text": "The tour and microphone screen say where audio can go: only your own iCloud, with sync on."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Today's note closes cleanly",
+          "icon": "thought",
+          "text": "Closing Today's note while you type in it no longer leaves an empty window on screen."
         }
       ],
       "big": true
