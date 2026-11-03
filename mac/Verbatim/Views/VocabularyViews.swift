@@ -7,7 +7,7 @@ import AppKit
 /// Names from About me and fixes you keep making, each a chip with Add (and a small × to dismiss it), plus the Contacts
 /// button, in a card.
 struct DictionarySuggestions: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @AppStorage(AboutMeContext.key) private var aboutMe = ""
     @AppStorage(VocabularySuggestions.dismissedKey) private var dismissedRaw = ""
     @AppStorage(EditLearner.storeKey) private var pairsData = Data()
@@ -52,7 +52,7 @@ struct DictionarySuggestions: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         .task(id: aboutMe) { modelNames = await NameExtractor.modelNames(in: aboutMe) }
-        .sheet(isPresented: $showContacts) { ContactNamesSheet().environmentObject(app) }
+        .sheet(isPresented: $showContacts) { ContactNamesSheet().appState(app) }
     }
 
     /// "Jonathan  from About me  [Add] ×": a quiet chip with Add and a dismiss.
@@ -93,7 +93,7 @@ struct DictionarySuggestions: View {
 
 /// Picks names from Contacts to add in bulk. Asks for access first; reads names only, on this Mac.
 struct ContactNamesSheet: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @Environment(\.dismiss) private var dismiss
     private enum Phase { case loading, denied, ready }
     @State private var phase: Phase = .loading

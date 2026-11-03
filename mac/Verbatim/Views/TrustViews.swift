@@ -152,7 +152,7 @@ struct DataPathBadge: View {
 
 /// After a correction, when the same word appears elsewhere: "“teh” appears 4 more times." Fix all 4 · Add to Dictionary.
 struct FixAllBanner: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var fix = FixAllOffer.shared
     var transcriptID: UUID
 
@@ -197,7 +197,7 @@ struct FixAllBanner: View {
 
 /// On a transcript that failed because Local Only refused its model download.
 struct AllowDownloadButton: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     var body: some View {
         if LocalOnlyRefusal.isModelRefusal(transcript.error) {
@@ -267,7 +267,7 @@ enum MarkdownBulkExport {
 // MARK: - Dictionary CSV
 
 struct DictionaryCSVMenu: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var body: some View {
         Menu {
             Button("Import CSV…") { importCSV() }

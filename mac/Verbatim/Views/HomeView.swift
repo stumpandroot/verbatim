@@ -24,7 +24,11 @@ struct HomeView: View {
     /// Ticks `now` once a minute: one timer for every render. Built in `body`, each render made a new timer and
     /// restarted the minute, so under frequent renders (transcribing, playing, dictating) it never fired.
     private static let minute = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): something recording, and the Dictate key.
+    @EnvironmentObject private var recorder: Recorder
+    @EnvironmentObject private var capture: AppAudioCapture
+    @EnvironmentObject private var dictation: DictationController
     @ObservedObject var log = ActivityLog.shared
     @ObservedObject var captions = LiveCaptions.shared
     @ObservedObject var flow = FlowSettings.shared
@@ -258,12 +262,12 @@ struct HomeView: View {
         let shown = layout.isVisible(.tiles) ? layout.tiles : []
         Color.clear
             .popover(isPresented: shown.contains(.dictate) ? .constant(false) : dictateOpen, arrowEdge: .bottom) {
-                DictateControls().padding(16).environmentObject(app)
+                DictateControls().padding(16).appState(app)
             }
             .background {
                 Color.clear
                     .popover(isPresented: shown.contains(.importMedia) ? .constant(false) : $importOpen, arrowEdge: .bottom) {
-                        ImportPanel(done: { importOpen = false }).environmentObject(app)
+                        ImportPanel(done: { importOpen = false }).appState(app)
                     }
             }
     }
@@ -443,7 +447,7 @@ struct HomeView: View {
         .accessibilityHint(Self.tileHint(t, trailing))
         switch t {
         case .dictate:
-            base.popover(isPresented: dictateOpen, arrowEdge: .bottom) { DictateControls().padding(16).environmentObject(app) }
+            base.popover(isPresented: dictateOpen, arrowEdge: .bottom) { DictateControls().padding(16).appState(app) }
                 .contextMenu { DictateMenu() }
                 .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
         case .call:
@@ -464,7 +468,7 @@ struct HomeView: View {
             .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
         case .importMedia:
             if importAnchor {
-                base.popover(isPresented: $importOpen, arrowEdge: .bottom) { ImportPanel(done: { importOpen = false }).environmentObject(app) }
+                base.popover(isPresented: $importOpen, arrowEdge: .bottom) { ImportPanel(done: { importOpen = false }).appState(app) }
                     .contextMenu { ImportMenu(openPanel: { importOpen = true }) }
                     .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
             } else {
@@ -637,7 +641,10 @@ struct HomeView: View {
 /// (with its shortcut), Pause, the moments so far, and Stop and transcribe. Starting, the stop button cancels; a muted
 /// microphone says so on the card.
 struct HomeRecordingCard: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): the recording or capture it shows.
+    @EnvironmentObject private var recorder: Recorder
+    @EnvironmentObject private var capture: AppAudioCapture
     @ObservedObject private var marks = MarkCenter.shared
     @ObservedObject private var mics = HomeMic.shared
     @CurrentPalette private var palette: AppPalette
@@ -815,7 +822,7 @@ final class HomeMic: ObservableObject {
 /// Home's side column on a wide window: the last two dictations, with All opening Dictations. Nothing when there are
 /// none.
 struct HomeSideDictations: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
 
     var body: some View {
         let recent = Array(app.store.live.filter { $0.flow != nil }.sorted { $0.createdAt > $1.createdAt }.prefix(2))

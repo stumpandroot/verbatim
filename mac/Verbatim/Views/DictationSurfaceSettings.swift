@@ -10,7 +10,7 @@ import AppKit
 // MARK: - Ribbon and notch › Where dictation shows
 
 struct DictationSurfaceRows: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var flow = FlowSettings.shared
     @AppStorage(DictationSurface.key) private var surfaceRaw = DictationSurface.ribbon.rawValue
     @AppStorage(NotchFallback.key) private var fallbackRaw = NotchFallback.pill.rawValue

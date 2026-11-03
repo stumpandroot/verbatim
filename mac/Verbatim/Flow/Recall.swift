@@ -610,7 +610,7 @@ private struct RecallHUDView: View {
 /// The menu bar panel's Dictations… row: opens the Dictations screen. The list of recent dictations that sat here left
 /// in the consolidation (October 28, 2026); Dictations and Recall (⌥⌘V) keep your dictation history.
 struct DictationsMenuRow: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var body: some View {
         Button { app.dictation.openHistory() } label: {
             HStack(spacing: 10) {

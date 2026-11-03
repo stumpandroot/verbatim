@@ -6,7 +6,7 @@ import SwiftUI
 
 /// Words Verbatim spells your way. Entries come from corrections you chose to remember, or from here.
 struct DictionaryView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @State private var filter = ""
     @State private var adding = false
     @State private var newPreferred = ""
@@ -171,7 +171,7 @@ enum DictionaryColumns {
 /// the project's chip when it belongs to one), and the switch. Off, the row dims (the switch stays clear).
 /// Right-click to move it to a project or delete it (with Undo).
 struct DictionaryRow: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var entry: DictionaryEntry
     @State private var hover = false
 

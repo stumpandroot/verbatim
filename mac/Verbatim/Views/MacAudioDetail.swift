@@ -10,7 +10,7 @@ import AppKit
 // Details (`MacAudioInspector`); the page shows the moments while the inspector is closed. Back is the toolbar's.
 
 struct MacAudioDetail: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var id: UUID
     @EnvironmentObject private var nav: WindowNav
     @ObservedObject private var stages = StageClock.shared
@@ -123,7 +123,7 @@ struct MacAudioDetail: View {
 
 /// Transcribe: a click is the plain transcribe; the menu offers Transcribe As each kind, like Record As.
 struct MacTranscribeMenu: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
 
     var body: some View {
@@ -147,7 +147,7 @@ struct MacTranscribeMenu: View {
 
 /// The player, the kit's `AudioPlayerCard`. Observes the player and the clock, so playback redraws this alone.
 struct MacAudioPlayer: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     @ObservedObject var player: Player
     @ObservedObject var clock: PlayerClock
@@ -171,7 +171,7 @@ struct MacAudioPlayer: View {
 /// The moments: each one's time (click to play from it), the name you give it (double-click or right-click to name
 /// it), and where it was marked.
 struct MacAudioMoments: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     @State private var naming: UUID? = nil
     @State private var draft = ""
@@ -227,7 +227,7 @@ struct MacAudioMoments: View {
 
 /// The inspector beside an Audio only recording: its moments and its kind.
 struct MacAudioInspector: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     var body: some View {
         ScrollView {

@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @Environment(\.openSettings) private var openSettings
     @State private var newProjectName = ""
     @ObservedObject private var rename = RenameCenter.shared
@@ -39,15 +39,15 @@ struct ContentView: View {
         // window's one search field; Return there asks.
         .overlay { AskPanelLayer() }
         .onChange(of: app.search) { _, v in if !v.isEmpty, app.screen != .library { app.go(.library) } }
-        .sheet(isPresented: $app.showMicSheet) { MicSheet() }
-        .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
-        .sheet(item: $app.multitrackDraft) { d in MultitrackSheet(draft: d).environmentObject(app) }
-        .sheet(item: $app.exportRequest) { r in ExportSheet(ids: r.ids).environmentObject(app) }
+        .sheet(isPresented: Bindable(app).showMicSheet) { MicSheet() }
+        .sheet(isPresented: Bindable(app).showAppPicker) { AppPickerSheet() }
+        .sheet(item: Bindable(app).multitrackDraft) { d in MultitrackSheet(draft: d).appState(app) }
+        .sheet(item: Bindable(app).exportRequest) { r in ExportSheet(ids: r.ids).appState(app) }
         .sheet(item: Binding(get: { app.signInRequest }, set: { if $0 == nil, app.signInRequest != nil { app.cancelSignIn() } })) { r in
-            SignInSheet(request: r).environmentObject(app)
+            SignInSheet(request: r).appState(app)
         }
         .sheet(isPresented: Binding(get: { app.addFromLibrary != nil }, set: { if !$0 { app.addFromLibrary = nil } })) {
-            if let p = app.addFromLibrary { AddFromLibrarySheet(project: p).environmentObject(app) }
+            if let p = app.addFromLibrary { AddFromLibrarySheet(project: p).appState(app) }
         }
         .alert("New project", isPresented: Binding(get: { app.newProjectFor != nil }, set: { if !$0 { app.newProjectFor = nil } })) {
             TextField("Project name", text: $newProjectName)
@@ -72,14 +72,14 @@ struct ContentView: View {
         // The chrome takes the accent (DESIGN.md §13): toolbar buttons, menus, and selection. Mac switches take
         // `macSwitch` where they're drawn (`refinedSwitchTint()`).
         .tint(Refined.accentText)
-        .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app) }
+        .sheet(isPresented: Bindable(app).showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).appState(app) }
     }
 
     /// The window (MacChrome.swift): the split view with the refined sidebar, one toolbar with Back and Forward, Record,
     /// the screen's items, and the search field, and one inspector.
     private var main: some View {
         MacWindow(nav: windowNav, columns: $columns) { detail }
-            .searchable(text: $app.search, placement: .toolbar, prompt: ToolbarSearchPrompt.prompt)
+            .searchable(text: Bindable(app).search, placement: .toolbar, prompt: ToolbarSearchPrompt.prompt)
             .onSubmit(of: .search) { AskNav.shared.open(mode: .ask, query: app.search, askNow: true) }
             // The prompt in `mute` once the toolbar exists, and again after each screen change (MacChrome.swift).
             .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { ToolbarSearchPrompt.apply(to: app.mainWindow) } }

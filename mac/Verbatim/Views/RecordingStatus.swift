@@ -9,7 +9,10 @@ import SwiftUI
 /// dot, the time, and Stop (⌥⇧.; Cancel while the microphone starts), in Record's place in the toolbar (MacChrome.swift),
 /// in the system's glass group.
 struct ToolbarRecordingStatus: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): the recording or capture it shows.
+    @EnvironmentObject private var recorder: Recorder
+    @EnvironmentObject private var capture: AppAudioCapture
     var onCard: Bool
 
     var body: some View {
@@ -30,7 +33,10 @@ struct ToolbarRecordingStatus: View {
 /// with what's recording, the microphone, the clock, the live waveform, Pause or Resume, and Stop. The panel's own
 /// rows (New thought, the last transcript, Open Verbose) stay under it.
 struct MenuBarRecordingRow: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): the recording or capture it shows.
+    @EnvironmentObject private var recorder: Recorder
+    @EnvironmentObject private var capture: AppAudioCapture
     @ObservedObject private var mics = HomeMic.shared
     @CurrentPalette private var palette: AppPalette
 

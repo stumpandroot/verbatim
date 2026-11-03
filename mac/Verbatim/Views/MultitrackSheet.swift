@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 /// §13): each track's number on its speaker's chip color, in the transcript's rotation, so a speaker keeps one color
 /// from this sheet to the transcript (review M-30).
 struct MultitrackSheet: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject var draft: MultitrackDraft
     @State private var dropping = false
 

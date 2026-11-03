@@ -168,7 +168,7 @@ struct DayNoteTextView: NSViewRepresentable {
 /// A day's plan (the page's note, or Organize today's thoughts): what it was made from, Send to Reminders (a sheet),
 /// Run again, the sections, and the footer, on the refined card.
 struct MacPlanPanel: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var source: DayPlanRecord.Source
     var day: Date
     @ObservedObject private var center = DayPlanCenter.shared
@@ -208,7 +208,7 @@ struct MacPlanPanel: View {
             .padding(16)
             .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
             .sheet(isPresented: Binding(get: { model != nil }, set: { if !$0 { model = nil } })) {
-                if let m = model { MacRemindersSend(model: m, onSent: { sent(r, $0, $1) }, onCancel: { model = nil }).environmentObject(app) }
+                if let m = model { MacRemindersSend(model: m, onSent: { sent(r, $0, $1) }, onCancel: { model = nil }).appState(app) }
             }
         }
     }
@@ -272,7 +272,7 @@ struct MacPlanPanel: View {
 /// it goes there, each task with a checkbox and its due date, the ideas unchecked, and Add (or Share) as the default
 /// button. Only Reminders marks tasks as sent.
 struct MacRemindersSend: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject var model: SendToReminders
     var onSent: ([String: String], String) -> Void
     var onCancel: () -> Void
@@ -427,7 +427,7 @@ enum ThoughtsPlanWindow {
             .frame(minWidth: 360, minHeight: 360)
             .background(Refined.paper)
             .tint(Refined.accentText)
-            .environmentObject(app).limitMotionRoot()
+            .appState(app).limitMotionRoot()
         if let w = window {
             (w.contentViewController as? NSHostingController<AnyView>)?.rootView = AnyView(root)
             w.makeKeyAndOrderFront(nil); return

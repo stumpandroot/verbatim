@@ -15,7 +15,7 @@ struct Toast: Identifiable, Equatable {
 /// container stays, so whoever sets `app.toast`, with or without an animation, the toast animates; Limit animation
 /// fades it both ways.
 struct ToastView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @Environment(\.limitMotion) private var limitMotion
     var body: some View {
         ZStack { toast }

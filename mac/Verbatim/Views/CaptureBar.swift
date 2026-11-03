@@ -7,7 +7,7 @@ import AVFoundation
 
 /// Record's right-click menu: the six ways to record, the microphone, and Settings.
 struct RecordMenu: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var onChange: () -> Void = {}
     var body: some View {
         let selected = AudioDevices.selectedUID
@@ -40,7 +40,7 @@ struct RecordMenu: View {
 /// symbol (`mac/tools/gen_symbol.py`), so the menu draws it in its own text color: neutral, and white when highlighted.
 /// `activate` brings Verbose forward first (the menu bar's panel); a thought never does.
 struct RecordKindMenuItems: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var titles: KeyPath<RecordChoice, String> = \.menuTitle
     var activate = false
     @ObservedObject private var meeting = MeetingSession.shared
@@ -120,7 +120,9 @@ struct RecordAsEditor: View {
 
 /// Dictate's right-click menu: the hold key, on or off, and Accessibility access.
 struct DictateMenu: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): the hotkey, on or off, and the last dictation.
+    @EnvironmentObject private var dictation: DictationController
     var body: some View {
         Section("Hotkey") {
             ForEach(DictationController.Hotkey.allCases.filter(\.isReady)) { k in
@@ -155,7 +157,7 @@ struct DictateMenu: View {
 
 /// Import's right-click menu: files, a link from the clipboard, and whether to keep link video.
 struct ImportMenu: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var openPanel: () -> Void
     var body: some View {
         Button { app.chooseFiles() } label: { Label("Choose files or a folder…", systemImage: "doc.on.doc") }   // brand: system surface (context menu)
@@ -165,13 +167,13 @@ struct ImportMenu: View {
         }
         Button(action: openPanel) { Label("Paste a link…", systemImage: "link.badge.plus") }   // brand: system surface (context menu)
         Divider()
-        Toggle("Keep the video of links", isOn: $app.keepVideoByDefault)
+        Toggle("Keep the video of links", isOn: Bindable(app).keepVideoByDefault)
     }
 }
 
 /// Import a file or paste a link.
 struct ImportPanel: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var done: () -> Void
     @State private var link = ""
     @State private var keepVideo = false
@@ -251,7 +253,9 @@ struct MicSourceMenu: View {
 }
 
 struct DictateControls: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): Accessibility, the hotkey, and the last dictation.
+    @EnvironmentObject private var dictation: DictationController
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if app.dictation.accessibilityTrusted {

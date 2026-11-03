@@ -11,7 +11,7 @@ import UniformTypeIdentifiers
 // so nothing here is stored on its own.
 
 struct ByDayView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var kind: RecordingKind
     @State private var selected: Date?
     /// The month the calendar shows once you've moved it; until then, the shown day's month. (Build 219 set it in
@@ -245,7 +245,7 @@ struct DayCalendar: View {
 
 /// The selected day's page on a card: the day, the serif dated title, what's on it, the day's actions, and its entries.
 struct DayPageCard: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var kind: RecordingKind
     var day: Date
     var today: Date
@@ -347,7 +347,7 @@ struct DayPageCard: View {
 
 /// One thought on a day's page: its time, its words, and where it came from. Click to open it.
 private struct ThoughtLine: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     let transcript: Transcript
 
     var body: some View {
@@ -398,7 +398,7 @@ private struct ThoughtLine: View {
 
 /// One journal entry on its page: the time, the title, a play button with the length, and the first cleaned line.
 private struct JournalLine: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     let transcript: Transcript
 
     var body: some View {

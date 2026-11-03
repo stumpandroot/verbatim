@@ -10,7 +10,7 @@ import AppKit
 
 /// How Verbose looks and sounds, Home, About me, your voice, and the Dictionary and language.
 struct PersonalizationSettingsPane: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @AppStorage(MotionPreference.key) private var motionLimited = false
     @AppStorage(BuiltInVocabulary.enabledKey) private var builtInVocabulary = true
     @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
@@ -33,8 +33,8 @@ struct PersonalizationSettingsPane: View {
                     .labelsHidden().fixedSize()
                 }
                 SettingsToggleRow("general.limitMotion", isOn: $motionLimited)
-                SettingsToggleRow("general.menuBar", isOn: $app.showMenuBar)
-                SettingsToggleRow("general.sounds", isOn: $app.sounds)
+                SettingsToggleRow("general.menuBar", isOn: Bindable(app).showMenuBar)
+                SettingsToggleRow("general.sounds", isOn: Bindable(app).sounds)
             }
             // Customize Home: Edit Home's list (EditHome.swift), the same one Home's inspector shows. The This week
             // switch sets the same layout.
@@ -54,7 +54,7 @@ struct PersonalizationSettingsPane: View {
             SettingsGroup(title: "Dictionary and language") {
                 SettingsToggleRow("models.detectLanguage", isOn: $detectLanguage)
                 SettingsToggleRow("models.builtInVocabulary", isOn: $builtInVocabulary)
-                SettingsToggleRow("models.projectVocab", isOn: $app.projectScopedVocabulary)
+                SettingsToggleRow("models.projectVocab", isOn: Bindable(app).projectScopedVocabulary)
             }
         }
     }
@@ -84,12 +84,12 @@ struct UpdateSettingsSection: View {
 /// Dictation: the hotkey and how it starts, cleanup, tone per kind of app, accuracy, snippets, and Accessibility.
 /// Where dictation shows is on Ribbon and notch.
 struct DictationSettings: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var body: some View { DictationForm(dictation: app.dictation) }
 }
 
 struct DictationForm: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject var dictation: DictationController
     @ObservedObject private var flow = FlowSettings.shared
     @State private var trusted = false
@@ -239,7 +239,7 @@ struct DictationForm: View {
 /// The model, who's talking, what happens when a transcript is ready, the words while you record, and the switches
 /// people rarely change.
 struct RecordingSettingsPane: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
     @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
@@ -255,7 +255,7 @@ struct RecordingSettingsPane: View {
         SettingsPane(tab: .recording) {
             SettingsGroup(title: "Model") {
                 SettingsRow("models.quality", detail: "Parakeet (NVIDIA, via FluidAudio) is the default, with Parakeet v2 (English only) preselected: fast on Apple silicon with word timings. Whisper is the alternate for languages Parakeet misses. Pick by testing on your own recordings; the labels are starting points, not benchmarks.", stacked: true) {
-                    Picker("Quality", selection: $app.presetRaw) {
+                    Picker("Quality", selection: Bindable(app).presetRaw) {
                         ForEach(QualityPreset.allCases) { p in Text("\(p.title) · \(p.note)").tag(p.rawValue) }
                     }
                     .labelsHidden().fixedSize()
@@ -275,7 +275,7 @@ struct RecordingSettingsPane: View {
             }
             SettingsGroup(title: "Speakers") {
                 if FluidDiarizer.isSupported {
-                    SettingsToggleRow("speakers.identify", isOn: $app.identifySpeakers)
+                    SettingsToggleRow("speakers.identify", isOn: Bindable(app).identifySpeakers)
                 } else {
                     SettingsToggleRow("speakers.identify", isOn: .constant(false), detail: "Speaker labels need macOS 15 or later.", disabled: true)
                 }
@@ -293,7 +293,7 @@ struct RecordingSettingsPane: View {
                 SettingsToggleRow("models.nameSort", isOn: $autoLabels)
                 SettingsToggleRow("models.summary", isOn: $autoSummary, detail: Summarizer.unavailableReason)
                 SettingsToggleRow("models.hideFiller", isOn: $hideFiller)
-                SettingsToggleRow("models.applyDictionary", isOn: $app.applyDictionary)
+                SettingsToggleRow("models.applyDictionary", isOn: Bindable(app).applyDictionary)
             }
             SettingsGroup(title: "While you record") {
                 SettingsToggleRow("models.recordLiveWords", isOn: $recordLiveWords)
@@ -605,7 +605,7 @@ private struct ExportOffsetField: View {
 // MARK: - Sync and storage
 
 struct StorageSettingsPane: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @State private var keepFolder = Keep.folder
 
     var body: some View {
@@ -633,7 +633,7 @@ struct StorageSettingsPane: View {
                         .buttonStyle(.settingsPill)
                     }
                 }
-                SettingsToggleRow("storage.keepVideo", isOn: $app.keepVideoByDefault,
+                SettingsToggleRow("storage.keepVideo", isOn: Bindable(app).keepVideoByDefault,
                                   detail: "Video is saved as MP4 (H.264, up to 1080p) with its sound; audio as M4A. Nothing is re-encoded. Notes pinned to a moment get a still from the video.")
             }
             DeleteAllDataSection()
@@ -655,7 +655,7 @@ struct CloudSyncSection: View {
     @State private var confirmOff = false
     @State private var copying = false
     @State private var failed = 0
-    @EnvironmentObject private var app: AppState
+    @Environment(AppState.self) private var app
 
     var body: some View {
         SettingsGroup(title: "iCloud") {
@@ -703,7 +703,7 @@ struct CloudSyncSection: View {
 
 /// Sync and storage › Delete All Data, asked twice because it reaches iCloud and the iPhone too.
 struct DeleteAllDataSection: View {
-    @EnvironmentObject private var app: AppState
+    @Environment(AppState.self) private var app
     @State private var first = false
     @State private var second = false
 
@@ -827,7 +827,7 @@ struct AccountSettingsPane: View {
 
 /// Widgets, Shortcuts, and the welcome tour: the places people go to learn what Verbose can do.
 struct FeaturesSettingsPane: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
 
     var body: some View {
         SettingsPane(tab: .features) {

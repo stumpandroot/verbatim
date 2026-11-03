@@ -5,7 +5,7 @@ import SwiftUI
 /// the Library's type and platform chips, and checkboxes. A transcript is in one project at a time, so one from
 /// another project says where it moves from, and adding asks first.
 struct AddFromLibrarySheet: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @Environment(\.dismiss) private var dismiss
     @Environment(\.limitMotion) private var limitMotion
     var project: UUID

@@ -9,7 +9,7 @@ import AppKit
 /// open the video at that moment, copy a quote, or mark a sponsor read. A moment marked while recording shows its chip
 /// under the text.
 struct SegmentLine: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var transcript: Transcript
     var segment: Segment
     var showSpeaker: Bool
@@ -208,7 +208,9 @@ struct SegmentLine: View {
 /// A folded sponsor read in the Mac transcript, with the app at hand for its menu (the lines themselves don't watch
 /// the app state).
 private struct SponsorFoldLine: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): Play shows once the audio is open.
+    @EnvironmentObject private var player: Player
     var transcript: Transcript
     var span: SponsorSpan
     var open: Bool
@@ -245,7 +247,7 @@ private struct CorrectionItems: View {
 /// The reading lines. Reads the playhead without observing it: the lines re-render only when the playing
 /// passage changes (`playingIDs`), not on every 20 Hz tick, so the rest of the screen stays still too.
 struct TranscriptLines: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     var clock: PlayerClock
     var isPlaying: Bool
     var transcript: Transcript

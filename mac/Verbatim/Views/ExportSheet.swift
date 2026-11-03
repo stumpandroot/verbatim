@@ -6,7 +6,7 @@ import AppKit
 /// swap the options for subtitle settings. Every change is saved, so Copy elsewhere (⌘⇧C, the Copy button) uses the
 /// same options.
 struct ExportSheet: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @Environment(\.dismiss) private var dismiss
     var ids: [UUID]
     @State private var format = ExportOptions.savedFormat

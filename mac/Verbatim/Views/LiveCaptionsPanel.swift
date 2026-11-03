@@ -347,7 +347,7 @@ struct CaptionsChip: View {
 
 /// The menu bar panel's Live captions row, below the panel's own rows.
 struct LiveCaptionsMenuRow: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     @ObservedObject private var captions = LiveCaptions.shared
     var body: some View {
         Button { app.toggleLiveCaptions() } label: {

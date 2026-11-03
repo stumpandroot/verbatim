@@ -6,7 +6,9 @@ import SwiftUI
 
 /// Everything waiting to be transcribed, one at a time: what's running, what's next, and a way to stop either.
 struct QueueView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): what runs and what waits.
+    @EnvironmentObject private var queue: TranscriptionCoordinator
     @State private var dropping = false
 
     private var running: Transcript? { app.runningID.flatMap { app.store.transcript($0) } }
@@ -116,7 +118,7 @@ private struct QueueDropArea: View {
 /// a spinner and Cancel, or Open or Retry. Clicking the row opens the transcript.
 struct QueueRow: View {
     enum State: Equatable { case running, importing, waiting(Int), done, failed }
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
     /// The running file's live progress (StageClock): a tick re-renders the queue's rows, not the window.
     @ObservedObject private var stages = StageClock.shared
     var transcript: Transcript

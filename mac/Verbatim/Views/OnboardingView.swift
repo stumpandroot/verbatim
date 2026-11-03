@@ -5,7 +5,9 @@ import AVFoundation
 /// four more ways in (Record, Import, New thought, Search or ask), where the Ribbon lives, and transcription quality. Shown once after an update and whenever Settings asks for it.
 /// Steps are `OnboardingStep` (below).
 struct OnboardingView: View {
-    @EnvironmentObject var app: AppState
+    @Environment(AppState.self) var app
+    /// Watched directly (AppState doesn't pass its changes on): the hotkey it names.
+    @EnvironmentObject private var dictation: DictationController
     @ObservedObject private var flow = FlowSettings.shared
     @State private var step: Int
     @State private var micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
