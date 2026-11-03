@@ -4,6 +4,10 @@ import SwiftUI
 /// takes the width, a 320 pt side column sits beside it, and the page keeps 32–36 pt margins, so there are no wide
 /// empty gutters. Each column scrolls on its own, so a long list keeps the side cards in view and stays lazy. Below
 /// `stackBelow` points of page width, the side column moves under the main one in a single scroll.
+///
+/// The side column starts level with the main column's first card, not with the page's heading (Tim, November 3:
+/// This week sits beside the Record card). A page marks that card with `.macColumnsTop()`; without a mark, the side
+/// column starts at the top. The heading gets `top` points of headroom.
 enum MacColumnsMetrics {
     static let side: CGFloat = 320
     static let gap: CGFloat = 28
@@ -13,6 +17,10 @@ enum MacColumnsMetrics {
     static let stackBelow: CGFloat = 1000
     /// Reading pages (Thoughts, Journal, Ask) stop their main column here; tables don't.
     static let readingMax: CGFloat = 900
+    /// Headroom over a page's heading, under the toolbar.
+    static let top: CGFloat = 32
+    /// The main column's coordinate space, which `.macColumnsTop()` measures in.
+    static let space = "macColumnsMain"
 
     /// Whether a page this wide shows two columns.
     static func twoColumns(_ width: CGFloat) -> Bool { width >= stackBelow }
@@ -23,6 +31,32 @@ enum MacColumnsMetrics {
     }
 }
 
+/// Where the main column's first card starts, below the heading: the side column starts there too.
+struct MacColumnsTopKey: PreferenceKey {
+    static let defaultValue: CGFloat? = nil
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        guard let n = nextValue() else { return }
+        value = min(value ?? n, n)
+    }
+}
+
+extension View {
+    /// Marks the main column's first card (the Record card, the first table or day page), so the side column starts
+    /// level with it. Measured in the main column's `.coordinateSpace(name: MacColumnsMetrics.space)`, which scrolling
+    /// doesn't move.
+    @ViewBuilder func macColumnsTop(_ on: Bool = true) -> some View {
+        if on {
+            background {
+                GeometryReader { g in
+                    Color.clear.preference(key: MacColumnsTopKey.self, value: g.frame(in: .named(MacColumnsMetrics.space)).minY)
+                }
+            }
+        } else {
+            self
+        }
+    }
+}
+
 struct MacColumns<Main: View, Side: View>: View {
     /// Caps the main column (reading pages); extra space goes to the margins evenly.
     var mainMax: CGFloat? = nil
@@ -30,6 +64,8 @@ struct MacColumns<Main: View, Side: View>: View {
     var sideFirstWhenStacked = false
     @ViewBuilder var main: () -> Main
     @ViewBuilder var side: () -> Side
+    /// The main column's first card's top (`.macColumnsTop()`).
+    @State private var sideTop: CGFloat = 0
 
     var body: some View {
         GeometryReader { g in
@@ -41,7 +77,8 @@ struct MacColumns<Main: View, Side: View>: View {
                     ScrollView {
                         main()
                             .frame(width: mainW, alignment: .topLeading)
-                            .padding(.top, 18).padding(.bottom, 40)
+                            .coordinateSpace(name: MacColumnsMetrics.space)
+                            .padding(.top, MacColumnsMetrics.top).padding(.bottom, 40)
                     }
                     .scrollIndicators(.automatic)
                     .softScrollEdges(.top)
@@ -49,10 +86,14 @@ struct MacColumns<Main: View, Side: View>: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) { side() }
                             .frame(width: MacColumnsMetrics.side, alignment: .topLeading)
-                            .padding(.top, 18).padding(.bottom, 40)
+                            .padding(.top, MacColumnsMetrics.top + sideTop).padding(.bottom, 40)
                     }
                     .scrollIndicators(.never)
                     .frame(width: MacColumnsMetrics.side)
+                }
+                .onPreferenceChange(MacColumnsTopKey.self) { v in
+                    let t = max(0, (v ?? 0).rounded())
+                    if sideTop != t { sideTop = t }
                 }
                 .padding(.leading, MacColumnsMetrics.leading + extra)
                 .padding(.trailing, MacColumnsMetrics.trailing + extra)
@@ -69,7 +110,7 @@ struct MacColumns<Main: View, Side: View>: View {
                         }
                     }
                     .frame(maxWidth: mainMax ?? .infinity, alignment: .topLeading)
-                    .padding(.horizontal, 32).padding(.top, 18).padding(.bottom, 40)
+                    .padding(.horizontal, 32).padding(.top, MacColumnsMetrics.top).padding(.bottom, 40)
                     .frame(maxWidth: .infinity)
                 }
                 .softScrollEdges(.top)

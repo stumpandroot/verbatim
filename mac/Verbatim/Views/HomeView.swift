@@ -40,6 +40,8 @@ struct HomeView: View {
     @ObservedObject private var meeting = MeetingSession.shared
     @ObservedObject private var calls = MeetingCoordinator.shared
     @AppStorage(YouProfile.nameKey) var storedName = ""
+    /// Two columns: where the main column's first card (the Record card) starts, so This week starts level with it.
+    @State private var sideTop: CGFloat = 0
     /// The microphone's name, looked up off the main thread and kept current by Core Audio's notifications. (Looking
     /// it up here, in a `@State` initial value and on every UserDefaults change, ran a full device scan on the main
     /// thread each time Home's parent re-rendered.)
@@ -141,10 +143,14 @@ struct HomeView: View {
                             HomeSideDictations()
                         }
                         .frame(width: MacColumnsMetrics.side, alignment: .topLeading)
-                        .padding(.top, 18).padding(.bottom, 40)
+                        .padding(.top, MacColumnsMetrics.top + sideTop).padding(.bottom, 40)
                     }
                     .scrollIndicators(.never)
                     .frame(width: MacColumnsMetrics.side)
+                }
+                .onPreferenceChange(MacColumnsTopKey.self) { v in
+                    let t = max(0, (v ?? 0).rounded())
+                    if sideTop != t { sideTop = t }
                 }
                 .padding(.leading, MacColumnsMetrics.leading + extra)
                 .padding(.trailing, MacColumnsMetrics.trailing + extra)
@@ -176,6 +182,7 @@ struct HomeView: View {
                 // Only the shown sections, each band identified by its first section.
                 ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
                     band(row, width: width, layout: layout)
+                        .macColumnsTop(i == 0)
                         .padding(.top, Self.rowGap(row, after: i > 0 ? rows[i - 1] : nil))
                 }
                 editHomeButton.padding(.top, 32)
@@ -185,7 +192,8 @@ struct HomeView: View {
             .animation(limitMotion ? Motion.fade : Motion.settle, value: recording)
             .navMarkWhenLaidOut("home-laid-out")
             .frame(width: width, alignment: .leading)
-            .padding(.leading, leading).padding(.trailing, trailing).padding(.top, 18).padding(.bottom, 40)
+            .coordinateSpace(name: MacColumnsMetrics.space)
+            .padding(.leading, leading).padding(.trailing, trailing).padding(.top, MacColumnsMetrics.top).padding(.bottom, 40)
             .frame(maxWidth: .infinity, alignment: .center)
             // Back and Forward bring Home back where you left it; the sidebar opens it at the top (App/NavTrail.swift).
             .scrollPlace(ScreenPlaces.scrollKey("home"), restore: NavTrail.shared.movingThroughHistory)

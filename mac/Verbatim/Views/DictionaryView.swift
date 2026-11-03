@@ -52,9 +52,9 @@ struct DictionaryView: View {
                 }
 
                 if list.isEmpty {
-                    emptyState
+                    emptyState.macColumnsTop()
                 } else {
-                    table(list)
+                    table(list).macColumnsTop()
                 }
 
                 BuiltInVocabularySection()

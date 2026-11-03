@@ -575,7 +575,7 @@ struct AskView: View {
                     .uiTarget("ask-more")
                 }
                 switch pane {
-                case .questions: AskQuestionsPane(part: .main)
+                case .questions: AskQuestionsPane(part: .main).macColumnsTop()
                 case .recipes: AskRecipesPane()
                 }
             }

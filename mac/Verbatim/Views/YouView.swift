@@ -96,7 +96,7 @@ struct YouView: View {
         MacColumns {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                timeSavedCard(cal).padding(.top, 26)
+                timeSavedCard(cal).macColumnsTop().padding(.top, 26)
                 RatioRow(weights: [1.6, 1], spacing: 16, stackBelow: 720) {
                     weekCard(range, stats, cal)
                     whereCard(range, summary)
@@ -105,7 +105,6 @@ struct YouView: View {
                 footer.padding(.top, 18)
             }
             .navMarkWhenLaidOut("you-laid-out")
-            .padding(.top, 18)
         } side: {
             aboutCard
             cleanupCard

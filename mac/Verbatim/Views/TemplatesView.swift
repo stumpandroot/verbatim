@@ -85,7 +85,7 @@ private struct MakePage<Content: View>: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) { content }
                 .padding(.leading, MacColumnsMetrics.leading).padding(.trailing, MacColumnsMetrics.trailing)
-                .padding(.top, 18).padding(.bottom, 40)
+                .padding(.top, MacColumnsMetrics.top).padding(.bottom, 40)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .softScrollEdges(.top)

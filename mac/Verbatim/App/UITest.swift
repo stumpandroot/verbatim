@@ -3357,6 +3357,9 @@ private struct WidePage: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // A shaded band where the window's toolbar sits (52 pt), so the headroom over each heading reads as it does
+        // in the app.
+        .safeAreaInset(edge: .top, spacing: 0) { Rectangle().fill(Refined.ink.opacity(0.06)).frame(height: 52) }
         .background(Refined.paper)
     }
 }

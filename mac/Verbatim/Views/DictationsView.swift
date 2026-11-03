@@ -59,7 +59,7 @@ struct DictationsView: View {
                 }
 
                 if shown.isEmpty {
-                    emptyState(all.isEmpty)
+                    emptyState(all.isEmpty).macColumnsTop()
                 } else {
                     // Lazy: only the dictations on screen are built (people keep hundreds).
                     LazyVStack(alignment: .leading, spacing: 16) {
@@ -76,6 +76,7 @@ struct DictationsView: View {
                             }
                         }
                     }
+                    .macColumnsTop()
                 }
             }
         } side: {

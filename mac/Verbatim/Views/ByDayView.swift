@@ -49,6 +49,7 @@ struct ByDayView: View {
                 // squeezes the sidebar off its edge.
                 DayPageCard(kind: kind, day: day, today: today, items: items)
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
+                    .macColumnsTop()
             }
             .scrollPlace(ScreenPlaces.scrollKey(isThoughts ? "byday-thoughts" : "byday-journal"))
             .navMarkWhenLaidOut("byday-laid-out")

@@ -15,6 +15,8 @@ struct LibraryView: View {
     @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
     /// The table's sort: one column and its direction, started from the Library's sort.
     @State private var column: LibraryTableSort
+    /// Two columns: where the table starts, so the side column starts level with it.
+    @State private var sideTop: CGFloat = 0
     @State private var descending: Bool
     /// The selected recordings, kept across screens (ScreenPlaces).
     @State private var selection: Set<UUID> = ScreenPlaces.shared.tableSelection
@@ -54,8 +56,9 @@ struct LibraryView: View {
                     ScrollView {
                         page(lists: lists, rows: rows, order: order, width: width)
                             .frame(width: width, alignment: .leading)
+                            .coordinateSpace(name: MacColumnsMetrics.space)
                             .padding(.leading, wide ? MacColumnsMetrics.leading : margin)
-                            .padding(.trailing, wide ? 0 : margin).padding(.top, 18)
+                            .padding(.trailing, wide ? 0 : margin).padding(.top, MacColumnsMetrics.top)
                             .padding(.bottom, selection.count > 1 ? 90 : 40)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             // Back and the sidebar bring the Library back where you left it (App/NavTrail.swift).
@@ -86,7 +89,7 @@ struct LibraryView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) { sideColumn(order: order) }
                             .frame(width: MacColumnsMetrics.side, alignment: .topLeading)
-                            .padding(.top, 18).padding(.bottom, 40)
+                            .padding(.top, MacColumnsMetrics.top + sideTop).padding(.bottom, 40)
                     }
                     .scrollIndicators(.never)
                     .frame(width: MacColumnsMetrics.side)
@@ -94,6 +97,10 @@ struct LibraryView: View {
                 }
                 }
             }
+        }
+        .onPreferenceChange(MacColumnsTopKey.self) { v in
+            let t = max(0, (v ?? 0).rounded())
+            if sideTop != t { sideTop = t }
         }
         .background(Refined.paper)
         .background { typeShortcuts }
@@ -184,12 +191,12 @@ struct LibraryView: View {
             }
             Group {
                 if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
-                    PassageResults(query: app.search, list: lists.list).padding(.top, 16)
+                    PassageResults(query: app.search, list: lists.list).macColumnsTop().padding(.top, 16)
                 }
                 if rows.isEmpty {
-                    emptyState.padding(.top, 16)
+                    emptyState.macColumnsTop().padding(.top, 16)
                 } else {
-                    table(rows, order: order, columns: LibraryColumns(width: width)).padding(.top, 16)
+                    table(rows, order: order, columns: LibraryColumns(width: width)).macColumnsTop().padding(.top, 16)
                 }
             }
             .opacity(listShown ? 1 : 0)
