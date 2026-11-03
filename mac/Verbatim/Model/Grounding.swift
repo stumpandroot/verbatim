@@ -358,6 +358,8 @@ enum GroundingText {
         feedback approval approved pending done complete completed open closed yes no tbd n/a na misc other general details detail
         study guide notes terms definitions vocabulary example examples summary host hosts guest guests interviewer interviewee
         narrator moderator panelist panel audience listener listeners viewer viewers caller callers participant participants
+        name names company organization organizer organizers coordinator assistant date title role position recipient sender
+        signature regards sincerely thanks thank dear hi hello best cheers subject request re fw fwd attachment
         """.split(whereSeparator: { $0.isWhitespace }).map(String.init))
 
     /// Words that are common in English and rare elsewhere: a source with few of them is in another language, where
@@ -623,6 +625,10 @@ enum GroundingNumbers {
                 let m = n == "half" ? 30 : 15
                 times.insert(past ? (h % 12) * 60 + m : ((h + 11) % 12) * 60 + (60 - m))
             }
+            // "twelve and a half", "1 and a half".
+            if n == "half", i >= 3, toks[i - 1].norm == "a", toks[i - 2].norm == "and" {
+                if let v = spelled.first(where: { $0.range.upperBound == i - 2 })?.value ?? Double(toks[i - 3].raw) { out.append(v + 0.5) }
+            }
             switch n {
             case "noon", "midday": times.insert(0)
             case "midnight": times.insert(0)
@@ -731,7 +737,7 @@ enum Grounding {
             found += numbers(prepared.text, source)
             found += dates(prepared.text, source)
         }
-        found += names(prepared.text, source)
+        found += names(prepared.prose, source)
         found += quotes(prepared.text, source)
         if let d = source.duration, d > 0 {
             for a in prepared.anchors where a.seconds > d + 5 { found.append(GroundingFinding(kind: .timeRange, text: a.text)) }
@@ -741,8 +747,9 @@ enum Grounding {
 
     /// The output as prose to check: headings, list marks, checkboxes, bold, and labels ("Next steps:") off; [mm:ss]
     /// times collected and taken out.
-    static func prepare(_ output: String) -> (text: String, anchors: [(text: String, seconds: Double)]) {
+    static func prepare(_ output: String) -> (text: String, prose: String, anchors: [(text: String, seconds: Double)]) {
         var lines: [String] = []
+        var prose: [String] = []
         var anchors: [(String, Double)] = []
         for raw in output.components(separatedBy: .newlines) {
             var l = raw.trimmingCharacters(in: .whitespaces)
@@ -763,8 +770,18 @@ enum Grounding {
                 l.removeSubrange(r)
             }
             lines.append(l)
+            if !isTitleCase(l) { prose.append(l) }
         }
-        return (lines.joined(separator: "\n"), anchors)
+        return (lines.joined(separator: "\n"), prose.joined(separator: "\n"), anchors)
+    }
+
+    /// A title or subject line ("Request to Move Our Event Date"): no closing punctuation, and every word of four
+    /// letters or more after the first is capitalized (at least two of them). Its capitals aren't names.
+    static func isTitleCase(_ line: String) -> Bool {
+        let t = line.trimmingCharacters(in: .whitespaces)
+        guard let last = t.last, !".?!".contains(last) else { return false }
+        let words = t.split(separator: " ").dropFirst().map { $0.trimmingCharacters(in: .punctuationCharacters) }.filter { $0.count >= 4 && $0.first?.isLetter == true }
+        return words.count >= 2 && words.allSatisfy { $0.first?.isUppercase == true }
     }
 
     static func numbers(_ text: String, _ source: GroundingSource) -> [GroundingFinding] {

@@ -54,6 +54,8 @@ clean("1990 matches nineteen ninety", "The house was built in 1990.", "The house
 clean("$1,250 matches twelve fifty", "The rent is $1,250.", "Rent is twelve fifty a month.")
 clean("two hundred and fifty", "The invoice is $250.", "The invoice is two hundred and fifty dollars.")
 clean("an approximate number within 10%", "About 30% of people agreed.", "Roughly 29 percent of people agreed.")
+clean("12.5% matches twelve and a half percent", "Churn fell to 12.5%.", "Churn fell to twelve and a half percent.")
+clean("1.5 hours matches one and a half", "The session runs 1.5 hours.", "The session is one and a half hours long.")
 clean("50% matches half", "Half of the budget is spent; that's 50%.", "Half of the budget is spent already.")
 check("clean: 90 minutes from the recording's length", findings("The meeting ran 90 minutes.", "We should wrap up.", duration: 5_400).isEmpty)
 clean("decimals", "The ratio is 2.5 to 1.", "The ratio is 2.5 to 1 right now.")
@@ -103,6 +105,10 @@ clean("100% is a way of speaking", "She is 100% committed to the launch.", "I'm 
 let spanish = "Bueno, entonces la reunión es el viernes a las tres y media. El presupuesto es de mil doscientos dólares, y Marisol trae las sillas. Necesitamos doce mesas para la feria del barrio, y también un toldo grande por si llueve."
 clean("numbers aren't checked against another language's words", "The meeting is Friday at 3:30. The budget is $1,200 and they need 12 tables.", spanish)
 flags("names still are", "Marisol and Esteban bring the chairs.", spanish, ["Esteban"])
+
+let draftSource = "okay so email the venue folks about moving our event from the twelfth to the nineteenth because the caterer can't make it, and ask if the five hundred dollar deposit carries over"
+clean("an email draft's subject, greeting, and placeholder", "Subject: Request to Move Our Event Date\n\nHi there,\n\nOur caterer can't make the 12th, so we'd like the 19th. Does the $500 deposit carry over?\n\nThank you,\n[Your Name]\nEvent Organizer", draftSource)
+flags("a task line isn't taken for a title", "- [ ] Call Dana Whitman about Harrisburg", "call dana about the venue", ["Dana Whitman", "Harrisburg"])
 
 // MARK: Quotes
 
