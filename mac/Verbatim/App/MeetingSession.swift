@@ -533,6 +533,13 @@ final class MeetingSession: ObservableObject {
             }
             side.transcriptID = id
             try? side.write(in: folder)
+            // A calendar call's attendees: the names to pick from for the call's track (S2), kept as speaker
+            // suggestions from the calendar (Transcript.calendarNames).
+            if let id, let names = side.attendees, !names.isEmpty {
+                let suggestions = names.map { SpeakerSuggestion(speakerId: MultitrackMath.speakerID(1), name: $0,
+                                                                 reasons: ["invited to the calendar event"], sources: [SpeakerSuggestion.calendarSource]) }
+                app.store.update(id) { $0.speakerSuggestions = suggestions }
+            }
             Log.noteNow("meeting: two-track transcript \(id.map { String($0.uuidString.prefix(8)) } ?? "none") queued (\(recovered ? "recovered" : "stopped"))")
             return
         }

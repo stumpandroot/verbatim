@@ -11,6 +11,7 @@ struct MenuBarCallsSection: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var session = MeetingSession.shared
     @ObservedObject private var coordinator = MeetingCoordinator.shared
+    @ObservedObject private var calendar = CallCalendar.shared
 
     var body: some View {
         if !session.isActive {
@@ -23,6 +24,14 @@ struct MenuBarCallsSection: View {
                         coordinator.cancelWait()
                     }
                 } else {
+                    // The next call from Calendar, when Calls from Calendar is on (App/CallCalendar.swift).
+                    if let next = calendar.next() {
+                        let when = "\(next.start.formatted(date: .omitted, time: .shortened)) · \(next.service.name) · \(CallSchedule.relative(next.start, now: Date()))"
+                        CallMenuRow(title: next.title, detail: when, action: "Record when it starts", strong: true, target: "menu-call-next") {
+                            dismiss()
+                            coordinator.recordWhenItStarts(next)
+                        }
+                    }
                     CallMenuRow(title: "Record a call", detail: "Waits for Zoom, Meet, Teams, or FaceTime",
                                 action: "Choose…", strong: false, target: "menu-record-call") {
                         dismiss()
@@ -35,20 +44,104 @@ struct MenuBarCallsSection: View {
 }
 
 /// Home's call card, under the greeting (mockup boards 1, 2, and 4). While waiting: "Waiting for your call" on the
-/// persimmon tint, what it's waiting for, and Cancel. It shows only while there's something to show, and it isn't one
-/// of Edit Home's sections: like the What's new line, it comes and goes with what's happening.
+/// persimmon tint, what it's waiting for, and Cancel. Otherwise, with Calls from Calendar on, the next call from 30
+/// minutes before it starts until it ends, with Record when it starts and the rest of today's calls; or, once, the
+/// first-time card that offers it. It shows only while there's something to show, and it isn't one of Edit Home's
+/// sections: like the What's new line, it comes and goes with what's happening.
 struct HomeCallCard: View {
     @ObservedObject private var coordinator = MeetingCoordinator.shared
     @ObservedObject private var session = MeetingSession.shared
+    @ObservedObject private var calendar = CallCalendar.shared
     /// Home's minute clock, so "in 12 min" moves on.
     var now: Date
     /// The room above the card, only while it shows.
     var top: CGFloat = 16
+    @State private var seeAll = false
 
     var body: some View {
-        if !session.isActive, let wait = coordinator.wait {
-            waiting(wait).padding(.top, top)
+        if !session.isActive {
+            if let wait = coordinator.wait {
+                waiting(wait).padding(.top, top)
+            } else if let next = calendar.next(now: now) {
+                nextCall(next, later: calendar.laterToday(now: now)).padding(.top, top)
+            } else if calendar.offersCard {
+                firstTime.padding(.top, top)
+            }
         }
+    }
+
+    /// "Next call" (board 1): when, the event's title, its service, people, and length, and Record when it starts; then
+    /// "2 more calls today · See all".
+    private func nextCall(_ e: CallEvent, later: [CallEvent]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            CallCardFace(start: e.start, now: now) {
+                Text("Next call").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+                Text(e.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(2)
+                Text(e.detail).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+            } actions: {
+                Button("Record when it starts") { coordinator.recordWhenItStarts(e) }
+                    .buttonStyle(RefinedActionStyle(kind: .strong))
+                    .help("Recording starts when \(e.service.name) joins the call: your microphone and the call, as two tracks.")
+                    .uiTarget("home-call-record")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Next call, \(e.title), \(e.detail), \(CallSchedule.relative(e.start, now: now))")
+            if !later.isEmpty {
+                HStack(spacing: 4) {
+                    Text(CallSchedule.moreLine(later.count) + " ·").refinedFont(.meta).foregroundStyle(Refined.mute)
+                    Button("See all") { seeAll = true }
+                        .buttonStyle(.plain)
+                        .refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.accentText)
+                        .popover(isPresented: $seeAll, arrowEdge: .bottom) { laterList(later) }
+                        .uiTarget("home-call-see-all")
+                }
+                .padding(.leading, 90)
+            }
+        }
+    }
+
+    /// Today's other calls, each with Record when it starts.
+    private func laterList(_ later: [CallEvent]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Later today").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute).padding(.bottom, 6)
+            ForEach(later) { e in
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(e.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                        Text("\(e.start.formatted(date: .omitted, time: .shortened)) · \(e.detail)").refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+                    }
+                    Spacer(minLength: 12)
+                    Button("Record when it starts") { seeAll = false; coordinator.recordWhenItStarts(e) }
+                        .buttonStyle(RefinedActionStyle())
+                }
+                .padding(.vertical, 6)
+                if e.id != later.last?.id { PaperDivider(leading: 0, trailing: 0) }
+            }
+        }
+        .padding(14)
+        .frame(width: 400)
+    }
+
+    /// The first-time card (board 4): what Verbose reads and why, Not now, and Show my calls, which asks macOS for
+    /// access. Shown once, until you choose.
+    private var firstTime: some View {
+        CallCardFace(start: nil, now: now) {
+            Text("Calls from your calendar").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+            Text("See your next call here and record it in one click").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(CallCopy.calendarPromise).refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
+        } actions: {
+            Button("Not now") { calendar.markCardDone() }
+                .buttonStyle(.plain)
+                .refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText)
+                .padding(.horizontal, 4)
+                .help("Settings › Meetings › Calls from Calendar turns it on later.")
+                .uiTarget("home-call-not-now")
+            Button("Show my calls") { Task { await calendar.turnOn() } }
+                .buttonStyle(RefinedActionStyle(kind: .strong))
+                .uiTarget("home-call-show")
+        }
+        .accessibilityElement(children: .contain)
     }
 
     private func waiting(_ wait: CallWait) -> some View {
@@ -121,6 +214,12 @@ enum CallMenuBarMark {
         return img
     }
     @MainActor private static var cached: NSImage?
+}
+
+/// The words for calls from Calendar, in one place for Home's card and Settings.
+enum CallCopy {
+    static let calendarPromise = "Verbose reads events with a Zoom, Meet, Teams, Webex, or FaceTime link on this Mac, and uses their titles and attendees to name recordings. Nothing is uploaded."
+    static let calendarDenied = "Calendar access is off. Turn it on in System Settings › Privacy & Security › Calendars."
 }
 
 /// A row in the menu bar's Calls section: the title and a line under it, then its action.

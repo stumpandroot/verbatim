@@ -340,6 +340,8 @@ struct MeetingsSettingsPane: View {
 
     var body: some View {
         SettingsPane(tab: .meetings) {
+            // Calls before they start (CallViews.swift, App/CallCalendar.swift).
+            CallsSettingsGroup()
             SettingsGroup(title: "Meetings") {
                 SettingsToggleRow("meetings.notice", isOn: $notice)
                 SettingsToggleRow("meetings.copyNotice", isOn: $copyNotice)
@@ -360,6 +362,39 @@ struct MeetingsSettingsPane: View {
                 }
             }
             CaptionsSettingsGroup()
+        }
+    }
+}
+
+/// Settings › Meetings › Calls (mockup "Verbose Call Recording", board 7): Calls from Calendar and which calendars.
+/// Turning Calls from Calendar on asks macOS for access the first time; when access is off, the row says where to turn
+/// it on.
+struct CallsSettingsGroup: View {
+    @ObservedObject private var calendar = CallCalendar.shared
+
+    var body: some View {
+        SettingsGroup(title: "Calls") {
+            SettingsToggleRow("meetings.calendar", isOn: Binding(get: { calendar.enabled }, set: { on in
+                if on { Task { await calendar.turnOn() } } else { calendar.turnOff() }
+            }), detail: calendar.access == .denied ? CallCopy.calendarDenied : nil)
+            if calendar.access == .denied {
+                SettingsRow("meetings.calendars", detail: "Shows once Verbose can read your calendars.") {
+                    Button("Open System Settings") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") { NSWorkspace.shared.open(url) }
+                    }
+                    .buttonStyle(.settingsPill)
+                }
+            } else {
+                SettingsRow("meetings.calendars") {
+                    Menu(calendar.shownSummary) {
+                        ForEach(calendar.calendars) { c in
+                            Toggle(c.title, isOn: Binding(get: { !calendar.hidden.contains(c.id) }, set: { calendar.setShown(c.id, $0) }))
+                        }
+                    }
+                    .fixedSize()
+                    .disabled(!calendar.showing || calendar.calendars.isEmpty)
+                }
+            }
         }
     }
 }

@@ -70,6 +70,8 @@ final class MeetingCoordinator: ObservableObject {
             MainActor.assumeIsolated { self?.preferencesChanged() }
         }
         preferencesChanged()
+        // Calls from Calendar, when it's on (App/CallCalendar.swift): Home's Next call card and the menu bar's.
+        if CallCalendar.shared.enabled { CallCalendar.shared.start() }
     }
 
     // MARK: Noticing calls
@@ -240,6 +242,20 @@ final class MeetingCoordinator: ObservableObject {
         return MeetingApps.known.first { keys.contains($0.key) }
     }
 
+    /// Record when it starts (Home's Next call card, the menu bar): waits for the event's app (any browser for a Meet
+    /// link) until the event ends. The consent panel shows first unless you turned the sheet off for that app after
+    /// five recordings; then it's one click.
+    func recordWhenItStarts(_ event: CallEvent) {
+        guard !MeetingSession.shared.isActive else { return }
+        let choice = CallWaitChoices.forService(event.service)
+        if !choice.keys.contains(where: { book.needsConsent($0) }) {
+            Log.note("meeting: Record when it starts for a \(event.service.name) call, without the consent sheet (turned off for the app)")
+            arm(CallWaitChoices.wait(choice, event: event, copyNotice: Self.copyNoticeOnStart, now: Date()))
+            return
+        }
+        setUpWait(choices: CallWaitChoices.all, preselect: choice.id, event: event)
+    }
+
     /// The wait's setup in the consent panel: which app (Any call app, a specific app, or a browser for Meet), the
     /// chat notice, and the consent words, since this is where you say yes.
     private func setUpWait(choices: [CallWaitChoice], preselect: String, event: CallEvent?) {
@@ -257,7 +273,7 @@ final class MeetingCoordinator: ObservableObject {
         wait = w
         waitTracker.reset()
         tracker.settleAll()
-        Log.note("meeting: waiting for \(w.anyApp ? "any call app" : w.appName)\(w.title.map { " (\($0))" } ?? "") until \(w.expires)")
+        Log.note("meeting: waiting for \(w.anyApp ? "any call app" : w.appName)\(w.eventID == nil ? "" : " (a calendar call)") until \(w.expires)")
         preferencesChanged()
         evaluate()
     }

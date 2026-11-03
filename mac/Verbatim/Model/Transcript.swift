@@ -128,6 +128,9 @@ struct SpeakerSuggestion: Codable, Equatable, Identifiable {
     var state: State = .pending
 
     var id: String { speakerId + "|" + name.lowercased() }
+    /// `sources` for a name from a calendar event's attendees (a call set up from Home's Next call card, Mac).
+    static let calendarSource = "calendar"
+    var fromCalendar: Bool { sources.contains(Self.calendarSource) }
     /// The reasons on one line, first letter capitalized.
     var reasonText: String {
         let t = reasons.joined(separator: " · ")
@@ -828,17 +831,30 @@ struct Transcript: Codable, Identifiable, Equatable {
     }
 
     /// Suggestions to show: still pending, for a speaker who exists and hasn't been named, with a name no other
-    /// speaker has.
+    /// speaker has. A calendar call's attendee shows for the call's track (named for its app, not a placeholder) only
+    /// when they're the one other person invited and nobody picked a calendar name for it yet; with more, the names
+    /// are in the speaker's menu instead (`calendarNames`).
     var visibleSpeakerSuggestions: [SpeakerSuggestion] {
         guard let list = speakerSuggestions else { return [] }
         let taken = Set(speakers.filter { !$0.isPlaceholder }.map { $0.name.lowercased() })
         var seen = Set<String>()
         return list.filter { s in
-            guard s.state == .pending, !s.name.isEmpty, !taken.contains(s.name.lowercased()),
-                  speakers.contains(where: { $0.id == s.speakerId && $0.isPlaceholder }), !seen.contains(s.speakerId) else { return false }
+            guard s.state == .pending, !s.name.isEmpty, !taken.contains(s.name.lowercased()), !seen.contains(s.speakerId) else { return false }
+            if s.fromCalendar {
+                let mine = list.filter { $0.fromCalendar && $0.speakerId == s.speakerId }
+                guard mine.count == 1, speakers.contains(where: { $0.id == s.speakerId }) else { return false }
+            } else {
+                guard speakers.contains(where: { $0.id == s.speakerId && $0.isPlaceholder }) else { return false }
+            }
             seen.insert(s.speakerId)
             return true
         }
+    }
+
+    /// A calendar call's attendee names for a speaker (the call's track), to pick from in the speaker's menu; [] for
+    /// other speakers and recordings.
+    func calendarNames(for speakerId: String) -> [String] {
+        (speakerSuggestions ?? []).filter { $0.fromCalendar && $0.speakerId == speakerId }.map(\.name)
     }
 
     /// Marks a suggestion used or dismissed. Using one doesn't rename the speaker; the caller renames it the way a

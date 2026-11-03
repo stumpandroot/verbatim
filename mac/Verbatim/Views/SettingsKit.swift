@@ -214,7 +214,9 @@ enum SettingsIndex {
         .init("captions.soon", .meetings, "Show the time in the header", "Shows how long captions have been running at the top of the panel.", keywords: "subtitles captions live timecode clock"),
         .init("captions.above", .meetings, "Keep captions above full-screen apps", keywords: "subtitles captions floating window full screen"),
 
-        // Meetings
+        // Meetings: calls before they start (November 3, 2026, mockup "Verbose Call Recording", board 7)
+        .init("meetings.calendar", .meetings, "Calls from Calendar", "Show your next call on Home and in the menu bar, and name recordings after the event. Verbose reads events with a call link, their titles, and attendee names, on this Mac.", keywords: "calendar events next call zoom meet teams webex facetime schedule attendees"),
+        .init("meetings.calendars", .meetings, "Calendars", "Only events with a call link show.", keywords: "calendar work personal which"),
         .init("meetings.notice", .meetings, "Notice calls and ask to record", "When Zoom, Teams, FaceTime, or a browser starts using your microphone, Verbose asks whether to record. It checks which app is using the microphone, never what it hears.", keywords: "meeting call detect detection prompt zoom teams facetime meet webex slack discord"),
         .init("meetings.copyNotice", .meetings, "Copy the chat notice when recording starts", "Puts a short notice on the clipboard to paste in the meeting chat, so everyone knows you're recording.", keywords: "consent notice chat clipboard tell everyone announce"),
         .init("meetings.mic", .meetings, "Record your side from", "The same microphone as Settings › Recording and transcription › Speakers. A built-in mic keeps Bluetooth headphones sounding their best.", keywords: "microphone input device airpods meeting"),
