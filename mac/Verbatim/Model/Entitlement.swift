@@ -387,7 +387,7 @@ enum UnlockCopy {
 
     // The transcript's note where the free words end
     static func untranscribedNote(duration: TimeInterval) -> String {
-        "Free transcription covers the first 10 minutes. The rest of this \(minutes(duration)) recording is saved and plays."
+        "Free transcription covers the first 10 minutes. The whole recording, \(minutes(duration)), is saved and plays."
     }
     static func transcribeAll(duration: TimeInterval) -> String { "Transcribe all \(minutes(duration))" }
     static func minutes(_ d: TimeInterval) -> String {
