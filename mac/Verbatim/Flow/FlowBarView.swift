@@ -452,14 +452,15 @@ struct RibbonBars: View {
 }
 
 /// While writing: a persimmon segment sweeping along a dark track, 0.9 s each way. A loop, so it's a Canvas on
-/// `LoopTimeline` (paused off screen and while the app is inactive), never a repeatForever animation (DESIGN.md §7).
+/// `LoopTimeline` (paused off screen, running while you dictate into another app), never a repeatForever animation (DESIGN.md §7).
 /// Reduce Motion or Limit animation holds the segment at the start.
 struct SweepBar: View {
     var edge: BarEdge
     var reduceMotion: Bool
     var body: some View {
         let vertical = edge == .bottom
-        LoopTimeline(running: !reduceMotion) { date in
+        // The Ribbon shows while you dictate into another app, so Verbose is inactive then: the sweep runs anyway.
+        LoopTimeline(running: !reduceMotion, ignoresAppActive: true) { date in
             Canvas { ctx, size in
                 ctx.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: min(size.width, size.height) / 2),
                          with: .color(RibbonInk.track))

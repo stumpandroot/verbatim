@@ -589,6 +589,8 @@ enum LoopingArt {
 /// drives state or a repeatForever animation, and it never runs while nobody can see it.
 struct LoopTimeline<Content: View>: View {
     var running: Bool
+    /// Keep running while the app isn't active: for the Ribbon, which shows while you dictate into another app.
+    var ignoresAppActive = false
     @ViewBuilder var content: (Date) -> Content
     @State private var onScreen = false
     @State private var scrolledIn = true
@@ -601,7 +603,7 @@ struct LoopTimeline<Content: View>: View {
     #endif
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !(running && LoopingArt.enabled && onScreen && scrolledIn && appActive))) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !(running && LoopingArt.enabled && onScreen && scrolledIn && (appActive || ignoresAppActive)))) { timeline in
             content(timeline.date)
         }
         .onAppear { onScreen = true }

@@ -341,9 +341,11 @@ final class MeetingCoordinator: ObservableObject {
     }
 
     /// `refresh`: stop watching the microphone if nothing else needs it (a start that follows does its own).
-    private func clearWait(refresh: Bool = true) {
+    /// `keepPhoneRequest`: the wait is turning into a recording, so the iPhone's request stays until the recording ends
+    /// (`phaseChanged(.idle)`), and the iPhone shows "Recording your call" (CallRelayHost).
+    private func clearWait(refresh: Bool = true, keepPhoneRequest: Bool = false) {
         wait = nil
-        if !MeetingSession.shared.isActive { phoneRequestID = nil }
+        if !keepPhoneRequest && !MeetingSession.shared.isActive { phoneRequestID = nil }
         waitTracker.reset()
         if refresh { preferencesChanged() }
     }
@@ -352,7 +354,7 @@ final class MeetingCoordinator: ObservableObject {
     private func startFromWait(_ w: CallWait, key: String) {
         guard let info = MeetingApps.info(key: key) else { return }
         Log.note("meeting: \(info.name) started using the microphone; recording the call you set up")
-        clearWait(refresh: false)
+        clearWait(refresh: false, keepPhoneRequest: true)
         start(key: info.key, name: info.name, target: MeetingSession.target(for: info), speaker: info.name, copy: w.copyNotice,
               skipFromNowOn: false, title: w.title, attendees: w.attendees, announce: true)
     }
@@ -408,6 +410,8 @@ final class MeetingCoordinator: ObservableObject {
         switch phase {
         case .idle:
             status.hide()
+            // The recording the iPhone asked for is over: its status file says so on its next write.
+            if wait == nil { phoneRequestID = nil }
             pendingCount = nil
             recordingKey = nil
             endWatch = nil

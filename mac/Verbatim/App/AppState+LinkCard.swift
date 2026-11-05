@@ -52,11 +52,13 @@ extension AppState {
     /// The sidebar's Queue row shows only while something is queued, transcribing, or downloading (consolidation, October
     /// 28, 2026), and while you're on it; links whose card hasn't landed count, so the card has a row to land on.
     var queueShowsInSidebar: Bool {
-        !queue.isEmpty || runningID != nil || linkCardID != nil || linkImports.values.contains { !$0.isFinished } || screen == .queue
+        _ = linkImportsChanged
+        return !queue.isEmpty || runningID != nil || linkCardID != nil || linkImports.values.contains { !$0.isFinished } || screen == .queue
     }
 
     /// Queue's badge: what's queued or running, plus links still downloading, less links whose card hasn't landed.
     var queueBadgeCount: Int {
+        _ = linkImportsChanged
         var ids = Set(queue)
         if let r = runningID { ids.insert(r) }
         for (id, imp) in linkImports where !imp.isFinished { ids.insert(id) }
@@ -154,6 +156,7 @@ extension AppState {
             x.processingDevice = nil; x.processingDeviceName = nil
         }
         imp.phase = .failed(message)
+        linkImportsChanged &+= 1
         if linkCardID != id { toast = Toast("Couldn't fetch that link: \(message)") }
     }
 
@@ -222,6 +225,7 @@ extension AppState {
     private func finishLinkTask(_ id: UUID) {
         linkTasks[id] = nil
         if linkCardID != id, linkImports[id]?.isFinished ?? true { linkImports[id] = nil }
+        linkImportsChanged &+= 1
     }
 
     /// False once the transcript is deleted or cancelled while its link was being fetched, or another device took

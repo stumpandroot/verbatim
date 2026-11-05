@@ -48,6 +48,31 @@
           "head": "A livelier Record tray",
           "icon": "mic",
           "text": "Record as opens with a slight bounce, and the row under your finger lifts."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "The Ribbon keeps moving",
+          "icon": "tidy",
+          "text": "While your words are written, the Ribbon's bar keeps sweeping in every app."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Calls from the iPhone",
+          "icon": "mic",
+          "text": "A call you set up from the iPhone says Recording your call once the Mac starts."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Continued recordings keep words",
+          "icon": "words",
+          "text": "Transcribing again after a free continuation keeps the words from before it."
         }
       ]
     },

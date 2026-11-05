@@ -39,6 +39,9 @@ final class CallStillCapture {
     private let paused: () -> Bool
     private var timer: Timer?
     private var busy = false
+    /// Set by `stop()`: a capture still in flight then keeps nothing, and deletes a frame it already saved, since the
+    /// recording has taken its stills and nothing else would ever delete that file.
+    private var stopped = false
     private var last: (gray: [UInt8], at: Double)?
     private var window: SCWindow?
     private var windowCheckedAt: Double = -100
@@ -64,6 +67,7 @@ final class CallStillCapture {
     /// Stops looking; returns the stills kept.
     func stop() -> [MeetingStill] {
         timer?.invalidate(); timer = nil
+        stopped = true
         Log.note("meeting stills: \(stills.count) kept")
         return stills
     }
@@ -89,8 +93,10 @@ final class CallStillCapture {
         guard CallStillRules.keep(gray: gray, at: at, measure: measure, last: last, kept: stills.count) else { return }
         let file = "still-\(sessionID.uuidString)-\(Int((at * 1000).rounded())).jpg"
         let aspect = Double(image.width) / Double(max(1, image.height))
+        guard !stopped else { return }
         let saved = await Task.detached(priority: .utility) { Self.save(image, as: file) }.value
         guard saved else { return }
+        guard !stopped else { try? FileManager.default.removeItem(at: Paths.thumbs.appendingPathComponent(file)); return }
         last = (gray, at)
         stills.append(MeetingStill(at: at, file: file, aspect: aspect))
         Log.note("meeting stills: kept one at \(Int(at)) s (\(measure.characters) characters, \(measure.faces) faces)")

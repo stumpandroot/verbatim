@@ -21,7 +21,7 @@ final class CallRelayHost {
         let c = MeetingCoordinator.shared
         c.$wait.removeDuplicates().sink { [weak self] _ in DispatchQueue.main.async { self?.writeStatus() } }.store(in: &bag)
         MeetingSession.shared.$phase.removeDuplicates().sink { [weak self] _ in DispatchQueue.main.async { self?.writeStatus() } }.store(in: &bag)
-        CallCalendar.shared.$events.sink { [weak self] _ in DispatchQueue.main.async { self?.writeStatus() } }.store(in: &bag)
+        CallCalendar.shared.$events.removeDuplicates().sink { [weak self] _ in DispatchQueue.main.async { self?.writeStatus() } }.store(in: &bag)
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }

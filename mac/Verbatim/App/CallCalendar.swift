@@ -128,12 +128,12 @@ final class CallCalendar: ObservableObject {
     /// Reads today's and tomorrow's events again (the store changed, Verbose came forward, every 10 minutes while on).
     func refresh() {
         access = Self.currentAccess()
-        guard enabled, access == .granted, !UITest.enabled else { events = []; return }
+        guard enabled, access == .granted, !UITest.enabled else { if !events.isEmpty { events = [] }; return }
         let all = store.calendars(for: .event)
         calendars = all.map { CalendarInfo(id: $0.calendarIdentifier, title: $0.title) }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
         let shown = all.filter { !hidden.contains($0.calendarIdentifier) }
-        guard !shown.isEmpty else { events = []; return }
+        guard !shown.isEmpty else { if !events.isEmpty { events = [] }; return }
         let cal = Calendar.current
         let from = cal.startOfDay(for: Date())
         guard let to = cal.date(byAdding: .day, value: 2, to: from) else { return }

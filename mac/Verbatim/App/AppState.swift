@@ -132,6 +132,9 @@ final class AppState: DistinctTracking {
     // The "link added" card (AppState+LinkCard).
     /// Links this Mac is fetching, by transcript; the card observes one of them.
     @ObservationIgnored var linkImports: [UUID: LinkImport] = [:]
+    /// Bumped when a link fetch finishes or fails, so the sidebar's Queue row and badge (which read `linkImports`,
+    /// not observed) update without waiting for the next navigation.
+    var linkImportsChanged = 0
     @ObservationIgnored var linkTasks: [UUID: Task<Void, Never>] = [:]
     /// The link whose card is showing.
     @ObservationIgnored @Distinct var linkCardID: UUID? = nil

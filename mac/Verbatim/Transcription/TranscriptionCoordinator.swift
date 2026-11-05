@@ -768,6 +768,9 @@ final class TranscriptionCoordinator: ObservableObject {
                           let name = self.store.adoptRecording(combined) else { try? FileManager.default.removeItem(at: combined); return }
                     self.store.update(id) { x in
                         Continuation.apply(out, to: &x, combinedName: name)
+                        // The free limit was for the new part only. In the joined recording the words stop at the old
+                        // length plus that limit, so a later free rerun (Transcribe again, Retry) keeps what came before.
+                        x.freeTranscriptLimit = freeLimit.map { t.duration + $0 }
                         SpeakerVoices.forget(id)
                         // The recording grew: Apple Intelligence's summary is rewritten for the whole of it.
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
