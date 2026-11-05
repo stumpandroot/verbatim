@@ -247,7 +247,7 @@ enum MultitrackJob {
     }
 
     static func run(id: UUID, info: MultitrackInfo, engineId: String, model: String, dictionary: [DictionaryEntry], project: UUID?,
-                    progress: @escaping @Sendable (String) -> Void) async throws -> JobOutcome {
+                    vocabulary: JobVocabulary = JobVocabulary(), progress: @escaping @Sendable (String) -> Void) async throws -> JobOutcome {
         let folder = Paths.tracks(id)
         let n = info.tracks.count
         let starts = info.timeline
@@ -261,7 +261,9 @@ enum MultitrackJob {
             }
             progress(progressLabel(.transcribing(0), track: i, of: n))
             let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: false, dictionary: dictionary,
-                                                     project: project, needWave: false) { p in progress(progressLabel(p, track: i, of: n)) }
+                                                     project: project, needWave: false, options: JobOptions(vocabulary: vocabulary)) { p in
+                progress(progressLabel(p, track: i, of: n))
+            }
             try Task.checkCancellation()
             placed += MultitrackMath.place(out.fixed, track: i, offset: starts[i])
             for s in MultitrackMath.place(out.original, track: i, offset: starts[i]) { originals[s.segment.id] = s.segment }
@@ -273,9 +275,12 @@ enum MultitrackJob {
         }
         progress("Weaving tracks together")
         let kept = info.ignoreBleed ? MultitrackMath.filterBleed(placed, envelopes: envelopes, offsets: starts) : placed
-        let fixed = MultitrackMath.merge(kept)
+        // Turns, not fragments: overlapping talk no longer cuts a sentence in two or leaves a one-word turn
+        // (MeetingTurns). Dictionary fixes move with their words.
+        let tidy = MeetingTurns.tidy(MultitrackMath.merge(kept), originals: originals, corrections: &corrections)
+        let fixed = tidy.fixed
         let ids = Set(fixed.map(\.id))
-        let original = fixed.map { originals[$0.id] ?? $0 }
+        let original = tidy.original
         Log.note("multitrack: merged \(placed.count) → \(fixed.count) segments")
         return JobOutcome(original: original, fixed: fixed, speakers: MultitrackMath.speakers(names: info.tracks.map(\.speaker)),
                           corrections: corrections.filter { ids.contains($0.segmentId) }, wave: [],

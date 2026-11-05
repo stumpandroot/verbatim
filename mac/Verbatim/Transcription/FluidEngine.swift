@@ -668,6 +668,61 @@ actor FluidEngine: TranscriptionEngine {
         return c
     }
 
+    // MARK: A meeting's own words
+
+    private var meetingBoost: VocabularyBoostingSession?
+    private var meetingBoostKey: [String] = []
+
+    /// A finished file's lines rescored against a recording's own short word list (a calendar call's,
+    /// MeetingNames.vocabulary): the CTC spotter listens for each term in about 30 seconds of audio at a time, and a
+    /// swap is kept only when it sounds like the term it brings in (BoostGuard). Changed words go back on their times
+    /// (MeetingNames.rescored), so the lines keep their word timings and playback follows them. Its own session,
+    /// beside the Dictionary's for dictation, so neither rebuilds the other's. Any failure keeps the lines as they were.
+    func boostWords(_ segments: [Segment], url: URL, terms: [String]) async -> [Segment] {
+        let ranked = terms.map { (text: $0, aliases: [String]()) }
+        let vocab = BoostVocabulary.terms(ranked)
+        guard !vocab.terms.isEmpty, segments.contains(where: MeetingNames.boostable) else { return segments }
+        let session: VocabularyBoostingSession
+        if let s = meetingBoost, meetingBoostKey == vocab.key {
+            session = s
+        } else {
+            do {
+                let models = try await ctcModels()
+                session = try await VocabularyBoostingSession(vocabulary: CustomVocabularyContext(terms: vocab.terms), ctcModels: models,
+                                                              config: BoostVocabulary.rescorerConfig)
+                meetingBoost = session; meetingBoostKey = vocab.key
+            } catch {
+                Log.note("meeting words: vocabulary model unavailable (\(error.localizedDescription)); lines kept as heard")
+                return segments
+            }
+        }
+        guard let audio = try? SectionAudio(url: url) else { return segments }
+        let rate = Double(SectionAudio.sampleRate)
+        var out = segments
+        var changed = 0
+        for window in MeetingNames.windows(segments) {
+            if Task.isCancelled { break }
+            let lines = Array(segments[window])
+            let words = lines.flatMap { $0.words ?? [] }
+            guard let first = words.first, let last = words.last else { continue }
+            let from = max(0, first.start - 0.25), to = last.end + 0.25
+            let startSample = Int(from * rate)
+            let count = min(audio.totalSamples - startSample, Int((to - from) * rate))
+            guard count > Int(rate * 0.3), let samples = try? audio.read(start: startSample, count: count) else { continue }
+            // One token per word, on the window's clock: the rescorer groups tokens into words by their leading "▁".
+            let timings = words.map { TokenTiming(token: "▁" + $0.text, tokenId: 0, startTime: max(0, $0.start - from),
+                                                  endTime: max(0, $0.end - from), confidence: Float($0.confidence ?? 1)) }
+            let text = words.map(\.text).joined(separator: " ")
+            guard let o = await session.rescore(text: text, tokenTimings: timings, audioSamples: samples), o.wasModified else { continue }
+            let guarded = BoostGuard.filter(original: text, boosted: o.text, terms: ranked)
+            guard guarded.kept > 0, let fixed = MeetingNames.rescored(segments, range: window, text: guarded.text) else { continue }
+            for (k, i) in window.enumerated() { out[i] = fixed[k] }
+            changed += guarded.kept
+        }
+        Log.note("meeting words: \(changed) word(s) changed to the meeting's spelling")
+        return out
+    }
+
     /// The boosting session for these terms, rebuilt only when the terms change. A failure (for example no network
     /// for the first CTC download) backs off 1, 2, 4, 8, then 10 minutes and tries again on a later dictation,
     /// instead of turning boosting off until relaunch.

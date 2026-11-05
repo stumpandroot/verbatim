@@ -138,9 +138,11 @@ enum AppleSpeech {
     }
 
     /// Words for 16 kHz mono samples (one section), timed from their start. Words join without spaces in
-    /// languages written that way; the caller handles that.
-    static func words(samples: [Float], language: String) async throws -> [SectionWord] {
-        let result = try await recognize(samples: samples, language: language)
+    /// languages written that way; the caller handles that. `contextual`: a recording's own words (a calendar
+    /// call's), which SFSpeechRecognizer's request takes as contextual strings. (SpeechAnalyzer's SpeechTranscriber
+    /// ignores contextual strings, research §3.3; this recognizer is the one that reads them.)
+    static func words(samples: [Float], language: String, contextual: [String] = []) async throws -> [SectionWord] {
+        let result = try await recognize(samples: samples, language: language, contextual: contextual)
         return result.map { $0.words } ?? []
     }
 
@@ -154,7 +156,7 @@ enum AppleSpeech {
         }
     }
 
-    private static func recognize(samples: [Float], language: String) async throws -> (words: [SectionWord], confidence: Double)? {
+    private static func recognize(samples: [Float], language: String, contextual: [String] = []) async throws -> (words: [SectionWord], confidence: Double)? {
         guard let locale = locale(for: language), let recognizer = SFSpeechRecognizer(locale: locale),
               recognizer.supportsOnDeviceRecognition else { throw AppleSpeechError.unavailable(language) }
         guard !samples.isEmpty,
@@ -169,6 +171,7 @@ enum AppleSpeech {
         request.shouldReportPartialResults = false
         request.addsPunctuation = true
         request.taskHint = .dictation
+        if !contextual.isEmpty { request.contextualStrings = Array(contextual.prefix(100)) }
         request.append(buffer)
         request.endAudio()
         let seconds = Double(samples.count) / Double(SectionAudio.sampleRate)

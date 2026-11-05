@@ -180,17 +180,19 @@ extension AppState {
 
     /// Makes a multi-track transcript from files recorded at the same time, one speaker each: the sheet's tracks,
     /// or a meeting capture's mic and system tracks (App/MeetingSession.swift), which pass offsets from host time
-    /// with `align` off. `onPrepared` runs on the main actor once the working copies and the mix are made (true) or
+    /// with `align` off, and a calendar call's `meeting`. `onPrepared` runs on the main actor once the working copies and the mix are made (true) or
     /// that failed (false); the sources can go after true. Returns the transcript's ID.
     @discardableResult
     func startMultitrack(sources: [URL], sourceNames: [String], speakers: [String], offsets known: [Double?], durations: [Double],
                          title: String, align auto: Bool, ignoreBleed: Bool, source: SourceKind = .file, sourceLabel: String? = nil,
-                         recordedAt: Date? = nil, onPrepared: ((Bool) -> Void)? = nil) -> UUID? {
+                         recordedAt: Date? = nil, meeting: MeetingContext? = nil, onPrepared: ((Bool) -> Void)? = nil) -> UUID? {
         guard sources.count >= 2, sources.count == speakers.count else { return nil }
         let fileNames = sources.indices.map { "track-\($0 + 1).wav" }
         var t = Transcript(title: title, source: source, sourceLabel: sourceLabel ?? "\(sources.count) tracks",
                            duration: durations.max() ?? 0, audioFileName: nil, model: "")
         if let recordedAt { t.createdAt = recordedAt }
+        // A calendar call's title and invitees, set before the job runs so it can use the meeting's words.
+        t.meeting = meeting
         t.status = .processing; t.stage = "Preparing tracks"
         t.kind = .meeting
         t.titleIsAuto = false

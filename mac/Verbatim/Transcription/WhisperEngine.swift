@@ -40,6 +40,13 @@ actor WhisperEngine: TranscriptionEngine {
     }
 
     func transcribe(url: URL, model: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> EngineResult {
+        try await transcribe(url: url, model: model, prompt: "", progress: progress)
+    }
+
+    /// `prompt`: a recording's own words as a short transcript-styled line (MeetingNames.whisperPrompt), passed as the
+    /// decoder's prompt tokens so Whisper spells names and acronyms the meeting's way. Whisper reads only the last 224
+    /// tokens and follows the prompt's style, not instructions (research §3.2).
+    func transcribe(url: URL, model: String, prompt: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> EngineResult {
         let p = try await pipeline(for: model, progress: progress)
         // Whisper hears only the speech Silero finds (the noise report: speech detection removed nearly every
         // "Thank you very much" in silence). No detector, or no speech found at all: the whole file, as before.
@@ -47,7 +54,13 @@ actor WhisperEngine: TranscriptionEngine {
         let clips = speech.map(UnclearRules.speechClips) ?? []
         if let speech { Log.note("whisper: \(clips.count) speech clips, \(Int(UnclearRules.coverage(clips, duration: speech.duration) * 100))% of the audio") }
         progress(.transcribing(nil))
-        let results = try await p.transcribe(audioPath: url.path, decodeOptions: Self.options(clips: clips))
+        var options = Self.options(clips: clips)
+        let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty, let tokenizer = p.tokenizer {
+            options.promptTokens = tokenizer.encode(text: " " + text).filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+            Log.note("whisper: prompt with \(options.promptTokens?.count ?? 0) tokens")
+        }
+        let results = try await p.transcribe(audioPath: url.path, decodeOptions: options)
         var scored: [ScoredSegment] = []
         var lang: String?
         for r in results {

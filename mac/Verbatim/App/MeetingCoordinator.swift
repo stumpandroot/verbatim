@@ -259,7 +259,18 @@ final class MeetingCoordinator: ObservableObject {
             requestRecording(app: info, target: MeetingSession.target(for: info), speaker: info.name)
             return
         }
-        setUpWait(choices: CallWaitChoices.all, preselect: "any", event: nil)
+        // A calendar call happening now: the wait is for it (its title shows in the panel), so the recording takes
+        // the event's title and attendees as Record when it starts does.
+        let event = currentCall()
+        setUpWait(choices: CallWaitChoices.all, preselect: event.map { CallWaitChoices.forService($0.service).id } ?? "any", event: event)
+    }
+
+    /// The calendar call happening now (CallSchedule.current), when Calls from Calendar is on; for `appKey`, only one
+    /// that app holds.
+    private func currentCall(appKey: String? = nil) -> CallEvent? {
+        let cal = CallCalendar.shared
+        guard cal.showing else { return nil }
+        return CallSchedule.current(cal.events, now: Date(), appKey: appKey)
     }
 
     /// The call app using the microphone right now, if any (the preferred one when several are).
@@ -364,16 +375,20 @@ final class MeetingCoordinator: ObservableObject {
         guard !MeetingSession.shared.isActive else { return }
         let key = info?.key ?? "system"
         let name = info?.name
+        // The calendar call this app is holding now, if any: the recording takes its title and attendees.
+        let event = info.flatMap { currentCall(appKey: $0.key) }
         guard book.needsConsent(key) else {
             Log.note("meeting: recording \(name ?? "all system audio") without the consent sheet (turned off for this app)")
-            start(key: key, name: name ?? speaker, target: target, speaker: speaker, copy: Self.copyNoticeOnStart, skipFromNowOn: false)
+            start(key: key, name: name ?? speaker, target: target, speaker: speaker, copy: Self.copyNoticeOnStart, skipFromNowOn: false,
+                  title: event?.title, attendees: event?.attendees ?? [])
             return
         }
         let request = MeetingConsentRequest(key: key, appName: name, offerSkip: info != nil && book.canOfferSkip(key),
                                             stills: info != nil && CallStillCapture.active)
         consent.show(request, copyDefault: Self.copyNoticeOnStart) { [weak self] result in
             guard let self, let result else { return }
-            self.start(key: key, name: name ?? speaker, target: target, speaker: speaker, copy: result.copyNotice, skipFromNowOn: result.dontAskAgain)
+            self.start(key: key, name: name ?? speaker, target: target, speaker: speaker, copy: result.copyNotice, skipFromNowOn: result.dontAskAgain,
+                       title: event?.title, attendees: event?.attendees ?? [])
         }
     }
 

@@ -13,6 +13,8 @@ import Foundation
 ///   recognizer heard ("Jenna"), and both are cited.
 /// - Apple Intelligence and voice matches, gathered by the caller and passed in as `Input.extra`.
 /// - Names you've given speakers before, which fill in a full name or a spelling.
+/// - A call's calendar event (`Input.attendees`): the invite's spelling wins over what was heard, and with an invite
+///   only invitees are suggested (a name heard that nobody invited is more likely a mishearing than a guest).
 ///
 /// A suggestion needs a score of at least `threshold`, and a clear lead over the speaker's next candidate.
 enum SpeakerNames {
@@ -27,15 +29,29 @@ enum SpeakerNames {
         var pastNames: [String] = []
         /// Evidence from Apple Intelligence (`modelEvidence`) and voice matches (`voiceEvidence`).
         var extra: [Evidence] = []
+        /// A calendar call's other invitees (MeetingContext); empty for everything else.
+        var attendees: [String] = []
+        /// Your own names (MeetingNames.selfNames): never suggested for another speaker.
+        var selfNames: [String] = []
+        /// The label this call's capture gave the call's track ("Chrome"), open to a name like a placeholder.
+        var appName: String? = nil
+
+        /// Nobody has named this speaker yet (`Speaker.isUnnamed`, or the capture's own label).
+        func isOpen(_ s: Speaker) -> Bool {
+            if s.isUnnamed { return true }
+            guard let a = appName?.trimmingCharacters(in: .whitespaces), !a.isEmpty else { return false }
+            return s.name.trimmingCharacters(in: .whitespaces).lowercased() == a.lowercased()
+        }
     }
 
     enum Kind: Int, Comparable {
-        case introduced, selfIntro, address, title, channel, role, past, model, voice
+        case introduced, selfIntro, address, title, channel, role, invite, past, model, voice
         static func < (a: Kind, b: Kind) -> Bool { a.rawValue < b.rawValue }
         var source: String {
             switch self {
             case .introduced, .selfIntro, .address: return "speech"
             case .title, .channel, .role: return "link"
+            case .invite: return SpeakerSuggestion.calendarSource
             case .past: return "past"
             case .model: return "model"
             case .voice: return "voice"
@@ -64,9 +80,10 @@ enum SpeakerNames {
 
     static func suggest(_ input: Input) -> [SpeakerSuggestion] {
         let ids = Set(input.speakers.map(\.id))
-        let open = Set(input.speakers.filter(\.isPlaceholder).map(\.id))
+        let open = Set(input.speakers.filter(input.isOpen).map(\.id))
         guard input.speakers.count >= 2, !open.isEmpty else { return [] }
-        let named = Set(input.speakers.filter { !$0.isPlaceholder }.map { $0.name.lowercased() })
+        // Your own names are taken too: "Thanks, Dana" on the other side's line names you, not them.
+        let named = Set(input.speakers.filter { !input.isOpen($0) }.map { $0.name.lowercased() } + input.selfNames.map { $0.lowercased() })
         let turns = Self.turns(input.segments)
         let common = lowercaseWords(input.segments)
 
@@ -93,11 +110,19 @@ enum SpeakerNames {
                 } else if let h = host, c[i].matches(h) {
                     c[i].spelling = h; hostUsed = true
                     c[i].evidence.append(Evidence(speaker: sid, name: h, weight: 3, kind: .channel, note: "the channel’s name"))
+                } else if let a = input.attendees.first(where: { c[i].matches($0) }) {
+                    c[i].spelling = a
+                    c[i].evidence.append(Evidence(speaker: sid, name: a, weight: 2, kind: .invite, note: "invited to the calendar event"))
                 } else if let p = pastMatch(c[i].name, input.pastNames) {
                     c[i].spelling = p
                     c[i].evidence.append(Evidence(speaker: sid, name: p, weight: 1, kind: .past, note: "a name you’ve used before"))
                 }
                 clusters[sid] = c
+            }
+            // With an invite, only invitees: a heard name nobody invited is more likely misheard. A voice you named
+            // still counts (someone can join without an invite).
+            if !input.attendees.isEmpty {
+                clusters[sid]?.removeAll { c in !c.evidence.contains { $0.kind == .invite || $0.kind == .voice } }
             }
         }
 
@@ -165,7 +190,14 @@ enum SpeakerNames {
     /// that speaker); pending ones are replaced. nil when there's nothing to keep.
     static func merge(existing: [SpeakerSuggestion]?, new: [SpeakerSuggestion]) -> [SpeakerSuggestion]? {
         // A calendar call's attendees stay too: they came from the invite, not from this run.
-        let kept = (existing ?? []).filter { $0.state != .pending || $0.fromCalendar }
+        var kept = (existing ?? []).filter { $0.state != .pending || $0.fromCalendar }
+        // This run backing an invitee ("Hey, Dana" on your side): its reasons join the invite's, so the suggestion
+        // shows even when several people were invited (Transcript.visibleSpeakerSuggestions).
+        for n in new {
+            guard let i = kept.firstIndex(where: { $0.id == n.id && $0.fromCalendar && $0.state == .pending }) else { continue }
+            for r in n.reasons where !kept[i].reasons.contains(r) { kept[i].reasons.insert(r, at: max(0, kept[i].reasons.count - 1)) }
+            for s in n.sources where !kept[i].sources.contains(s) { kept[i].sources.append(s) }
+        }
         let done = Set(kept.map(\.id))
         let out = kept + new.filter { !done.contains($0.id) }
         return out.isEmpty && existing == nil ? nil : out
@@ -175,7 +207,7 @@ enum SpeakerNames {
     static func pastNames(_ transcripts: [Transcript], excluding id: UUID? = nil, limit: Int = 200) -> [String] {
         var count: [String: Int] = [:], spelling: [String: String] = [:]
         for t in transcripts where t.id != id {
-            for s in t.speakers where !s.isPlaceholder {
+            for s in t.speakers where !t.isUnnamed(s) {
                 let n = s.name.trimmingCharacters(in: .whitespaces)
                 guard n.count >= 2, n.lowercased() != "you" else { continue }
                 count[n.lowercased(), default: 0] += 1
