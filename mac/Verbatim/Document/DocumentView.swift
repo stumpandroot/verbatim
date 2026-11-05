@@ -159,7 +159,6 @@ struct DocumentView: View {
         }
         commit(ns as String, history: true)
         lints = []
-        Sounds.done()
     }
 
     private func undo() {
@@ -195,7 +194,6 @@ struct DocumentView: View {
                 let joined = out.joined(separator: "\n\n")
                 // Every level runs the model, None included, so the result is always marked as Apple Intelligence's.
                 app.store.update(id) { $0.applyCleanup(joined, level: level.rawValue, tone: tone.rawValue, byModel: true) }
-                Sounds.done()
             } catch {
                 app.toast = Toast(error.localizedDescription)
             }

@@ -99,8 +99,9 @@ let phone = read("VerbatimPhone/PhoneState.swift")
 check("moments: Record's start tap plays before the recorder starts",
       before("Haptics.play(.recordStart)", "try recorder.start(to: url)", in: body(phone, "func startRecording()")))
 let finish = body(phone, "private func finishRecording(")
-check("moments: Stop and Discard tap before saving", before("Haptics.play(.recordStop)", "await recorder.stopAndSave()", in: finish))
-let afterSave = finish.components(separatedBy: "await recorder.stopAndSave()").dropFirst().joined()
+// `stopAndSave(` with or without its `captureEnded:` (the stop sound, SoundPlayer.swift).
+check("moments: Stop and Discard tap before saving", before("Haptics.play(.recordStop)", "await recorder.stopAndSave(", in: finish))
+let afterSave = finish.components(separatedBy: "await recorder.stopAndSave(").dropFirst().joined()
 let afterSavePlays = afterSave.components(separatedBy: "Haptics.play(").dropFirst().map { String($0.prefix(while: { $0 != ")" })) }
 check("moments: nothing plays after saving but an error", afterSavePlays.allSatisfy { $0 == ".failed" }, "\(afterSavePlays)")
 check("moments: Live captions tap before their microphone opens",

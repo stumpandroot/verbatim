@@ -393,7 +393,7 @@ final class MeetingCoordinator: ObservableObject {
             banner.show(.notice("The chat notice is copied. Paste it in the meeting chat."))
         }
         MeetingSession.shared.start(app: app, target: target, speaker: speaker, title: title, attendees: attendees,
-                                    appBundleID: MeetingApps.info(key: key)?.bundleID)
+                                    appBundleID: MeetingApps.info(key: key)?.bundleID, automatic: announce)
         preferencesChanged()
     }
 

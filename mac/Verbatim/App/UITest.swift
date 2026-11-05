@@ -51,6 +51,10 @@ enum UITest {
             NSApp.activate(ignoringOtherApps: true)
             // The Thoughts bubble stays off the screenshots except its own (thoughtsSteps and thoughtShots turn it on).
             Thoughts.showBubble = false
+            // The interface sounds (DESIGN.md §7, Sounds): every file loads from the app, and the rules hold.
+            let missingSounds = Sounds.unloadable().map { $0.fileName }.joined(separator: ", ")
+            check("sounds: every sound file loads from the app" + (missingSounds.isEmpty ? "" : " (not loaded: " + missingSounds + ")"), missingSounds.isEmpty)
+            SoundChecks.run { check($0, $1) }
             // Screen changes with 1,000 transcripts while a file transcribes; then the big library goes again.
             await bigLibrarySteps(app: app)
 

@@ -94,8 +94,8 @@ enum SettingsSearchIndex {
               description: "Use a model that knows each recording's language"),
         .init(id: "limitMotion", section: personalization, label: "Limit animation", keywords: ["reduce motion", "animation", "accessibility", "movement"],
               description: "Fades instead of movement; illustrations stay still"),
-        .init(id: "haptics", section: personalization, label: "Haptics", keywords: ["vibration", "vibrate", "taps", "feedback", "buzz", "accessibility", "apple watch", "keyboard"],
-              description: "Taps when you record, stop, mark, or copy, here, in the keyboard, and on Apple Watch"),
+        .init(id: "haptics", section: personalization, label: "Haptics", keywords: ["vibration", "vibrate", "taps", "feedback", "buzz", "accessibility", "apple watch", "keyboard", "sound", "sounds", "chime"],
+              description: "Taps when you record, stop, mark, or copy, here, in the keyboard, and on Apple Watch. Also turns Verbose's sounds on or off."),
 
         // Recording and transcription
         .init(id: "quality", section: recording, label: "Quality", keywords: ["model", "accuracy", "speed", "preset", "language"],

@@ -148,6 +148,8 @@ final class PhoneState {
         // Store is Observable too (Store.swift); and the recorder, the player, and the queue are watched directly by the
         // views that show them (`phoneState(_:)` puts them in the environment).
         coordinator.host = self
+        // Every interface sound loaded now, so the first one plays at once (SoundPlayer.swift).
+        DispatchQueue.main.async { Sounds.preload() }
         // Snippets (synced with the Mac) go to the Verbatim keyboard's Snippets chip through the App Group.
         store.snippetsPublisher.sink { list in
             KeyboardBridge.writeSnippets(list.map { KeyboardBridge.Snippet(id: $0.id, trigger: $0.trigger, expansion: $0.expansion) })
@@ -296,7 +298,10 @@ final class PhoneState {
     private func askMicAndRecord() {
         AVAudioApplication.requestRecordPermission { ok in
             Task { @MainActor in
-                if ok { self.startRecording() } else { self.pendingContinue = nil; self.pendingThought = false; self.recorderSlideIn = false; self.showMicDenied = true; Haptics.play(.failed) }
+                if ok { self.startRecording() } else {
+                    self.pendingContinue = nil; self.pendingThought = false; self.recorderSlideIn = false; self.showMicDenied = true
+                    Haptics.play(.failed); Sounds.play(.error)
+                }
             }
         }
     }
@@ -320,7 +325,11 @@ final class PhoneState {
             // The start tap plays before the microphone opens, so it isn't in the recording. (In the background, from
             // the Action button, a widget, or Siri, iOS plays nothing; the Live Activity shows the start instead.)
             Haptics.play(.recordStart)
+            let thought = pendingThought
             try recorder.start(to: url)
+            // The sound once the microphone is open (iOS plays it then because the session allows system sounds while
+            // recording); what the microphone hears of it is written as silence (MicKeepOut). Only with Verbose in front.
+            Sounds.play(SoundRules.start(thought: thought), keepingOutOf: recorder)
             recordingStartedAt = Date()
             if !soundOnly { recordingWords.begin() }
             // Audio only or a Brain dump: if Verbose is closed mid-recording, recovery files it as that kind.
@@ -346,6 +355,7 @@ final class PhoneState {
             if activityFirst { RecordingPresence.shared.cancelActivityBeforeRecording() }
             say("Couldn't start recording: \(error.localizedDescription)")
             Haptics.play(.failed)
+            Sounds.play(.error)
         }
     }
 
@@ -456,7 +466,10 @@ final class PhoneState {
         recordingThought = false
         thoughtStartedAt = nil
         savingRecording = true
-        let stopped = await recorder.stopAndSave()
+        // The stop sound once the microphone is off (so it isn't recorded), before a long recording's parts are joined.
+        // A thought saved has its own; Discard is a stop too.
+        let stopSound = SoundRules.stop(thought: thoughtStart != nil && !discard)
+        let stopped = await recorder.stopAndSave(captureEnded: { Sounds.play(stopSound) })
         savingRecording = false
         showRecorder = false
         guard let r = stopped else { return }
@@ -592,7 +605,7 @@ final class PhoneState {
     private func askMicAndOpenCaptions() {
         AVAudioApplication.requestRecordPermission { ok in
             Task { @MainActor in
-                if ok { self.openCaptions() } else { self.showMicDenied = true; Haptics.play(.failed) }
+                if ok { self.openCaptions() } else { self.showMicDenied = true; Haptics.play(.failed); Sounds.play(.error) }
             }
         }
     }
@@ -611,6 +624,7 @@ final class PhoneState {
                 showCaptions = false
                 say(captions.status ?? "Couldn't start live captions.")
                 Haptics.play(.failed)
+                Sounds.play(.error)
             }
         }
     }
@@ -1215,6 +1229,7 @@ extension PhoneState: TranscriptionHost {
     func jobFailed(_ id: UUID, error: Error) {
         say("Transcription failed: \(error.localizedDescription)")
         Haptics.play(.failed)
+        Sounds.play(.error)
     }
 
     func appendReady(_ id: UUID, queueEmpty: Bool) {
@@ -1225,13 +1240,18 @@ extension PhoneState: TranscriptionHost {
     func appendFailed(_ id: UUID, error: Error) {
         say("Couldn't add the new recording: \(error.localizedDescription)")
         Haptics.play(.failed)
+        Sounds.play(.error)
     }
 
     /// `.success` once per recording, with Verbose in front and the "ready" message showing. A template that runs
-    /// after it adds no second one.
+    /// after it adds no second one. The transcription done sound with it, for recordings only (not a thought or a
+    /// dictation, SoundRules.transcriptDone).
     private func playReady(_ id: UUID, queueEmpty: Bool) {
         let front = UIApplication.shared.applicationState == .active
-        if readyOnce.ready(id, foreground: front, queueEmpty: queueEmpty) { Haptics.play(.transcriptReady) }
+        guard readyOnce.ready(id, foreground: front, queueEmpty: queueEmpty) else { return }
+        Haptics.play(.transcriptReady)
+        let t = store.transcript(id)
+        if let moment = SoundRules.transcriptDone(isDictation: t?.isDictation ?? false, isThought: t?.kind == .idea) { Sounds.play(moment) }
     }
 
     func notify(_ message: String) { say(message) }

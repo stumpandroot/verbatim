@@ -343,7 +343,7 @@ struct SettingsScreen: View {
             SettingsToggleRow(title: "Limit animation", isOn: $motionLimited)
                 .settingsSearchTarget("limitMotion", flash: searchFlash)
             SettingsDivider()
-            SettingsToggleRow(title: "Haptics", subtitle: "Taps when you record, stop, mark, or copy, here, in the keyboard, and on Apple Watch", isOn: $hapticsOn)
+            SettingsToggleRow(title: "Haptics", subtitle: "Taps when you record, stop, mark, or copy, here, in the keyboard, and on Apple Watch. Also turns Verbose's sounds on or off.", isOn: $hapticsOn)
                 .settingsSearchTarget("haptics", flash: searchFlash)
                 // The Apple Watch follows this switch through the context the iPhone sends it.
                 .onChange(of: hapticsOn) { _, _ in PhoneWatchLink.shared.publish(app.store) }
