@@ -2,8 +2,28 @@
   "notes": [
     {
       "build": "next",
-      "title": "Smoother pages and a tidier Journal",
+      "title": "Names on calls, stills you can open, and new sounds",
       "items": [
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "New sounds",
+          "icon": "audio",
+          "text": "Verbose has its own soft sounds for starting, stopping, pasting, finishing, and errors.",
+          "detail": "Frequent moments get a quiet tick and rare ones a short chime. Your microphone doesn't record them. Settings › Sounds on the Mac and Settings › Haptics on the iPhone turn them off."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Open a still",
+          "icon": "film",
+          "text": "Click or tap a still beside a transcript to open it large, zoom, and step through them.",
+          "detail": "On the Mac, copy the image or select its text. On the iPhone, swipe between stills and share one. Play from here starts the recording at that moment."
+        },
         {
           "platforms": [
             "mac"
