@@ -15,6 +15,7 @@ extension AppState {
         case .notDetermined:
             showMicSheet = true
         default:
+            Sounds.play(.error)
             toast = Toast("Microphone access is off. Turn it on in System Settings › Privacy & Security › Microphone.")
         }
     }
@@ -56,6 +57,7 @@ extension AppState {
             guard let self else { return }
             if let error {
                 self.pendingContinue = nil
+                Sounds.play(.error)
                 self.toast = Toast(error.localizedDescription)
                 return
             }
@@ -63,7 +65,8 @@ extension AppState {
             self.pendingContinue = nil
             // If Verbatim quits mid-recording, recovery adds it to this transcript (RecordingSafety.swift).
             if let target = self.continuing { Store.markContinuation(url, to: target) }
-            Sounds.start()
+            // The mic is already open: what it hears of the start sound is written as silence (MicKeepOut).
+            Sounds.play(SoundRules.start(), keepingOutOf: self.recorder)
             if let warning = Store.lowSpaceWarning() { self.toast = Toast(warning) }
         }
     }
@@ -98,7 +101,8 @@ extension AppState {
         let kind = recordKind
         recordKind = nil
         if recorder.isRecording, !wasStarting { savingRecording = true }
-        let stopped = await recorder.stopAndSave()
+        // The stop sound plays once the mic is off, so it isn't recorded, and before a long recording's parts are joined.
+        let stopped = await recorder.stopAndSave(captureEnded: { Sounds.play(SoundRules.stop(thought: false)) })
         recorder.soundOnly = false
         savingRecording = false
         guard let r = stopped else {
@@ -195,7 +199,10 @@ extension AppState {
         Task {
             do {
                 try await capture.start(app: app, to: store.newRecordingURL())
+                // Verbose's own audio is left out of the capture (AppAudioCapture: excludesCurrentProcessAudio).
+                Sounds.play(SoundRules.start())
             } catch {
+                Sounds.play(.error)
                 toast = Toast("Could not capture \(app.name): \(error.localizedDescription). Allow Verbose under System Settings › Privacy & Security › Screen & System Audio Recording.")
             }
         }
@@ -208,6 +215,7 @@ extension AppState {
     func finishCapture() async {
         let marks = MarkCenter.shared.take(.appAudio)
         guard let r = await capture.stop() else { return }
+        Sounds.play(SoundRules.stop(thought: false))
         _ = adoptCapture(r, marks: marks)
     }
 

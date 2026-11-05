@@ -267,7 +267,6 @@ struct ExportSheet: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(Exporter.clipboard(ts, as: format, options: options), forType: .string)
         app.toast = Toast(ts.count == 1 ? "Copied" : "Copied \(ts.count) transcripts")
-        Sounds.done()
         dismiss()
     }
 

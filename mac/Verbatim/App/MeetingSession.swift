@@ -84,6 +84,8 @@ final class MeetingSession: ObservableObject {
     private var appBundleID: String?
     /// Stills of shared screens while it records (Settings › Meetings › Keep stills of shared screens).
     private var stillCapture: CallStillCapture?
+    /// The call you set up to wait for started this recording on its own: it starts with its own sound (Sounds).
+    private var startedAutomatically = false
 
     @available(macOS 14.4, *)
     private var tap: ProcessTapCapture? { tapObject as? ProcessTapCapture }
@@ -119,8 +121,10 @@ final class MeetingSession: ObservableObject {
 
     // MARK: Start
 
-    func start(app: AppState, target: MeetingAudioTarget, speaker: String, title: String? = nil, attendees: [String] = [], appBundleID: String? = nil) {
+    func start(app: AppState, target: MeetingAudioTarget, speaker: String, title: String? = nil, attendees: [String] = [], appBundleID: String? = nil,
+               automatic: Bool = false) {
         guard phase == .idle else { return }
+        startedAutomatically = automatic
         self.appBundleID = appBundleID ?? target.bundleID
         self.app = app
         self.target = target
@@ -219,6 +223,10 @@ final class MeetingSession: ObservableObject {
         verdictDone = path != "tap"
         lastSilenceNote = 0; lastProgressNote = 0
         phase = .recording
+        // Both tracks are running: the start sound now. The system track leaves Verbose's own audio out (the tap excludes
+        // Verbose's process; ScreenCaptureKit excludesCurrentProcessAudio), and the mic track writes what it hears of
+        // the sound as silence (MicKeepOut).
+        Sounds.play(SoundRules.start(automatic: startedAutomatically), keepingOutOf: mic)
         startWatchdog()
         Log.noteNow("meeting: recording; system track via \(path)")
         startStills(sessionID: side.id)
@@ -276,6 +284,7 @@ final class MeetingSession: ObservableObject {
 
     private func failStart(_ message: String) {
         Log.noteNow("meeting: start failed: \(message)")
+        Sounds.play(.error)
         notify(message)
         releaseSleepAssertion()
         stopObservingSleep()
@@ -463,7 +472,8 @@ final class MeetingSession: ObservableObject {
         if let c = stillCapture { sidecar?.stills = c.stop(); stillCapture = nil }
         guard let app, let folder, var side = sidecar else { reset(); return }
         if let i = side.pauses.indices.last, side.pauses[i].end == nil { side.pauses[i].end = HostClock.now() }
-        let micStopped = await mic.stopAndSave()
+        // The stop sound once the mic is off (so it isn't on the mic track); the system track never hears Verbose.
+        let micStopped = await mic.stopAndSave(captureEnded: { Sounds.play(SoundRules.stop(thought: false)) })
         mic.liveTap = nil
         let micHeard = mic.lastHeardSignal
         Log.noteNow("meeting: mic track saved: \(micStopped.map { String(format: "%.2f s, %lld frames", $0.duration, $0.framesWritten) } ?? "nothing")")

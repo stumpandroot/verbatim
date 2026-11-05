@@ -65,23 +65,26 @@ extension AppState: TranscriptionHost {
             }
             return
         }
-        // In a batch, stay quiet until the last one; then one chime and one toast.
+        // In a batch, stay quiet until the last one; then one chime and one toast. Never for a dictation (it pastes).
         if queueEmpty {
-            Sounds.done()
+            let t = store.transcript(id)
+            if let moment = SoundRules.transcriptDone(isDictation: t?.isDictation ?? false, isThought: t?.kind == .idea) { Sounds.play(moment) }
             toast = Toast(n > 0 ? "Transcript ready · Dictionary fixed \(n) word\(n == 1 ? "" : "s")" : "Transcript ready", action: "Open") { [weak self] in self?.go(.transcript(id)) }
         }
     }
 
     func jobFailed(_ id: UUID, error: Error) {
         FolderWatcher.shared.transcriptFailed(id, error: error)
+        Sounds.play(.error)
         toast = Toast("Transcription failed: \(error.localizedDescription)")
     }
 
     func appendReady(_ id: UUID, queueEmpty: Bool) {
-        if queueEmpty { Sounds.done(); toast = Toast("New recording added") }
+        if queueEmpty { Sounds.play(.transcriptionDone); toast = Toast("New recording added") }
     }
 
     func appendFailed(_ id: UUID, error: Error) {
+        Sounds.play(.error)
         toast = Toast("Couldn't add the new recording: \(error.localizedDescription)")
     }
 

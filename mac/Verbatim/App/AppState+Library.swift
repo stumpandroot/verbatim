@@ -8,7 +8,6 @@ extension AppState {
         for id in ids { store.update(id) { $0.projectId = project } }
         let name = project.flatMap { p in store.projects.first { $0.id == p }?.name }
         toast = Toast(name.map { "Moved \(ids.count == 1 ? "1 transcript" : "\(ids.count) transcripts") to \($0)" } ?? "Removed from project")
-        Sounds.play("Tink")
     }
 
     /// Adds Library transcripts to a project. A transcript is in one project at a time, so one from another project
@@ -22,7 +21,6 @@ extension AppState {
         toast = Toast(moved == 0 ? "Added \(what) to \(name)" : "Added \(what) to \(name), \(moved) from other projects", action: "Undo") { [weak self] in
             for (id, previous) in plan { self?.store.update(id) { $0.projectId = previous } }
         }
-        Sounds.play("Tink")
     }
 
     /// The New project alert's Create (the sidebar's +, the Library's More, a row's menu). A row's transcripts join

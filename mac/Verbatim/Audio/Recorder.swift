@@ -100,6 +100,10 @@ final class RecordingWriter: @unchecked Sendable {
     var framesWritten: Int64 { lock.lock(); defer { lock.unlock() }; return frames }
     /// Self-test only: every write that would go past this many frames fails, as on a full disk.
     var failWritesAfterFrames: Int64?
+    /// A start sound playing into the open microphone (Sounds, SoundRules.swift): what the mic hears while it plays is
+    /// written as silence, so the sound isn't in the recording, the live words, or the transcript.
+    private var keepOutWindow: MicKeepOut.Window?
+    func keepOut(_ w: MicKeepOut.Window) { lock.lock(); keepOutWindow = w; lock.unlock() }
 
     /// `segmented`: roll to a new file every `RecordingSegments.seconds` (normal recordings, not dictation).
     /// `sound`: Audio only's format (`SoundFormat`), at the rate `inputFormat` delivers.
@@ -250,6 +254,10 @@ final class RecordingWriter: @unchecked Sendable {
             out = made
         }
         if err == nil, out.frameLength > 0 {
+            if let w = keepOutWindow {
+                if let r = MicKeepOut.silenced(frames: Int(out.frameLength), rate: format.sampleRate, arrival: now, window: w) { Self.silence(out, r) }
+                if MicKeepOut.isOver(w, at: now) { keepOutWindow = nil }
+            }
             if liveTap != nil { tapped = out; tap = liveTap }
             if let file {
                 append(out, to: file, failure: &failure)
@@ -265,6 +273,13 @@ final class RecordingWriter: @unchecked Sendable {
     }
 
     var seconds: TimeInterval { lock.lock(); defer { lock.unlock() }; return Double(frames + preRollFrames) / format.sampleRate }
+
+    /// Writes silence over `range` of a converted mono buffer (16-bit for speech, float for Audio only).
+    private static func silence(_ b: AVAudioPCMBuffer, _ range: Range<Int>) {
+        guard range.lowerBound >= 0, range.upperBound <= Int(b.frameLength) else { return }
+        if let p = b.int16ChannelData?[0] { for i in range { p[i] = 0 } }
+        else if let p = b.floatChannelData?[0] { for i in range { p[i] = 0 } }
+    }
 
     /// A copy of a float buffer in its own format, or nil for any other kind of buffer.
     private static func copy(_ b: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
@@ -1391,6 +1406,13 @@ final class Recorder: ObservableObject {
         return true
     }
 
+    /// A start sound began playing into the open microphone (`Sounds.play(_:keepingOutOf:)`): what the microphone hears
+    /// for its `seconds`, plus a little for the speakers' latency, is written as silence (`MicKeepOut`).
+    func keepOut(seconds: Double) {
+        guard isRecording, let writer else { return }
+        writer.keepOut(MicKeepOut.window(playedAt: ProcessInfo.processInfo.systemUptime, seconds: seconds))
+    }
+
     /// Returns the file URL, its duration, and the waveform envelope. A long recording's segments are joined into
     /// that file first; if that fails, `lastJoinFailed` is set and the caller must leave the file where it is.
     func stop() -> (URL, TimeInterval, [Float])? {
@@ -1424,7 +1446,9 @@ final class Recorder: ObservableObject {
     /// long recording's segments are joined off the main thread, so the app stays responsive however long it ran.
     /// Until the join is done the files stay marked in progress; if the app dies meanwhile, the join marker and
     /// launch recovery finish the job. Nil when nothing was recording (or Stop cancelled a start).
-    func stopAndSave() async -> StoppedRecording? {
+    /// `captureEnded` runs once the microphone is off and before the parts are joined (the stop sound plays there, so
+    /// it's never in the recording and never waits for a long join); not when nothing was recording.
+    func stopAndSave(captureEnded: (() -> Void)? = nil) async -> StoppedRecording? {
         lastJoinFailed = false
         #if os(macOS)
         if isStarting { cancelStart(); return nil }
@@ -1436,6 +1460,7 @@ final class Recorder: ObservableObject {
         let parts = w.segments
         Log.note("recorder: stopped \(String(format: "%.2f", result.duration))s in \(parts.count) part\(parts.count == 1 ? "" : "s"), \(w.writeFailed ? "after a write failure" : "all written")")
         finishStop()
+        captureEnded?()
         if parts.count > 1 {
             let joined = await Task.detached(priority: .userInitiated) { RecordingSegments.join(parts) }.value
             if let joined {

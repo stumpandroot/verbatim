@@ -150,6 +150,8 @@ final class AppState: DistinctTracking {
 
     init() {
         Sounds.enabled = sounds
+        // Every interface sound loaded now, so the first dictation's tick plays at once (SoundPlayer.swift).
+        DispatchQueue.main.async { Sounds.preload() }
         // Settings › Privacy: the network activity log, before anything can use the network.
         NetworkActivityLog.install()
         Log.note("AppState init")

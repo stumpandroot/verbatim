@@ -96,24 +96,6 @@ struct PressStyle: ButtonStyle {
     }
 }
 
-/// Short system sounds for the moments that earn one: start, done, and (softer) cancel or wait.
-///
-/// Follows Settings › General › Sounds (`enabled`) only. Sound isn't motion, so Reduce Motion doesn't silence it.
-enum Sounds {
-    static var enabled = true
-    static func play(_ name: String, volume: Float = 1) {
-        guard enabled, let sound = NSSound(named: NSSound.Name(name)) else { return }
-        sound.volume = volume
-        sound.play()
-    }
-    static func start() { play("Pop") }
-    static func done() { play("Tink") }
-    /// A dictation was cancelled: quieter than start and done.
-    static func cancel() { play("Bottle", volume: 0.35) }
-    /// A dictation waits for the last one to finish before it listens.
-    static func queued() { play("Purr", volume: 0.5) }
-}
-
 /// Accepts transcripts dragged from Home, Library, or the Queue.
 struct TranscriptDropTarget: ViewModifier {
     var enabled: Bool

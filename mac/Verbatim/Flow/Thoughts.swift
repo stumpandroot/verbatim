@@ -120,10 +120,13 @@ final class ThoughtCapture: ObservableObject {
         case .authorized: break
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { ok in
-                Task { @MainActor in if ok { self.start() } else { self.say("Verbose can't hear you: microphone access is off") } }
+                Task { @MainActor in
+                    if ok { self.start() } else { Sounds.play(.error); self.say("Verbose can't hear you: microphone access is off") }
+                }
             }
             return
         default:
+            Sounds.play(.error)
             say("Verbose can't hear you: microphone access is off")
             return
         }
@@ -140,10 +143,12 @@ final class ThoughtCapture: ObservableObject {
                 self.url = nil
                 self.phase = .idle
                 self.startedAt = nil
+                Sounds.play(.error)
                 self.say(error.localizedDescription)
                 return
             }
-            Sounds.start()
+            // A thought is a quick capture: dictation's tick, kept out of the recording (MicKeepOut).
+            Sounds.play(SoundRules.start(thought: true), keepingOutOf: self.recorder)
         }
         Log.note("thought: recording")
     }
@@ -219,7 +224,11 @@ final class ThoughtCapture: ObservableObject {
         lastAdded = t.id
         Log.note("thought: added \(String(format: "%.1f", duration)) s; transcribing")
         // A dictation handed over while a thought records (today's page open) leaves that recording alone.
-        if !isRecording || stopping || simulate { showSaved(startedAt) }
+        if !isRecording || stopping || simulate {
+            // The mic is off by now (the thought stopped, or the dictation it came from did).
+            Sounds.play(SoundRules.stop(thought: true))
+            showSaved(startedAt)
+        }
         return t.id
     }
 

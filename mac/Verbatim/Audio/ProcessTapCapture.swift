@@ -87,8 +87,11 @@ final class ProcessTapCapture: @unchecked Sendable {
     /// Builds the tap, the aggregate device, and the IOProc, then starts them, writing to `url` (and its segments).
     /// Throws, with everything released and no file left, when any step fails.
     func start(to url: URL) throws {
+        // Verbose's own process stays out of a global tap, so its interface sounds (Sounds) never reach the system track.
+        // The mic track starts first (MeetingSession), so Verbose already has a Core Audio process object here.
         let me = Self.processObject(pid: getpid())
         let exclude = me.map { [$0] } ?? []
+        if me == nil { Log.noteNow("meeting tap: Verbose's own process object wasn't found; a global tap may hear its sounds") }
         let description: CATapDescription
         switch target {
         case .allSystemAudio:

@@ -132,7 +132,7 @@ enum SettingsIndex {
         .init("general.appearance", .personalization, "Appearance", "Match the system, or always light or dark.", keywords: "dark mode light theme color"),
         .init("general.limitMotion", .personalization, "Limit animation", "Fades instead of movement; illustrations stay still. Always on when Reduce Motion is on in System Settings.", keywords: "reduce motion accessibility animations"),
         .init("general.menuBar", .personalization, "Show in menu bar", "Record from anywhere with the menu bar item, or press ⌥⇧R while Verbose is running.", keywords: "menubar status item record shortcut"),
-        .init("general.sounds", .personalization, "Sounds", "A short chime when recording or dictation starts, a tick when your words are ready, and a soft tone when you cancel.", keywords: "chime audio feedback"),
+        .init("general.sounds", .personalization, "Sounds", "Short sounds when dictation or a recording starts and stops, when your words are pasted, when a transcript or summary is ready, and when something needs you.", keywords: "chime audio feedback tick error"),
         .init("general.customizeHome", .personalization, "Customize Home", "Show, hide, reorder, and resize Home's sections, and choose its four tiles.", keywords: "edit home sections reorder drag tiles shortcut compact large hide show layout"),
         .init("general.homeWeek", .personalization, "Show This week on Home", "Words, time saved typing, recordings, and moments for the week, in one strip under the tiles.", keywords: "this week stats words saved typing recordings moments method cards welcome"),
         .init("general.tourOnLaunch", .features, "Show the welcome tour when Verbose opens", keywords: "onboarding launch"),

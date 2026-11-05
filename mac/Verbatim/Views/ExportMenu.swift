@@ -11,6 +11,5 @@ enum ExportMenu {
         guard t.status == .ready else { return }
         Exporter.copy(t, v, timestamps: timestamps)
         app.toast = Toast("Copied the \(v.name)" + (timestamps ? " with timestamps" : ""))
-        Sounds.done()
     }
 }

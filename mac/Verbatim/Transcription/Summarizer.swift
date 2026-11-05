@@ -471,6 +471,8 @@ final class SummaryCenter: ObservableObject {
                 x.summary = s; x.summaryByModel = true
             }
             Log.note("summary: written (\(s.keyPoints.count) key points)")
+            // One sound for a batch: after the last summary waiting (Sounds; on the iPhone only with Verbose in front).
+            if queue.isEmpty { Sounds.play(.summaryReady) }
             retitleIfNeeded(id, summary: s)
         case .failure(let e):
             if e is CancellationError { break }

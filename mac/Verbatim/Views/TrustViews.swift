@@ -223,7 +223,6 @@ enum CopyForAI {
         pb.clearContents()
         pb.setString(t.copyForAI, forType: .string)
         app.toast = Toast("Copied for AI, with title, date, and source")
-        Sounds.done()
     }
 }
 

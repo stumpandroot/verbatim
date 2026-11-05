@@ -97,7 +97,8 @@ targets:
     platform: macOS
     sources:
       - path: Verbatim
-        excludes: ["Info.plist", "Verbatim.entitlements", "Verbatim-iCloud.entitlements", "Helper.entitlements", "Bridging.h"]
+        # The sounds' README (their sources and licenses) stays in the repo, not the app.
+        excludes: ["Info.plist", "Verbatim.entitlements", "Verbatim-iCloud.entitlements", "Helper.entitlements", "Bridging.h", "Resources/Sounds/README.md"]
       # What's new (Model/ReleaseNotes.swift): the release notes, shared with the iPhone app. CI stamps the "next"
       # entry with the run number in its checkout before building (ReleaseNotes/README.md).
       - ReleaseNotes/ReleaseNotes.json
@@ -415,6 +416,11 @@ targets:
       - Verbatim/Audio/LiveMeter.swift
       - Verbatim/Audio/LiveTranscriber.swift
       - Verbatim/Audio/LiveCaptions.swift
+      # The interface sounds (DESIGN.md §7, Sounds): the player and its files, shared with the Mac. The rules are in
+      # Verbatim/Model (SoundRules.swift); the README with each file's source and license stays out of the app.
+      - Verbatim/Audio/SoundPlayer.swift
+      - path: Verbatim/Resources/Sounds
+        excludes: ["README.md"]
       - Verbatim/Export/Exporter.swift
       - Verbatim/Export/ExportCore.swift
       - Verbatim/Export/ExportOptionsForm.swift

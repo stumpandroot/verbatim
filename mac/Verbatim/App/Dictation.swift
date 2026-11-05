@@ -324,7 +324,9 @@ final class DictationController: ObservableObject {
 
     /// "Couldn't hear the Shure MV7 mic. Check Settings › Recording and transcription › Record from.", with a button that opens it.
     /// After a muted-mic warning, it says to unmute instead.
+    /// Dictation couldn't start or couldn't hear the mic: the error sound, and what to fix.
     private func showMicProblem(_ verb: String, warned: MicWarning? = nil) {
+        Sounds.play(.error)
         switch warned {
         case .muted(let name):
             bar?.flash("Stopped listening: \(MicWarning.phrase(name)) is muted. Unmute it, then dictate again.", seconds: 8, tone: .error)
@@ -640,6 +642,7 @@ final class DictationController: ObservableObject {
     func startFromBar(command: Bool) {
         guard !isListening else { return }
         guard accessibilityTrusted else {
+            Sounds.play(.error)
             bar?.flash("Allow Accessibility to dictate", action: "Open", seconds: 6, tone: .error) { [weak self] in self?.fixAccessibility() }
             return
         }
@@ -650,7 +653,7 @@ final class DictationController: ObservableObject {
 
     private func begin(handsFree: Bool, command wantCommand: Bool) {
         guard !isListening else { return }
-        // Still writing the last one: this one waits, with a sound and a word in the Ribbon, and starts as soon as
+        // Still writing the last one: this one waits, with a word in the Ribbon (no sound), and starts as soon as
         // that text is handed to the paster (`startQueued`). Pastes run one at a time, so nothing lands on top.
         if isWorking { queueStart(handsFree: handsFree, command: wantCommand); return }
         // Ask for the microphone once, the first time; if it's off, say where to turn it on.
@@ -661,11 +664,15 @@ final class DictationController: ObservableObject {
                 Task { @MainActor in
                     // The key was let go during the permission dialog, so listen hands-free; click or tap to stop.
                     if ok { self?.begin(handsFree: true, command: wantCommand) }
-                    else { self?.bar?.flash("Verbose can't hear you: microphone access is off", action: "Open", seconds: 6, tone: .error) { Self.openMicrophoneSettings() } }
+                    else {
+                        Sounds.play(.error)
+                        self?.bar?.flash("Verbose can't hear you: microphone access is off", action: "Open", seconds: 6, tone: .error) { Self.openMicrophoneSettings() }
+                    }
                 }
             }
             return
         default:
+            Sounds.play(.error)
             bar?.flash("Verbose can't hear you: microphone access is off", action: "Open", seconds: 6, tone: .error) { Self.openMicrophoneSettings() }
             return
         }
@@ -686,6 +693,9 @@ final class DictationController: ObservableObject {
             showMicProblem("Couldn't start")
             return
         }
+        // The tick plays as the mic opens, before Accessibility is read, so it lands before you speak; what the mic hears
+        // of it is written as silence (Recorder.keepOut, SoundRules.swift's MicKeepOut).
+        Sounds.play(.dictationStart, keepingOutOf: recorder)
         startedAt = Date()
         session += 1
         toPad = !wantCommand && ThoughtPadController.shared.isOpen && !intoBrainDump
@@ -707,7 +717,6 @@ final class DictationController: ObservableObject {
             bar?.flash("Select some text first, then edit it by voice")
             return
         }
-        Sounds.start()
         if let m = bar?.model {
             m.handsFree = handsFree
             m.command = command
@@ -774,7 +783,7 @@ final class DictationController: ObservableObject {
         guard let stopped = recorder.stop() else { resetListening(); bar?.setPhase(.idle); return }
         isListening = false; handsFree = false; command = false
         try? FileManager.default.removeItem(at: stopped.0)
-        if quiet { bar?.setPhase(.idle) } else { Sounds.cancel(); bar?.flash("Cancelled", seconds: 1.5, exact: true) }
+        if quiet { bar?.setPhase(.idle) } else { Sounds.play(.dictationCancel); bar?.flash("Cancelled", seconds: 1.5, exact: true) }
     }
 
     /// Esc while the words are being written: nothing is pasted, and the dictation is kept in Dictations. A
@@ -785,7 +794,7 @@ final class DictationController: ObservableObject {
         queuedStart = nil
         writingSession = nil
         isWorking = false
-        Sounds.cancel()
+        Sounds.play(.dictationCancel)
         bar?.flash("Cancelled. It's saved in Dictations.", seconds: 2.5, exact: true)
         Log.note("dictation: cancelled while writing; kept in Dictations, not pasted")
     }
@@ -807,7 +816,7 @@ final class DictationController: ObservableObject {
 
     private func queueStart(handsFree: Bool, command: Bool) {
         if queuedStart == nil {
-            Sounds.queued()
+            // No sound: the mic isn't open yet. The start tick plays when it is (`begin`), so a tick always means listening.
             bar?.model.appLabel = "NEXT UP"
             Log.note("dictation: started while writing the last one; waiting for its paste")
         }
@@ -857,9 +866,12 @@ final class DictationController: ObservableObject {
         if !recorder.lastHeardSignal, Date().timeIntervalSince(startedAt ?? Date()) >= 1 {
             keepNothingHeard(url: url, duration: duration, env: env)   // in Dictations, never pasted
             command = false; toPad = false
-            showMicProblem("Couldn't hear", warned: warned)
+            showMicProblem("Couldn't hear", warned: warned)   // the error sound
             return
         }
+        // Today's page was open when it started: the recording becomes a thought, which plays Thought saved instead
+        // (ThoughtCapture.file). Every other dictation plays its stop now that the mic is off, so it isn't recorded.
+        if !(toPad && !command) { Sounds.play(.dictationStop) }
         guard !DictationTiming.isStrayTap(duration: duration, tail: tail) else {   // too short: discard, like Wispr Flow
             try? FileManager.default.removeItem(at: url); bar?.setPhase(.idle); return
         }
@@ -869,7 +881,6 @@ final class DictationController: ObservableObject {
             toPad = false
             bar?.setPhase(.idle)
             ThoughtCapture.shared.file(url: url, duration: duration, envelope: env, startedAt: startedAt ?? Date())
-            Sounds.done()
             bar?.flash("Added to Thoughts", seconds: 1.8)
             Log.note("dictation: today's page is open; kept as a thought")
             return
@@ -1002,7 +1013,10 @@ final class DictationController: ObservableObject {
                     self?.keepFailed(url: url, duration: duration, env: env, error: error.localizedDescription)
                     if cancelled.remove(mine) { return }
                     self?.endWriting(mine)
-                    if self?.isListening != true { self?.bar?.flash("Dictation failed. It's saved in Dictations.", seconds: 4, tone: .error) }
+                    if self?.isListening != true {
+                        Sounds.play(.error)
+                        self?.bar?.flash("Dictation failed. It's saved in Dictations.", seconds: 4, tone: .error)
+                    }
                 }
             }
         }
@@ -1082,7 +1096,7 @@ final class DictationController: ObservableObject {
             } ?? false
             DayNote.insert((needsSpace ? " " : "") + text)
             lastPasteConfirmed = true
-            Sounds.done()
+            Sounds.play(SoundRules.afterPaste(.pasted))
             bar?.setPhase(.idle)
             Log.note("dictation: inserted into today's note")
             endWriting(mine)
@@ -1095,7 +1109,7 @@ final class DictationController: ObservableObject {
             lastPasteConfirmed = false
             if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
             stoppedAtLimit = false
-            Sounds.done()
+            Sounds.play(SoundRules.afterPaste(.notPasted))   // copied, not pasted: you paste it yourself
             bar?.flash(DictationTiming.securePasteNotice, seconds: 4)
             Log.note("dictation: a password field has focus; copied, not pasted")
             endWriting(mine)
@@ -1124,7 +1138,7 @@ final class DictationController: ObservableObject {
             // A newer dictation is listening or being written: its Ribbon and sounds win. This one's text still
             // lands in Dictations.
             let current = session == mine && !isListening && !isWorking
-            if current { Sounds.done(); stoppedAtLimit = false }
+            if current { Sounds.play(SoundRules.afterPaste(Self.pasteResult(outcome))); stoppedAtLimit = false }
             if let rescue = Recall.rescue(for: outcome, command: wasCommand) {
                 // No text field, or the app never read the paste: the Ribbon holds the words with Copy and Paste again.
                 if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
@@ -1173,6 +1187,15 @@ final class DictationController: ObservableObject {
             }
         }
         Log.note("dictation delivered \(text.count) chars")
+    }
+
+    /// Where the words went, for the last sound (SoundRules.afterPaste).
+    private static func pasteResult(_ outcome: Paster.Outcome) -> PasteResult {
+        switch outcome {
+        case .pasted: return .pasted
+        case .copiedOnly: return .copiedOnly
+        case .failed: return .notPasted
+        }
     }
 
     /// "Started by mistake?": nothing usable came out (only filler words, or nothing transcribed).
@@ -1276,7 +1299,7 @@ final class DictationController: ObservableObject {
             if same { outcome = await Paster.paste(result, into: tgt, focusedField: ctx.hasFocusedField) }
             else { Paster.copy(result); outcome = .copiedOnly }
             lastResult = result
-            Sounds.done()
+            Sounds.play(SoundRules.afterPaste(Self.pasteResult(outcome)))
             bar?.flash(outcome == .pasted ? "“\(action.name)” applied. Press ⌘Z to undo."
                        : same ? "Copied. Click a text field and press ⌘V." : "The selection changed, so the result is on your clipboard.", seconds: 4)
             endAction()

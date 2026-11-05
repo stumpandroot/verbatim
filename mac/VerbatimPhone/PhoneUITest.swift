@@ -2319,6 +2319,10 @@ enum PhoneUITest {
             Log.note("UITEST \(ok ? "PASS" : "FAIL") haptics: \(name)")
         }
         HapticChecks.run(check)
+        // The interface sounds (DESIGN.md §7, Sounds): every file loads from the app, and the rules hold.
+        let missingSounds = Sounds.unloadable().map { $0.fileName }.joined(separator: ", ")
+        check("sounds: every sound file loads from the app" + (missingSounds.isEmpty ? "" : " (not loaded: " + missingSounds + ")"), missingSounds.isEmpty)
+        SoundChecks.run(check)
 
         // The switch lives in the App Group (the keyboard reads it there), and the watch's context carries it.
         let key = Haptics.enabledKey
