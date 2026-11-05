@@ -479,9 +479,15 @@ final class TranscriptionCoordinator: ObservableObject {
     /// Language and long-recording handling for a run of `t`.
     private func jobOptions(_ id: UUID, _ t: Transcript) -> JobOptions {
         let withV3 = checkWithV3IDs.remove(id) != nil
-        return JobOptions(sectioned: config.sectioned, audioName: t.audioFileName, languageChoice: t.languageChoice,
-                   detectLanguage: LanguageDetection.isEnabled || withV3, checkWithV3: withV3,
-                   offerV3: { language in Task { @MainActor in self.host?.offerParakeetV3(id, language: language) } })
+        var options = JobOptions(sectioned: config.sectioned, audioName: t.audioFileName, languageChoice: t.languageChoice,
+                                 detectLanguage: LanguageDetection.isEnabled || withV3, checkWithV3: withV3,
+                                 offerV3: { language in Task { @MainActor in self.host?.offerParakeetV3(id, language: language) } })
+        // A calendar call kept as one track (its other track was silent): the meeting's words still go to the engine.
+        if let m = t.meeting {
+            let terms = MeetingNames.vocabulary(m, selfNames: MeetingNames.selfNames(), dictionary: BoostVocabulary.rank(store.dictionary, project: t.projectId).map(\.text))
+            options.vocabulary = JobVocabulary(terms: terms, prompt: MeetingNames.whisperPrompt(m, terms: terms))
+        }
+        return options
     }
 
     /// The job's words are saved in the Store: its saved sections can go.
