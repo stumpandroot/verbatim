@@ -185,6 +185,9 @@ do {
     let group = ["Priya Shah", "Omar Haddad"]
     let g = MeetingNames.nameFixes([line("S1", "Thanks, Sam.", 0, 1), line("S1", "Thanks, Omer.", 1, 2)], speakers: [you, chrome], attendees: group, selfNames: me)
     check("names: with several invitees, only one that sounds alike", g.map(\.to) == ["Omar"] && g.first?.segment == 1, "\(g)")
+    check("names: a word from the event's title is left alone",
+          MeetingNames.nameFixes([line("S1", "Thanks, Acme.", 0, 1)], speakers: [you, chrome], attendees: people, selfNames: me, title: "Acme Planning Call").isEmpty
+          && MeetingNames.nameFixes([line("S1", "Thanks, Acme.", 0, 1)], speakers: [you, chrome], attendees: people, selfNames: me).count == 1)
     check("names: no invite, no fixes", MeetingNames.nameFixes([line("S1", "Thanks, Sam.", 0, 1)], speakers: [you, chrome], attendees: [], selfNames: me).isEmpty)
     check("names: a word heard in lowercase elsewhere is a word, not a name",
           MeetingNames.nameFixes([line("S1", "Thanks, Will.", 0, 1), line("S2", "I will.", 1, 2)], speakers: [you, chrome], attendees: people, selfNames: me).isEmpty)

@@ -646,7 +646,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         // yours), each as a correction Review lists with Undo (MeetingNames.correctNames).
                         if let m = meeting {
                             fixedNames = MeetingNames.correctNames(&x.segments, corrections: &x.corrections, speakers: x.speakers,
-                                                                   attendees: m.attendees, selfNames: me, known: knownNames)
+                                                                   attendees: m.attendees, selfNames: me, title: m.title, known: knownNames)
                         }
                         x.status = .ready
                         x.stage = nil

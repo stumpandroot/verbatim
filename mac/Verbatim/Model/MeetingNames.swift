@@ -323,14 +323,15 @@ enum MeetingNames {
     /// should be an invitee's name or yours, for a calendar call. Each fix can only put in a name from the invite or
     /// one of yours, and only when the line makes the word a name you call someone by. Never touched: a word that is
     /// already an invitee's, yours, or a speaker's name, a common word (or one heard in lowercase anywhere in the
-    /// call), and a word in `known` (your Dictionary's words, which hold the contacts you added there).
+    /// call), a word in the event's `title` ("Thanks, Acme." thanks the company), and a word in `known` (your
+    /// Dictionary's words, which hold the contacts you added there).
     ///
     /// Who can be addressed depends on who is talking: on your line, the invitees; on the call's line, you, and any
     /// other invitee who isn't the one talking. One possible name is the fix; with more, only one that sounds like the
     /// word heard (SpeakerNames.soundsAlike). "Sam" for "Tim" sounds nothing alike, which is why this runs at all: the
     /// engine's rescoring can't make that swap (research §3.1).
     static func nameFixes(_ segments: [Segment], speakers: [Speaker], attendees: [String], selfNames: [String],
-                          known: Set<String> = []) -> [NameFix] {
+                          title: String = "", known: Set<String> = []) -> [NameFix] {
         let people = others(attendees, selfNames: selfNames)
         guard !people.isEmpty else { return [] }
         let firstOf: (String) -> String = { $0.split(separator: " ").first.map(String.init) ?? $0 }
@@ -341,7 +342,7 @@ enum MeetingNames {
         for n in people + selfNames + speakers.filter({ !$0.isUnnamed }).map(\.name) {
             for w in words(n) { protected.insert(w) }
         }
-        for k in known { for w in words(k) { protected.insert(w) } }
+        for k in known.union([title]) { for w in words(k) { protected.insert(w) } }
         let common = SpeakerNames.lowercaseWords(segments)
         let youIDs = Set(speakers.filter { $0.name.lowercased() == "you" || isSelf($0.name, selfNames: selfNames) }.map(\.id))
 
@@ -379,8 +380,8 @@ enum MeetingNames {
     /// Returns how many words changed.
     @discardableResult
     static func correctNames(_ segments: inout [Segment], corrections: inout [Correction], speakers: [Speaker],
-                             attendees: [String], selfNames: [String], known: Set<String> = []) -> Int {
-        let fixes = nameFixes(segments, speakers: speakers, attendees: attendees, selfNames: selfNames, known: known)
+                             attendees: [String], selfNames: [String], title: String = "", known: Set<String> = []) -> Int {
+        let fixes = nameFixes(segments, speakers: speakers, attendees: attendees, selfNames: selfNames, title: title, known: known)
         // From the end of each line backward, so the places still ahead stay where they were found.
         for f in fixes.sorted(by: { $0.segment != $1.segment ? $0.segment < $1.segment : $0.range.location > $1.range.location }) {
             guard CorrectionEdits.apply([f.range], in: &segments, at: f.segment, to: f.to, label: f.from, byDictionary: false,

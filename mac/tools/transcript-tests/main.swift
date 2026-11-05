@@ -219,7 +219,10 @@ do {
     var plain = call
     plain.speakers[1].name = "Zoom"
     plain.speakerSuggestions = [SpeakerSuggestion(speakerId: "S2", name: "Jenna", sources: ["speech"])]
-    check("calendar: other suggestions still need a placeholder speaker", plain.visibleSpeakerSuggestions.isEmpty)
+    // The track named for its app is a label, not a person (Speaker.isAppLabel), so other suggestions show for it too.
+    check("calendar: other suggestions show for the app-named track", plain.visibleSpeakerSuggestions.map(\.name) == ["Jenna"])
+    plain.speakers[1].name = "Printer Rep"
+    check("calendar: but not for a speaker you named", plain.visibleSpeakerSuggestions.isEmpty)
     let roundTrip = try? JSONDecoder().decode(Transcript.self, from: JSONEncoder().encode(call))
     check("calendar: the source survives a save", roundTrip?.speakerSuggestions?.first?.fromCalendar == true)
 }
