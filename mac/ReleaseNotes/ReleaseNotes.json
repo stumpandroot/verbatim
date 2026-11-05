@@ -6,6 +6,24 @@
       "items": [
         {
           "platforms": [
+            "mac"
+          ],
+          "head": "Names on calls",
+          "icon": "speakers",
+          "text": "A call tied to a calendar event suggests the other person's name instead of the app's.",
+          "detail": "Verbose uses the invite, or a title like \"Dana x Priya\", and listens for those names and the title's words. Names it hears wrong, like \"Thanks, Sam\", are fixed from the invite and shown in Review."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Cleaner turns on calls",
+          "icon": "summary",
+          "text": "Talking over each other no longer splits sentences or leaves one-word lines.",
+          "detail": "Short replies like \"yeah\" wait for the other person's sentence to end, and a cut-off sentence joins back together."
+        },
+        {
+          "platforms": [
             "iphone",
             "mac"
           ],
