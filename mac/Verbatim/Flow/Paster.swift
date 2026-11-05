@@ -18,6 +18,7 @@ import UniformTypeIdentifiers
 ///    clipboard's change count is still ours. If you copied something in between, your copy wins.
 /// 6. No read within the app's limit (2.5 s, 5 s for remote desktops, Office, and Electron apps) means the
 ///    paste failed: the caller decides where the text goes (Dictate keeps it in Dictations and offers it again).
+///    A paste that doesn't land leaves the words as an ordinary copy (`copy`), so ⌘V and clipboard managers have them.
 /// Pastes run one at a time, so back-to-back dictations can't restore over each other.
 @MainActor
 enum Paster {
@@ -80,12 +81,12 @@ enum Paster {
         let pb = NSPasteboard.general
         guard AXIsProcessTrusted() else {
             Log.note("paste: Accessibility not allowed, ⌘V not pressed")
-            if onFailure == .leaveOnClipboard { writeMarked(text, to: pb) }
+            if onFailure == .leaveOnClipboard { copy(text) }
             return .failed(.notTrusted)
         }
         guard focusedField else {
             // Nowhere to paste: keep the words on the clipboard so ⌘V works wherever you click next.
-            writeMarked(text, to: pb)
+            copy(text)
             Log.note("paste: no focused field, left on clipboard")
             return .copiedOnly
         }
@@ -95,7 +96,7 @@ enum Paster {
             if let target, !target.isActive { target.activate() }
             if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000)) }
             if !fieldStillFocused(target) {
-                writeMarked(text, to: pb)
+                copy(text)
                 Log.note("paste: focus left the text field, left on clipboard")
                 return .copiedOnly
             }
@@ -106,7 +107,7 @@ enum Paster {
                 return .pasted
             case .partiallyPosted:
                 Log.note("paste: typing interrupted part way; not retried")
-                if onFailure == .leaveOnClipboard { writeMarked(text, to: pb) }
+                if onFailure == .leaveOnClipboard { copy(text) }
                 return .failed(.typingInterrupted)
             case .notPosted:
                 Log.note("paste: typing not posted, pasting instead")
@@ -126,7 +127,7 @@ enum Paster {
         if let target, !target.isActive { target.activate() }
         if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000)) }
         if !fieldStillFocused(target) {
-            writeMarked(text, to: pb)
+            copy(text)
             Log.note("paste: focus left the text field, left on clipboard")
             return .copiedOnly
         }
@@ -183,7 +184,7 @@ enum Paster {
         }
         switch onFailure {
         case .restoreClipboard: restore(snapshot, to: pb)
-        case .leaveOnClipboard: writeMarked(text, to: pb)   // real data, so it outlives this paste's promise
+        case .leaveOnClipboard: copy(text)   // real data, so it outlives this paste's promise
         }
         Log.note("paste: no read within \(limit)s in \(target?.bundleIdentifier ?? "front app"); treated as failed")
         return .failed(.notRead)
@@ -287,21 +288,13 @@ enum Paster {
         pb.writeObjects(items)
     }
 
-    /// The text as real clipboard data, with the markers clipboard managers skip.
-    private static func writeMarked(_ text: String, to pb: NSPasteboard) {
-        pb.clearContents()
-        let item = NSPasteboardItem()
-        item.setString(text, forType: .string)
-        for m in markers { item.setData(markerData(m), forType: m) }
-        pb.writeObjects([item])
-        lastWrite = pb.changeCount
-    }
-
     nonisolated static func markerData(_ type: NSPasteboard.PasteboardType) -> Data {
         type.rawValue == "org.nspasteboard.source" ? Data((Bundle.main.bundleIdentifier ?? "Verbatim").utf8) : Data()
     }
 
-    /// Re-copies text on purpose (History's Copy button): a normal clipboard write managers can keep.
+    /// A normal clipboard write managers can keep: History's Copy button, and every paste that doesn't land (no
+    /// Accessibility, no text field, no read), since then you paste it yourself and a clipboard manager should keep it.
+    /// (Marking those words transient and concealed made clipboard managers skip them, so it looked as if nothing was copied.)
     static func copy(_ text: String) {
         let pb = NSPasteboard.general
         pb.clearContents()

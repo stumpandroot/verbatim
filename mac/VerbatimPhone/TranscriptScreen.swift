@@ -18,7 +18,7 @@ struct TranscriptScreen: View {
     var id: UUID
     var startMode: Mode = .transcript
     /// `result`: the template results tab (TemplatesScreens.swift), once a template ran or is running here.
-    enum Mode: Hashable { case transcript, document, summary, review, result }
+    enum Mode: Hashable, CaseIterable { case transcript, document, summary, review, result }
     @State private var mode: Mode = .transcript
     /// This screen's place in `PhoneState.readingScreens`.
     @State private var readingToken = UUID()
@@ -471,8 +471,8 @@ struct TranscriptScreen: View {
                 })
                 }
             }
-            // A tab change crossfades the body as a whole over 150 ms (DESIGN.md §7, view switches).
-            .crossfadeSwitch(on: mode)
+            // A tab change slides the body in from the side of the tab you picked as the old one fades (DESIGN.md §7, view switches).
+            .slideSwitch(on: mode, order: Mode.allCases.firstIndex(of: mode) ?? 0)
         }
     }
 

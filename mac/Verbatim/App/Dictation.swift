@@ -202,12 +202,14 @@ final class DictationController: ObservableObject {
         // Turning on Accessibility in System Settings doesn't tell the app. Watch for it, and start listening for
         // the hotkey the moment it's allowed (key monitors added before that never receive anything).
         lastTrusted = accessibilityTrusted
+        if lastTrusted { UserDefaults.standard.set(true, forKey: Self.everTrustedKey) }
         trustTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
                 let now = self.accessibilityTrusted
                 if now != self.lastTrusted {
                     self.lastTrusted = now
+                    if now { UserDefaults.standard.set(true, forKey: Self.everTrustedKey) }
                     Log.note("accessibility trusted=\(now)")
                     self.refreshMonitors(); self.bar?.refresh()
                     if now { self.bar?.flash("Ready. \(self.hotkey.shortTitle.prefix(1).uppercased() + self.hotkey.shortTitle.dropFirst()) to dictate.", seconds: 4) }
@@ -345,6 +347,37 @@ final class DictationController: ObservableObject {
         let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(opts)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.refreshMonitors() }
+    }
+
+    /// True once Accessibility has been allowed on this Mac. If it's off now, the switch in System Settings most likely
+    /// belongs to an earlier copy of Verbose (one built or signed differently), so it looks on but doesn't apply.
+    static let everTrustedKey = "accessibility.everTrusted"
+    var accessibilityWasAllowed: Bool { UserDefaults.standard.bool(forKey: Self.everTrustedKey) }
+
+    /// Fixes Accessibility that looks on but doesn't apply: clears Verbose's entry in the Accessibility list (`tccutil
+    /// reset Accessibility <this app>`, which touches no other app), then asks again, so this copy of Verbose is the one
+    /// in the list and you switch it on once. Never runs in the self-test.
+    func repairAccessibility() {
+        guard !UITest.enabled else { return }
+        let id = Bundle.main.bundleIdentifier ?? "co.stumpandroot.verbatim"
+        Task.detached {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+            p.arguments = ["reset", "Accessibility", id]
+            var status: Int32 = -1
+            do { try p.run(); p.waitUntilExit(); status = p.terminationStatus } catch {}
+            await MainActor.run {
+                Log.note("accessibility: cleared Verbose's entry (tccutil status \(status)); asking again")
+                let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                _ = AXIsProcessTrustedWithOptions(opts)
+                Self.openPrivacy("Privacy_Accessibility")
+            }
+        }
+    }
+
+    /// Allow (first time) or Fix (it was allowed before, so the entry is probably stale).
+    func fixAccessibility() {
+        if accessibilityWasAllowed { repairAccessibility() } else { openAccessibilitySettings() }
     }
 
     func openAccessibilitySettings() {
@@ -607,7 +640,7 @@ final class DictationController: ObservableObject {
     func startFromBar(command: Bool) {
         guard !isListening else { return }
         guard accessibilityTrusted else {
-            bar?.flash("Allow Accessibility to dictate", action: "Open", seconds: 6, tone: .error) { [weak self] in self?.openAccessibilitySettings() }
+            bar?.flash("Allow Accessibility to dictate", action: "Open", seconds: 6, tone: .error) { [weak self] in self?.fixAccessibility() }
             return
         }
         begin(handsFree: true, command: command)
@@ -1119,14 +1152,18 @@ final class DictationController: ObservableObject {
                 guard current else { return }
                 if wasCommand {
                     if why == .notTrusted {
-                        bar?.flash("Allow Accessibility to edit by voice. The result is on your clipboard.", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
+                        bar?.flash("Allow Accessibility to edit by voice. The result is on your clipboard.", action: "Open", seconds: 6) { [weak self] in self?.fixAccessibility() }
                     } else {
                         bar?.flash("Couldn't confirm the edit. The result is on your clipboard.", seconds: 5)
                     }
                 } else {
                     switch why {
                     case .notTrusted:
-                        bar?.flash("Saved in Dictations. Allow Accessibility to paste.", action: "Open", seconds: 6, tone: .error) { [weak self] in self?.openAccessibilitySettings() }
+                        // The words are on the clipboard as an ordinary copy (Paster), so ⌘V pastes them now. Fix clears a
+                        // stale Accessibility entry when it was allowed before (`fixAccessibility`).
+                        bar?.flash(accessibilityWasAllowed ? "Accessibility stopped working for Verbose. Press ⌘V to paste this one."
+                                                           : "Allow Accessibility to paste. Press ⌘V to paste this one.",
+                                   action: accessibilityWasAllowed ? "Fix" : "Open", seconds: 8, tone: .error) { [weak self] in self?.fixAccessibility() }
                     case .notRead:
                         bar?.flash("\(appName) didn't take the paste. Saved in Dictations; ⌃⌘V tries again.", seconds: 5, tone: .error)
                     case .typingInterrupted:
@@ -1207,7 +1244,7 @@ final class DictationController: ObservableObject {
     func apply(_ action: FlowAction) {
         guard !isListening, !isWorking else { return }
         guard accessibilityTrusted else {
-            bar?.flash("Allow Accessibility to use actions", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
+            bar?.flash("Allow Accessibility to use actions", action: "Open", seconds: 6) { [weak self] in self?.fixAccessibility() }
             return
         }
         let ctx = AppContext.capture(readText: true)
@@ -1321,7 +1358,7 @@ final class DictationController: ObservableObject {
         switch out {
         case .pasted: break
         case .failed(.notTrusted):
-            bar?.flash("Allow Accessibility to paste. It's on your clipboard.", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
+            bar?.flash("Allow Accessibility to paste. It's on your clipboard.", action: "Open", seconds: 6) { [weak self] in self?.fixAccessibility() }
         default:
             bar?.flash("Copied. Click a text field and press ⌘V.", seconds: 5)
         }

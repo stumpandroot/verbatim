@@ -11,10 +11,10 @@ import UIKit
 // The kinds, their order, their names, and the line under each come from `RecordChoice` (Model/Templates.swift); the
 // gesture's decisions from `RecordTrayRules`, which the Linux tests check (mac/tools/test-templates.sh).
 //
-// Motion: the tray opens on a critically damped spring (280 ms, no bounce), and each kind's card follows 90 ms in, 28 ms
-// after the one above it, rising 10 pt and fading in over 240 ms (approved mockup "Record As Cards", October 31, 2026);
-// nothing waits for it, so a finger can slide to a row while the last ones land. The highlight jumps to the row under
-// your finger with no animation (a high-frequency action), and the tray leaves in 200 ms, ease-out. Limit animation
+// Motion: the tray opens on a spring with a slight bounce (320 ms, bounce 0.14), and each kind's card follows 90 ms in,
+// 28 ms after the one above it, rising 10 pt and fading in on a 300 ms spring with a slight bounce (approved mockup
+// "Record As Cards", October 31, 2026); nothing waits for it, so a finger can slide to a row while the last ones land.
+// The row under your finger takes the tint and lifts 3% on `Motion.glide`, and the tray leaves in 200 ms, ease-out. Limit animation
 // crossfades the tray and its cards together, with no stagger or movement. Haptics: a light impact on open, a selection tick on each new row, and the recorder's own
 // Record haptic when a row starts; like every haptic in Verbose they go through `Haptics` (Haptics.swift), so
 // Settings › Personalization and preferences › Haptics turns them off, and they follow the iPhone's System Haptics.
@@ -99,7 +99,7 @@ final class RecordTray: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { UIAccessibility.post(notification: .screenChanged, argument: nil) }
     }
 
-    /// The finger moved (global coordinates). Once it has slid, the row under it lights up, with no animation.
+    /// The finger moved (global coordinates). Once it has slid, the row under it lights up and lifts (`TrayRow`).
     func move(to p: CGPoint) {
         guard isOpen, fingerDown else { return }
         guard let o = origin else { origin = p; return }
@@ -107,9 +107,7 @@ final class RecordTray: ObservableObject {
         guard slid else { return }
         let row = self.row(at: p)
         guard row != highlighted else { return }
-        var t = Transaction()
-        t.disablesAnimations = true
-        withTransaction(t) { highlighted = row }
+        highlighted = row
         if row != nil { Haptics.selection(selection); Haptics.prepare(selection) }
     }
 
@@ -383,7 +381,7 @@ struct RecordTrayLayer: View {
     /// The cards have come in (false for the first frame of each opening, so they can rise one after another).
     @State private var cardsIn = false
 
-    private var openAnimation: Animation { limitMotion ? Motion.fade : .spring(duration: 0.28, bounce: 0) }
+    private var openAnimation: Animation { limitMotion ? Motion.fade : .spring(duration: 0.32, bounce: 0.14) }
     private var closeAnimation: Animation { .easeOut(duration: 0.2) }
 
     var body: some View {
@@ -560,7 +558,7 @@ struct RecordTrayLayer: View {
                                              height: Double(max(trayHeight, 1))) {
                     tray.close()
                 } else {
-                    withAnimation(limitMotion ? Motion.fade : .spring(duration: 0.28, bounce: 0)) { pull = 0 }
+                    withAnimation(limitMotion ? Motion.fade : .spring(duration: 0.32, bounce: 0.14)) { pull = 0 }
                 }
             }
     }
@@ -585,6 +583,7 @@ private struct TrayRow: View {
     var hint: String
     var action: () -> Void
     @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 60
+    @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
         Button(action: action) {
@@ -602,6 +601,9 @@ private struct TrayRow: View {
             .padding(.horizontal, 12).padding(.vertical, 8)
             .frame(minHeight: rowHeight)
             .refinedSurface(highlighted ? Refined.persimmonTint : Refined.card, radius: RefinedPlatform.radius(.card))
+            // The row under your finger lifts a little with a slight bounce; with motion limited it only takes the tint.
+            .scaleEffect(highlighted && !limitMotion ? 1.03 : 1)
+            .animation(limitMotion ? nil : Motion.glide, value: highlighted)
             .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
         }
         .buttonStyle(.plain)
@@ -678,12 +680,12 @@ private struct CappedHeight: Layout {
 }
 
 extension View {
-    /// Record as's cards coming in: 90 ms after the tray starts, 28 ms apart, rising 10 pt and fading in over 240 ms on
-    /// a spring with no bounce. With motion limited they're simply there, fading with the tray.
+    /// Record as's cards coming in: 90 ms after the tray starts, 28 ms apart, rising 10 pt and fading in on a 300 ms
+    /// spring with a slight bounce. With motion limited they're simply there, fading with the tray.
     func cardEntrance(index: Int, shown: Bool, limitMotion: Bool) -> some View {
         self
             .opacity(shown ? 1 : 0)
             .offset(y: shown || limitMotion ? 0 : 10)
-            .animation(limitMotion ? nil : .spring(duration: 0.24, bounce: 0).delay(0.09 + 0.028 * Double(index)), value: shown)
+            .animation(limitMotion ? nil : .spring(duration: 0.3, bounce: 0.2).delay(0.09 + 0.028 * Double(index)), value: shown)
     }
 }

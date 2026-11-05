@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import AVFoundation
+import ApplicationServices
 
 // Self-test builds only (VERBOSE_SELFTEST: Debug, and CI's tour and bench builds). Shipping builds leave the
 // in-app UI self-test out; SelfTestOff.swift stands in for what other files call.
@@ -1008,6 +1009,21 @@ enum UITest {
             check("vocal sounds: scans a 3-second clip without an error (\(error.localizedDescription))", false)
         }
         try? FileManager.default.removeItem(at: url)
+    }
+
+    /// A paste that can't land (the self-test Mac has no Accessibility) leaves the words on the clipboard as an ordinary
+    /// copy, with none of the markers that make clipboard managers skip it, so ⌘V and clipboard history have them.
+    private static func pasteChecks() async {
+        guard !AXIsProcessTrusted() else { Log.note("UITEST note: Accessibility is allowed here; the no-Accessibility paste checks don't apply"); return }
+        let pb = NSPasteboard.general
+        let words = "Self-test paste without Accessibility"
+        let out = await Paster.paste(words, into: nil, focusedField: true)
+        check("paste: without Accessibility it reports that, not a paste", out == .failed(.notTrusted))
+        check("paste: without Accessibility the words are on the clipboard", pb.string(forType: .string) == words)
+        let types = pb.types ?? []
+        check("paste: it's an ordinary copy clipboard managers keep",
+              !types.contains(.init("org.nspasteboard.ConcealedType")) && !types.contains(.init("org.nspasteboard.TransientType")))
+        pb.clearContents()
     }
 
     private static func check(_ name: String, _ ok: Bool) {
@@ -2409,6 +2425,7 @@ extension UITest {
         check("today note: closing it while typing leaves no blank window\(suffix)", ThoughtPadController.shared.panelWindow?.isVisible != true)
         if let savedNote { app.store.updateDayPlan(today, source: .note) { $0 = savedNote } } else { app.store.plans.removeAll { $0.source == .note && $0.day == DayPlanRecord.dayKey(today) } }
         guard suffix.isEmpty else { return }
+        await pasteChecks()
         let capture = ThoughtCapture.shared
         capture.simulate = true
         Thoughts.showBubble = true

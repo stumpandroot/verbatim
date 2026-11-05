@@ -320,9 +320,20 @@ enum Radius {
     static let watch: CGFloat = 26
 }
 
-/// Motion (BRAND_GUIDE §10): quick ease-outs, no springy bounce in productivity controls.
+/// Motion (DESIGN.md §7): quick ease-outs for hovers and presses; what moves from one place to another (a selected
+/// segment, a page, a tab's content) travels on a spring with a slight bounce, so it settles instead of stopping.
 /// `snap` remains as a name but no longer overshoots.
 enum Motion {
+    /// A selection that moves: a segmented control's pill, a highlighted row. Quick, with a slight bounce.
+    static let glide = Animation.spring(duration: 0.34, bounce: 0.22)
+    /// A page, a tab's content, or a view switch arriving: a spring with a slight bounce.
+    static let page = Animation.spring(duration: 0.44, bounce: 0.16)
+    /// How far a page travels in from the side (opening or leaving a transcript; an iPhone tab).
+    static let pageTravel: CGFloat = 22
+    /// How far a sidebar page travels in, up or down, as it fades in.
+    static let sidebarTravel: CGFloat = 14
+    /// How far a view switch's content travels in (a transcript's tabs).
+    static let switchTravel: CGFloat = 18
     /// Hover tints on small, frequent controls (chips, sidebar rows): quick, so they never trail the pointer.
     static let touch = Animation.easeOut(duration: 0.18)
     /// A press lands fast.
@@ -361,6 +372,40 @@ struct CrossfadeSwitch<Key: Hashable>: ViewModifier {
 extension View {
     /// See `CrossfadeSwitch`.
     func crossfadeSwitch<Key: Hashable>(on key: Key) -> some View { modifier(CrossfadeSwitch(key: key)) }
+    /// See `SlideSwitch`.
+    func slideSwitch<Key: Hashable>(on key: Key, order: Int) -> some View { modifier(SlideSwitch(key: key, order: order)) }
+}
+
+/// A view switch with a direction (a transcript's tabs): the new view slides in `Motion.switchTravel` from the side of the
+/// tab you picked, toward a later tab from the right and an earlier one from the left, as the old one fades out, on
+/// `Motion.page`. Limit animation keeps only the crossfade. `order` is the chosen tab's place in its row.
+struct SlideSwitch<Key: Hashable>: ViewModifier {
+    var key: Key
+    var order: Int
+    @Environment(\.limitMotion) private var limited
+    @State private var heading = SwitchHeading()
+
+    func body(content: Content) -> some View {
+        let forward = heading.forward(to: order)
+        let insertion: AnyTransition = limited ? .opacity
+            : .offset(x: forward ? Motion.switchTravel : -Motion.switchTravel).combined(with: .opacity)
+        return ZStack(alignment: .topLeading) {
+            content.id(key).transition(.asymmetric(insertion: insertion, removal: .opacity))
+        }
+        .animation(limited ? Motion.crossfade : Motion.page, value: key)
+    }
+}
+
+/// Which way the last switch went. It changes only when the order does, so a redraw during the slide (which reads
+/// the same order again) keeps the direction the slide started with. Not observed: reading it never redraws anything.
+final class SwitchHeading {
+    private var last: Int?
+    private var wasForward = true
+    func forward(to order: Int) -> Bool {
+        if let last, last != order { wasForward = order > last }
+        last = order
+        return wasForward
+    }
 }
 
 // MARK: - Limit animation

@@ -317,8 +317,8 @@ struct TranscriptView: View {
         if t.status == .processing { processing(t) }
         else if t.status == .failed { failed(t) }
         else {
-            // A tab change crossfades the body as a whole over 150 ms (DESIGN.md §7, view switches).
-            tabBody(t).crossfadeSwitch(on: view)
+            // A tab change slides the body in from the side of the tab you picked as the old one fades (DESIGN.md §7, view switches).
+            tabBody(t).slideSwitch(on: view, order: Mode.allCases.firstIndex(of: view) ?? 0)
         }
     }
 

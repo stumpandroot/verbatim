@@ -91,9 +91,9 @@ struct ContentView: View {
     /// earlier faded the new screen in over the old on `navCount`: with an animated transaction, SwiftUI keeps a removed
     /// view until the animation ends, even with an `.identity` removal, so both screens showed for 120 to 150 ms and the
     /// outgoing one re-rendered with the navigation's publish.) Each screen draws its own paper, so it is opaque from its
-    /// first frame. Opening or leaving a transcript still slides it 12 pt (`ScreenEntrance`); a sidebar move fades only the
-    /// new screen in over 150 ms (`ScreenFadeIn`, behind `PageFade.enabled`), with no movement and nothing to wait for,
-    /// and Limit Motion is instant for all.
+    /// first frame. Only the new screen moves (`ScreenEntrance`), on a spring with a slight bounce: opening or leaving a
+    /// transcript slides it in from the side, and a sidebar move fades it in as it rises or drops 14 pt (behind
+    /// `PageFade.enabled`). Nothing waits for it, and Limit Motion only fades.
     /// Record lives in the toolbar (MacChrome.swift), so nothing floats over the content.
     private var detail: some View {
         ZStack {
@@ -102,8 +102,7 @@ struct ContentView: View {
             GeometryReader { g in
                 screenView.frame(width: g.size.width, height: g.size.height)
                     .background(Refined.paper)
-                    .modifier(ScreenEntrance(x: entranceOffset))
-                    .modifier(ScreenFadeIn(on: pageFades))
+                    .modifier(ScreenEntrance(offset: entranceOffset, fades: pageFades, limited: limitMotion && app.navCount > 0))
                     // Each screen change is timed from the click to here: a "Navigate" signpost always, and a
                     // UITEST TIMING line in the self-test.
                     .onAppear {
@@ -164,42 +163,50 @@ struct ContentView: View {
         }
     }
 
-    /// A sidebar move fades the new screen in over 150 ms (`ScreenFadeIn`); the launch screen, transcripts (which slide),
-    /// and Limit Motion arrive at once. Off entirely with `PageFade.enabled`.
+    /// A sidebar move fades the new screen in as it slides (`ScreenEntrance`); the launch screen and transcripts (which
+    /// slide opaque) don't fade. Off entirely with `PageFade.enabled`.
     private var pageFades: Bool {
         guard PageFade.enabled, !limitMotion, app.navCount > 0 else { return false }
         return app.direction == .up || app.direction == .down
     }
 
-    /// Opening a transcript slides it in 12 pt from the right, and leaving one slides the screen in from the left; sidebar
-    /// moves and Limit Motion don't move at all.
-    private var entranceOffset: CGFloat {
-        if limitMotion { return 0 }
+    /// Where the new screen starts. Opening a transcript slides it in from the right, and leaving one slides the screen in
+    /// from the left (`Motion.pageTravel`). A sidebar move rises from below when you go down the sidebar and drops from
+    /// above when you go up (`Motion.sidebarTravel`). The launch screen and Limit Motion don't move.
+    private var entranceOffset: CGSize {
+        if limitMotion || app.navCount == 0 { return .zero }
         switch app.direction {
-        case .push: return 12
-        case .pop: return -12
-        case .up, .down: return 0
+        case .push: return CGSize(width: Motion.pageTravel, height: 0)
+        case .pop: return CGSize(width: -Motion.pageTravel, height: 0)
+        case .up: return PageFade.enabled ? CGSize(width: 0, height: Motion.sidebarTravel) : .zero
+        case .down: return PageFade.enabled ? CGSize(width: 0, height: -Motion.sidebarTravel) : .zero
         }
     }
 }
 
-/// A transcript's short entrance: the screen starts `x` points over and settles in 150 ms, ease-out, opaque all the way
-/// (no fade). It runs from the screen's own `onAppear`, in a transaction of its own, so the navigation's transaction
-/// stays unanimated and the outgoing screen is gone at once. Until it appears the screen takes no clicks (what
-/// `ScreenSlide` did for a lingering screen; nothing lingers now).
+/// A new screen's entrance: it starts `offset` away (and clear, with `fades`) and settles on `Motion.page`, a spring with
+/// a slight bounce. With motion limited it only fades in, over `Motion.fade`. It runs from the screen's own `onAppear`,
+/// in a transaction of its own, so the navigation's transaction stays unanimated and the outgoing screen is gone at
+/// once. Clicks reach the screen from its first frame (the spring's target is already in place).
 struct ScreenEntrance: ViewModifier {
     /// Where the screen starts, taken once when the screen is made (a later change of direction or Limit Motion
     /// doesn't move a screen that's already there).
-    @State private var x: CGFloat
-    init(x: CGFloat) { _x = State(initialValue: x) }
+    @State private var offset: CGSize
+    @State private var shown: Bool
+    private let limited: Bool
+    init(offset: CGSize, fades: Bool, limited: Bool) {
+        _offset = State(initialValue: offset)
+        _shown = State(initialValue: !(fades || limited))
+        self.limited = limited
+    }
 
     func body(content: Content) -> some View {
         content
-            .offset(x: x)
-            .allowsHitTesting(x == 0)
+            .offset(offset)
+            .opacity(shown ? 1 : 0)
             .onAppear {
-                guard x != 0 else { return }
-                withAnimation(.easeOut(duration: 0.15)) { x = 0 }
+                guard offset != .zero || !shown else { return }
+                withAnimation(limited ? Motion.fade : Motion.page) { offset = .zero; shown = true }
             }
     }
 }
@@ -214,22 +221,6 @@ struct ScreenEntrance: ViewModifier {
 enum PageFade {
     static let enabled = true
     static let duration = 0.15
-}
-
-/// Fades a screen in from clear when it's made with `on`, over `PageFade.duration`. Taken once, like `ScreenEntrance`:
-/// a later change doesn't fade a screen that's already there. Hit-testing stays on throughout.
-struct ScreenFadeIn: ViewModifier {
-    @State private var shown: Bool
-    init(on: Bool) { _shown = State(initialValue: !on) }
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(shown ? 1 : 0)
-            .onAppear {
-                guard !shown else { return }
-                withAnimation(.easeOut(duration: PageFade.duration)) { shown = true }
-            }
-    }
 }
 
 /// Marks a screen's root for the self-test, which counts the screens in the window right after a navigation

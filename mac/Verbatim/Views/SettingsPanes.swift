@@ -202,10 +202,20 @@ struct DictationForm: View {
                     HStack(spacing: 8) {
                         RefinedStatus(text: trusted ? "Allowed" : "Needed", tone: trusted ? .kept : .danger, check: trusted)
                         if !trusted {
-                            Button("Allow…") { dictation.requestAccessibility() }.buttonStyle(.settingsPrimaryPill)
+                            if dictation.accessibilityWasAllowed {
+                                // It was allowed before: the switch most likely belongs to an earlier copy of Verbose.
+                                Button("Fix Accessibility") { dictation.repairAccessibility() }.buttonStyle(.settingsPrimaryPill)
+                                    .help("Removes Verbose from the Accessibility list and adds this copy back, so you switch it on once.")
+                            } else {
+                                Button("Allow…") { dictation.requestAccessibility() }.buttonStyle(.settingsPrimaryPill)
+                            }
                             Button("Open System Settings") { dictation.openAccessibilitySettings() }.buttonStyle(.settingsPill)
                         }
                     }
+                }
+                if !trusted && dictation.accessibilityWasAllowed {
+                    Text("Accessibility was on for Verbose and macOS no longer applies it, which happens when the switch belongs to an earlier copy of the app. Fix Accessibility removes Verbose from the list and adds it back; then switch it on.")
+                        .font(.system(size: 12)).foregroundStyle(Refined.mute)
                 }
                 AlwaysCopyRow()
                 SettingsRow("dictate.typeInstead", stacked: true) {

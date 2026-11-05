@@ -2,6 +2,59 @@
   "notes": [
     {
       "build": "next",
+      "title": "Pastes that land, and motion that settles",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Fix Accessibility",
+          "icon": "accessibility",
+          "text": "When Accessibility looks on but Verbose can't paste, Fix sets it up again in one step.",
+          "detail": "This happens when the switch in System Settings belongs to an earlier copy of Verbose. Fix removes that entry and adds this copy back, so you switch it on once."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Missed pastes stay copied",
+          "icon": "copy",
+          "text": "A dictation that can't paste is copied as usual, so ⌘V and clipboard managers have it."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Switches that slide",
+          "icon": "appearance",
+          "text": "The chosen option in a switch slides to your pick with a slight bounce.",
+          "detail": "By day and All thoughts, Literal, Clean, and Polished, a transcript's tabs, and every other switch like them."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Pages that glide in",
+          "icon": "tabbar",
+          "text": "Pages, tabs, and a transcript's views slide in from the side you picked and settle.",
+          "detail": "On the Mac, a page rises or drops with the sidebar. Limit animation and Reduce Motion fade instead."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "A livelier Record tray",
+          "icon": "mic",
+          "text": "Record as opens with a slight bounce, and the row under your finger lifts."
+        }
+      ]
+    },
+    {
+      "build": "291",
+      "date": "2026-11-04",
+      "version": "1.0 beta",
       "title": "Calls, two columns, and recordings that never stop",
       "items": [
         {

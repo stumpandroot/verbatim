@@ -802,6 +802,8 @@ struct RefinedSegmented<Value: Hashable>: View {
     var options: [(Value, String)]
     @Binding var selection: Value
     @Environment(\.limitMotion) private var limitMotion
+    /// The chosen segment's card slides to the new segment (`matchedGeometryEffect`) on `Motion.glide`.
+    @Namespace private var pill
     private var mac: Bool { RefinedPlatform.mac }
 
     init(label: String = "View", options: [(Value, String)], selection: Binding<Value>) {
@@ -846,14 +848,17 @@ struct RefinedSegmented<Value: Hashable>: View {
         let shape = RoundedRectangle(cornerRadius: mac ? 6 : 7, style: .continuous)
         return Button {
             guard selection != value else { return }
-            if limitMotion { selection = value } else { withAnimation(Motion.snap) { selection = value } }
+            // The card slides to the new segment with a slight bounce; with motion limited it moves at once.
+            if limitMotion { selection = value } else { withAnimation(Motion.glide) { selection = value } }
         } label: {
             Text(title).refinedFont(mac ? .meta : .hint, weight: .semibold).lineLimit(1)
                 .foregroundStyle(on ? Refined.ink : Refined.dim)
                 .padding(.horizontal, mac ? 14 : 12).padding(.vertical, mac ? 4 : 6)
                 .frame(maxWidth: equal ? .infinity : nil)
                 .background {
-                    if on { shape.fill(Refined.card).shadow(color: Refined.separator, radius: 1.5, y: 1) }
+                    if on { shape.fill(Refined.card).shadow(color: Refined.separator, radius: 1.5, y: 1)
+                        // One id per layout: iPhone's ViewThatFits measures both rows, and each needs its own card.
+                        .matchedGeometryEffect(id: equal ? "pill-equal" : "pill-sized", in: pill) }
                 }
                 .contentShape(Rectangle().inset(by: mac ? 0 : -6))
         }
