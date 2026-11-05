@@ -702,6 +702,8 @@ extension TranscriptScreen.Mode {
 extension Notification.Name {
     /// The self-test picks a transcript's tab (`TranscriptScreen.Mode(selfTest:)`).
     static let phoneTranscriptMode = Notification.Name("phoneTranscriptMode")
+    /// The self-test opens the stills viewer on a still (its place in time order, an Int), or closes it (nil).
+    static let phoneOpenStill = Notification.Name("phoneOpenStill")
 }
 
 /// The reading surface's edges: Apple's soft scroll edge effect under the navigation bar's glass (iOS 26); a fade of
@@ -757,6 +759,12 @@ struct PhoneLines: View {
     @State private var playingIDs: Set<UUID> = []
     /// Sponsor reads opened from their folded row.
     @State private var openSponsors: Set<UUID> = []
+    /// The stills viewer (StillViewerScreen.swift): open, and the still on screen in time order. It zooms in from the
+    /// thumbnail tapped and back to the one on screen.
+    @State private var viewingStills = false
+    @State private var stillIndex = 0
+    @Namespace private var stillZoom
+    @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
         let _ = playingIDs
@@ -773,6 +781,9 @@ struct PhoneLines: View {
         // An imported video's stills, each in the margin beside the line playing then (VideoStill).
         let stills = VideoStill.byLine(transcript.stills ?? [], lines: segs)
         let margin = VideoStillThumb.margin(transcript.stills, tallWidth: 44)
+        // Each still's place in the viewer's order (by time), so a tap opens the viewer on it.
+        let stillOrder = StillViewerRules.ordered(transcript.stills ?? [], at: \.at)
+        let stillPlace = Dictionary(stillOrder.enumerated().map { ($1.file, $0) }, uniquingKeysWith: { a, _ in a })
         LazyVStack(alignment: .leading, spacing: 4) {
             ForEach(Array(segs.enumerated()), id: \.element.id) { i, s in
                 // After a folded read, name the speaker again: the line above on screen is someone else's.
@@ -790,7 +801,8 @@ struct PhoneLines: View {
                 }
                 turn(s, showSpeaker: showSpeaker, index: s.speaker.flatMap { order[$0] } ?? 0, playing: playing,
                      marked: saved.contains(s.id) || marked[s.id] != nil, mark: marked[s.id], inFold: fold != nil,
-                     still: stills[s.id], margin: margin)
+                     still: stills[s.id], margin: margin,
+                     stillIndex: stills[s.id].flatMap { stillPlace[$0.file] } ?? 0, stillCount: stillOrder.count)
                     .padding(.top, showSpeaker && i > 0 ? 10 : 0)
                     .id(s.id)
                     .scrubRow(scrub, index: i, count: segs.count)
@@ -808,23 +820,55 @@ struct PhoneLines: View {
             Button("Save") { if let sp = renaming { app.renameSpeaker(transcript.id, speaker: sp.id, to: newName) }; renaming = nil }
         } message: { Text("Changes every line from this speaker, on this iPhone and your Mac.") }
         .phoneFixWord($fixing, transcriptID: transcript.id)
+        .fullScreenCover(isPresented: $viewingStills) {
+            let current = stillOrder.isEmpty ? "" : stillOrder[StillViewerRules.clamp(stillIndex, count: stillOrder.count)].file
+            StillViewerScreen(transcriptID: transcript.id, index: $stillIndex) { setStillsShown(false) }
+                .phoneState(app)
+                .limitMotionRoot()
+                .stillZoomTransition(current, in: stillZoom, enabled: !limitMotion)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .phoneOpenStill)) { n in
+            // The self-test opens the viewer on a still, and closes it with no still (PhoneUITest).
+            if let i = n.object as? Int { if !stillOrder.isEmpty { openStill(i) } } else { setStillsShown(false) }
+        }
         .onReceive(clock.$time) { now in syncPlaying(at: now) }
         .onChange(of: player.isPlaying) { _, _ in syncPlaying(at: clock.time) }
         // The lines' ids and times, not the whole lines (words included): only those decide what's playing.
         .onChange(of: transcript.segments.timingKey) { _, _ in syncPlaying(at: clock.time) }
     }
 
+    /// Opens the stills viewer on the `index`th still: zooming from its thumbnail, or at once under Limit animation.
+    private func openStill(_ index: Int) {
+        stillIndex = index
+        setStillsShown(true)
+    }
+
+    /// Shows or hides the viewer's cover, without its motion under Limit animation.
+    private func setStillsShown(_ shown: Bool) {
+        if limitMotion {
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) { viewingStills = shown }
+        } else {
+            viewingStills = shown
+        }
+    }
+
     /// One turn: the chip and the time (the chip opens Rename and This line is; the time plays from here), the text,
-    /// and a marked moment's chip.
+    /// and a marked moment's chip, with its still in the margin (a tap opens the stills viewer on it).
     private func turn(_ s: Segment, showSpeaker: Bool, index: Int, playing: Bool, marked: Bool, mark: Note?, inFold: Bool,
-                      still: VideoStill?, margin: CGFloat?) -> some View {
+                      still: VideoStill?, margin: CGFloat?, stillIndex: Int = 0, stillCount: Int = 1) -> some View {
         let name = transcript.speakerName(s.speaker)
         let time = RefinedRules.time(s.start)
         return HStack(alignment: .top, spacing: 10) {
             // A video's still in the margin; lines without one keep the margin, so the text stays in one column.
             if let margin {
                 Group {
-                    if let still { VideoStillThumb(still: still, tallWidth: 44) { app.player.play(from: still.at) } }
+                    if let still {
+                        // A tap opens the stills viewer, which zooms in from here.
+                        VideoStillThumb(still: still, tallWidth: 44, index: stillIndex, count: stillCount) { openStill(stillIndex) }
+                            .stillZoomSource(still.file, in: stillZoom)
+                    }
                 }
                 .frame(width: margin, alignment: .leading)
                 .padding(.top, 4)
@@ -849,6 +893,7 @@ struct PhoneLines: View {
                 Button("Rename \(sp.label)") { newName = sp.name; renaming = sp }
             }
             if let mark { Button("Play moment") { app.player.play(from: mark.at ?? s.start) } }
+            if still != nil { Button("Open still") { openStill(stillIndex) } }
         }
     }
 

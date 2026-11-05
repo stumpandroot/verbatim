@@ -693,6 +693,7 @@ enum UITest {
         check("you: the Time saved card draws", frames["you-time-saved"] != nil)
         await vocalSoundChecks()
         await videoStillChecks()
+        await stillViewerSteps(app: app, window: window)
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
         await thoughtShots(suffix: "")
@@ -978,6 +979,32 @@ enum UITest {
         check("video stills: an audio file gets none", await VideoStills.capture(from: audio, id: id).isEmpty)
         for s in stills { try? FileManager.default.removeItem(at: Paths.thumbs.appendingPathComponent(s.file)) }
         try? FileManager.default.removeItem(at: url)
+    }
+
+    /// The stills viewer (Views/StillViewer.swift; DESIGN.md §6.9): a transcript with three slide stills
+    /// (`StillFixtures`); a click on the first still in the margin opens the viewer on it without playing, Next steps to
+    /// the second (the screenshot, 06j-still-viewer), and Close shuts it. Then the fixture goes.
+    private static func stillViewerSteps(app: AppState, window: NSWindow) async {
+        let id = StillFixtures.add(to: app.store)
+        app.go(.transcript(id))
+        await waitForTarget("still-thumb-0", seconds: 4)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        await step("stills: a click on a still in the margin opens the viewer on it", window, target: "still-thumb-0", check: {
+            WindowNav.shared.stillViewer == StillViewerTarget(transcript: id, index: 0) && StillViewer.onScreen > 0
+        })
+        check("stills: the click opens the still instead of playing", !app.player.isPlaying)
+        try? await Task.sleep(nanoseconds: 700_000_000)   // the picture decodes
+        await step("stills: Next steps to the second still", window, target: "still-viewer-next", check: { WindowNav.shared.stillViewer?.index == 1 })
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        check("stills: the viewer shows the second still (\(StillViewer.shownIndex ?? -1))", StillViewer.shownIndex == 1)
+        check("stills: a still reads Still at 0:30, 2 of 3", StillViewerRules.spokenLabel(at: 30, index: 1, count: 3) == "Still at 0:30, 2 of 3")
+        await show("06j-still-viewer")
+        await step("stills: Close shuts the viewer", window, target: "still-viewer-close", check: { WindowNav.shared.stillViewer == nil })
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        check("stills: the viewer is gone after Close (\(StillViewer.onScreen) on screen)", StillViewer.onScreen == 0)
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        StillFixtures.remove(from: app.store)
     }
 
     private static func vocalSoundChecks() async {

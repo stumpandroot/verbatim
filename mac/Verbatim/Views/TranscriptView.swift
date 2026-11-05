@@ -31,6 +31,7 @@ struct TranscriptView: View {
     /// The tab, text size, Follow, engine words, Select text, the selected passage, and the running action, shared
     /// with the window's toolbar and inspector (MacChrome.swift).
     @EnvironmentObject private var nav: WindowNav
+    @Environment(\.limitMotion) private var limitMotion
 
     /// Raw values stay stable: UI tests, Home, and Fix all post them in `.verbatimShowMode`.
     enum Mode: String, CaseIterable {
@@ -88,13 +89,22 @@ struct TranscriptView: View {
             // The side column (Moments, Speakers, Export, Details) is the window's inspector (MacChrome.swift).
             column(t)
             .background(Refined.paper)
+            // The stills viewer, over the column and its player (StillViewer.swift).
+            .overlay {
+                if let v = nav.stillViewer, v.transcript == t.id, !(t.stills ?? []).isEmpty {
+                    StillViewer(transcript: t, index: v.index)
+                        .transition(limitMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
+                }
+            }
             .background {
-                // Shortcuts live here once.
+                // Shortcuts live here once. While the stills viewer is open, ⌘+ and ⌘− zoom the still instead.
                 ZStack {
                     Button("") { ExportMenu.copy(t, copyVersion, app: app) }.keyboardShortcut("c", modifiers: [.command, .shift])
                     Button("") { CopyForAI.copy(t, app: app) }.keyboardShortcut("c", modifiers: [.command, .option, .shift])
-                    Button("") { nav.textSize = WindowNav.textSizes.clamp(nav.textSize + 1) }.keyboardShortcut("=", modifiers: .command)
-                    Button("") { nav.textSize = WindowNav.textSizes.clamp(nav.textSize - 1) }.keyboardShortcut("-", modifiers: .command)
+                    if nav.stillViewer == nil {
+                        Button("") { nav.textSize = WindowNav.textSizes.clamp(nav.textSize + 1) }.keyboardShortcut("=", modifiers: .command)
+                        Button("") { nav.textSize = WindowNav.textSizes.clamp(nav.textSize - 1) }.keyboardShortcut("-", modifiers: .command)
+                    }
                 }
                 .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
             }
@@ -118,15 +128,16 @@ struct TranscriptView: View {
             // Stops only when the last screen for this transcript goes and no other transcript took playback.
             .onDisappear {
                 Self.onScreen = max(0, Self.onScreen - 1)
+                if nav.stillViewer?.transcript == id { nav.stillViewer = nil }
                 if app.player.screenLeft(id) { app.player.stop() }
             }
             .skipsSponsors(t, player: app.player)
             // Playback keys never steal typing: when a text field (renaming a speaker, a note, a correction) has
             // focus, the key goes to the field.
             .onKeyPress(.space) { if Self.typing { return .ignored }; app.player.toggle(); return .handled }
-            .onKeyPress(.leftArrow) { if Self.typing { return .ignored }; app.player.seek(to: app.player.time - 5); return .handled }
-            .onKeyPress(.rightArrow) { if Self.typing { return .ignored }; app.player.seek(to: app.player.time + 5); return .handled }
-            .onKeyPress("b") { if Self.typing { return .ignored }; nav.bookmark(t, app: app); return .handled }
+            .onKeyPress(.leftArrow) { if Self.typing || nav.stillViewer != nil { return .ignored }; app.player.seek(to: app.player.time - 5); return .handled }
+            .onKeyPress(.rightArrow) { if Self.typing || nav.stillViewer != nil { return .ignored }; app.player.seek(to: app.player.time + 5); return .handled }
+            .onKeyPress("b") { if Self.typing || nav.stillViewer != nil { return .ignored }; nav.bookmark(t, app: app); return .handled }
             .onReceive(NotificationCenter.default.publisher(for: .verbatimShowMode)) { n in
                 if let raw = n.object as? String, let m = Mode(rawValue: raw) { nav.mode = m }
             }

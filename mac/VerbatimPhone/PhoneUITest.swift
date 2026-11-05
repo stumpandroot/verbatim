@@ -348,6 +348,7 @@ enum PhoneUITest {
                     await show("\(prefix)07-link-transcript")
                     app.libraryPath = NavigationPath()
                 }
+                await stillViewerTour(app, prefix: prefix)
                 // Moments is the Library's Marked filter since the consolidation (October 28, 2026).
                 app.openMarked()
                 await show("\(prefix)08-library-marked")
@@ -1988,6 +1989,30 @@ enum PhoneUITest {
 
         unlock.useForSelfTest(StubPurchases.unlocked().stored, cards: keepCards, sharedWaiting: 0)
         check("the self-test ends unlocked", unlock.state == .unlocked && FeatureGate.hasEverything)
+    }
+
+    /// The stills viewer (StillViewerScreen.swift; DESIGN.md §6.9): a transcript with three slide stills
+    /// (`StillFixtures`), the viewer opened on the second, its screenshot, and closed again. Then the fixture goes.
+    private static func stillViewerTour(_ app: PhoneState, prefix: String) async {
+        let id = StillFixtures.add(to: app.store)
+        app.tab = .library
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        app.libraryPath.append(id)
+        try? await Task.sleep(nanoseconds: 1_600_000_000)   // pushed and laid out
+        NotificationCenter.default.post(name: .phoneOpenStill, object: 1)
+        await show("\(prefix)07b-still-viewer")
+        if prefix == "p" {
+            layoutCheck("the stills viewer opens on the still asked for (\(StillViewerScreen.onScreen) on screen, still \(StillViewerScreen.shownIndex ?? -1))",
+                        StillViewerScreen.onScreen > 0 && StillViewerScreen.shownIndex == 1)
+            layoutCheck("a still reads Still at 0:30, 2 of 3", StillViewerRules.spokenLabel(at: 30, index: 1, count: 3) == "Still at 0:30, 2 of 3")
+        }
+        NotificationCenter.default.post(name: .phoneOpenStill, object: nil)
+        for _ in 0..<12 where StillViewerScreen.onScreen > 0 { try? await Task.sleep(nanoseconds: 250_000_000) }
+        if prefix == "p" { layoutCheck("the stills viewer closes (\(StillViewerScreen.onScreen) on screen)", StillViewerScreen.onScreen == 0) }
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        StillFixtures.remove(from: app.store)
     }
 
     private static func layoutCheck(_ name: String, _ ok: Bool) {

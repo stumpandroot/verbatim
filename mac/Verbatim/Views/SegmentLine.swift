@@ -29,6 +29,10 @@ struct SegmentLine: View {
     /// has stills (nil: no margin).
     var still: VideoStill? = nil
     var margin: CGFloat? = nil
+    /// The still's place among the transcript's stills in time order, and how many there are (the viewer opens on it;
+    /// VoiceOver reads "Still at 12:04, 3 of 9").
+    var stillIndex = 0
+    var stillCount = 1
     var select: () -> Void
     @State private var hover = false
     @State private var fixing: String? = nil
@@ -36,6 +40,7 @@ struct SegmentLine: View {
     @State private var remember = true
     @State private var renaming = false
     @State private var newName = ""
+    @Environment(\.limitMotion) private var limitMotion
 
     /// “Quote” — Speaker, Title (12:34) and, when it came from a link, the video at that second.
     private func copyQuote(withLink: Bool) {
@@ -69,8 +74,11 @@ struct SegmentLine: View {
             if let margin {
                 Group {
                     if let still {
-                        VideoStillThumb(still: still, tallWidth: 48) { app.player.play(from: still.at) }
-                            .help("Play from \(RefinedRules.time(still.at))")
+                        // A click opens the stills viewer; the play button on hover plays from the still's moment.
+                        VideoStillThumb(still: still, tallWidth: 48, index: stillIndex, count: stillCount,
+                                        open: { WindowNav.shared.openStill(stillIndex, of: transcript.id, limited: limitMotion) },
+                                        play: { app.player.play(from: still.at) })
+                            .uiTarget("still-thumb-\(stillIndex)")
                     }
                 }
                 .frame(width: margin, alignment: .leading)
@@ -278,6 +286,9 @@ struct TranscriptLines: View {
         // An imported video's stills, each in the margin beside the line playing then (VideoStill).
         let stills = VideoStill.byLine(transcript.stills ?? [], lines: segments)
         let margin = VideoStillThumb.margin(transcript.stills, tallWidth: 48)
+        // Each still's place in the viewer's order (by time), so a click opens the viewer on it.
+        let stillOrder = StillViewerRules.ordered(transcript.stills ?? [], at: \.at)
+        let stillPlace = Dictionary(stillOrder.enumerated().map { ($1.file, $0) }, uniquingKeysWith: { a, _ in a })
         LazyVStack(alignment: .leading, spacing: 2) {
             ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
                 // After a folded read, name the speaker again: the line above on screen is someone else's.
@@ -294,7 +305,8 @@ struct TranscriptLines: View {
                 SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, speakerIndex: s.speaker.flatMap { order[$0] } ?? 0,
                             current: current.contains(s.id), marked: saved.contains(s.id) || marked[s.id] != nil, mark: marked[s.id],
                             selected: selected == s.id, editable: editable, size: textSize, first: i == 0,
-                            still: stills[s.id], margin: margin) {
+                            still: stills[s.id], margin: margin,
+                            stillIndex: stills[s.id].flatMap { stillPlace[$0.file] } ?? 0, stillCount: stillOrder.count) {
                     selected = selected == s.id ? nil : s.id
                 }
                 .id(s.id)

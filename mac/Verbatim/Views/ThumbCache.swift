@@ -94,17 +94,30 @@ enum ThumbCache {
     }
 }
 
-/// A video still in the transcript's margin (VideoStill; mockup "Verbose Video Stills", option B): drawn at the
-/// video's shape, a tall one `tallWidth` across, and a tap plays from its moment. Shared by the Mac and the iPhone.
+/// A still in the transcript's margin (VideoStill: an imported video's, or a call's shared screen; mockup "Verbose Video
+/// Stills", option B): drawn at the still's shape, a tall one `tallWidth` across. A click or tap opens the stills viewer
+/// on it (DESIGN.md §6.9, Stills viewer). On the Mac, a small play button appears on the thumbnail's corner on hover or
+/// keyboard focus and plays from its moment; Play from here is also in its context menu and VoiceOver's actions.
+/// Shared by the Mac and the iPhone.
 struct VideoStillThumb: View {
     var still: VideoStill
     var tallWidth: CGFloat
-    var play: () -> Void
+    /// The still's place among the transcript's stills, for VoiceOver ("Still at 12:04, 3 of 9").
+    var index: Int = 0
+    var count: Int = 1
+    /// Opens the viewer on this still.
+    var open: () -> Void
+    /// Plays from the still's moment (the Mac's hover button); nil leaves it out.
+    var play: (() -> Void)? = nil
+    #if os(macOS)
+    @State private var hover = false
+    @FocusState private var playFocused: Bool
+    #endif
 
     var body: some View {
         let size = VideoStill.size(aspect: still.aspect, tallWidth: Double(tallWidth))
         let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
-        Button(action: play) {
+        let thumb = Button(action: open) {
             ThumbImage(file: still.file, maxPixel: Int(max(size.width, size.height) * 3)) { Rectangle().fill(Refined.track) }
                 .frame(width: CGFloat(size.width), height: CGFloat(size.height))
                 .clipShape(shape)
@@ -112,9 +125,48 @@ struct VideoStillThumb: View {
                 .contentShape(shape)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Still at \(RefinedRules.spokenTime(still.at))")
-        .accessibilityHint("Plays from here.")
+        .accessibilityLabel(StillViewerRules.spokenLabel(at: still.at, index: index, count: count))
+        .accessibilityHint("Opens the still.")
+        .accessibilityActions {
+            if let play { Button("Play from here", action: play) }
+        }
+        #if os(macOS)
+        thumb
+            .help("Open the still at \(StillViewerRules.caption(still.at))")
+            .contextMenu {
+                Button("Open Still", action: open)
+                if let play { Button("Play from Here", action: play) }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if let play { playButton(play) }
+            }
+            .onHover { hover = $0 }
+        #else
+        thumb
+        #endif
     }
+
+    #if os(macOS)
+    /// The corner's play button: a small card-colored disc with the play glyph, shown while the pointer is over the
+    /// thumbnail or the button has keyboard focus (it stays in the key view loop when hidden).
+    private func playButton(_ play: @escaping () -> Void) -> some View {
+        let shown = hover || playFocused
+        return Button(action: play) {
+            IconGlyph(art: .iconPlay, size: 10, color: Refined.ink)
+                .frame(width: 20, height: 20)
+                .background(Refined.card, in: Circle())
+                .overlay(Circle().strokeBorder(Refined.separator, lineWidth: 0.5))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .focused($playFocused)
+        .padding(3)
+        .opacity(shown ? 1 : 0)
+        .animation(Motion.touch, value: shown)
+        .help("Play from \(StillViewerRules.caption(still.at))")
+        .accessibilityLabel("Play from \(StillViewerRules.caption(still.at))")
+    }
+    #endif
 
     /// The margin a transcript's stills need: the widest still, or nil when it has none (no margin at all).
     static func margin(_ stills: [VideoStill]?, tallWidth: CGFloat) -> CGFloat? {

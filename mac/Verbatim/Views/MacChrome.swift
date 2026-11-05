@@ -42,6 +42,8 @@ final class WindowNav: ObservableObject {
     }
     /// The passage selected in the open transcript (a note added in the inspector links to it).
     @Published var selectedSegment: UUID?
+    /// The stills viewer over the open transcript (Views/StillViewer.swift): the transcript and the still on screen.
+    @Published var stillViewer: StillViewerTarget?
     /// The Library item whose preview the inspector shows, and the row Back comes back to.
     @Published var librarySelection: UUID?
     /// The old Table and List choice for the Library. The refined Library is the table only (DESIGN.md §6.8), so
