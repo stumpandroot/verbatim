@@ -12,10 +12,10 @@ extension Transcript {
     /// Its download, for the offer on a Mac that doesn't have it yet.
     static let turboSize = "1.6 GB"
 
-    /// Edits of yours that new words would replace: your own fixes (not the Dictionary's) and lines you changed.
-    /// They stay in the previous version, which you can switch back to.
+    /// Edits of yours that new words would replace: your own fixes (not the Dictionary's or the meeting's name fixes)
+    /// and lines you changed. They stay in the previous version, which you can switch back to.
     var hasHandEdits: Bool {
-        if corrections.contains(where: { !$0.byDictionary }) { return true }
+        if corrections.contains(where: { !$0.byDictionary && !$0.isNameFix }) { return true }
         let fixed = Set(corrections.map(\.segmentId))
         var heard: [UUID: String] = [:]
         for s in original where heard[s.id] == nil { heard[s.id] = s.text }

@@ -79,6 +79,20 @@ do {
           == "Google Meet · 1 hr 30 min")
     check("attendees: no emails, no blanks, no You, each once",
           CallSchedule.attendeeNames(["Printer Rep", "anka@example.com", nil, " ", "You", "printer rep", "Marco"]) == ["Printer Rep", "Marco"])
+    check("attendees: the calendar's name first", CallSchedule.displayName(name: "Priya Shah", email: "mailto:ps@example.com") == "Priya Shah")
+    check("attendees: a first and last name from the email",
+          CallSchedule.displayName(name: nil, email: "mailto:priya.shah@example.com") == "Priya Shah"
+          && CallSchedule.displayName(name: "omar_haddad+cal@example.com", email: nil) == "Omar Haddad")
+    check("attendees: nothing from an email without a full name",
+          CallSchedule.displayName(name: nil, email: "mailto:info@example.com") == nil && CallSchedule.displayName(name: nil, email: "mailto:pshah@example.com") == nil
+          && CallSchedule.displayName(name: nil, email: "mailto:p.shah2@example.com") == nil && CallSchedule.displayName(name: nil, email: nil) == nil)
+    // A recording started without an event (the Call tile, a call app already on the mic) takes the call happening now.
+    let meet = event("meet", 10, 30, service: .meet)
+    check("current: from ten minutes before its start", CallSchedule.current([meet], now: at(10, 19)) == nil && CallSchedule.current([meet], now: at(10, 21))?.id == "meet")
+    check("current: while it's on, not after", CallSchedule.current([meet], now: at(11, 10))?.id == "meet" && CallSchedule.current([meet], now: at(11, 16)) == nil)
+    check("current: a browser holds a Meet call, Zoom doesn't", CallSchedule.current([meet], now: at(10, 30), appKey: chrome)?.id == "meet"
+          && CallSchedule.current([meet], now: at(10, 30), appKey: zoom) == nil)
+    check("current: the closest start of two", CallSchedule.current([event("early", 10, 0, minutes: 60), event("late", 10, 30)], now: at(10, 28))?.id == "late")
 }
 
 // MARK: Waiting for a call

@@ -11,18 +11,25 @@ enum SpeakerNameSuggester {
 
     /// After transcription and after the speaker pass. Dismissed and used suggestions stay as they are.
     static func runIfNeeded(_ id: UUID, store: Store) {
+        // A call's track named for its app ("Chrome") is open to a name too (Speaker.isAppLabel).
         guard !running.contains(id), let t = store.transcript(id), t.status == .ready, t.source != .dictation,
-              t.speakers.count >= 2, t.speakers.contains(where: \.isPlaceholder), !t.segments.isEmpty else { return }
+              t.speakers.count >= 2, t.speakers.contains(where: { t.isUnnamed($0) }), !t.segments.isEmpty else { return }
         let isLink = t.source == .link || t.link != nil
-        let base = SpeakerNames.Input(segments: t.segments, speakers: t.speakers,
-                                       title: isLink ? t.title : "", channel: isLink ? t.link?.channel : nil,
-                                       pastNames: SpeakerNames.pastNames(store.live, excluding: id))
+        let me = MeetingNames.selfNames()
+        var base = SpeakerNames.Input(segments: t.segments, speakers: t.speakers,
+                                      title: isLink ? t.title : "", channel: isLink ? t.link?.channel : nil,
+                                      pastNames: SpeakerNames.pastNames(store.live, excluding: id))
+        // A calendar call: invitees are the names to choose from, and yours is never one of them.
+        base.attendees = MeetingNames.others(t.meeting?.attendees ?? [], selfNames: me)
+        base.selfNames = me
+        base.appName = t.meeting?.app
+        let start = base
         let named = SpeakerVoices.enabled ? SpeakerVoices.named() : []
         let voices = SpeakerVoices.enabled ? SpeakerVoices.voices(for: id) : [:]
         let snapshot = t.segments
         running.insert(id)
         Task.detached(priority: .utility) {
-            var input = base
+            var input = start
             input.extra = SpeakerNames.voiceEvidence(voices: voices, named: named)
             input.extra += await modelEvidence(input)
             let found = SpeakerNames.suggest(input)

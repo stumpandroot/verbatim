@@ -551,13 +551,19 @@ final class MeetingSession: ObservableObject {
         let title = side.title.map { recovered ? "Recovered: \($0)" : $0 }
             ?? "\(recovered ? "Recovered meeting" : "Meeting") · \(side.track(.system)?.speaker ?? side.targetName) · \(Store.stamp(side.createdAt))"
         let label = recovered ? "Recovered meeting" : "Meeting"
+        // A calendar call: the event's title and the other invitees go with the recording, for the engine's word list,
+        // the call track's name, and names fixed after the call (MeetingNames). You're left out by name too.
+        let me = MeetingNames.selfNames()
+        var meeting: MeetingContext? = MeetingContext(title: side.title ?? "", attendees: MeetingNames.others(side.attendees ?? [], selfNames: me),
+                                                      app: side.track(.system)?.speaker)
+        if meeting?.isEmpty == true { meeting = nil }
         if micOK, systemOK, let mic, let system, let micTrack = side.track(.mic), let sysTrack = side.track(.system) {
             let plan = MeetingAlign.plan(side)
             Log.noteNow("meeting: alignment \(MeetingAlign.describe(plan))")
             let id = app.startMultitrack(sources: [mic.url, system.url], sourceNames: [micTrack.fileName, sysTrack.fileName],
                                          speakers: [micTrack.speaker, sysTrack.speaker], offsets: plan.offsets,
                                          durations: [mic.duration, system.duration], title: title, align: false, ignoreBleed: true,
-                                         source: .app, sourceLabel: label, recordedAt: side.createdAt) { ok in
+                                         source: .app, sourceLabel: label, recordedAt: side.createdAt, meeting: meeting) { ok in
                 if ok {
                     try? fm.removeItem(at: folder)
                     Log.noteNow("meeting: tracks handed to the multi-track pipeline; session folder removed")
@@ -573,11 +579,11 @@ final class MeetingSession: ObservableObject {
                 app.store.update(id) { $0.stills = stills.map { VideoStill(at: max(0, $0.at + shift), file: $0.file, aspect: $0.aspect) } }
             }
             // A calendar call's attendees: the names to pick from for the call's track (S2), kept as speaker
-            // suggestions from the calendar (Transcript.calendarNames).
-            if let id, let names = side.attendees, !names.isEmpty {
-                let suggestions = names.map { SpeakerSuggestion(speakerId: MultitrackMath.speakerID(1), name: $0,
-                                                                 reasons: ["invited to the calendar event"], sources: [SpeakerSuggestion.calendarSource]) }
-                app.store.update(id) { $0.speakerSuggestions = suggestions }
+            // suggestions from the calendar (Transcript.calendarNames). The one other invitee, or the other half of a
+            // one-on-one title, shows as a suggestion with Use; nothing is renamed on its own.
+            if let id, let meeting {
+                let suggestions = MeetingNames.suggestions(meeting, selfNames: me, speakerId: MultitrackMath.speakerID(1))
+                if !suggestions.isEmpty { app.store.update(id) { $0.speakerSuggestions = suggestions } }
             }
             Log.noteNow("meeting: two-track transcript \(id.map { String($0.uuidString.prefix(8)) } ?? "none") queued (\(recovered ? "recovered" : "stopped"))")
             return
@@ -597,6 +603,7 @@ final class MeetingSession: ObservableObject {
         t.createdAt = side.createdAt
         t.kind = .meeting
         t.titleIsAuto = false
+        t.meeting = meeting
         if let stills = side.stills, !stills.isEmpty { t.stills = stills.map { VideoStill(at: $0.at, file: $0.file, aspect: $0.aspect) } }
         app.enqueue(t)
         side.transcriptID = t.id

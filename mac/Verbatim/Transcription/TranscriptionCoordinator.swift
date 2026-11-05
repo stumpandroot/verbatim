@@ -479,9 +479,15 @@ final class TranscriptionCoordinator: ObservableObject {
     /// Language and long-recording handling for a run of `t`.
     private func jobOptions(_ id: UUID, _ t: Transcript) -> JobOptions {
         let withV3 = checkWithV3IDs.remove(id) != nil
-        return JobOptions(sectioned: config.sectioned, audioName: t.audioFileName, languageChoice: t.languageChoice,
-                   detectLanguage: LanguageDetection.isEnabled || withV3, checkWithV3: withV3,
-                   offerV3: { language in Task { @MainActor in self.host?.offerParakeetV3(id, language: language) } })
+        var options = JobOptions(sectioned: config.sectioned, audioName: t.audioFileName, languageChoice: t.languageChoice,
+                                 detectLanguage: LanguageDetection.isEnabled || withV3, checkWithV3: withV3,
+                                 offerV3: { language in Task { @MainActor in self.host?.offerParakeetV3(id, language: language) } })
+        // A calendar call kept as one track (its other track was silent): the meeting's words still go to the engine.
+        if let m = t.meeting {
+            let terms = MeetingNames.vocabulary(m, selfNames: MeetingNames.selfNames(), dictionary: BoostVocabulary.rank(store.dictionary, project: t.projectId).map(\.text))
+            options.vocabulary = JobVocabulary(terms: terms, prompt: MeetingNames.whisperPrompt(m, terms: terms))
+        }
+        return options
     }
 
     /// The job's words are saved in the Store: its saved sections can go.
@@ -615,18 +621,39 @@ final class TranscriptionCoordinator: ObservableObject {
         let project = t.projectId
         let logsJobs = config.logsJobs
         let progress = labelHandler(id)
+        // A calendar call: the meeting's own short word list for the engine (MeetingNames.vocabulary), and what the
+        // name pass needs once the words are in. Your Dictionary still applies its fixes as always.
+        let me = MeetingNames.selfNames()
+        let meeting = t.meeting
+        var vocabulary = JobVocabulary()
+        if let m = meeting {
+            let ranked = BoostVocabulary.rank(dict, project: project).map(\.text)
+            vocabulary.terms = MeetingNames.vocabulary(m, selfNames: me, dictionary: ranked)
+            vocabulary.prompt = MeetingNames.whisperPrompt(m, terms: vocabulary.terms)
+            Log.note("meeting words: \(vocabulary.terms.count) for the engine")
+        }
+        var known = Set<String>()
+        for e in store.dictionary { known.insert(e.preferred); for h in e.heardAs { known.insert(h) } }
+        let words = vocabulary, knownNames = known
         runningTask = Task.detached(priority: .userInitiated) {
             do {
                 let out = try await MultitrackJob.run(id: id, info: info, engineId: engineId, model: model, dictionary: dict,
-                                                      project: project, progress: progress)
+                                                      project: project, vocabulary: words, progress: progress)
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
                     guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { return }
+                    var fixedNames = 0
                     self.store.update(id) { x in
                         x.original = out.original
                         x.segments = out.fixed
                         x.speakers = out.speakers
                         x.corrections = out.corrections
+                        // A calendar call: a word heard where someone was addressed becomes the invitee's name (or
+                        // yours), each as a correction Review lists with Undo (MeetingNames.correctNames).
+                        if let m = meeting {
+                            fixedNames = MeetingNames.correctNames(&x.segments, corrections: &x.corrections, speakers: x.speakers,
+                                                                   attendees: m.attendees, selfNames: me, title: m.title, known: knownNames)
+                        }
                         x.status = .ready
                         x.stage = nil
                         x.engine = out.engine
@@ -635,8 +662,9 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.processingDevice = nil; x.processingDeviceName = nil
                         self.promoteAudioOnly(&x, id)
                     }
+                    if fixedNames > 0 { Log.note("meeting names: \(fixedNames) fixed after the call") }
                     self.store.removeAfterPendingWrites([Paths.tracks(id)])
-                    self.host?.transcriptReady(id, corrections: out.corrections.count, queueEmpty: self.queue.isEmpty)
+                    self.host?.transcriptReady(id, corrections: out.corrections.count + fixedNames, queueEmpty: self.queue.isEmpty)
                 }
             } catch {
                 if logsJobs { Log.note("multitrack failed: \(error)") }

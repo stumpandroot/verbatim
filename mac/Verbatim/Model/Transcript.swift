@@ -106,6 +106,48 @@ struct Speaker: Codable, Identifiable, Equatable {
         let rest = n.dropFirst("Speaker ".count)
         return !rest.isEmpty && rest.allSatisfy(\.isNumber)
     }
+
+    /// Named for the app that carried the other side of a call ("Chrome", "Zoom") or "Others" for all system audio
+    /// (MeetingSession): a label, not a person. The real call that showed it named the other person "Chrome" for good,
+    /// since suggestions only ran on placeholders.
+    var isAppLabel: Bool { Self.appLabels.contains(name.trimmingCharacters(in: .whitespaces).lowercased()) }
+
+    /// Nobody has put a person's name on this speaker: a placeholder or a call app's label. Name suggestions run on
+    /// these and may replace them; a past name never comes from them.
+    var isUnnamed: Bool { isPlaceholder || isAppLabel }
+
+    /// The names a meeting capture gives the call's track (`MeetingApps.known`, "Others"), plus the services' own
+    /// names, lowercased.
+    static let appLabels: Set<String> = [
+        "others", "them", "system audio", "app audio", "chrome", "google chrome", "safari", "arc", "edge", "microsoft edge",
+        "brave", "firefox", "zoom", "zoom.us", "teams", "microsoft teams", "facetime", "webex", "slack", "discord", "meet",
+        "google meet",
+    ]
+}
+
+/// A call recorded for a calendar event (Mac, App/MeetingSession.swift): the event's title, the other people invited
+/// (you left out), and the label the capture gave the call's track. Kept with the recording so the transcript can
+/// suggest who the other side is, give the engine the meeting's own words, and fix misheard names after the call
+/// (MeetingNames.swift). Every field decodes with a default, so one a newer build wrote still reads.
+struct MeetingContext: Codable, Equatable {
+    var title: String = ""
+    var attendees: [String] = []
+    /// "Chrome", "Zoom": the call's track before anyone names it.
+    var app: String? = nil
+
+    init(title: String = "", attendees: [String] = [], app: String? = nil) {
+        self.title = title; self.attendees = attendees; self.app = app
+    }
+
+    init(from d: Decoder) throws {
+        enum K: String, CodingKey { case title, attendees, app }
+        let c = try d.container(keyedBy: K.self)
+        title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? ""
+        attendees = (try? c.decodeIfPresent([String].self, forKey: .attendees)) ?? []
+        app = (try? c.decodeIfPresent(String.self, forKey: .app)) ?? nil
+    }
+
+    var isEmpty: Bool { title.trimmingCharacters(in: .whitespaces).isEmpty && attendees.isEmpty }
 }
 
 /// A name Verbose suggests for a diarized speaker (SpeakerNames.swift), shown with Use and Dismiss and never applied
@@ -162,6 +204,14 @@ struct Correction: Codable, Identifiable, Equatable {
     var byDictionary: Bool
     /// Where each replacement went (CorrectionEdits). nil for corrections from builds before this was kept.
     var spans: [CorrectionSpan]? = nil
+    /// True for a name the meeting pass put in after the call (MeetingNames.correctNames): a word heard where someone
+    /// was addressed, replaced with an invitee's name or yours. nil for every other fix; an older build reads it as
+    /// your fix.
+    var byName: Bool? = nil
+
+    var isNameFix: Bool { byName == true }
+    /// Who made the fix, as Review says it.
+    var madeBy: String { isNameFix ? "Name from the meeting" : byDictionary ? "Dictionary" : "Your fix" }
 }
 
 enum SourceKind: String, Codable, TolerantEnum {
@@ -526,7 +576,7 @@ struct Transcript: Codable, Identifiable, Equatable {
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
              summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited, schemaVersion,
              speakerSuggestions, unclear, previousVersion, rerunRequest, templateResults, autoRun, remindersSent, stills,
-             freeTranscriptLimit
+             freeTranscriptLimit, meeting
     }
     /// Every key this build reads or writes, including the legacy path keys: anything else is a newer build's.
     static let knownKeys: Set<String> = Set(CodingKeys.allCases.map(\.stringValue) + LegacyKeys.allCases.map(\.stringValue))
@@ -622,6 +672,9 @@ struct Transcript: Codable, Identifiable, Equatable {
     var freeTranscriptLimit: Double? = nil
     /// Multi-track recordings: one file per mic, each transcribed on its own and woven together by time.
     var multitrack: MultitrackInfo? = nil
+    /// A call recorded for a calendar event: its title and the other people invited (MeetingContext). nil for
+    /// everything else; older builds keep the key and write it back.
+    var meeting: MeetingContext? = nil
     /// An imported video's stills, one where the picture changes (VideoStill.pick), shown in the transcript's margin.
     /// nil for audio and for videos imported before stills.
     var stills: [VideoStill]? = nil
@@ -726,6 +779,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         flow = try c.decodeIfPresent(FlowInfo.self, forKey: .flow)
         pendingAppend = try LibraryFile.checked(c.decodeIfPresent(String.self, forKey: .pendingAppend), field: "continued recording")
         multitrack = try? c.decodeIfPresent(MultitrackInfo.self, forKey: .multitrack)
+        meeting = (try? c.decodeIfPresent(MeetingContext.self, forKey: .meeting)) ?? nil
         stills = (try? c.decodeIfPresent([VideoStill].self, forKey: .stills)) ?? nil
         // Spans a newer build wrote in a shape this one can't read are dropped, never the whole file.
         sponsors = (try? c.decodeIfPresent([SponsorSpan].self, forKey: .sponsors)) ?? nil
@@ -815,6 +869,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         try c.encodeIfPresent(summary, forKey: .summary)
         try c.encode(summaryByModel, forKey: .summaryByModel)
         try c.encodeIfPresent(multitrack, forKey: .multitrack)
+        try c.encodeIfPresent(meeting, forKey: .meeting)
         try c.encodeIfPresent(stills, forKey: .stills)
         try c.encodeIfPresent(sponsors, forKey: .sponsors)
         if let cleaned = documentCleanedBy { try c.encode(unknown.raw(for: "documentCleanedBy", current: cleaned.rawValue), forKey: .documentCleanedBy) }
@@ -830,21 +885,31 @@ struct Transcript: Codable, Identifiable, Equatable {
         try unknown.encodeKeys(to: e, known: Self.knownKeys)
     }
 
+    /// Nobody has named this speaker yet: a placeholder, a call app's label, or the label this call's capture used
+    /// (`meeting.app`).
+    func isUnnamed(_ s: Speaker) -> Bool {
+        if s.isUnnamed { return true }
+        guard let app = meeting?.app?.trimmingCharacters(in: .whitespaces), !app.isEmpty else { return false }
+        return s.name.trimmingCharacters(in: .whitespaces).lowercased() == app.lowercased()
+    }
+
     /// Suggestions to show: still pending, for a speaker who exists and hasn't been named, with a name no other
-    /// speaker has. A calendar call's attendee shows for the call's track (named for its app, not a placeholder) only
-    /// when they're the one other person invited and nobody picked a calendar name for it yet; with more, the names
-    /// are in the speaker's menu instead (`calendarNames`).
+    /// speaker has. A calendar call's attendee shows for the call's track only when they're the one other person
+    /// invited, or when what people said backs them (`SpeakerNames.merge` adds that evidence to the invitee's
+    /// suggestion); otherwise the names are in the speaker's menu (`calendarNames`).
     var visibleSpeakerSuggestions: [SpeakerSuggestion] {
         guard let list = speakerSuggestions else { return [] }
-        let taken = Set(speakers.filter { !$0.isPlaceholder }.map { $0.name.lowercased() })
+        let taken = Set(speakers.filter { !isUnnamed($0) }.map { $0.name.lowercased() })
         var seen = Set<String>()
-        return list.filter { s in
+        // Backed by more than the invite first, so the corroborated invitee wins over the menu's others.
+        let ordered = list.filter { $0.fromCalendar && $0.sources.count > 1 } + list.filter { !($0.fromCalendar && $0.sources.count > 1) }
+        return ordered.filter { s in
             guard s.state == .pending, !s.name.isEmpty, !taken.contains(s.name.lowercased()), !seen.contains(s.speakerId) else { return false }
             if s.fromCalendar {
-                let mine = list.filter { $0.fromCalendar && $0.speakerId == s.speakerId }
-                guard mine.count == 1, speakers.contains(where: { $0.id == s.speakerId }) else { return false }
+                let mine = list.filter { $0.fromCalendar && $0.speakerId == s.speakerId && $0.state == .pending }
+                guard mine.count == 1 || s.sources.count > 1, speakers.contains(where: { $0.id == s.speakerId && isUnnamed($0) }) else { return false }
             } else {
-                guard speakers.contains(where: { $0.id == s.speakerId && $0.isPlaceholder }) else { return false }
+                guard speakers.contains(where: { $0.id == s.speakerId && isUnnamed($0) }) else { return false }
             }
             seen.insert(s.speakerId)
             return true

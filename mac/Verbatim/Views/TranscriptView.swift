@@ -434,7 +434,7 @@ struct TranscriptView: View {
         } else {
             PaperList(t.corrections, id: \.id, inset: 16, trailingInset: 16) { c in
                 HStack(alignment: .top, spacing: 12) {
-                    IconGlyph(art: c.byDictionary ? .iconDictionary : .iconFeedback, size: 15, color: Refined.ink).frame(width: 18)
+                    IconGlyph(art: c.isNameFix ? .iconSpeakers : c.byDictionary ? .iconDictionary : .iconFeedback, size: 15, color: Refined.ink).frame(width: 18)
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 8) {
                             Text(c.from).strikethrough().foregroundStyle(Refined.mute)
@@ -450,7 +450,7 @@ struct TranscriptView: View {
                         }
                     }
                     Spacer()
-                    Text(c.byDictionary ? "Dictionary" : "Your fix").refinedFont(.meta).foregroundStyle(Refined.mute)
+                    Text(c.madeBy).refinedFont(.meta).foregroundStyle(Refined.mute)
                     Button("Undo") { app.store.undoCorrection(c, in: t.id) }.buttonStyle(RefinedActionStyle())
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12)

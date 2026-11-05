@@ -166,6 +166,34 @@ enum CallSchedule {
         return m == 0 ? "\(h) hr" : "\(h) hr \(m) min"
     }
 
+    /// The call happening now that a recording started without an event belongs to (the Call tile, or a call app
+    /// already on the microphone): of the events from `joinLead` before their start until their end, the one starting
+    /// closest to now, and when an app is known (`appKey`), only an event whose service that app holds (any browser
+    /// for Meet). Nil when none fits, so an unrelated call never takes a calendar event's title.
+    static func current(_ events: [CallEvent], now: Date, appKey: String? = nil) -> CallEvent? {
+        events.filter { e in
+            e.end > now && e.start.addingTimeInterval(-joinLead) <= now && e.end > e.start
+                && (appKey.map { e.service.appKeys.contains($0.lowercased()) } ?? true)
+        }.min { abs($0.start.timeIntervalSince(now)) < abs($1.start.timeIntervalSince(now)) }
+    }
+
+    /// How early you can join a call and still have the recording take its event.
+    static let joinLead: TimeInterval = 10 * 60
+
+    /// An attendee's name for a speaker name: the calendar's name, else one read from the email address when it holds
+    /// a first and last name ("priya.shah@…" is Priya Shah; "info@…" and "pshah@…" give nothing). Calendars that sync
+    /// over CalDAV often leave the name out.
+    static func displayName(name: String?, email: String?) -> String? {
+        if let n = name?.trimmingCharacters(in: .whitespacesAndNewlines), n.count >= 2, !n.contains("@") { return n }
+        guard var e = (email ?? name)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !e.isEmpty else { return nil }
+        if e.hasPrefix("mailto:") { e.removeFirst("mailto:".count) }
+        guard let at = e.firstIndex(of: "@") else { return nil }
+        let local = e[..<at].split(separator: "+").first.map(String.init) ?? ""
+        let parts = local.split(whereSeparator: { ".-_".contains($0) }).map(String.init)
+        guard (2...3).contains(parts.count), parts.allSatisfy({ $0.count >= 2 && $0.allSatisfy(\.isLetter) }) else { return nil }
+        return parts.map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
+    }
+
     /// Attendee names for speaker names: trimmed, not an email address, not you, each once (first spelling kept).
     static func attendeeNames(_ names: [String?]) -> [String] {
         var seen = Set<String>(), out: [String] = []

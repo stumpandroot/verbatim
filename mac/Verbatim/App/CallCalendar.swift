@@ -151,7 +151,10 @@ final class CallCalendar: ObservableObject {
         guard !e.isAllDay, let start = e.startDate, let end = e.endDate, end > start,
               let hit = CallLinks.find(in: [e.url?.absoluteString, e.location, e.notes]) else { return nil }
         let people = (e.attendees ?? []).filter { $0.participantType == .person || $0.participantType == .unknown }
-        let names = CallSchedule.attendeeNames(people.filter { !$0.isCurrentUser }.map(\.name))
+        // A name from the email when the calendar gives none, and you left out by name too: a calendar that doesn't
+        // mark you as the current user would make a one-on-one look like a group call (MeetingNames.others).
+        let named = people.filter { !$0.isCurrentUser }.map { CallSchedule.displayName(name: $0.name, email: $0.url.absoluteString) }
+        let names = MeetingNames.others(CallSchedule.attendeeNames(named), selfNames: MeetingNames.selfNames())
         let title = (e.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return CallEvent(id: "\(e.calendarItemIdentifier)|\(Int(start.timeIntervalSince1970))", title: title.isEmpty ? "Untitled call" : title,
                          start: start, end: end, service: hit.service, link: hit.link, attendees: names, people: people.count)

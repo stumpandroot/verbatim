@@ -18,6 +18,15 @@ struct JobOutcome {
     var unclear: [UnclearSpan]? = nil
 }
 
+/// A recording's own words for the engine (a calendar call's, MeetingNames.vocabulary): at most 10 terms, so
+/// FluidAudio keeps its acoustic rescue, and a short transcript-styled line for Whisper's prompt. Empty for everything
+/// else.
+struct JobVocabulary: Sendable {
+    var terms: [String] = []
+    var prompt: String = ""
+    var isEmpty: Bool { terms.isEmpty && prompt.isEmpty }
+}
+
 /// How a job handles language and long recordings. The defaults run exactly as before (no language check, the
 /// whole file at once).
 struct JobOptions {
@@ -34,6 +43,9 @@ struct JobOptions {
     /// The recording sounds like a language Parakeet v3 handles, and v3 isn't downloaded (nil: the language is
     /// unclear, but it isn't English). The job carries on with the model you picked.
     var offerV3: (@Sendable (String?) -> Void)? = nil
+    /// The recording's own words (a calendar call's): Parakeet rescores its words against them, Whisper reads them as
+    /// its prompt, and Apple's recognizer takes them as contextual strings. Your Dictionary still applies after.
+    var vocabulary = JobVocabulary()
 }
 
 enum TranscriptionJob {
@@ -42,6 +54,9 @@ enum TranscriptionJob {
                     progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> JobOutcome {
         var result = try await words(url: url, engineId: engineId, model: model, options: options, progress: progress)
         Log.note("transcribe done segments=\(result.segments.count)")
+        if result.engine == "fluid", !options.vocabulary.terms.isEmpty {
+            result.segments = await FluidEngine.shared.boostWords(result.segments, url: url, terms: options.vocabulary.terms)
+        }
         let unclear = await checkUnclear(&result, url: url)
         var speakers: [Speaker] = []
         var voices: [String: [Float]] = [:]
@@ -90,6 +105,9 @@ enum TranscriptionJob {
                               progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> EngineResult {
         // Whisper identifies the language itself; the language check and sections are for Parakeet.
         guard engineId == "fluid" else {
+            if engineId == "whisper", !options.vocabulary.prompt.isEmpty {
+                return try await WhisperEngine.shared.transcribe(url: url, model: requested, prompt: options.vocabulary.prompt, progress: progress)
+            }
             return try await Engines.engine(for: engineId).transcribe(url: url, model: requested, progress: progress)
         }
         var engine = "fluid"
@@ -154,9 +172,10 @@ enum TranscriptionJob {
                                                                              language: language, window: plan.window, overlap: plan.overlap))
             }
             let lang = language, mdl = model
+            let contextual = options.vocabulary.terms
             let section: SectionedTranscriber.Engine
             if engine == "apple", let l = lang {
-                section = SectionedTranscriber.Engine(id: "apple", plan: plan) { try await AppleSpeech.words(samples: $0, language: l) }
+                section = SectionedTranscriber.Engine(id: "apple", plan: plan) { try await AppleSpeech.words(samples: $0, language: l, contextual: contextual) }
             } else {
                 section = SectionedTranscriber.Engine(id: "fluid", plan: plan) {
                     try await FluidEngine.shared.sectionWords(samples: $0, model: mdl, language: lang, progress: progress)
