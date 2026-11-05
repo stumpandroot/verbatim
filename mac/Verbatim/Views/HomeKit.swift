@@ -455,6 +455,10 @@ extension Transcript {
 
 /// This week's seven days as dots on Home's Journal: filled where there's an entry, today ringed, days to come
 /// faint, in ink. Optional weekday letters under them. Decorative: the section says the count.
+///
+/// Each day is a column of fixed width, and the dots never shrink: in a narrow column (Home's side column on the Mac)
+/// a row that ran short of room squeezed each letter's column to the dot's 10 pt, and M, W, S, and T were cut to a
+/// sliver (Tim, build 293). A row short of room now wraps instead (`HomeJournalMac`).
 struct HomeWeekDots: View {
     var week: [HomeJournalWeek.Day]
     var size: CGFloat
@@ -462,7 +466,7 @@ struct HomeWeekDots: View {
 
     var body: some View {
         let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
-        HStack(spacing: size * 0.9) {
+        HStack(spacing: letters ? size * 0.5 : size * 0.9) {
             ForEach(week, id: \.start) { d in
                 VStack(spacing: 4) {
                     Circle().fill(d.hasEntry ? Refined.ink : Color.clear)
@@ -473,10 +477,14 @@ struct HomeWeekDots: View {
                         Text(symbols[(Calendar.current.component(.weekday, from: d.start) - 1) % symbols.count])
                             .refinedFont(.caption, weight: d.isToday ? .semibold : .regular)
                             .foregroundStyle(d.isToday ? Refined.ink : Refined.mute)
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                 }
+                .frame(minWidth: letters ? max(size, 14) : size)
             }
         }
+        .fixedSize()
         .accessibilityHidden(true)
     }
 }

@@ -224,21 +224,24 @@ struct HomeJournalMac: View {
                 }
                 .buttonStyle(RefinedPress())
                 .accessibilityHint("Opens Journal by day.")
-                // Play sits beside the entry's button, not inside it (macOS 26 click safety).
-                HStack(spacing: 12) {
-                    if let t = latest, t.audioFileName != nil, t.status == .ready {
-                        Button { WindowNav.shared.play(t, app: app) } label: {
-                            HStack(spacing: 6) {
-                                IconGlyph(art: .iconPlay, size: 11, color: Refined.ink)
-                                Text(HomeRecentStyle.length(t.duration)).monospacedDigit()
-                            }
-                        }
-                        .buttonStyle(RefinedActionStyle())
-                        .accessibilityLabel("Play, \(HomeRecentStyle.length(t.duration))")
+                // Play sits beside the entry's button, not inside it (macOS 26 click safety). One row when it fits;
+                // in Home's narrow side column, play and the count on one row and the week's dots under them, so
+                // nothing is squeezed (build 293 cut the weekday letters and turned the play length into "…").
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        playButton(latest)
+                        Spacer(minLength: 8)
+                        HomeWeekDots(week: week, size: 10, letters: true)
+                        countLine(week)
                     }
-                    Spacer(minLength: 8)
-                    HomeWeekDots(week: week, size: 10, letters: true)
-                    Text(HomeJournalWeek.countLine(week)).refinedFont(.meta).foregroundStyle(Refined.mute)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 12) {
+                            playButton(latest)
+                            Spacer(minLength: 8)
+                            countLine(week)
+                        }
+                        HomeWeekDots(week: week, size: 10, letters: true)
+                    }
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("This week: \(HomeJournalWeek.countLine(week))")
@@ -247,5 +250,25 @@ struct HomeJournalMac: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         }
+    }
+
+    /// Play with the entry's length, when it has audio. Never squeezed to "…".
+    @ViewBuilder private func playButton(_ latest: Transcript?) -> some View {
+        if let t = latest, t.audioFileName != nil, t.status == .ready {
+            Button { WindowNav.shared.play(t, app: app) } label: {
+                HStack(spacing: 6) {
+                    IconGlyph(art: .iconPlay, size: 11, color: Refined.ink)
+                    Text(HomeRecentStyle.length(t.duration)).monospacedDigit().lineLimit(1)
+                }
+                .fixedSize()
+            }
+            .buttonStyle(RefinedActionStyle())
+            .accessibilityLabel("Play, \(HomeRecentStyle.length(t.duration))")
+        }
+    }
+
+    /// "3 days this week", on one line.
+    private func countLine(_ week: [HomeJournalWeek.Day]) -> some View {
+        Text(HomeJournalWeek.countLine(week)).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1).fixedSize()
     }
 }

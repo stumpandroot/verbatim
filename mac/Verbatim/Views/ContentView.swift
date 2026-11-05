@@ -92,8 +92,8 @@ struct ContentView: View {
     /// view until the animation ends, even with an `.identity` removal, so both screens showed for 120 to 150 ms and the
     /// outgoing one re-rendered with the navigation's publish.) Each screen draws its own paper, so it is opaque from its
     /// first frame. Only the new screen moves (`ScreenEntrance`), on a spring with a slight bounce: opening or leaving a
-    /// transcript slides it in from the side, and a sidebar move fades it in as it rises or drops 14 pt (behind
-    /// `PageFade.enabled`). Nothing waits for it, and Limit Motion only fades.
+    /// transcript slides it in from the side, and a sidebar move rises or drops 14 pt (behind `PageFade.enabled`), opaque
+    /// from its first frame. Nothing waits for it, and Limit Motion only fades.
     /// Record lives in the toolbar (MacChrome.swift), so nothing floats over the content.
     private var detail: some View {
         ZStack {
@@ -102,7 +102,7 @@ struct ContentView: View {
             GeometryReader { g in
                 screenView.frame(width: g.size.width, height: g.size.height)
                     .background(Refined.paper)
-                    .modifier(ScreenEntrance(offset: entranceOffset, fades: pageFades, limited: limitMotion && app.navCount > 0))
+                    .modifier(ScreenEntrance(offset: entranceOffset, limited: limitMotion && app.navCount > 0))
                     // Each screen change is timed from the click to here: a "Navigate" signpost always, and a
                     // UITEST TIMING line in the self-test.
                     .onAppear {
@@ -163,13 +163,6 @@ struct ContentView: View {
         }
     }
 
-    /// A sidebar move fades the new screen in as it slides (`ScreenEntrance`); the launch screen and transcripts (which
-    /// slide opaque) don't fade. Off entirely with `PageFade.enabled`.
-    private var pageFades: Bool {
-        guard PageFade.enabled, !limitMotion, app.navCount > 0 else { return false }
-        return app.direction == .up || app.direction == .down
-    }
-
     /// Where the new screen starts. Opening a transcript slides it in from the right, and leaving one slides the screen in
     /// from the left (`Motion.pageTravel`). A sidebar move rises from below when you go down the sidebar and drops from
     /// above when you go up (`Motion.sidebarTravel`). The launch screen and Limit Motion don't move.
@@ -184,19 +177,25 @@ struct ContentView: View {
     }
 }
 
-/// A new screen's entrance: it starts `offset` away (and clear, with `fades`) and settles on `Motion.page`, a spring with
-/// a slight bounce. With motion limited it only fades in, over `Motion.fade`. It runs from the screen's own `onAppear`,
-/// in a transaction of its own, so the navigation's transaction stays unanimated and the outgoing screen is gone at
-/// once. Clicks reach the screen from its first frame (the spring's target is already in place).
+/// A new screen's entrance: it starts `offset` away and settles on `Motion.page`, a spring with a slight bounce. It's
+/// opaque from its first frame: build 292's sidebar moves also faded in from clear, which read as the page loading in.
+/// With motion limited it only fades in, over `Motion.fade`.
+///
+/// The spring starts on the main loop's next turn, after the new screen's first frame is committed, not in `onAppear`.
+/// Building and committing a screen like Library or You takes 80 to 180 ms after `onAppear` (the self-test's
+/// `UITEST TIMING ... settled=`). A spring started in `onAppear` ran its clock through that stall, so the first frame
+/// you saw was already partway through and the page jumped (Tim, build 293: "jolty"). Started after the commit, every
+/// frame of the spring is drawn. It runs in a transaction of its own, so the navigation's transaction stays unanimated
+/// and the outgoing screen is gone at once. Clicks reach the screen from its first frame.
 struct ScreenEntrance: ViewModifier {
     /// Where the screen starts, taken once when the screen is made (a later change of direction or Limit Motion
     /// doesn't move a screen that's already there).
     @State private var offset: CGSize
     @State private var shown: Bool
     private let limited: Bool
-    init(offset: CGSize, fades: Bool, limited: Bool) {
+    init(offset: CGSize, limited: Bool) {
         _offset = State(initialValue: offset)
-        _shown = State(initialValue: !(fades || limited))
+        _shown = State(initialValue: !limited)
         self.limited = limited
     }
 
@@ -206,21 +205,21 @@ struct ScreenEntrance: ViewModifier {
             .opacity(shown ? 1 : 0)
             .onAppear {
                 guard offset != .zero || !shown else { return }
-                withAnimation(limited ? Motion.fade : Motion.page) { offset = .zero; shown = true }
+                DispatchQueue.main.async {
+                    withAnimation(limited ? Motion.fade : Motion.page) { offset = .zero; shown = true }
+                }
             }
     }
 }
 
-/// The sidebar's page fade (DESIGN.md §7). One switch: set `enabled` to false and every sidebar move is instant again.
+/// The sidebar's page motion (DESIGN.md §7). One switch: set `enabled` to false and every sidebar move is instant again.
 ///
 /// Risk: macOS 26 left a stale screen in the window when `AppState.go()` changed the screen inside `withAnimation`
-/// (builds 215 and earlier). This fade never animates the navigation's own transaction. The outgoing screen still
-/// leaves in the same unanimated update; only the incoming screen's opacity animates, started from its own `onAppear`
-/// the way `ScreenEntrance` starts its slide. If a stale or doubled screen ever shows again after a sidebar move, turn
-/// this off first.
+/// (builds 215 and earlier). This motion never animates the navigation's own transaction. The outgoing screen still
+/// leaves in the same unanimated update; only the incoming screen's offset animates, started after its first frame
+/// (`ScreenEntrance`). If a stale or doubled screen ever shows again after a sidebar move, turn this off first.
 enum PageFade {
     static let enabled = true
-    static let duration = 0.15
 }
 
 /// Marks a screen's root for the self-test, which counts the screens in the window right after a navigation

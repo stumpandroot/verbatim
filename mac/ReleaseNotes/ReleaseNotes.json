@@ -1,6 +1,29 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Smoother pages and a tidier Journal",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Pages move smoothly",
+          "icon": "appearance",
+          "text": "Going to Library, You, or any page slides it in smoothly instead of jumping partway.",
+          "detail": "The page is in place from the first frame, and its slight bounce starts once it's drawn, so a page that takes a moment to build no longer skips the start."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Journal shows the whole week",
+          "icon": "calendar",
+          "text": "On Home, the Journal card's weekday letters and play length are no longer cut off."
+        }
+      ]
+    },
+    {
       "build": "293",
       "date": "2026-11-05",
       "version": "1.0 beta",
