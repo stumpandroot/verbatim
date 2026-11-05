@@ -82,15 +82,17 @@ struct StillViewer: View {
 
     // MARK: Parts
 
-    /// The transcript's title, then Play from here, Copy image, and Close.
+    /// The transcript's title, then Play from here, Copy image, and Close. The buttons keep their full labels and the
+    /// title gives way: with the inspector open, build 295's self-test showed "Play fr…" beside the whole title.
     private func topBar(_ still: VideoStill?) -> some View {
         HStack(spacing: 10) {
-            Text(transcript.title).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+            Text(transcript.title).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1).layoutPriority(-1)
             Spacer(minLength: 12)
             if let still {
                 if player.isPlaying {
                     Button("Pause") { app.player.toggle() }
                         .buttonStyle(RefinedActionStyle())
+                        .fixedSize()
                         .help("Pause (Space)")
                 } else {
                     Button { play(still) } label: {
@@ -100,11 +102,13 @@ struct StillViewer: View {
                         }
                     }
                     .buttonStyle(RefinedActionStyle())
+                    .fixedSize()
                     .disabled(transcript.audioFileName == nil)
                     .help("Play from \(StillViewerRules.caption(still.at))")
                 }
                 Button("Copy image") { copy(still) }
                     .buttonStyle(RefinedActionStyle())
+                    .fixedSize()
                     .disabled(images[still.file] == nil)
                     .help("Copy image (⌘C)")
             }
