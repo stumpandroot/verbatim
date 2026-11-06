@@ -162,6 +162,11 @@ enum PhoneUITest {
                 // The rest of Home: This week and Recent recordings.
                 NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-recent")
                 await show("\(prefix)01b-home-recent")
+                // Recent dictations, between This week and Recent recordings (mockup "Verbose Dictations", frame 1), and
+                // in light, Recent recordings with it hidden, where the dictations join the recordings.
+                NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-dictations")
+                await show("\(prefix)01e-home-dictations")
+                if prefix == "p" { await homeDictationsTour(app) }
                 NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-top")
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 // Home's note after an update, then What's new, which it opens (WhatsNewScreen.swift).
@@ -233,7 +238,11 @@ enum PhoneUITest {
                 }
                 app.tab = .library
                 await show("\(prefix)04-library")
-                if prefix == "p" { libraryLayoutCheck() }
+                if prefix == "p" {
+                    libraryLayoutCheck()
+                    // The Dictations card between the search field and the places (mockup "Verbose Dictations", frame 3).
+                    await show("p04s-library-dictations-card")
+                }
                 app.libraryPath.append(DictationsRoute())
                 await show("\(prefix)04d-dictations")
                 app.libraryPath = NavigationPath()
@@ -1538,6 +1547,37 @@ enum PhoneUITest {
         layoutCheck("the first speaker to talk takes the first chip color", first.map { order[$0] == 0 } ?? true)
     }
 
+    /// Home's Recent dictations (HomeSections.swift): on by default, three newest with the not-pasted line, and Recent
+    /// recordings without dictations; then hidden, when Recent recordings lists them with the recordings
+    /// (`HomeDictations.recentIncludesDictations`). Screen p01f-home-recent-with-dictations. Home goes back to the defaults.
+    private static func homeDictationsTour(_ app: PhoneState) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") home dictations: \(name)") }
+        let store = HomeLayoutStore.shared
+        let shown = HomeDictationsSection.newest(app.store)
+        check("Recent dictations is on Home by default, after This week", store.layout.isVisible(.dictations) && HomeProbe.sections[.dictations] == .large
+              && store.layout.shown.map(\.section).firstIndex(of: .dictations) == store.layout.shown.map(\.section).firstIndex(of: .week).map { $0 + 1 })
+        check("it shows the three newest dictations, newest first", shown.count == min(3, app.store.live.filter(\.isDictation).count)
+              && shown.allSatisfy(\.isDictation) && zip(shown, shown.dropFirst()).allSatisfy { $0.createdAt >= $1.createdAt })
+        // The seeded dictation whose words didn't land (it's among the three newest unless something newer was added).
+        let missed = app.store.live.first { $0.isDictation && $0.flow?.pastedOK == false }
+        check("a dictation whose words didn't land reads not pasted", missed.map { t in
+            HomeDictations.statusLine(ago: WidgetSnapshot.ago(t.createdAt, now: Date()), notPasted: !(t.flow?.pastedOK ?? true)).hasSuffix("· not pasted")
+        } ?? false)
+        check("Recent recordings leaves dictations out while it shows", !HomeScreen.recentItems(app.store, layout: store.layout).contains(where: \.isDictation))
+        check("a dictation's meta in Recent says where it went", shown.first.map { HomeScreen.recentMeta($0, now: Date()).hasPrefix("Dictation · ") } ?? false)
+        store.update { $0.setVisible(.dictations, false) }
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-recent")
+        await show("p01f-home-recent-with-dictations")
+        let recent = HomeScreen.recentItems(app.store, layout: store.layout)
+        check("hidden, it leaves Home", HomeProbe.sections[.dictations] == nil)
+        check("hidden, Recent recordings lists dictations among the recordings, newest first", recent.contains(where: \.isDictation)
+              && zip(recent, recent.dropFirst()).allSatisfy { $0.createdAt >= $1.createdAt })
+        store.reset()
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        check("Reset shows it again", store.layout.isVisible(.dictations))
+    }
+
     /// Edit Home (EditHome.swift, HomeLayout.swift) from Home's button: open it, hide a section (This week), reorder
     /// two, change a size (the tiles) and a tile (Search in the last slot), check Home draws exactly that, then reset.
     /// The layout store starts from the defaults in UI test mode and never writes the simulator's layout.
@@ -2784,16 +2824,19 @@ enum PhoneUITest {
             ("Locked the second act. The score temp works better than expected. Need to send notes tomorrow.", nil)])
         add("Catalog shoot plan", .idea, daysAgo: 0, hour: 9, duration: 760, tags: ["lapp wagons"], [
             ("Start with the wheels on white, before anything else, then the wagons in the field late afternoon.", nil)])
-        func dictate(_ text: String, minutesAgo: Double) {
-            var t = Transcript(title: String(text.prefix(40)), source: .dictation, sourceLabel: "Dictation", duration: Double(text.split(separator: " ").count) * 0.4, audioFileName: nil, model: "Parakeet TDT v3")
+        // Keyboard dictations, with what the keyboard records: the words as pasted, and whether they landed (one didn't,
+        // so Home's Recent dictations and the Dictations list show "not pasted").
+        func dictate(_ text: String, minutesAgo: Double, landed: Bool = true) {
+            var t = Transcript(title: String(text.prefix(40)), source: .dictation, sourceLabel: "Dictation · Keyboard", duration: Double(text.split(separator: " ").count) * 0.4, audioFileName: nil, model: "Parakeet TDT v3")
             t.segments = [Segment(start: 0, end: t.duration, text: text)]
             t.original = t.segments
             t.kind = .dictation
+            t.flow = FlowInfo(app: "Keyboard", bundleID: nil, category: .personal, style: .casual, level: "", raw: text, pasted: text, pastedOK: landed)
             t.createdAt = Date().addingTimeInterval(-60 * minutesAgo)
             store.add(t)
         }
-        dictate("Thanks Chris, Thursday works. I'll bring the wheel samples and the shot list.", minutesAgo: 25)
-        dictate("Reminder to order more white seamless before the catalog shoot.", minutesAgo: 190)
+        dictate("Thanks, Thursday works. I'll bring the wheel samples and the shot list.", minutesAgo: 25)
+        dictate("Reminder to order more white seamless before the catalog shoot.", minutesAgo: 190, landed: false)
         dictate("Can you send the dealer sheet as a PDF by Friday? Same photos, trimmed copy.", minutesAgo: 60 * 26)
         add("Wheel sizes to confirm", .note, daysAgo: 2, hour: 15, duration: 48, tags: ["lapp wagons"], [
             ("Confirm the twelve and sixteen inch wheel sizes with Jonathan before the captions.", nil)])
