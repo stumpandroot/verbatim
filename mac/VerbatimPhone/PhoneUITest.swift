@@ -2499,6 +2499,10 @@ enum PhoneUITest {
         check("an inserted dictation isn't picked up again", KeyboardBridge.runningDictation(id: d, phase: .done, insertedID: d.uuidString, cancelID: nil) == nil)
         check("a cancelled dictation isn't picked up", KeyboardBridge.runningDictation(id: d, phase: .listening, insertedID: nil, cancelID: d) == nil)
         check("a failed dictation isn't picked up", KeyboardBridge.runningDictation(id: d, phase: .failed, insertedID: nil, cancelID: nil) == nil)
+        // Words that didn't land: the keyboard names the dictation under a key of its own, so it never reads as inserted.
+        let keys = [KeyboardBridge.Key.missedID, KeyboardBridge.Key.insertedID, KeyboardBridge.Key.seenID, KeyboardBridge.Key.routedAway,
+                    KeyboardBridge.Key.doneID, KeyboardBridge.Key.startID, KeyboardBridge.Key.cancelID, KeyboardBridge.copiedKey]
+        check("the missed dictation has its own App Group key", Set(keys).count == keys.count)
 
         let t0 = Date()
         check("an unseen first-tap dictation keeps listening under a minute",

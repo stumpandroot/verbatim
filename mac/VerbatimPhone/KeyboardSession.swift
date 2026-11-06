@@ -121,6 +121,9 @@ final class KeyboardSession: ObservableObject {
     /// before its dictation was saved.
     private var savedTranscripts: [UUID: UUID] = [:]
     private var pendingPolish: [UUID: String] = [:]
+    /// Keyboard dictations whose words didn't land (`KeyboardBridge.Key.missedID`) before they were saved: marked not
+    /// pasted as they're saved.
+    private var pendingMissed: Set<UUID> = []
 
     // The recording ribbon.
     /// Takes the app started itself (not the keyboard), so their words are routed by `Ribbon.route`.
@@ -835,6 +838,7 @@ final class KeyboardSession: ObservableObject {
     /// Commands from the keyboard. Separate keys for start, done, and cancel, so none overwrites another.
     private func checkCommands() {
         logPolishOutcome()
+        noteMissed()
         guard stage == .on, !paused else { return }
         if let start = KeyboardBridge.uuid(KeyboardBridge.Key.startID), start != current, !handled.contains(start),
            KeyboardBridge.uuid(KeyboardBridge.Key.cancelID) != start {
@@ -1152,6 +1156,8 @@ final class KeyboardSession: ObservableObject {
                 t.corrections = corrections
                 t.engine = engine
                 t.flow = info
+                // The keyboard said the words didn't land before this was saved (`noteMissed`).
+                if self.pendingMissed.remove(dictation) != nil { t.flow?.pastedOK = false }
                 // As on the Mac: the cleaned-up text is the dictation's document.
                 if cleaned, info.pasted != info.raw { t.document = info.pasted; t.documentLevel = info.level.capitalized }
                 t.waveform = wave
@@ -1214,6 +1220,26 @@ final class KeyboardSession: ObservableObject {
             t.document = text
             t.documentLevel = (t.flow?.level ?? "polished").capitalized
         }
+    }
+
+    /// A keyboard dictation whose words didn't land in the field (the keyboard copied them instead and wrote its ID to
+    /// `missedID`): its saved transcript is marked not pasted (`FlowInfo.pastedOK`, which a keyboard dictation starts
+    /// with true when it has words), so Dictations and Home's Recent dictations say "not pasted". The keyboard checks
+    /// up to a few seconds after inserting, while saving runs off the hot path, so either can come first: a dictation
+    /// not saved yet is marked as it's saved (`pendingMissed`).
+    private func noteMissed() {
+        guard let d = defaults, let raw = d.string(forKey: KeyboardBridge.Key.missedID) else { return }
+        d.removeObject(forKey: KeyboardBridge.Key.missedID)
+        guard let id = UUID(uuidString: raw) else { return }
+        // Saved this session, or saved under the keyboard's ID (an earlier session, or the app relaunched since).
+        let saved = savedTranscripts[id] ?? (app?.store.transcript(id)?.isDictation == true ? id : nil)
+        guard let transcript = saved else {
+            pendingMissed.insert(id)
+            Log.note("keyboard dictation: the words didn't land; marking it not pasted once it's saved")
+            return
+        }
+        app?.store.update(transcript) { t in t.flow?.pastedOK = false }
+        Log.note("keyboard dictation: the words didn't land; marked not pasted")
     }
 
     /// What the keyboard did with the polished text, for the log.
