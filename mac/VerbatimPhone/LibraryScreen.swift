@@ -73,7 +73,8 @@ struct LibraryScreen: View {
     /// What `scoped` depends on besides the library, for the memo keys built on it.
     private var scopeKey: String { "\(String(describing: filter))|\(trimmedSearch.lowercased())" }
 
-    /// Dictations, newest first. They have their own list, reached from the row at the top (and Home's Dictate).
+    /// Dictations, newest first. They have their own list, reached from the card at the top (and Home's Dictate and
+    /// Recent dictations).
     private var dictations: [Transcript] {
         app.store.memo("phone.dictations") { app.store.live.filter(\.isDictation).sorted { $0.createdAt > $1.createdAt } }
     }
@@ -223,9 +224,12 @@ struct LibraryScreen: View {
         SystemSearchField(text: $search, prompt: "Search or ask")
             .frame(minHeight: 38)
             .modifier(PageRow(top: isTabRoot ? 4 : 14, bottom: 0))
-        // Dictations, By day, Templates, Ask, and Projects as one row of small buttons, so recordings start higher
-        // (critique, build 283). Not inside a project.
+        // Dictations as a card of its own (November 6, 2026, mockup "Verbose Dictations", frame 3: the pill was too
+        // easy to miss), then By day, Templates, Ask, and Projects as one row of small buttons, so recordings start
+        // higher (critique, build 283). Not inside a project.
         if project == nil {
+            dictationsCard
+                .modifier(PageRow(top: 8, bottom: 0))
             placesRow
                 .modifier(PageRow(top: 8, bottom: 0, edge: 0))
         }
@@ -377,13 +381,12 @@ struct LibraryScreen: View {
         var open: () -> Void
     }
 
-    /// The places under the chips, in order: Dictations (butter), By day (sage), Templates (petal), Ask, and Projects
+    /// The places in the row under the Dictations card, in order: By day (sage), Templates (petal), Ask, and Projects
     /// when you have one. Each with its identifier, name, glyph, hue, and the value at its end (none at zero for By day
-    /// and Ask).
-    static func placeRows(dictations: Int, todayThoughts: Int, templates: Int, recipes: Int, projects: Int)
+    /// and Ask). Dictations left the row for its own card (`dictationsCard`, still "library.dictations").
+    static func placeRows(todayThoughts: Int, templates: Int, recipes: Int, projects: Int)
         -> [(id: String, title: String, art: BrandArt, hue: RefinedHue, value: String?)] {
         var out: [(id: String, title: String, art: BrandArt, hue: RefinedHue, value: String?)] = [
-            ("library.dictations", "Dictations", .iconDictations, .butter, "\(dictations)"),
             ("library.byDay", "By day", .iconCalendar, .sage, todayThoughts > 0 ? "\(todayThoughts) today" : nil),
             ("library.templates", "Templates", .iconSummaries, .petal, "\(templates)"),
             ("library.ask", "Ask", .iconAsk, .neutral, recipes > 0 ? HomeCounts.countLabel(recipes, "recipe", "recipes") : nil),
@@ -393,7 +396,7 @@ struct LibraryScreen: View {
     }
 
     private var places: [Place] {
-        let rows = Self.placeRows(dictations: dictations.count, todayThoughts: app.store.todaysThoughts().count,
+        let rows = Self.placeRows(todayThoughts: app.store.todaysThoughts().count,
                                   templates: app.store.allTemplates.count, recipes: app.store.recipes.count,
                                   projects: app.store.projects.count)
         return rows.map { r in
@@ -403,7 +406,6 @@ struct LibraryScreen: View {
 
     private static func placeHint(_ id: String) -> String {
         switch id {
-        case "library.dictations": return "Opens every dictation."
         case "library.byDay": return "Opens Thoughts and Journal by day."
         case "library.templates": return "Opens your templates and Run automatically."
         case "library.ask": return "Asks a question about your recordings."
@@ -414,7 +416,6 @@ struct LibraryScreen: View {
     /// Pushes a place on the stack the Library is on (the Library tab, or Home or Projects when it's pushed there).
     private func open(place id: String) {
         switch id {
-        case "library.dictations": app.pushHere(DictationsRoute())
         case "library.byDay": app.pushHere(ByDayRoute(kind: .idea))
         case "library.templates": app.pushHere(TemplatesRoute())
         case "library.ask": app.pushHere(AskRoute())
@@ -422,7 +423,45 @@ struct LibraryScreen: View {
         }
     }
 
-    /// The places as one row of small buttons under the search field, each pushing on the stack the Library is on: the
+    /// Dictations as a full-width card between the search field and the places (mockup "Verbose Dictations", frame 3):
+    /// the dictations glyph on butter (butter means Dictate), "Dictations" with how many, how long ago the newest was
+    /// at the end of that line, the newest one's first line under it, and a chevron. With none: "No dictations yet."
+    /// A tap opens Dictations on the stack the Library is on. VoiceOver reads one button.
+    private var dictationsCard: some View {
+        let newest = dictations.first
+        let count = dictations.count
+        let ago = newest.map { WidgetSnapshot.ago($0.createdAt, now: Date()) }
+        let line = newest.map { HomeDictationText.preview($0) } ?? HomeSection.dictations.emptyLine
+        return Button { app.pushHere(DictationsRoute()) } label: {
+            HStack(spacing: 12) {
+                IconSquare(art: .iconDictations, hue: .butter)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Dictations").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                        if count > 0 { Text("\(count)").refinedFont(.hint).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1) }
+                        Spacer(minLength: 8)
+                        if let ago { Text(ago).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1) }
+                    }
+                    Text(line).refinedFont(.hint).foregroundStyle(newest == nil ? Refined.dim : Refined.mute).lineLimit(1)
+                }
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.faint)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(RefinedPress())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Dictations")
+        .accessibilityValue(count == 0 ? "None yet" : "\(count), newest \(ago ?? ""): \(line)")
+        .accessibilityHint("Opens every dictation.")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("library.dictations")
+    }
+
+    /// The places as one row of small buttons under the Dictations card, each pushing on the stack the Library is on: the
     /// glyph, the name, and its value in `mute`, on the card with a hairline so they read apart from the filter chips.
     /// The row scrolls sideways when it doesn't fit; VoiceOver reads it as "Go to" with each place's name and value.
     private var placesRow: some View {

@@ -1511,9 +1511,9 @@ enum PhoneUITest {
         layoutCheck("the Library draws once (on screen: \(shown))", shown == 1)
         layoutCheck("Library's chips are All, Voice notes, Meetings, Thoughts, Audio, Links, and Marked",
                   LibraryChip.allCases.map(\.label) == ["All", "Voice notes", "Meetings", "Thoughts", "Audio", "Links", "Marked"])
-        let places = LibraryScreen.placeRows(dictations: 1, todayThoughts: 1, templates: 1, recipes: 1, projects: 1).map { $0.id }
-        layoutCheck("Library's places keep the self-test's identifiers",
-                  places == ["library.dictations", "library.byDay", "library.templates", "library.ask", "library.projects"])
+        let places = LibraryScreen.placeRows(todayThoughts: 1, templates: 1, recipes: 1, projects: 1).map { $0.id }
+        layoutCheck("Library's places keep the self-test's identifiers, with Dictations as its own card",
+                  places == ["library.byDay", "library.templates", "library.ask", "library.projects"])
     }
 
     /// The recorder draws its sheet once (DESIGN.md §6.10), with the system red stop square, and the minimized
