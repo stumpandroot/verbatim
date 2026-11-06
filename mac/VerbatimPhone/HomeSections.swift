@@ -1,8 +1,8 @@
 import SwiftUI
 
-// Home's sections on iPhone beyond the Record card, tiles, This week, and Recent recordings (HomeScreen.swift): Today's
-// thoughts and Journal, each Compact (one slim row) or Large (the card under its serif title); the shortcut tiles'
-// actions; and the Edit Home button at the end of Home. Drawn with the refined kit (DESIGN.md §13).
+// Home's sections on iPhone beyond the Record card, tiles, This week, and Recent recordings (HomeScreen.swift): Recent
+// dictations, Today's thoughts, and Journal, each Compact (one slim row) or Large (the card under its serif title); the
+// shortcut tiles' actions; and the Edit Home button at the end of Home. Drawn with the refined kit (DESIGN.md §13).
 
 // MARK: - Spacing
 
@@ -113,6 +113,131 @@ struct HomeTileButton<Face: View>: View {
         .accessibilityLabel(tile.title)
         .accessibilityHint(HomeTileAction.hint(tile))
         .homeTileProbe(tile)
+    }
+}
+
+// MARK: - Recent dictations
+
+/// Recent dictations (November 6, 2026, mockup "Verbose Dictations", frame 1): "Recent dictations" with See all, which
+/// opens Dictations, then the three newest in a card. Large: each one's words first (two lines at most), how long ago
+/// under them, with "not pasted" in the accent when the words didn't land, and the round copy button. Compact: one line
+/// of words and the copy button. No badge: every row is a dictation. A tap on the words opens the dictation, as the
+/// Dictations list's Open transcript does; the button copies them and turns into the accent's check for 1.6 seconds.
+/// None yet: one line in the card, like a kind's section.
+struct HomeDictationsSection: View {
+    @Environment(PhoneState.self) var app
+    var size: HomeCardSize
+    var now: Date
+
+    /// The newest three dictations. Worked out once per library change.
+    static func newest(_ store: Store) -> [Transcript] {
+        store.memo("phone.home.dictations") { HomeDictations.newest(store.live.filter(\.isDictation), date: \.createdAt) }
+    }
+
+    /// Where the words went, as the Dictations list names it: the app a dictation was made in, or "Keyboard".
+    static func appName(_ t: Transcript) -> String {
+        let a = t.flow?.app.trimmingCharacters(in: .whitespaces) ?? ""
+        return a.isEmpty ? "Keyboard" : a
+    }
+
+    var body: some View {
+        let items = Self.newest(app.store)
+        VStack(alignment: .leading, spacing: 6) {
+            SectionTitle(HomeSection.dictations.title, link: "See all") { app.go(.dictations) }
+            if items.isEmpty {
+                PaperCard {
+                    Text(HomeSection.dictations.emptyLine).refinedFont(.body).foregroundStyle(Refined.dim).lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14).padding(.vertical, 14)
+                }
+            } else {
+                PaperList(items, id: \.id, inset: 14) { t in HomeDictationRow(transcript: t, large: size == .large, now: now) }
+            }
+        }
+        .accessibilityIdentifier("home.dictations")
+    }
+}
+
+/// One of Home's Recent dictations: the words (a button that opens the dictation) and the copy button beside them.
+private struct HomeDictationRow: View {
+    @Environment(PhoneState.self) var app
+    var transcript: Transcript
+    var large: Bool
+    var now: Date
+    @State private var copied = false
+    @State private var copies = 0
+    @Environment(\.limitMotion) private var limitMotion
+
+    private var notPasted: Bool { transcript.flow.map { !$0.pastedOK } ?? false }
+    private var ago: String { WidgetSnapshot.ago(transcript.createdAt, now: now) }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 6) {
+            Button { app.open(transcript.id) } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(HomeDictationText.preview(transcript))
+                        .refinedFont(.body).foregroundStyle(transcript.status == .failed ? Refined.accentText : Refined.ink)
+                        .lineLimit(large ? 2 : 1).multilineTextAlignment(.leading)
+                    if large {
+                        HStack(spacing: 0) {
+                            Text(ago).foregroundStyle(Refined.mute)
+                            if notPasted {
+                                Text(" · ").foregroundStyle(Refined.mute)
+                                Text("not pasted").fontWeight(.semibold).foregroundStyle(Refined.accentText)
+                            }
+                        }
+                        .refinedFont(.meta).lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
+                .padding(.leading, 14).padding(.vertical, large ? 10 : 2)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(RefinedRowPress())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(HomeDictationText.preview(transcript))
+            .accessibilityValue(HomeDictations.statusLine(ago: ago, notPasted: notPasted))
+            .accessibilityHint("Opens the dictation.")
+            .accessibilityAddTraits(.isButton)
+            copyButton
+        }
+        .padding(.trailing, 6)
+        .contextMenu { RowActions(transcript: transcript) }
+    }
+
+    /// The round copy button (36 pt in a 44 pt target), as on the Dictations list: the neutral circle with the copy
+    /// glyph, then the persimmon tint with the accent's check.
+    private var copyButton: some View {
+        Button { copy() } label: {
+            ZStack {
+                Circle().fill(copied ? Refined.persimmonTint : Refined.neutral)
+                if copied {
+                    Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Refined.accentText)
+                        .transition(.opacity)
+                } else {
+                    IconGlyph(art: .iconCopy, size: 15, color: Refined.ink).transition(.opacity)
+                }
+            }
+            .frame(width: 36, height: 36)
+            .frame(width: CGFloat(RefinedRules.minTapTarget), height: CGFloat(RefinedRules.minTapTarget))
+            .contentShape(Rectangle())
+            .animation(limitMotion ? Motion.fade : .easeOut(duration: 0.18), value: copied)
+        }
+        .buttonStyle(RefinedPress())
+        .sensoryFeedback(trigger: copies) { _, _ in Haptics.feedback(.copied) }
+        .accessibilityLabel("Copy")
+        .accessibilityValue(copied ? "Copied" : "")
+        .accessibilityHint("Copies the words.")
+        .accessibilityIdentifier("home.dictations.copy")
+    }
+
+    private func copy() {
+        HomeScreen.copyDictation(HomeDictationText.pasted(transcript))
+        copies += 1
+        copied = true
+        let mine = copies
+        UIAccessibility.post(notification: .announcement, argument: "Copied")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { if copies == mine { copied = false } }
     }
 }
 

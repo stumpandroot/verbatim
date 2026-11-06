@@ -4,8 +4,8 @@ import AVFoundation
 /// Home in the refined look (DESIGN.md §6 and §13; mockup "Verbose Refined Look", Main): the date over the large serif
 /// greeting, then the sections Edit Home lists (HomeLayout.swift), in its order and sizes. By default: the persimmon
 /// Record card (a tap records a voice note; touch and hold opens Record as), the four tiles in the colors of what they
-/// do, a slim This week, and Recent recordings in a card; Today's thoughts, Journal, and a kind's newest three (Recent
-/// meetings, …) when you show them. Record's
+/// do, a slim This week, Recent dictations (the three newest, each with Copy), and Recent recordings in a card; Today's
+/// thoughts, Journal, and a kind's newest three (Recent meetings, …) when you show them. Record's
 /// tab bar accessory steps aside on Home while the card is there. Edit Home's button closes the page. Whatever you record here shows up on your Mac. Sections arrive at once: no entrance animation, and a layout
 /// change re-renders them in place.
 struct HomeScreen: View {
@@ -109,6 +109,7 @@ struct HomeScreen: View {
         case .thoughts: HomeThoughtsSection(size: item.size).id("home-thoughts")
         case .journal: HomeJournalSection(size: item.size, now: now).id("home-journal")
         case .meetings, .interviews, .talks, .brainDumps, .audioOnly: kindRecent(item).id("home-\(item.section.rawValue)")
+        case .dictations: HomeDictationsSection(size: item.size, now: now).id("home-dictations")
         }
     }
 
@@ -123,6 +124,13 @@ struct HomeScreen: View {
     /// P-15). Worked out once per library change.
     static func recentRecordings(_ store: Store) -> [Transcript] {
         store.memo("phone.home.recent") { store.live.filter { !$0.isDictation }.sorted { $0.createdAt > $1.createdAt } }
+    }
+
+    /// What Recent recordings lists: the recordings, and with Recent dictations hidden, the dictations among them by
+    /// time (`HomeDictations.recentIncludesDictations`), so a dictation is never on Home twice and never missing from it.
+    static func recentItems(_ store: Store, layout: HomeLayout) -> [Transcript] {
+        guard HomeDictations.recentIncludesDictations(layout, platform: .phone) else { return recentRecordings(store) }
+        return store.memo("phone.home.recent+dictations") { store.live.sorted { $0.createdAt > $1.createdAt } }
     }
 
     /// One kind's recordings, newest first, for its section on Home (Recent meetings, …). Worked out once per library
@@ -285,7 +293,7 @@ struct HomeScreen: View {
     /// line; Compact: one line each with the kind's dot. A recording with filler words gets Clean up, which opens its
     /// Cleaned text.
     private func recent(_ size: HomeCardSize) -> some View {
-        let items = Array(Self.recentRecordings(app.store).prefix(3))
+        let items = Array(Self.recentItems(app.store, layout: layouts.layout).prefix(3))
         let large = size == .large
         return VStack(alignment: .leading, spacing: 6) {
             SectionTitle("Recent", link: "See all") { app.go(.library) }
@@ -327,18 +335,18 @@ struct HomeScreen: View {
     }
 
     private func recentRow(_ t: Transcript, large: Bool) -> some View {
-        let cleanUp = t.status == .ready && !t.isCleaned && app.store.fillerCount(t.id) > 0
+        let cleanUp = !t.isDictation && t.status == .ready && !t.isCleaned && app.store.fillerCount(t.id) > 0
         return Button { app.open(t.id) } label: {
             // The live progress (StageClock) in the meta line: a tick re-renders the row, not Home.
             LiveStage(t) { t in
                 if large {
-                    PaperRow(kind: t.refinedKind, title: RecordingRowTitle.title(t, withTime: false), meta: Self.recentMeta(t, now: now)) {
+                    PaperRow(kind: t.refinedKind, title: Self.recentTitle(t), meta: Self.recentMeta(t, now: now)) {
                         trailing(t, cleanUp: cleanUp)
                     }
                 } else {
                     HStack(spacing: 12) {
                         KindBadge(kind: t.refinedKind, size: 8)
-                        Text(RecordingRowTitle.title(t, withTime: false)).refinedFont(.rowTitle, weight: .semibold)
+                        Text(Self.recentTitle(t)).refinedFont(.rowTitle, weight: .semibold)
                             .foregroundStyle(Refined.ink).lineLimit(1)
                             .alignmentGuide(.rowTitle) { d in d[VerticalAlignment.center] }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -378,8 +386,15 @@ struct HomeScreen: View {
         }
     }
 
-    /// "Meeting · Today, 3:39 PM", or where it is while it's being made.
+    /// A row's title: a recording's title, or a dictation's first words (its words are what you'd look for).
+    static func recentTitle(_ t: Transcript) -> String {
+        t.isDictation && t.status == .ready ? HomeDictationText.preview(t) : RecordingRowTitle.title(t, withTime: false)
+    }
+
+    /// "Meeting · Today, 3:39 PM", "Dictation · Keyboard" (where the words went, as the Dictations list names it), or
+    /// where it is while it's being made.
     static func recentMeta(_ t: Transcript, now: Date) -> String {
+        if t.isDictation && t.status == .ready { return "Dictation · \(HomeDictationsSection.appName(t))" }
         let style = HomeRecentStyle(t)
         switch t.status {
         case .processing: return "\(style.chip) · \(t.stageText)"

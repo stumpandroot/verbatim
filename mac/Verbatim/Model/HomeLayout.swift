@@ -10,7 +10,8 @@ import Combine
 // The model is plain Foundation, so mac/tools/test-home-layout.sh runs it on Linux: each app's defaults, the tolerant
 // decoding (unknown sections and tiles are ignored, missing ones are added where they belong), the move rules the
 // editor uses, how the Mac pairs sections side by side, and the one-time moves of a stored layout (the look switch's
-// retirement, `HomeLookMigration`, and the Record card, `HomeRefinedMigration`).
+// retirement, `HomeLookMigration`, the Record card, `HomeRefinedMigration`, and Recent dictations,
+// `HomeDictationsMigration`), and which dictations Home shows (`HomeDictations`).
 
 /// Which app a layout is for. Some sections and tiles exist on one app only.
 enum HomePlatform: String, Sendable {
@@ -40,6 +41,11 @@ enum HomeSection: String, CaseIterable, Sendable {
     /// kind: Recent meetings, Recent interviews, Recent talks, Recent brain dumps, and Audio only, in Record as's order.
     /// Offered in Edit Home on both apps, hidden until you show them.
     case meetings, interviews, talks, brainDumps, audioOnly
+    /// Recent dictations (November 6, 2026, mockup "Verbose Dictations", frame 1; iPhone only): the three newest
+    /// dictations with their words and a copy button, after This week. Shown by default, and turned on once for a layout
+    /// saved before it (`HomeDictationsMigration`). Not "lastDictation": that raw value belongs to the section the
+    /// consolidation retired, and a layout that still names it must keep reading without it.
+    case dictations
 
     /// The raw values of the sections that left, for the tests and for reading an older layout.
     static let retired: Set<String> = ["stats", "lastDictation", "projects", "moments", "queue"]
@@ -60,6 +66,7 @@ enum HomeSection: String, CaseIterable, Sendable {
         case .talks: return "Recent talks"
         case .brainDumps: return "Recent brain dumps"
         case .audioOnly: return "Audio only"
+        case .dictations: return "Recent dictations"
         }
     }
 
@@ -71,7 +78,7 @@ enum HomeSection: String, CaseIterable, Sendable {
         case .talks: return "talk"
         case .brainDumps: return "brainDump"
         case .audioOnly: return "audio"
-        case .record, .tiles, .week, .recent, .thoughts, .journal: return nil
+        case .record, .tiles, .week, .recent, .thoughts, .journal, .dictations: return nil
         }
     }
 
@@ -83,14 +90,21 @@ enum HomeSection: String, CaseIterable, Sendable {
         case .talks: return "No talks yet."
         case .brainDumps: return "No brain dumps yet."
         case .audioOnly: return "No Audio only recordings yet."
+        case .dictations: return "No dictations yet."
         case .record, .tiles, .week, .recent, .thoughts, .journal: return ""
         }
     }
 
-    /// The app this section is limited to, if any: every section is on both apps.
-    var platformOnly: HomePlatform? { nil }
+    /// The app this section is limited to, if any. Recent dictations is the iPhone's: the Mac has Dictations in its
+    /// sidebar and Recall (⌥⌘V), so its Edit Home never offers it.
+    var platformOnly: HomePlatform? { self == .dictations ? .phone : nil }
 
-    func isAvailable(on platform: HomePlatform) -> Bool { true }
+    func isAvailable(on platform: HomePlatform) -> Bool { platformOnly.map { $0 == platform } ?? true }
+
+    /// A section a new install shows but a stored layout gets from its own one-time move (Recent dictations,
+    /// `HomeDictationsMigration`): it joins a stored list hidden, so it never turns up between sections that layout
+    /// ordered itself, and the move puts it where it belongs.
+    var joinsStoredLayoutHidden: Bool { self == .dictations }
 
     /// Edit Home's second line for the section (the tiles row names its tiles instead).
     func detail(on platform: HomePlatform) -> String {
@@ -107,6 +121,7 @@ enum HomeSection: String, CaseIterable, Sendable {
         case .talks: return "Your three newest talks"
         case .brainDumps: return "Your three newest brain dumps"
         case .audioOnly: return "Your three newest Audio only recordings"
+        case .dictations: return "Your three newest dictations, with Copy"
         }
     }
 }
@@ -263,7 +278,7 @@ struct HomeLayout: Equatable, Sendable {
         var headed: Bool {
             switch section {
             // A kind's section is drawn like Recent recordings: its title in both sizes.
-            case .recent, .meetings, .interviews, .talks, .brainDumps, .audioOnly: return true
+            case .recent, .meetings, .interviews, .talks, .brainDumps, .audioOnly, .dictations: return true
             case .thoughts, .journal: return size == .large
             default: return false
             }
@@ -278,7 +293,7 @@ struct HomeLayout: Equatable, Sendable {
     // MARK: Defaults
 
     /// Home as a new install (or Reset) starts it (DESIGN.md §13, October 28, 2026), as its mockup draws it. iPhone:
-    /// the Record card, the four tiles, a slim This week, and Recent recordings. Mac: the Record card, the four tiles in
+    /// the Record card, the four tiles, a slim This week, Recent dictations (November 6, 2026), and Recent recordings. Mac: the Record card, the four tiles in
     /// a row, then Recent recordings beside This week. Today's thoughts, Journal, and the kinds' sections start hidden.
     /// A layout a device already stored keeps its sections, order, and sizes (the Record card aside, turned on once by
     /// `HomeRefinedMigration`); a section new to it joins hidden (`from`).
@@ -289,7 +304,7 @@ struct HomeLayout: Equatable, Sendable {
         let items: [Item]
         switch platform {
         case .phone:
-            items = [on(.record, .large), on(.tiles, .large), on(.week, .compact), on(.recent, .large),
+            items = [on(.record, .large), on(.tiles, .large), on(.week, .compact), on(.dictations, .large), on(.recent, .large),
                      off(.thoughts, .large), off(.journal, .large)] + kinds
         case .mac:
             items = [on(.record, .large), on(.tiles, .large), on(.recent, .large), on(.week, .large),
@@ -415,10 +430,13 @@ struct HomeLayout: Equatable, Sendable {
             items.append(Item(section: s, visible: raw.visible ?? d.visible, size: raw.size.flatMap(HomeCardSize.init(rawValue:)) ?? d.size))
         }
         // A section this layout lacks (new in this build) goes after its neighbor from the defaults, with the
-        // defaults' visibility and size.
+        // defaults' visibility and size; one with a move of its own joins a stored list hidden (`joinsStoredLayoutHidden`).
+        let storedList = record.items != nil
         for (i, d) in base.items.enumerated() where !items.contains(where: { $0.section == d.section }) {
             let after = base.items[..<i].reversed().lazy.compactMap { p in items.firstIndex { $0.section == p.section } }.first
-            items.insert(d, at: after.map { $0 + 1 } ?? 0)
+            var added = d
+            if storedList && d.section.joinsStoredLayoutHidden { added.visible = false }
+            items.insert(added, at: after.map { $0 + 1 } ?? 0)
         }
         var tiles: [HomeTile] = []
         for raw in record.tiles ?? [] {
@@ -563,6 +581,80 @@ enum HomeCallTileMigration {
     }
 }
 
+// MARK: - Recent dictations (November 6, 2026)
+
+/// Recent dictations joined the iPhone's Home after This week. A new install has it in its defaults; an iPhone that
+/// saved a layout before it gets it turned on once, right after This week (before Recent recordings when This week is
+/// hidden), with every other section, size, and tile as saved. `HomeLayout.from` adds it to a stored layout hidden
+/// (`joinsStoredLayoutHidden`), after its neighbor in the stored list, which a layout reordered in Edit Home can leave
+/// among the hidden ones; this shows it, places it, and saves it. The flag keeps it to once per iPhone, so a section
+/// hidden afterward stays hidden.
+enum HomeDictationsMigration {
+    static let key = "home.dictations.shown.v1"
+
+    /// The layout with Recent dictations shown after This week, or before Recent recordings when This week is hidden,
+    /// or at the end of Home when both are.
+    static func apply(_ layout: HomeLayout) -> HomeLayout {
+        guard let i = layout.items.firstIndex(where: { $0.section == .dictations }) else { return layout }
+        var l = layout
+        var item = l.items.remove(at: i)
+        item.visible = true
+        let at: Int
+        if let w = l.items.firstIndex(where: { $0.section == .week && $0.visible }) {
+            at = w + 1
+        } else if let r = l.items.firstIndex(where: { $0.section == .recent && $0.visible }) {
+            at = r
+        } else {
+            at = l.items.lastIndex(where: \.visible).map { $0 + 1 } ?? 0
+        }
+        l.items.insert(item, at: at)
+        return l
+    }
+
+    /// Whether a stored layout was saved before the section existed (its list doesn't name it).
+    static func predates(_ data: Data) -> Bool {
+        guard let r = try? JSONDecoder().decode(HomeLayout.Record.self, from: data) else { return false }
+        return !(r.items ?? []).contains { $0.section == HomeSection.dictations.rawValue }
+    }
+
+    /// Runs once per iPhone, over the stored layout in `defaults`. A layout that already names the section (shown or
+    /// hidden) is left as it is; a device with nothing stored starts from the defaults, which show it. Returns whether
+    /// it ran.
+    @discardableResult
+    static func runOnce(_ defaults: UserDefaults, platform: HomePlatform) -> Bool {
+        guard platform == .phone, !defaults.bool(forKey: key) else { return false }
+        if let data = defaults.data(forKey: HomeLayout.key), predates(data), let stored = HomeLayout.decode(data, platform),
+           let out = apply(stored).encoded() {
+            defaults.set(out, forKey: HomeLayout.key)
+        }
+        defaults.set(true, forKey: key)
+        return true
+    }
+}
+
+/// What the iPhone's Recent dictations shows, and whether Recent recordings lists dictations too.
+enum HomeDictations {
+    /// Rows the section shows.
+    static let count = 3
+
+    /// The newest `count`, newest first, from items in any order.
+    static func newest<T>(_ items: [T], date: (T) -> Date, count: Int = count) -> [T] {
+        Array(items.sorted { date($0) > date($1) }.prefix(max(0, count)))
+    }
+
+    /// Recent recordings lists dictations (by time, with the recordings) only on iPhone, and only while Recent
+    /// dictations is hidden: with both shown, a new dictation would show twice. The Mac's Recent never lists them.
+    static func recentIncludesDictations(_ layout: HomeLayout, platform: HomePlatform) -> Bool {
+        platform == .phone && !layout.isVisible(.dictations)
+    }
+
+    /// A row's line under the words: how long ago, then "not pasted" when the words didn't land ("2 min ago · not
+    /// pasted"). The view draws "not pasted" in the accent.
+    static func statusLine(ago: String, notPasted: Bool) -> String {
+        notPasted ? "\(ago) · not pasted" : ago
+    }
+}
+
 // MARK: - Today's thoughts and Journal
 
 /// What Home's Today's thoughts section shows (both apps): Large lists the latest few of today's thoughts in the order
@@ -676,6 +768,8 @@ final class HomeLayoutStore: ObservableObject {
             HomeRefinedMigration.runOnce(defaults, platform: platform)
             // The Mac's untouched default four get Call in App audio's place, once (HomeCallTileMigration).
             HomeCallTileMigration.runOnce(defaults, platform: platform)
+            // The iPhone's Recent dictations is turned on once, after This week (HomeDictationsMigration).
+            HomeDictationsMigration.runOnce(defaults, platform: platform)
         }
         if persist, let data = defaults.data(forKey: HomeLayout.key), let l = HomeLayout.decode(data, platform) {
             layout = l
