@@ -4,7 +4,8 @@ import WidgetKit
 
 /// Keeps the widgets' snapshot (VerbatimWidgets/WidgetSnapshot.swift) current, on the Mac and iPhone: the five newest
 /// recordings and dictations (short titles, dates, lengths, and labels only), how many you've kept, this week's
-/// dictated words per day, and today's Thoughts page (its count and last two thoughts). Written to the App Group
+/// dictated words per day, today's Thoughts page (its count and last two thoughts), and on iPhone the three newest
+/// dictations' words for Recent dictations (cut to `WidgetSnapshot.maxDictationText`). Written to the App Group
 /// container when the library or the Mac's Activity changes, and only when the snapshot differs from the file; then
 /// the widgets reload. The screenshot tour
 /// and the bench never write it, so made-up recordings never reach your widgets.
@@ -58,6 +59,15 @@ final class WidgetFeed {
             let thoughts = live.filter { $0.kind == .idea && !$0.isDictation && page.contains($0.createdAt) }
                 .map { (id: $0.id, date: $0.createdAt, text: ThoughtText.words($0), transcribing: $0.status == .processing) }
             snapshot.today = WidgetSnapshot.todayThoughts(start: page.start, end: page.end, thoughts: thoughts)
+            #if os(iOS)
+            // Recent dictations (iPhone): the newest few with words, as pasted, so its Copy needs no trip to Verbose.
+            // A few more than it keeps, since one with no words is left out. A new dictation changes the snapshot, so
+            // saving one reloads the widgets below.
+            let dictations = live.filter(\.isDictation)
+            let newest = dictations.filter { $0.status == .ready }.sorted { $0.createdAt > $1.createdAt }.prefix(WidgetSnapshot.maxDictations * 3)
+            snapshot.dictations = WidgetSnapshot.dictations(newest.map { (id: $0.id, text: HomeDictationText.pasted($0), date: $0.createdAt) })
+            snapshot.dictationCount = dictations.count
+            #endif
             guard let data = snapshot.encoded(), WidgetSnapshotStore.write(data) else { return }
             WidgetCenter.shared.reloadAllTimelines()
         }

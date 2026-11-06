@@ -112,12 +112,13 @@ check("transcript link round-trips", WidgetLink(url: WidgetLink.transcript(id).u
 let atMoment = URL(string: "verbatim://transcript/\(id.uuidString)?t=258")!
 check("Verbose Tasks' Play link opens the transcript at its moment", WidgetLink(url: atMoment) == .transcript(id) && WidgetLink.moment(in: atMoment) == 258
       && WidgetLink.moment(in: WidgetLink.transcript(id).url) == nil && WidgetLink.moment(in: URL(string: "verbatim://transcript/\(id.uuidString)?t=-4")!) == nil)
-for l in [WidgetLink.record, .dictate, .thought, .newThought] {
+for l in [WidgetLink.record, .dictate, .thought, .newThought, .dictations] {
     check("\(l) round-trips", WidgetLink(url: l.url) == l)
 }
 // Capture links carry Verbose's link key on the Mac (security review MC-02).
 check("Record, Dictate, and New thought start capture; the others don't",
-      [WidgetLink.record, .dictate, .newThought].allSatisfy(\.startsCapture) && !WidgetLink.thought.startsCapture && !WidgetLink.transcript(id).startsCapture)
+      [WidgetLink.record, .dictate, .newThought].allSatisfy(\.startsCapture) && !WidgetLink.thought.startsCapture && !WidgetLink.transcript(id).startsCapture
+      && !WidgetLink.dictations.startsCapture)
 let keyed = WidgetLink.dictate.url(key: "abc123")
 check("a capture link carries the key and still parses", WidgetLink(url: keyed) == .dictate && WidgetLink.key(in: keyed) == "abc123")
 check("a link without a key has none", WidgetLink.key(in: WidgetLink.dictate.url) == nil && WidgetLink.key(in: WidgetLink.dictate.url(key: nil)) == nil)
@@ -149,6 +150,73 @@ check("and not once the next page has started", withToday.thoughts(at: day(2026,
 check("a snapshot with today's thoughts round-trips", withToday.encoded().flatMap(WidgetSnapshot.decode) == withToday)
 let older = #"{"version":1,"look":"verbose","recent":[],"kept":0,"week":{"start":0,"end":604800,"words":0,"days":[0,0,0,0,0,0,0]}}"#
 check("a snapshot from an older build reads without today's thoughts", WidgetSnapshot.decode(Data(older.utf8)).map { $0.today == nil } == true)
+
+
+// MARK: Recent dictations (iPhone)
+
+let dIDs = (0..<5).map { _ in UUID() }
+let dRows = WidgetSnapshot.dictations([
+    (dIDs[0], "  Running ten minutes late, save me a seat.\n", now.addingTimeInterval(-120)),
+    (dIDs[1], "Thanks for the draft.\nI'll read it tonight.", now.addingTimeInterval(-3_600)),
+    (dIDs[2], "Can you pick up milk and coffee filters on the way home?", now.addingTimeInterval(-1_080)),
+    (dIDs[3], "An older one that doesn't fit.", now.addingTimeInterval(-86_400)),
+    (dIDs[4], "   ", now),
+])
+check("dictations: the newest three, newest first", dRows.map(\.id) == [dIDs[0], dIDs[2], dIDs[1]], "\(dRows.map(\.text))")
+check("dictations: words trimmed, line breaks kept for Copy", dRows[0].text == "Running ten minutes late, save me a seat."
+      && dRows[2].text == "Thanks for the draft.\nI'll read it tonight.")
+check("dictations: one with no words is left out", !dRows.contains { $0.id == dIDs[4] })
+check("dictations: short ones are whole", dRows.allSatisfy(\.whole))
+let longWords = String(repeating: "word ", count: 100) + "private ending"
+let longRow = WidgetSnapshot.dictations([(UUID(), longWords, now)])[0]
+check("dictations: a long one is cut to the limit with an ellipsis", longRow.text.count <= WidgetSnapshot.maxDictationText && longRow.text.hasSuffix("…"))
+check("dictations: and marked not whole, so Copy never copies part of it", !longRow.whole && !longRow.text.contains("private"))
+let exact = String(repeating: "a", count: WidgetSnapshot.maxDictationText)
+check("dictations: exactly at the limit stays whole", WidgetSnapshot.dictations([(UUID(), exact, now)]).first.map { $0.whole && $0.text == exact } == true)
+check("dictations: the limits are three and 280", WidgetSnapshot.maxDictations == 3 && WidgetSnapshot.maxDictationText == 280)
+var withDictations = WidgetSnapshot.make(items: [], kept: 3, entries: [], now: now, calendar: cal)
+withDictations.dictations = dRows
+withDictations.dictationCount = 12
+let dRound = withDictations.encoded().flatMap(WidgetSnapshot.decode)
+check("dictations: round-trip through the file", dRound == withDictations && dRound?.dictationCount == 12)
+check("dictations: a file without them still decodes (older builds, the Mac)", WidgetSnapshot.decode(titled.encoded()!)?.dictations == nil)
+if let obj = try? JSONSerialization.jsonObject(with: withDictations.encoded()!) as? [String: Any],
+   let first = (obj["dictations"] as? [[String: Any]])?.first {
+    check("dictations: a row holds only its ID, words, date, and whether they're whole", Set(first.keys) == ["date", "id", "text", "whole"], "\(first.keys.sorted())")
+} else {
+    check("dictations: stored as a list", false)
+}
+
+// How long ago, as Home's Recent dictations and the widget say it.
+check("ago: under a minute is Just now", WidgetSnapshot.ago(now.addingTimeInterval(-20), now: now, calendar: cal) == "Just now")
+check("ago: minutes", WidgetSnapshot.ago(now.addingTimeInterval(-120), now: now, calendar: cal) == "2 min ago"
+      && WidgetSnapshot.ago(now.addingTimeInterval(-1_080), now: now, calendar: cal) == "18 min ago"
+      && WidgetSnapshot.ago(now.addingTimeInterval(-3_599), now: now, calendar: cal) == "59 min ago")
+check("ago: hours the same day", WidgetSnapshot.ago(now.addingTimeInterval(-3_600), now: now, calendar: cal) == "1 hr ago"
+      && WidgetSnapshot.ago(now.addingTimeInterval(-3 * 3_600 - 59), now: now, calendar: cal) == "3 hr ago")
+check("ago: yesterday", WidgetSnapshot.ago(day(2026, 10, 21, 23), now: now, calendar: cal) == "Yesterday")
+check("ago: minutes win just after midnight", WidgetSnapshot.ago(day(2026, 10, 21, 23, 50), now: day(2026, 10, 22, 0, 10), calendar: cal) == "20 min ago")
+check("ago: older is the date", WidgetSnapshot.ago(day(2026, 10, 3), now: now, calendar: cal, locale: Locale(identifier: "en_US")) == "Oct 3")
+check("ago: a date to come reads Just now, never a negative count", WidgetSnapshot.ago(now.addingTimeInterval(30), now: now, calendar: cal) == "Just now")
+let changes = WidgetSnapshot.agoChanges([now.addingTimeInterval(-120)], now: now, calendar: cal)
+check("ago changes: next each minute while it's minutes", changes.prefix(3) == [now.addingTimeInterval(-120 + 180), now.addingTimeInterval(-120 + 240), now.addingTimeInterval(-120 + 300)],
+      "\(changes.prefix(3))")
+check("ago changes: soonest first, all after now, at most the limit", changes == changes.sorted() && changes.allSatisfy { $0 > now } && changes.count <= 30)
+let hourOld = WidgetSnapshot.agoChanges([now.addingTimeInterval(-2.5 * 3_600)], now: now, calendar: cal)
+check("ago changes: each hour once it's hours, then midnight", hourOld.first == now.addingTimeInterval(-2.5 * 3_600 + 3 * 3_600)
+      && hourOld.contains(day(2026, 10, 23, 0, 0)) && hourOld.contains(day(2026, 10, 24, 0, 0)), "\(hourOld)")
+check("ago changes: none for nothing", WidgetSnapshot.agoChanges([], now: now, calendar: cal).isEmpty)
+check("ago changes: each label holds between changes", changes.isEmpty == false && zip([now] + changes, changes).allSatisfy { a, b in
+    WidgetSnapshot.ago(now.addingTimeInterval(-120), now: a, calendar: cal) == WidgetSnapshot.ago(now.addingTimeInterval(-120), now: b.addingTimeInterval(-1), calendar: cal) })
+
+// Copied: the row the widget's Copy just copied reads Copied for two seconds.
+let copiedID = UUID()
+let marker = WidgetSnapshot.copiedMarker(copiedID, at: now)
+check("copied: right after, that row", WidgetSnapshot.copied(marker: marker, now: now.addingTimeInterval(0.5)).map { $0.id == copiedID && $0.until == now.addingTimeInterval(2) } == true)
+check("copied: gone after two seconds", WidgetSnapshot.copied(marker: marker, now: now.addingTimeInterval(2)) == nil)
+check("copied: nothing without a marker, or with a damaged one", WidgetSnapshot.copied(marker: nil, now: now) == nil
+      && WidgetSnapshot.copied(marker: "nonsense", now: now) == nil && WidgetSnapshot.copied(marker: "\(copiedID.uuidString) soon", now: now) == nil)
+check("copied: a marker from the future (a clock change) is ignored", WidgetSnapshot.copied(marker: marker, now: now.addingTimeInterval(-60)) == nil)
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
