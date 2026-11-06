@@ -1,6 +1,21 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Dictations you can find, and words that land",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Words that don't go in",
+          "icon": "copy",
+          "text": "If a dictation's words don't land in the field, they're copied and the keyboard says so.",
+          "detail": "Coming back to a field, like after scrolling in Messages, the keyboard now waits for the field before it types, then checks the words are there."
+        }
+      ]
+    },
+    {
       "build": "297",
       "date": "2026-11-05",
       "version": "1.0 beta",

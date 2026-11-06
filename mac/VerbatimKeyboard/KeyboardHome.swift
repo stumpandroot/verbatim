@@ -228,3 +228,51 @@ enum KeyboardStatsCopy {
         return n < 0 ? "-" + out : out
     }
 }
+
+// MARK: - Inserting a dictation
+
+/// When a finished dictation's words go into the field, and whether they landed (build 297 report: a dictation
+/// finished after scrolling in Messages, and its words never appeared). A keyboard that comes back on screen,
+/// often as a fresh process, can be told to insert before iOS has connected it to the field; iOS then drops the
+/// text without an error. So the words wait until the keyboard is on screen and the field is connected, the
+/// keyboard checks they landed, and when they didn't (or the field never connects), they go on the clipboard and
+/// the keyboard says so. They're in Recent and in Dictations either way.
+enum InsertLanding {
+    /// How long finished words wait for the field to connect before they go on the clipboard instead.
+    static let fieldWait: TimeInterval = 3
+    /// The first check that the words landed, after inserting, and the second, after which they count as missing.
+    static let firstCheck: TimeInterval = 0.3
+    static let secondCheck: TimeInterval = 1.2
+
+    /// What the keyboard says when the words didn't go in.
+    static let copiedNotice = "The words didn't go in. They're copied: paste them, or tap them in Recent."
+
+    enum Ready: Equatable { case insert, wait, clipboard }
+
+    /// Insert once the keyboard has appeared and the field is connected; otherwise wait, up to `fieldWait`.
+    static func ready(appeared: Bool, fieldConnected: Bool, waitingSince: Date, now: Date) -> Ready {
+        if appeared && fieldConnected { return .insert }
+        return now.timeIntervalSince(waitingSince) >= fieldWait ? .clipboard : .wait
+    }
+
+    enum Verdict: Equatable { case landed, missing, unknown }
+
+    /// Whether `inserted` is in the field, read from what the field reports before the cursor. The words end at the
+    /// cursor, so the text before it ends with their last line (a host may report only the last part, so only the
+    /// last 16 characters are compared, or fewer when that's all it reports, and trailing spaces are ignored). An empty field after inserting words is
+    /// missing. A host that reports nothing (nil) can't be checked, unless it says it has no text at all.
+    static func verdict(before: String?, hasText: Bool?, inserted: String) -> Verdict {
+        let words = inserted.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty else { return .landed }
+        if hasText == false { return .missing }
+        guard let before else { return .unknown }
+        let lastLine = words.split(whereSeparator: \.isNewline).last.map(String.init) ?? words
+        let tail = String(lastLine.suffix(16))
+        var have = Substring(before)
+        while let c = have.last, c == " " || c == "\t" { have = have.dropLast() }
+        if have.isEmpty { return hasText == true ? .unknown : .missing }
+        // A host that reports fewer characters than the tail: they must be the tail's end (at least 4 of them).
+        if have.count < tail.count { return have.count >= 4 && tail.hasSuffix(have) ? .landed : .missing }
+        return have.hasSuffix(tail) ? .landed : .missing
+    }
+}

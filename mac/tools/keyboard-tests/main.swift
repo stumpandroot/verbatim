@@ -287,5 +287,29 @@ check("Getting ready while the model loads, listening or writing",
 check("the usual words once the model is ready", ListeningCopy.lines(stage: "listening", engineReady: true) == nil)
 check("Getting ready never shows while opening Verbose", ListeningCopy.lines(stage: "starting", engineReady: false) == nil)
 
+// MARK: Inserting a dictation (KeyboardHome.swift, InsertLanding)
+
+check("insert once on screen and connected", InsertLanding.ready(appeared: true, fieldConnected: true, waitingSince: t0, now: t0) == .insert)
+check("wait for the field to connect", InsertLanding.ready(appeared: true, fieldConnected: false, waitingSince: t0, now: t0.addingTimeInterval(1)) == .wait)
+check("wait until the keyboard has appeared", InsertLanding.ready(appeared: false, fieldConnected: true, waitingSince: t0, now: t0.addingTimeInterval(1)) == .wait)
+check("a field that never connects: clipboard", InsertLanding.ready(appeared: true, fieldConnected: false, waitingSince: t0,
+      now: t0.addingTimeInterval(InsertLanding.fieldWait)) == .clipboard)
+let words = " Running ten minutes late, save me a seat."
+check("landed: the field ends with the words", InsertLanding.verdict(before: "Hey." + words, hasText: true, inserted: words) == .landed)
+check("landed: trailing spaces ignored", InsertLanding.verdict(before: "Hey." + words + " ", hasText: true, inserted: words) == .landed)
+check("landed: a host that reports only the last part", InsertLanding.verdict(before: "e me a seat.", hasText: true, inserted: words) == .landed
+      && InsertLanding.verdict(before: "late, save me a seat.", hasText: true, inserted: words) == .landed)
+check("missing: a short report that isn't the words' end", InsertLanding.verdict(before: "Hi.", hasText: true, inserted: words) == .missing
+      && InsertLanding.verdict(before: "see you then", hasText: true, inserted: words) == .missing)
+check("landed: several lines, the last one compared", InsertLanding.verdict(before: "Notes\nsecond line here", hasText: true,
+      inserted: "first line\nsecond line here") == .landed)
+check("missing: the field doesn't end with the words", InsertLanding.verdict(before: "Hey there", hasText: true, inserted: words) == .missing)
+check("missing: an empty field", InsertLanding.verdict(before: "", hasText: nil, inserted: words) == .missing)
+check("missing: the field says it has no text", InsertLanding.verdict(before: nil, hasText: false, inserted: words) == .missing)
+check("unknown: a host that reports nothing", InsertLanding.verdict(before: nil, hasText: true, inserted: words) == .unknown)
+check("unknown: text but nothing reported before the cursor", InsertLanding.verdict(before: "", hasText: true, inserted: words) == .unknown)
+check("no words is never missing", InsertLanding.verdict(before: "", hasText: false, inserted: "  ") == .landed)
+check("the notice has no em dash or exclamation point", !InsertLanding.copiedNotice.contains("\u{2014}") && !InsertLanding.copiedNotice.contains("!"))
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

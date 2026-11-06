@@ -118,6 +118,12 @@ final class KeyboardViewController: UIInputViewController {
         return [UITextContentType.password, .newPassword, .oneTimeCode].contains { $0.rawValue == t }
     }
 
+    /// Fully on screen: finished words can go in (`KeyboardModel.didAppear`).
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        model.didAppear()
+    }
+
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         model.pause()

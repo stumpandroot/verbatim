@@ -119,6 +119,10 @@ final class KeyboardModel: ObservableObject {
     private var observing = false
     /// Text goes in only while the keyboard is on screen, so it lands in the field you're looking at.
     private var visible = false
+    /// True from `viewDidAppear` until the keyboard leaves: finished words wait for it, and for the field to connect
+    /// (`InsertLanding.ready`), and since when they've waited.
+    private var appeared = false
+    private var waitingSince: Date?
     /// When the Typing bar started showing "✓ Inserted", so it goes back to the plain bar after a few seconds.
     private var insertedBarSince: Date?
     /// The stats record last read, so an unchanged record isn't decoded again; it counts up when the record
@@ -308,8 +312,16 @@ final class KeyboardModel: ObservableObject {
         retime()
     }
 
+    /// The keyboard is fully on screen (`viewDidAppear`): words that finished while it was away can go in now.
+    func didAppear() {
+        appeared = true
+        poll()
+    }
+
     func pause() {
         visible = false
+        appeared = false
+        waitingSince = nil
         logMemory("left")
         closeMenu()
         stopTimer()
@@ -814,9 +826,40 @@ final class KeyboardModel: ObservableObject {
             flashInfo("Copied. Paste it, or tap it in Recent.")
             return
         }
-        defaults.set(d.uuidString, forKey: KeyboardBridge.Key.insertedID)
         let text = (defaults.string(forKey: KeyboardBridge.Key.text) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let raw = (defaults.string(forKey: KeyboardBridge.Key.raw) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        // The polished text already arrived (the keyboard was away while it was made): insert that instead.
+        var final = text
+        let polishedReady = !text.isEmpty && defaults.string(forKey: KeyboardBridge.Key.polishedID) == d.uuidString
+            && defaults.string(forKey: KeyboardBridge.Key.polishedInserted)?.trimmingCharacters(in: .whitespacesAndNewlines) == text
+        if polishedReady, let p = defaults.string(forKey: KeyboardBridge.Key.polishedText)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !p.isEmpty {
+            final = p
+        }
+        // Only once the keyboard is on screen and connected to the field (`InsertLanding.ready`): a keyboard that just
+        // came back can be asked to insert before iOS connects it, and iOS drops the text without an error. The poll
+        // comes back here until then; a field that never connects gets the words on the clipboard.
+        if !text.isEmpty {
+            let now = Date()
+            let since = waitingSince ?? now
+            switch InsertLanding.ready(appeared: appeared, fieldConnected: proxy?.safeDocumentIdentifier != nil,
+                                       waitingSince: since, now: now) {
+            case .wait:
+                if waitingSince == nil { waitingSince = now; report(d, "insert: waiting for the field to connect") }
+                return
+            case .clipboard:
+                waitingSince = nil
+                defaults.set(d.uuidString, forKey: KeyboardBridge.Key.insertedID)
+                dictation = nil
+                clock.setLevel(0)
+                clearLive()
+                copyMissed(d, final, why: "the field didn't connect within \(Int(InsertLanding.fieldWait)) s")
+                return
+            case .insert:
+                waitingSince = nil
+            }
+        }
+        defaults.set(d.uuidString, forKey: KeyboardBridge.Key.insertedID)
         dictation = nil
         clock.setLevel(0)
         clearLive()
@@ -825,14 +868,7 @@ final class KeyboardModel: ObservableObject {
             set(.idle)
             return
         }
-        // The polished text already arrived (the keyboard was away while it was made): insert that instead.
-        var final = text
-        if defaults.string(forKey: KeyboardBridge.Key.polishedID) == d.uuidString,
-           defaults.string(forKey: KeyboardBridge.Key.polishedInserted)?.trimmingCharacters(in: .whitespacesAndNewlines) == text,
-           let p = defaults.string(forKey: KeyboardBridge.Key.polishedText)?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty {
-            final = p
-            report(d, "inserted the polished text directly")
-        }
+        if final != text { report(d, "inserted the polished text directly") }
         // A space between your earlier words and the new ones.
         let before = proxy?.documentContextBeforeInput ?? ""
         let lead = (before.last.map { !$0.isWhitespace } ?? false) ? " " : ""
@@ -840,6 +876,7 @@ final class KeyboardModel: ObservableObject {
         proxy?.insertText(inserted)
         insertion = Insertion(inserted: inserted, text: final, raw: raw, words: Self.wordCount(final),
                               dictation: d, document: proxy?.safeDocumentIdentifier, at: Date())
+        checkLanded(insertion!, attempt: 0)
         // Back to Typing with "✓ Inserted", and Typing again the next time the keyboard opens this session.
         surface = .typing
         closePanels()
@@ -854,6 +891,41 @@ final class KeyboardModel: ObservableObject {
             KeyboardBridge.copyDictation(final)
             defaults.set(d.uuidString, forKey: KeyboardBridge.copiedKey)
         }
+    }
+
+    // MARK: Checking the words landed
+
+    /// After inserting a dictation: checks the field ends with its words (`InsertLanding.verdict`), at
+    /// `InsertLanding.firstCheck` and again at `secondCheck`. Still missing then, in the same field and not undone or
+    /// replaced: they go on the clipboard, and the keyboard says so. A field that can't be checked is left alone.
+    private func checkLanded(_ ins: Insertion, attempt: Int) {
+        let delay = attempt == 0 ? InsertLanding.firstCheck : InsertLanding.secondCheck - InsertLanding.firstCheck
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, let d = ins.dictation, self.insertion == ins, self.visible, let proxy = self.proxy else { return }
+            // You moved to another field: nothing to check against.
+            guard ins.document == proxy.safeDocumentIdentifier else { return }
+            switch InsertLanding.verdict(before: proxy.documentContextBeforeInput, hasText: proxy.hasText, inserted: ins.inserted) {
+            case .landed: return
+            case .unknown: self.report(d, "insert: couldn't check that the words landed"); return
+            case .missing:
+                if attempt == 0 { self.checkLanded(ins, attempt: 1); return }
+                // Never polish or undo text that isn't there.
+                self.insertion = nil
+                self.polishing = false
+                self.set(.idle)
+                self.copyMissed(d, ins.text, why: "the words weren't in the field after inserting")
+            }
+        }
+    }
+
+    /// Words that didn't go in: on the clipboard (they're in Recent too), with the notice, and in the log.
+    private func copyMissed(_ d: UUID, _ text: String, why: String) {
+        let copied = hasFullAccess && KeyboardBridge.copyDictation(text)
+        if copied { defaults?.set(d.uuidString, forKey: KeyboardBridge.copiedKey) }
+        report(d, "insert: \(why); \(copied ? "copied" : "the copy didn't take")")
+        reloadRecent()
+        set(.idle)
+        notice = copied ? InsertLanding.copiedNotice : "The words didn't go in. Tap them in Recent."
     }
 
     // MARK: Polish after inserting
