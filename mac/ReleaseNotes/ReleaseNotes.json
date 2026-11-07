@@ -2,6 +2,153 @@
   "notes": [
     {
       "build": "next",
+      "title": "Recordings you can trust, and an app that keeps up",
+      "items": [
+        {
+          "platforms": [
+            "mac",
+            "iphone"
+          ],
+          "head": "Start sounds play first",
+          "icon": "audio",
+          "text": "The start sound plays before recording, so your first words are never cut.",
+          "detail": "Recording keeps everything from the moment the sound ends."
+        },
+        {
+          "platforms": [
+            "mac",
+            "iphone"
+          ],
+          "head": "Transcripts show at once",
+          "icon": "notes",
+          "text": "A finished transcript shows its text right away, with Ready on top.",
+          "detail": "Nothing waits for the celebration, and a tap ends it. On iPhone, the recorder closes as soon as it saves."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Undo is safe in the keyboard",
+          "icon": "swap",
+          "text": "Undo and Use as spoken change only the words Verbose just inserted.",
+          "detail": "If you move the cursor, select text, or the app changes the text, Undo goes away instead of deleting other words."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Live captions always save",
+          "icon": "captions",
+          "text": "Stop saves and transcribes every live captions session.",
+          "detail": "Discard is its own button. It asks first and keeps the recording in Recently Deleted."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Delete now asks first",
+          "icon": "library",
+          "text": "Deleting from Recently Deleted asks before it's gone for good.",
+          "detail": "A full swipe no longer deletes a recording permanently."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Honest Lock Screen status",
+          "icon": "mic",
+          "text": "If Verbose stops updating, the Lock Screen asks you to open it instead of running a clock."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Separate Sounds and Haptics",
+          "icon": "settings",
+          "text": "Turn Verbose's sounds and haptics on or off separately.",
+          "detail": "Your current choice carries over: if Haptics was off, both start off."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Recording and Dictation menus",
+          "icon": "mic",
+          "text": "Stop and transcribe with ⌥⇧. on any screen, and find every shortcut in the menu bar.",
+          "detail": "Dictation has Dictate, New thought, and Recent dictations, so Help's search finds them."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Find in a transcript",
+          "icon": "library",
+          "text": "⌘F finds words in the open transcript, with matches highlighted.",
+          "detail": "⌘G and ⇧⌘G step through matches and Esc closes. Elsewhere ⌘F opens Search or ask."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Undo and Redo in Cleaned",
+          "icon": "tidy",
+          "text": "⌘Z undoes a Clean up, Tone, or fix, and ⇧⌘Z redoes it.",
+          "detail": "Typing numbers in Recent dictations searches; ⌘ and a number copies one."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Fits a small window",
+          "icon": "appearance",
+          "text": "At the smallest window nothing is cut short: toolbars fold into More and chips wrap.",
+          "detail": "The inspector steps aside when content gets too narrow, and the Library drops People, then Date."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Toasts read aloud and stay put",
+          "icon": "accessibility",
+          "text": "VoiceOver reads every message, and an Undo waits for you while VoiceOver is on.",
+          "detail": "On iPhone, messages appear above the tab bar, clear of Back and More, and Undo is easier to tap."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Bigger text across the app",
+          "icon": "accessibility",
+          "text": "Settings, widgets, the Lock Screen, captions, and the watch grow with your text size.",
+          "detail": "At the largest sizes, Library and Home rows wrap instead of cutting titles short."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Clearer colors",
+          "icon": "appearance",
+          "text": "Caption history, voice setup, dark swipe actions, and the Ribbon's Stop read more clearly.",
+          "detail": "With Reduce Motion, the Ribbon and notch stop changing shape and only fade."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Saved, then sent",
+          "icon": "sync",
+          "text": "Apple Watch says Saved on Watch until your iPhone has the recording.",
+          "detail": "Touch and hold Record in the tab bar opens the same Record as tray as Home's."
+        }
+      ]
+    },
+    {
+      "build": "305",
+      "date": "2026-11-07",
+      "version": "1.0 beta",
       "title": "Moments that celebrate, and motion that waits",
       "items": [
         {
