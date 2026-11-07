@@ -250,6 +250,11 @@ if let r = skin.range(of: "struct StaleLockScreen") {
     check("StaleLockScreen exists", false)
 }
 
+// MARK: SF-09: a thought saved in the background plays no alert
+
+check("no Live Activity update sets off an alert (a saved thought plays no sound)",
+      !presence.contains("alertConfiguration") && !sessionApp.contains("alertConfiguration"))
+
 // MARK: SF-02: every view that draws your words is marked private
 
 /// The struct bodies (from `struct Name` to the next top-level declaration) in a widget source.

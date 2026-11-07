@@ -211,8 +211,9 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    /// A thought's activity: "Added to Thoughts" and the time for two seconds, as an alert when Verbose isn't in front
-    /// (the Dynamic Island expands to show it), then it ends. Discarded, it ends at once.
+    /// A thought's activity: "Added to Thoughts" and the time for two seconds when Verbose isn't in front, then it
+    /// ends. Discarded, it ends at once. No alert: you tapped Stop yourself, so a thought saved in the background plays
+    /// no sound and doesn't light the screen or expand the Island (SF-09); the Lock Screen shows it.
     private func endThoughtActivity(_ a: Activity<VerbatimRecordingAttributes>, saved: Bool) {
         guard saved else {
             Task { await a.end(nil, dismissalPolicy: .immediate) }
@@ -223,11 +224,8 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
                                                                      level: 0, words: nil, saved: true, now: now)
         let content = ActivityContent(state: state, staleDate: nil)
         let inFront = UIApplication.shared.applicationState == .active
-        let time = Formats.style(date: .none, time: .short).string(from: now)
         Task {
-            if !inFront {
-                await a.update(content, alertConfiguration: AlertConfiguration(title: "\(ThoughtRules.savedTitle)", body: "\(time)", sound: .default))
-            }
+            if !inFront { await a.update(content) }
             await a.end(content, dismissalPolicy: inFront ? .immediate : .after(now.addingTimeInterval(ThoughtRules.savedSeconds)))
         }
     }
