@@ -172,14 +172,12 @@ final class TranscriptMenuItems: NSObject, NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         guard let t = transcript else { return false }
         let nav = WindowNav.shared
-        switch menuItem {
-        case bigger: return nav.stillViewer == nil && nav.textSize < WindowNav.textSizes.max
-        case smaller: return nav.stillViewer == nil && nav.textSize > WindowNav.textSizes.min
-        case mark: return nav.stillViewer == nil && !TranscriptView.typing && t.audioFileName != nil
+        if menuItem === bigger { return nav.stillViewer == nil && nav.textSize < WindowNav.textSizes.max }
+        if menuItem === smaller { return nav.stillViewer == nil && nav.textSize > WindowNav.textSizes.min }
+        if menuItem === mark { return nav.stillViewer == nil && !TranscriptView.typing && t.audioFileName != nil }
         // ⇧⌘C in a text field is the field's own (Show Colors); the item steps aside while you type.
-        case copyText: return !TranscriptView.typing
-        default: return true
-        }
+        if menuItem === copyText { return !TranscriptView.typing }
+        return true
     }
 
     @objc private func biggerText(_ sender: Any?) { WindowNav.shared.textSize = WindowNav.textSizes.clamp(WindowNav.shared.textSize + 1) }
