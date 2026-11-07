@@ -536,7 +536,7 @@ enum PhoneUITest {
         app.tab = .library
         try? await Task.sleep(nanoseconds: 600_000_000)
 
-        // The same, open: the processing card fills, "Ready", then the text replaces it.
+        // The same, open: the text and tabs show at once, and Ready plays over the text (ReadyReveal).
         var open = Transcript(title: "Garden bed plan", source: .voiceMemo, sourceLabel: "Voice memo", duration: 198, audioFileName: nil, model: "")
         open.status = .processing
         open.stage = "Transcribing 98%"
@@ -551,7 +551,8 @@ enum PhoneUITest {
         check("a transcript finishing while open celebrates on its card, with no toast", center.ready[open.id]?.surface == .transcript && app.toast == nil)
         await show("p16c-transcript-ready")
         await clear()
-        check("when it ends, the text replaces the card", center.ready[open.id] == nil)
+        check("the text showed through the celebration and stays when it ends",
+              center.ready[open.id] == nil && ReadyReveal.showsContent(ready: app.store.transcript(open.id)?.status == .ready, celebrating: true))
         app.libraryPath = NavigationPath()
         try? await Task.sleep(nanoseconds: 600_000_000)
 

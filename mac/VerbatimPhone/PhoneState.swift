@@ -593,16 +593,14 @@ final class PhoneState {
         if freeLimit != nil { UnlockStore.shared.savedPastFreeTranscription(noun: kind.map { RecordChoice.kind($0).name.lowercased() } ?? "voice note") }
     }
 
-    /// The stop ring after the save (DESIGN.md §7, Celebrations): `.success` as the ring finishes filling, once the
-    /// recording is saved (at once when saving took longer than the fill), then the ring holds a moment and the recorder
-    /// closes. A tap on the recorder skips to the end. Discard, a thought, and a stop from outside the recorder have no
-    /// ring (RecordingFinish).
+    /// The stop ring after the save (DESIGN.md §7, Celebrations): the ring fills while the recording saves, as
+    /// decoration; once it's saved, `.success` plays and the recorder closes at once (Tim, November 7, 2026). Discard
+    /// and a stop from outside the recorder have no ring; a thought's has no success (RecordingFinish).
     private func finishRing(_ ring: CelebrationTicket, tapped: Date, saved: Bool, haptic: Bool) async {
-        let center = CelebrationCenter.shared
-        let toFill = RecordingFinish.hapticDelay(sinceTap: Date().timeIntervalSince(tapped), skipped: center.skipped(ring.id))
-        if toFill > 0 { _ = await celebrationWait(toFill, ring.id) }
+        // The ring is decoration only: once the recording is saved, `.success` plays and the recorder closes at once,
+        // whether or not the ring has finished filling (RecordingFinish.closeDelay is 0; nothing waits for it).
         if haptic && saved { Haptics.play(.recordingSaved) }
-        let toClose = RecordingFinish.closeDelay(sinceTap: Date().timeIntervalSince(tapped), ring: true, skipped: center.skipped(ring.id))
+        let toClose = RecordingFinish.closeDelay(saved: saved)
         if toClose > 0 { _ = await celebrationWait(toClose, ring.id) }
     }
 

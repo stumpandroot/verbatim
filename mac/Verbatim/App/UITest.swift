@@ -3409,7 +3409,7 @@ extension UITest {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
 
-        // A voice note finishing while it's open: the card fills, "Ready", then the text replaces it.
+        // A voice note finishing while it's open: the text and tabs show at once, and Ready plays over the text (ReadyReveal).
         var t = Transcript(title: "Garden bed plan", source: .voiceMemo, sourceLabel: "Voice memo", duration: 198, audioFileName: nil, model: "Test")
         t.status = .processing
         t.stage = "Transcribing 98%"
@@ -3429,7 +3429,8 @@ extension UITest {
         if !front { Log.note("UITEST note: Verbose wasn't in front, so the transcript's celebration was skipped") }
         await show("06l-transcript-ready")
         await clear()
-        check("celebrations: when it ends, the text replaces the card", center.ready[id] == nil)
+        check("celebrations: the text showed through the celebration and stays when it ends",
+              center.ready[id] == nil && ReadyReveal.showsContent(ready: app.store.transcript(id)?.status == .ready, celebrating: true))
 
         // A dictation never celebrates.
         var d = Transcript(title: "Dictation", source: .dictation, sourceLabel: "Dictation", duration: 3, audioFileName: nil, model: "Test")

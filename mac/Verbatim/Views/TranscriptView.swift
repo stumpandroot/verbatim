@@ -336,11 +336,15 @@ struct TranscriptView: View {
     // MARK: Content per tab
 
     @ViewBuilder private func content(_ t: Transcript) -> some View {
-        if t.status == .processing || readyTicket != nil { processing(t).transition(.opacity) }
+        if ReadyReveal.showsProcessingCard(processing: t.status == .processing, celebrating: readyTicket != nil) { processing(t).transition(.opacity) }
         else if t.status == .failed { failed(t) }
         else {
             // A tab change slides the body in from the side of the tab you picked as the old one fades (DESIGN.md §7, view switches).
             tabBody(t).slideSwitch(on: view, order: Mode.allCases.firstIndex(of: view) ?? 0)
+                // Finished while open: the text and controls are here at once, and Ready plays over the text's first
+                // lines (ReadyReveal); a click ends it.
+                .overlay(alignment: .top) { ReadyOverlay(ticket: readyTicket, radius: RefinedPlatform.radius(.card), height: 48, wordSize: 16) }
+                .celebrationTapSkips(readyTicket?.id)
         }
     }
 
@@ -469,29 +473,23 @@ struct TranscriptView: View {
         }
     }
 
-    /// The processing card. When the transcript finishes while it's open (with Verbose in front), its tint fills the
-    /// card, "Ready" shows, and then the text replaces it (DESIGN.md §7, Celebrations); nothing around it moves.
+    /// The processing card, only while it processes. When the transcript finishes while it's open (with Verbose in
+    /// front), the text and controls show at once and Ready plays over the text (`ReadyOverlay`; DESIGN.md §7,
+    /// Celebrations).
     private func processing(_ t: Transcript) -> some View {
-        CelebrationBurst(ticket: readyTicket, script: .transcript) { burst in
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
-                    SignalRings().frame(width: 40, height: 40).padding(6)
-                    VStack(alignment: .leading, spacing: 2) {
-                        LiveStage(t) { t in Text(t.status == .processing ? t.stageText : "Transcribing").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink) }
-                        Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.").refinedFont(.meta).foregroundStyle(Refined.mute)
-                    }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                SignalRings().frame(width: 40, height: 40).padding(6)
+                VStack(alignment: .leading, spacing: 2) {
+                    LiveStage(t) { t in Text(t.stageText).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink) }
+                    Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.").refinedFont(.meta).foregroundStyle(Refined.mute)
                 }
-                .opacity(burst.active ? burst.old : 1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .celebrationWord(burst.active ? CelebrationWord.ready : nil, state: burst, size: 16)
-                .celebrationSweep(readyTicket?.tone.tint ?? Refined.persimmonTint, state: burst, radius: RefinedPlatform.radius(.card), outset: 8)
-                .scaleEffect(burst.active ? burst.scale : 1)
-                ForEach(0..<4, id: \.self) { i in
-                    // Placeholder lines up to these widths, narrower in a narrow window, so the card never pushes the column wider.
-                    RoundedRectangle(cornerRadius: 4).fill(Refined.neutral).frame(maxWidth: CGFloat([480, 420, 500, 300][i])).frame(height: 14)
-                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
-                }
-                .opacity(burst.active ? burst.old : 1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            ForEach(0..<4, id: \.self) { i in
+                // Placeholder lines up to these widths, narrower in a narrow window, so the card never pushes the column wider.
+                RoundedRectangle(cornerRadius: 4).fill(Refined.neutral).frame(maxWidth: CGFloat([480, 420, 500, 300][i])).frame(height: 14)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
             }
         }
     }

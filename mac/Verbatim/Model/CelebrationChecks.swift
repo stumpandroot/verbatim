@@ -90,13 +90,17 @@ enum CelebrationChecks {
         check("celebrations: a Mac thought fills its check only when the bubble was clicked, never with a bounce or word",
               F.mac(source: .bubbleClick, thought: true, homeOnScreen: false, appActive: false) == RecordingFinish.Plan(thoughtCheck: true)
               && F.mac(source: .keyboard, thought: true, homeOnScreen: true, appActive: true) == .none)
-        check("celebrations: the recorder closes once the ring has filled and held, at once after a skip or a long save",
-              abs(F.closeDelay(sinceTap: 0.1, ring: true, skipped: false) - (T.fill + T.ringHold - 0.1)) < 0.0001
-              && F.closeDelay(sinceTap: 5, ring: true, skipped: false) == 0 && F.closeDelay(sinceTap: 0, ring: true, skipped: true) == 0
-              && F.closeDelay(sinceTap: 0, ring: false, skipped: false) == 0)
-        check("celebrations: success lands as the ring fills, or at once when the save took longer",
-              abs(F.hapticDelay(sinceTap: 0.12, skipped: false) - 0.3) < 0.0001 && F.hapticDelay(sinceTap: 2, skipped: false) == 0
-              && F.hapticDelay(sinceTap: 0, skipped: true) == 0)
+        check("celebrations: the recorder closes as soon as the recording is saved; the ring is decoration only",
+              F.closeDelay(saved: true) == 0 && F.closeDelay(saved: false) == 0)
+
+        // A transcript that finishes while it's open: the text and controls show at once (Tim, November 7, 2026).
+        check("celebrations: a ready transcript shows its text and controls at once, celebrating or not",
+              ReadyReveal.showsContent(ready: true, celebrating: true) && ReadyReveal.showsContent(ready: true, celebrating: false)
+              && !ReadyReveal.showsContent(ready: false, celebrating: true))
+        check("celebrations: a celebration never keeps the processing card up",
+              !ReadyReveal.showsProcessingCard(processing: false, celebrating: true) && ReadyReveal.showsProcessingCard(processing: true, celebrating: false))
+        check("celebrations: the Ready overlay is brief (under 2 s from the fill to its end)",
+              T.burst + T.readyOverlayHold + T.fadeOut < 2)
 
         // The watch.
         check("celebrations: the watch's ring and check move only when you stopped it, held still with the wrist down",

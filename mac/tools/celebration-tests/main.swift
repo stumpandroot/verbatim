@@ -76,8 +76,14 @@ check("component: Limit animation (and Reduce Motion) crossfades over 0.2 s, wit
       kitCode.contains("CelebrationMotion.of(limited: limited)") && kitCode.contains("withAnimation(.easeOut(duration: T.reduced)) { state.fill = 1")
       && kitCode.contains("@Environment(\\.limitMotion) private var limited"))
 check("component: a tap during the burst jumps to the end, alongside the host's own taps",
-      kitCode.contains("CelebrationCenter.shared.skip(t.id)") && kitCode.contains(".simultaneousGesture(state.bursting ?")
+      kitCode.contains("CelebrationCenter.shared.skip(t.id)") && kitCode.contains(".simultaneousGesture(state.active ?")
       && kitCode.contains("t.disablesAnimations = true"))
+check("component: every hold ends early on a tap (no hold waits on a plain sleep)",
+      kitCode.contains("_ = await celebrationWait(hold, ticket.id)") && kitCode.contains("_ = await celebrationWait(T.milestoneHold, id)")
+      && !kitCode.contains("Task.sleep(nanoseconds: UInt64(hold *") && !kitCode.contains("Task.sleep(nanoseconds: UInt64(T.milestoneHold"))
+check("component: the open transcript's Ready is an overlay that never takes a tap",
+      typeBody(kit, "struct ReadyOverlay").contains("CelebrationBurst(ticket: ticket, script: .transcript)")
+      && typeBody(kit, "struct ReadyOverlay").contains(".allowsHitTesting(false)"))
 check("component: VoiceOver hears the word once, when it shows",
       kitCode.components(separatedBy: "AccessibilityNotification.Announcement(").count == 3 && typeBody(kit, "struct CelebrationPill").contains(".accessibilityHidden(true)"))
 check("component: each burst is keyed to its ticket (its transcript)", kitCode.contains(".task(id: ticket?.id) { await play() }") && kitCode.contains(".task(id: ticket.id) { await play() }"))
@@ -133,9 +139,15 @@ check("iPhone: the pale badge is the kind's tint with an ink glyph, the disc gro
       typeBody(refined, "struct KindBadge: View").contains("Circle().fill(KindBadge.tint(hue))") && typeBody(refined, "struct KindBadge: View").contains(".scaleEffect(max(0.0001, fill))")
       && typeBody(refined, "struct KindBadge: View").contains("color: Refined.ink).opacity(Double(1 - fill))"))
 let screen = read("VerbatimPhone/TranscriptScreen.swift")
-check("iPhone: the open transcript keeps its card through the celebration, and the tabs wait with it",
-      screen.contains("if t.status == .processing || readyTicket != nil {") && screen.contains("if t.status == .ready && readyTicket == nil {")
+check("iPhone: a transcript that finishes while open shows its text and tabs at once, with Ready over them",
+      screen.contains("if ReadyReveal.showsProcessingCard(processing: t.status == .processing, celebrating: readyTicket != nil) {")
+      && screen.contains("if ReadyReveal.showsContent(ready: t.status == .ready, celebrating: readyTicket != nil) {")
+      && !screen.contains("readyTicket == nil") && !screen.contains("|| readyTicket != nil")
+      && screen.contains(".overlay(alignment: .top) { ReadyOverlay(ticket: readyTicket") && screen.contains(".celebrationTapSkips(readyTicket?.id)")
       && screen.contains("celebrations.transcriptAppeared(id)") && screen.contains("celebrations.transcriptLeft(id)"))
+check("iPhone: the recorder closes once the recording is saved, never waiting on the ring",
+      body(phone, "    private func finishRing(").contains("RecordingFinish.closeDelay(saved: saved)")
+      && !body(phone, "    private func finishRing(").contains("hapticDelay"))
 let home = read("VerbatimPhone/HomeScreen.swift")
 check("iPhone: Home shows a waiting milestone when it appears or comes back, never from the tally",
       home.contains("showMilestone()\n        }") && home.contains("if phase == .active { showMilestone() }")
@@ -163,8 +175,10 @@ check("Mac: the milestone shows on This week when Home appears or comes to the f
       && homeMac.contains("now = Date(); showMilestone() }") && read("Verbatim/Flow/Activity.swift").contains("MilestoneStore.shared.note(old: before, new: totalWords)"))
 check("Mac: a reset of the numbers leaves the celebrated milestones alone", !body(read("Verbatim/Flow/Activity.swift"), "    func reset()").contains("MilestoneStore"))
 let transcriptMac = read("Verbatim/Views/TranscriptView.swift")
-check("Mac: the open transcript keeps its card through the celebration", transcriptMac.contains("if t.status == .processing || readyTicket != nil { processing(t)")
-      && transcriptMac.contains("celebrations.transcriptAppeared(id)"))
+check("Mac: a transcript that finishes while open shows its text and tabs at once, with Ready over them",
+      transcriptMac.contains("if ReadyReveal.showsProcessingCard(processing: t.status == .processing, celebrating: readyTicket != nil) { processing(t)")
+      && !transcriptMac.contains("|| readyTicket != nil") && transcriptMac.contains(".overlay(alignment: .top) { ReadyOverlay(ticket: readyTicket")
+      && transcriptMac.contains(".celebrationTapSkips(readyTicket?.id)") && transcriptMac.contains("celebrations.transcriptAppeared(id)"))
 let bubble = read("Verbatim/Flow/ThoughtBubble.swift")
 check("Mac: a thought's check fills once after a click on the bubble, never from the hotkey",
       bubble.contains("capture?.toggle(source: .bubbleClick)") && bubble.components(separatedBy: ".modifier(CheckFill(fills: capture.checkFills, key: at))").count == 3

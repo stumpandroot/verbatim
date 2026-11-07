@@ -7,8 +7,9 @@ import Foundation
 // (Views/Celebration.swift); nothing here draws.
 //
 // Three moments celebrate: finishing a recording (small), a transcript finishing (medium), and a word milestone (big).
-// Each is rare, plays once, and is an overlay, so no row or card changes size. Limit animation and Reduce Motion get a
-// 0.2 s crossfade to the end state with the word, and VoiceOver hears the word once.
+// Each is rare, plays once, and is an overlay, so no row or card changes size. Nothing waits for one: content and
+// controls show at once, and every hold ends early on a tap (Tim, November 7, 2026). Limit animation and Reduce Motion
+// get a 0.2 s crossfade to the end state with the word, and VoiceOver hears the word once.
 
 /// How big a celebration is: how far it bounces and how far its word rises.
 enum CelebrationSize: String, CaseIterable, Sendable {
@@ -69,12 +70,11 @@ enum CelebrationTiming {
     static let reduced: TimeInterval = 0.2
     /// "Ready" on a Library row and "Saved" on the Record card stay this long from when they appear.
     static let wordHold: TimeInterval = 1.6
-    /// The open transcript: the text replaces the card this long after the burst.
-    static let replaceAfter: TimeInterval = 0.9
+    /// The open transcript: the Ready overlay holds this long after the burst, on top of the text that's already there,
+    /// then fades. A tap ends it sooner; nothing waits for it.
+    static let readyOverlayHold: TimeInterval = 0.6
     /// The word and the restored line fade over this when the hold ends.
     static let fadeOut: TimeInterval = 0.2
-    /// The finished stop ring holds this long before the recorder closes.
-    static let ringHold: TimeInterval = 0.32
     /// "Saved" waits this long for the recorder to finish closing over Home.
     static let afterSheet: TimeInterval = 0.35
     /// A milestone: the old total shows on the fill as it fades in over `milestoneLabelFade`, the digits change
@@ -188,7 +188,8 @@ enum CelebrationTone: String, CaseIterable, Sendable {
 
 /// Where a finished transcript celebrates: exactly one place, the first on screen of these.
 enum ReadySurface: String, CaseIterable, Sendable {
-    /// The transcript is open: its processing card fills, "Ready" shows, then the text replaces the card.
+    /// The transcript is open: its text and controls show at once, and the fill and "Ready" play over the top of the
+    /// text as an overlay (`ReadyReveal`).
     case transcript
     /// Its row in the iPhone's Library is on screen: the badge's color grows from the center and the meta line reads
     /// "Ready" for 1.6 s.
@@ -225,6 +226,16 @@ enum ReadyCelebration {
     /// How long a surface may take to start before the haptic and sound play without it (the row scrolled away, the
     /// screen closed), so they're never lost.
     static let startWithin: TimeInterval = 1
+}
+
+/// A transcript that finishes while it's open (Tim, November 7, 2026): the text, the tabs, and the player show the
+/// moment it's ready. The Ready fill and word play as an overlay on top of the text; they never hold back the content or
+/// the controls, and a tap ends them.
+enum ReadyReveal {
+    /// The transcript's text and controls show as soon as it's ready, whether or not it's celebrating.
+    static func showsContent(ready: Bool, celebrating: Bool) -> Bool { ready }
+    /// The processing card shows only while it's processing; a celebration never keeps it up.
+    static func showsProcessingCard(processing: Bool, celebrating: Bool) -> Bool { processing }
 }
 
 /// Where a Stop came from.
@@ -274,18 +285,9 @@ enum RecordingFinish {
         return Plan(savedChip: true)
     }
 
-    /// After the save: how long until the recorder closes, so the ring finishes filling and holds a moment. A tap during
-    /// it skips to the end.
-    static func closeDelay(sinceTap: TimeInterval, ring: Bool, skipped: Bool) -> TimeInterval {
-        guard ring, !skipped else { return 0 }
-        return max(0, CelebrationTiming.fill + CelebrationTiming.ringHold - sinceTap)
-    }
-
-    /// After the save: how long until `.success` plays, so it lands as the ring finishes filling (at once when the save
-    /// took longer than the fill, or the fill was skipped).
-    static func hapticDelay(sinceTap: TimeInterval, skipped: Bool) -> TimeInterval {
-        skipped ? 0 : max(0, CelebrationTiming.fill - sinceTap)
-    }
+    /// After the save: how long the recorder waits before it closes. The ring is decoration only: once the recording is
+    /// saved, the recorder closes at once, whether or not the ring has finished filling, and `.success` plays then.
+    static func closeDelay(saved: Bool) -> TimeInterval { 0 }
 }
 
 /// The Apple Watch's Saved on Watch: the ring trims and the check pops when you stopped it yourself; held still with
