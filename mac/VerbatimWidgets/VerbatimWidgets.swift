@@ -51,17 +51,29 @@ struct HomeScreenWidgets: WidgetBundle {
 /// While a take listens before the speech model is ready: "Getting ready" in place of Listening. During a call:
 /// Paused for a call. After a session ends by itself: Session ended with Restart (`RestartSessionIntent`) for 15
 /// minutes; tapping anywhere else opens Verbose's confirmation, as before.
+/// Stale (no update for `LiveFreshness.staleAfter`, so Verbose may have been ended): "Open Verbose to check your
+/// session", with still bars, no timer, and no buttons.
 struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: VerbatimSessionAttributes.self) { context in
-            ActivityLockSurface { skin in RibbonLockScreen(state: context.state, skin: skin) }
-                .widgetURL(context.state.shown == .ended ? restartLink : nil)
+            ActivityLockSurface { skin in
+                // Updates stopped coming (LiveFreshness): no "Listening", no timer, no buttons.
+                if LiveFreshness.showsStale(isStale: context.isStale, final: context.state.shown == .ended) {
+                    StaleLockScreen(title: LiveFreshness.sessionTitle, skin: skin)
+                } else {
+                    RibbonLockScreen(state: context.state, skin: skin)
+                }
+            }
+            .widgetURL(context.state.shown == .ended ? restartLink : nil)
         } dynamicIsland: { context in
             let s = context.state
-            let listening = s.shown == .listening
+            let stale = LiveFreshness.showsStale(isStale: context.isStale, final: s.shown == .ended)
+            let listening = s.shown == .listening && !stale
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    if listening {
+                    if stale {
+                        StaleBars(color: Refined.onBlackDim).frame(width: 22, height: 18).padding(.leading, 4)
+                    } else if listening {
                         HStack(spacing: 7) {
                             LevelBars(level: s.level, color: Refined.persimmon, count: 5).frame(width: 22, height: 18)
                             Text(s.warming ? Ribbon.gettingReadyTitle : "Listening").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
@@ -80,13 +92,15 @@ struct SessionLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    if !listening {
+                    if !listening && !stale {
                         Text(Ribbon.headline(s.shown, words: s.words, gettingReady: s.warming))
                             .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if listening {
+                    if stale {
+                        StaleIslandBottom(title: LiveFreshness.sessionTitle)
+                    } else if listening {
                         VStack(alignment: .leading, spacing: 10) {
                             if s.warming {
                                 Text(Ribbon.gettingReadyDetail).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
@@ -112,11 +126,21 @@ struct SessionLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                CompactLeading(state: s)
+                if stale {
+                    StaleBars(color: Refined.onBlackDim).frame(width: 22, height: 16)
+                } else {
+                    CompactLeading(state: s)
+                }
             } compactTrailing: {
-                CompactTrailing(state: s)
+                if stale {
+                    StaleCompactWord(title: LiveFreshness.sessionTitle)
+                } else {
+                    CompactTrailing(state: s)
+                }
             } minimal: {
-                if listening {
+                if stale {
+                    StaleBars(color: Refined.onBlackDim, count: 3, label: LiveFreshness.sessionTitle).frame(width: 13, height: 13)
+                } else if listening {
                     LevelBars(level: s.level, color: Refined.persimmon, count: 3).frame(width: 13, height: 13)
                 } else {
                     BarsMark(color: Refined.persimmon).frame(width: 16, height: 16)
@@ -228,6 +252,8 @@ private struct IslandWords: View {
                 .font(Refined.serif(16))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Your words: redacted wherever the system hides private content, as the thought's are (security review IPH-18).
+        .privacySensitive()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(line)
     }

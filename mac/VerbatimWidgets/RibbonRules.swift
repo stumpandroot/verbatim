@@ -487,3 +487,53 @@ extension Ribbon {
         }
     }
 }
+
+// MARK: - Live Activity freshness (SF-01, GPT-31)
+
+/// When a recording's or a dictation session's Live Activity stops claiming it's live. A Live Activity's timer counts
+/// on its own, so if iOS ends Verbose mid-recording the Lock Screen would keep "Recording" and a running clock. Every
+/// update carries a stale date `staleAfter` out; when updates stop coming, iOS marks the activity stale and it shows
+/// "Open Verbose to check your recording" with the voice bars still and no Stop. Stale never says the recording
+/// stopped: a missed update isn't proof of that (the audio may still be going, or saved and waiting for recovery).
+///
+/// The threshold is checked against how often each activity updates (`tools/test-live-activity.sh`): a voice note
+/// updates every 2 s, a thought every second, a session about once a second while listening and at least every
+/// `sessionRefresh` otherwise. `staleAfter` must cover at least `missedUpdates` of the slowest in a row, so a
+/// delayed timer, a busy moment, or an update iOS holds back never flips it; 30 s allows 15 missed voice-note updates
+/// and 3 missed session refreshes, and still tells you within half a minute. Paused content doesn't move on its own
+/// (the timer holds still), so a paused activity, a saved one, and an ended session carry no stale date of their own.
+enum LiveFreshness {
+    /// How often the recording's Live Activity updates: a voice note's voice bars, and a thought's bars and words.
+    static let voiceNoteTick: TimeInterval = 2
+    static let thoughtTick: TimeInterval = 1
+    /// The session's level while a take listens (`KeyboardSession`), and the refresh it sends otherwise, when nothing
+    /// else changed, so a session that sits ready for minutes stays fresh.
+    static let sessionLevelTick: TimeInterval = 1
+    static let sessionRefresh: TimeInterval = 10
+    /// How long an update stays fresh.
+    static let staleAfter: TimeInterval = 30
+    /// The fewest updates in a row that must go missing before an activity turns stale.
+    static let missedUpdates = 3
+
+    /// Every update cadence the activities use.
+    static let cadences: [TimeInterval] = [voiceNoteTick, thoughtTick, sessionLevelTick, sessionRefresh]
+
+    /// True when `staleAfter` covers `missedUpdates` of an update every `cadence` seconds.
+    static func covers(cadence: TimeInterval) -> Bool { staleAfter >= cadence * Double(missedUpdates) }
+
+    /// The stale date for an update sent at `now`. Nil while the content holds still on its own (paused).
+    static func staleDate(now: Date, holdsStill: Bool) -> Date? {
+        holdsStill ? nil : now.addingTimeInterval(staleAfter)
+    }
+
+    /// Whether a view draws the stale presentation: iOS says the content is stale, and it isn't a final state (saved,
+    /// or a session that ended, whose own stale date is when it goes away).
+    static func showsStale(isStale: Bool, final: Bool) -> Bool { isStale && !final }
+
+    /// The stale presentation's words: never "stopped", never a running clock.
+    static let recordingTitle = "Open Verbose to check your recording"
+    static let sessionTitle = "Open Verbose to check your session"
+    static let detail = "Verbose hasn't updated this in a while."
+    /// The compact Dynamic Island's word.
+    static let compact = "Check"
+}

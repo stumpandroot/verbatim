@@ -17,13 +17,19 @@ import AppIntents
 /// Thoughts" and the time for two seconds. Its Lock Screen has the time, your voice, and Stop (and Resume while
 /// paused), and never shows your words.
 ///
+/// Stale (no update for `LiveFreshness.staleAfter`, so Verbose may have been ended): every presentation says "Open
+/// Verbose to check your recording", with still bars, no timer, and no Stop; it never claims the recording stopped.
+///
 /// The Lock Screen is paper in light and the dark paper in dark (`ActivitySkin`). Every button is a capsule, and the
 /// timers' frames hold "0:00:00", so a recording past an hour never clips (`Ribbon.timerWidth`).
 struct RecordingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: VerbatimRecordingAttributes.self) { context in
             ActivityLockSurface { skin in
-                if context.attributes.isThought {
+                // Updates stopped coming (LiveFreshness): no running clock, no Stop, and never "stopped".
+                if LiveFreshness.showsStale(isStale: context.isStale, final: context.state.saved) {
+                    StaleLockScreen(title: LiveFreshness.recordingTitle, skin: skin)
+                } else if context.attributes.isThought {
                     ThoughtLockScreen(page: context.attributes.page, state: context.state, skin: skin)
                 } else {
                     RecordingLockScreen(title: context.attributes.title, state: context.state, skin: skin)
@@ -33,9 +39,12 @@ struct RecordingLiveActivity: Widget {
         } dynamicIsland: { context in
             let thought = context.attributes.isThought
             let s = context.state
+            let stale = LiveFreshness.showsStale(isStale: context.isStale, final: s.saved)
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    if thought {
+                    if stale {
+                        StaleBars(color: Refined.onBlackDim).frame(width: 22, height: 18).padding(.leading, 4)
+                    } else if thought {
                         if s.saved {
                             ThoughtSavedLine(state: s).padding(.leading, 4)
                         } else {
@@ -62,7 +71,7 @@ struct RecordingLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if !(thought && s.saved) {
+                    if !(thought && s.saved) && !stale {
                         RecordingTimer(state: s)
                             .font(Refined.mono(14, weight: .medium)).foregroundStyle(.white)
                             .frame(maxWidth: 90, alignment: .trailing)
@@ -70,7 +79,9 @@ struct RecordingLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if thought {
+                    if stale {
+                        StaleIslandBottom(title: LiveFreshness.recordingTitle)
+                    } else if thought {
                         if !s.saved {
                             VStack(alignment: .leading, spacing: 10) {
                                 if let line = s.words, !line.isEmpty { ThoughtIslandWords(line: line) }
@@ -102,7 +113,9 @@ struct RecordingLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                if let clock = s.markedClock {
+                if stale {
+                    StaleBars(color: Refined.onBlackDim).frame(width: 22, height: 16)
+                } else if let clock = s.markedClock {
                     MarkedCompact(clock: clock)
                 } else if thought {
                     if s.saved {
@@ -115,7 +128,9 @@ struct RecordingLiveActivity: Widget {
                     RecordingDot(state: s).frame(width: 10, height: 10)
                 }
             } compactTrailing: {
-                if s.markedClock != nil {
+                if stale {
+                    StaleCompactWord(title: LiveFreshness.recordingTitle)
+                } else if s.markedClock != nil {
                     Text(s.marksLabel).font(Refined.mono(12, weight: .medium)).foregroundStyle(Refined.onBlackDim)
                         .lineLimit(1).fixedSize()
                 } else if thought, s.saved, let at = s.savedAt {
@@ -130,7 +145,9 @@ struct RecordingLiveActivity: Widget {
                         .frame(width: RecordingTimer.width(size), alignment: .trailing)
                 }
             } minimal: {
-                if s.markedClock != nil {
+                if stale {
+                    StaleBars(color: Refined.onBlackDim, count: 3, label: LiveFreshness.recordingTitle).frame(width: 13, height: 13)
+                } else if s.markedClock != nil {
                     Image("marked").font(.system(size: 13, weight: .medium)).foregroundStyle(Refined.butterFixed)
                         .accessibilityLabel("Marked")
                 } else if thought {

@@ -158,9 +158,9 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
             attributes.page = PhoneState.thoughtPageTitle(day)
         }
         do {
-            activity = try Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: nil), pushType: nil)
+            activity = try Activity.request(attributes: attributes, content: content(state), pushType: nil)
             activityIsThought = thought
-            startTicker(every: thought ? 1 : 2)
+            startTicker(every: thought ? LiveFreshness.thoughtTick : LiveFreshness.voiceNoteTick)
             Log.note("recording presence: Live Activity started\(thought ? " for a thought" : "")")
             return true
         } catch {
@@ -172,16 +172,26 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
     private func update(quiet: Bool = false) {
         guard let a = activity, let state = currentState() else { return }
         if !quiet { Log.note("recording presence: \(state.status) at \(Int(state.elapsed)) s") }
-        Task { await a.update(ActivityContent(state: state, staleDate: nil)) }
+        Task { await a.update(content(state)) }
+    }
+
+    /// A live state with its stale date (`LiveFreshness`): if updates stop (iOS ended Verbose), the Live Activity
+    /// turns stale and says to open Verbose instead of showing a running clock. Paused holds still on its own, so it has
+    /// none.
+    private func content(_ state: VerbatimRecordingAttributes.ContentState) -> ActivityContent<VerbatimRecordingAttributes.ContentState> {
+        ActivityContent(state: state, staleDate: LiveFreshness.staleDate(now: Date(), holdsStill: state.isPaused || state.saved))
     }
 
     /// A thought's voice bars and words about once a second, and a voice note's voice bars every two seconds (the time
-    /// counts on its own).
+    /// counts on its own). Each update also renews the stale date. On the common run loop modes, so it keeps going
+    /// while you scroll in Verbose.
     private func startTicker(every seconds: TimeInterval) {
         thoughtTicker?.invalidate()
-        thoughtTicker = Timer.scheduledTimer(withTimeInterval: seconds, repeats: true) { _ in
+        let t = Timer(timeInterval: seconds, repeats: true) { _ in
             Task { @MainActor in RecordingPresence.shared.update(quiet: true) }
         }
+        RunLoop.main.add(t, forMode: .common)
+        thoughtTicker = t
     }
 
     private func endActivity(saved: Bool) {
