@@ -47,8 +47,8 @@ enum Sounds {
     }
 
     /// Plays the moment's sound. Returns its length in seconds when it plays, nil when it doesn't (sounds off, Verbose
-    /// in the background on the iPhone, or another sound under 150 ms ago). A start played into an open microphone
-    /// passes the length to the recorder (`Recorder.keepOut`).
+    /// in the background on the iPhone, or another sound under 150 ms ago). A start that opens the microphone goes
+    /// through `playBeforeMic` instead.
     @discardableResult
     static func play(_ m: SoundMoment) -> Double? {
         guard enabled else { return nil }
@@ -73,10 +73,11 @@ enum Sounds {
         return m.seconds
     }
 
-    /// Plays a start that the microphone may hear, and keeps it out of `recorder`'s recording.
-    static func play(_ m: SoundMoment, keepingOutOf recorder: Recorder) {
-        guard let seconds = play(m) else { return }
-        recorder.keepOut(seconds: seconds)
+    /// Plays a start before `recorder` starts (call it just before `start` or `begin`): the recording keeps what the
+    /// microphone hears from when the sound ends (`MicArm`), so the sound is never in it and nothing is silenced. When
+    /// the sound doesn't play (sounds off, Verbose in the background), the recording keeps everything from its start.
+    static func playBeforeMic(_ m: SoundMoment, arming recorder: Recorder) {
+        recorder.armAfterSound(seconds: play(m))
     }
 
     private static func loaded(_ m: SoundMoment) -> Bool {

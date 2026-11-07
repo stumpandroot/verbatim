@@ -194,6 +194,10 @@ final class MeetingSession: ObservableObject {
         // The other side's voices come through the speakers, so the built-in mic hearing speech says nothing about yours.
         mic.comparesMics = false
         let recorder = mic
+        // The start sound first, as the mic track opens: the mic track keeps what it hears from when the sound ends
+        // (MicArm), so nothing is silenced and its clock marks stay true. The system track never hears Verbose: the
+        // tap excludes Verbose's process, and ScreenCaptureKit sets excludesCurrentProcessAudio.
+        Sounds.playBeforeMic(SoundRules.start(automatic: startedAutomatically), arming: recorder)
         let micError: Error? = await withCheckedContinuation { c in
             Task { @MainActor in recorder.begin(to: micURL) { c.resume(returning: $0) } }
         }
@@ -231,10 +235,6 @@ final class MeetingSession: ObservableObject {
         verdictDone = path != "tap"
         lastSilenceNote = 0; lastProgressNote = 0
         phase = .recording
-        // Both tracks are running: the start sound now. The system track leaves Verbose's own audio out (the tap excludes
-        // Verbose's process; ScreenCaptureKit excludesCurrentProcessAudio), and the mic track writes what it hears of
-        // the sound as silence (MicKeepOut).
-        Sounds.play(SoundRules.start(automatic: startedAutomatically), keepingOutOf: mic)
         startWatchdog()
         Log.noteNow("meeting: recording; system track via \(path)")
         startStills(sessionID: side.id)

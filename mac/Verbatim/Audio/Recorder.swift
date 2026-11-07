@@ -100,10 +100,11 @@ final class RecordingWriter: @unchecked Sendable {
     var framesWritten: Int64 { lock.lock(); defer { lock.unlock() }; return frames }
     /// Self-test only: every write that would go past this many frames fails, as on a full disk.
     var failWritesAfterFrames: Int64?
-    /// A start sound playing into the open microphone (Sounds, SoundRules.swift): what the mic hears while it plays is
-    /// written as silence, so the sound isn't in the recording, the live words, or the transcript.
-    private var keepOutWindow: MicKeepOut.Window?
-    func keepOut(_ w: MicKeepOut.Window) { lock.lock(); keepOutWindow = w; lock.unlock() }
+    /// The start sound plays before the microphone takes anything in (`MicArm`, SoundRules.swift): samples heard before
+    /// this uptime are never written, tapped, or counted, so the recording starts after the sound. Set before the
+    /// first buffer (`arm(at:)`, right after the writer is made); nothing is ever replaced with silence.
+    private var armAt: Double?
+    func arm(at uptime: Double) { lock.lock(); armAt = uptime; lock.unlock() }
 
     /// `segmented`: roll to a new file every `RecordingSegments.seconds` (normal recordings, not dictation).
     /// `sound`: Audio only's format (`SoundFormat`), at the rate `inputFormat` delivers.
@@ -253,11 +254,18 @@ final class RecordingWriter: @unchecked Sendable {
             }
             out = made
         }
-        if err == nil, out.frameLength > 0 {
-            if let w = keepOutWindow {
-                if let r = MicKeepOut.silenced(frames: Int(out.frameLength), rate: format.sampleRate, arrival: now, window: w) { Self.silence(out, r) }
-                if MicKeepOut.isOver(w, at: now) { keepOutWindow = nil }
+        var kept = out
+        if err == nil, out.frameLength > 0, let a = armAt {
+            // Still in the start sound: keep only what was heard after it (always the buffer's tail), or nothing.
+            if MicArm.isOver(a, at: now) { armAt = nil }
+            guard let r = MicArm.kept(frames: Int(out.frameLength), rate: format.sampleRate, arrival: now, armAt: a) else { return v }
+            if r.lowerBound > 0 {
+                guard let tail = Self.tail(of: out, from: r.lowerBound) else { return v }
+                kept = tail
             }
+        }
+        if err == nil, kept.frameLength > 0 {
+            let out = kept
             if liveTap != nil { tapped = out; tap = liveTap }
             if let file {
                 append(out, to: file, failure: &failure)
@@ -274,11 +282,25 @@ final class RecordingWriter: @unchecked Sendable {
 
     var seconds: TimeInterval { lock.lock(); defer { lock.unlock() }; return Double(frames + preRollFrames) / format.sampleRate }
 
-    /// Writes silence over `range` of a converted mono buffer (16-bit for speech, float for Audio only).
-    private static func silence(_ b: AVAudioPCMBuffer, _ range: Range<Int>) {
-        guard range.lowerBound >= 0, range.upperBound <= Int(b.frameLength) else { return }
-        if let p = b.int16ChannelData?[0] { for i in range { p[i] = 0 } }
-        else if let p = b.floatChannelData?[0] { for i in range { p[i] = 0 } }
+    /// A new buffer holding the samples of a converted mono buffer (16-bit for speech, float for Audio only) from
+    /// `start` to its end: what a recording keeps of the buffer the start sound ended in (`MicArm`).
+    private static func tail(of b: AVAudioPCMBuffer, from start: Int) -> AVAudioPCMBuffer? {
+        let n = Int(b.frameLength)
+        guard start >= 0, start < n, let c = AVAudioPCMBuffer(pcmFormat: b.format, frameCapacity: AVAudioFrameCount(n - start)) else { return nil }
+        let channels = Int(b.format.channelCount)
+        let interleaved = b.format.isInterleaved
+        // Samples per frame in one channel buffer: all channels when interleaved, one otherwise.
+        let stride = interleaved ? channels : 1
+        let buffers = interleaved ? 1 : channels
+        if let src = b.int16ChannelData, let dst = c.int16ChannelData {
+            for ch in 0..<buffers { dst[ch].update(from: src[ch] + start * stride, count: (n - start) * stride) }
+        } else if let src = b.floatChannelData, let dst = c.floatChannelData {
+            for ch in 0..<buffers { dst[ch].update(from: src[ch] + start * stride, count: (n - start) * stride) }
+        } else {
+            return nil
+        }
+        c.frameLength = AVAudioFrameCount(n - start)
+        return c
     }
 
     /// A copy of a float buffer in its own format, or nil for any other kind of buffer.
@@ -964,6 +986,8 @@ final class Recorder: ObservableObject {
     /// hummed melody or a guitar keeps its dynamics. On both, the file keeps the input's own rate in 24-bit
     /// (`SoundFormat`) instead of 16 kHz. Set before `start` (or `begin`); the Mac's input unit never processes voice.
     var soundOnly = false
+    /// Set by `armAfterSound` just before a start; the new writer takes it before its first buffer.
+    private var pendingArm: Double?
 
     func start(to url: URL) throws {
         #if os(iOS)
@@ -994,6 +1018,7 @@ final class Recorder: ObservableObject {
             throw Self.noInput
         }
         let w = try RecordingWriter(url: url, inputFormat: inFormat, segmented: true, sound: soundOnly)
+        if let a = takeArm() { w.arm(at: a) }
         w.setLiveTap(liveTap)
         watchWrites(w)
         writer = w
@@ -1406,11 +1431,17 @@ final class Recorder: ObservableObject {
         return true
     }
 
-    /// A start sound began playing into the open microphone (`Sounds.play(_:keepingOutOf:)`): what the microphone hears
-    /// for its `seconds`, plus a little for the speakers' latency, is written as silence (`MicKeepOut`).
-    func keepOut(seconds: Double) {
-        guard isRecording, let writer else { return }
-        writer.keepOut(MicKeepOut.window(playedAt: ProcessInfo.processInfo.systemUptime, seconds: seconds))
+    /// The start sound just began playing, before this recorder starts (`Sounds.playBeforeMic`): the next recording
+    /// keeps samples only from when it ends, plus a little for the speakers' latency (`MicArm`). Nil (no sound played)
+    /// arms nothing. An arm left over from a start that failed is already past, so it keeps everything.
+    func armAfterSound(seconds: Double?) {
+        pendingArm = seconds.map { MicArm.at(playedAt: ProcessInfo.processInfo.systemUptime, seconds: $0) }
+    }
+
+    /// The arm for the writer a start is about to make, used once.
+    private func takeArm() -> Double? {
+        defer { pendingArm = nil }
+        return pendingArm
     }
 
     /// Returns the file URL, its duration, and the waveform envelope. A long recording's segments are joined into
@@ -1584,8 +1615,9 @@ final class Recorder: ObservableObject {
         let levels = levelHandler()
         let probe = MicNameProbe()
         let sound = soundOnly
+        let arm = takeArm()
         audioQueue.async { [weak self] in
-            let result = Self.openInput(newFileAt: url, continuing: nil, sound: sound, levels: levels, probe: probe)
+            let result = Self.openInput(newFileAt: url, continuing: nil, sound: sound, arm: arm, levels: levels, probe: probe)
             Task { @MainActor in
                 guard let self else {
                     if case .success(let (open, w)) = result { open.release(); _ = w.close() }
@@ -1612,7 +1644,7 @@ final class Recorder: ObservableObject {
     /// at the new device's format; otherwise a new segmented writer is made at `url`. On failure everything it
     /// opened is released (and a new file removed). `device` opens that device instead of the current one.
     nonisolated private static func openInput(on device: AudioDevices.Device? = nil, newFileAt url: URL?, continuing existing: RecordingWriter?,
-                                              sound: Bool = false, levels: @escaping @Sendable (Float, TimeInterval) -> Void,
+                                              sound: Bool = false, arm: Double? = nil, levels: @escaping @Sendable (Float, TimeInterval) -> Void,
                                               probe: MicNameProbe) -> Result<(OpenInput, RecordingWriter), Error> {
         CaptureStep.set("recording: finding the microphone")
         // The chosen device if it's connected, otherwise the system default; never anything else.
@@ -1631,6 +1663,8 @@ final class Recorder: ObservableObject {
                 w = existing
             } else if let url {
                 w = try RecordingWriter(url: url, inputFormat: u.format, segmented: true, sound: sound)
+                // The start sound plays first; the new recording keeps what's heard after it (MicArm).
+                if let arm { w.arm(at: arm) }
             } else {
                 throw RecorderError("No file to record into.")
             }
@@ -1945,6 +1979,7 @@ final class Recorder: ObservableObject {
     private func beginCapture(to url: URL, name: String) throws {
         guard let unit else { throw Self.noInput }
         let w = try RecordingWriter(inputFormat: unit.format)
+        if let a = takeArm() { w.arm(at: a) }
         w.setLiveTap(liveTap)
         live.reset()
         sink.set(w, onLevel: levelHandler())

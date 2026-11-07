@@ -1,7 +1,7 @@
 import Foundation
 
 // Verbose's interface sounds (DESIGN.md §7, Sounds): which moments have one, how long each file runs, the rule that
-// drops a second sound within 150 ms of the first, and the stretch of microphone audio a start sound is kept out of.
+// drops a second sound within 150 ms of the first, and when the microphone starts keeping audio after a start sound.
 // Pure, so the Linux tests (mac/tools/test-sounds.sh) and both apps' self-tests check it (SoundChecks.swift). Both apps
 // play through `Sounds` (Audio/SoundPlayer.swift); the files are in Resources/Sounds, with their sources in its README.
 
@@ -51,8 +51,8 @@ enum SoundMoment: String, CaseIterable {
         }
     }
 
-    /// Played while the microphone is already recording: the recording keeps it out (`MicKeepOut`).
-    var playsIntoMic: Bool { self == .dictationStart || self == .recordingStart || self == .autoCall }
+    /// Played just before the microphone takes anything in: the recording is armed when it ends (`MicArm`).
+    var opensMic: Bool { self == .dictationStart || self == .recordingStart || self == .autoCall }
 
     /// Heard many times a day: short and quiet (the calm tier).
     var frequent: Bool { [.dictationStart, .dictationStop, .dictationPasted, .dictationCancel].contains(self) }
@@ -106,40 +106,32 @@ struct SoundSpacing {
     }
 }
 
-/// Keeps a start sound out of the recording it starts. The microphone is already open when dictation's tick or a
-/// recording's start sound plays, and on the Mac's speakers it would hear it, so the recorder silences the samples
-/// heard while it plays (RecordingWriter). Only that stretch: the first word after it is kept, and with the sound off
-/// nothing is silenced.
-enum MicKeepOut {
+/// The start sound plays before the microphone takes anything in (Tim, November 7, 2026). Dictation's tick, a
+/// recording's start, and a call's start play first; the recording is armed when the sound ends, plus a little for the
+/// speakers' latency, and keeps every sample from then on. Samples the microphone delivers before that (it may already
+/// be opening while the sound plays) are never written, tapped for live words, or counted: the recording starts after
+/// the sound. No sample is ever replaced with silence. With the sound off, nothing waits: the recording keeps
+/// everything from its first sample.
+enum MicArm {
     /// Added after the sound ends: the speakers' output latency and the input's delivery, both well under this.
     static let slack: Double = 0.08
 
-    struct Window: Equatable {
-        /// System uptime when the sound was asked to play.
-        var from: Double
-        /// System uptime after which nothing more is silenced.
-        var until: Double
-    }
+    /// System uptime when the recording starts keeping samples, for a sound asked to play at `playedAt`.
+    static func at(playedAt: Double, seconds: Double) -> Double { playedAt + max(0, seconds) + slack }
 
-    static func window(playedAt: Double, seconds: Double) -> Window {
-        Window(from: playedAt, until: playedAt + seconds + slack)
-    }
-
-    /// The samples of one buffer to silence: `frames` samples at `rate` that arrived at `arrival` (system uptime), so
-    /// sample `i` was heard at about `arrival - (frames - i) / rate`. Nil when none fall in the window.
-    static func silenced(frames: Int, rate: Double, arrival: Double, window w: Window) -> Range<Int>? {
-        guard frames > 0, rate > 0, w.until >= w.from else { return nil }
+    /// The samples of one buffer to keep: `frames` samples at `rate` that arrived at `arrival` (system uptime), so
+    /// sample `i` was heard at about `arrival - (frames - i) / rate`. Those heard at or after `armAt` are kept, always
+    /// a tail of the buffer (`lo..<frames`). Nil when every sample came before it (the buffer is dropped).
+    static func kept(frames: Int, rate: Double, arrival: Double, armAt: Double) -> Range<Int>? {
+        guard frames > 0 else { return nil }
+        guard rate > 0 else { return 0..<frames }
         let n = Double(frames)
-        // Heard at or after `from`:   i >= n - (arrival - from) * rate
-        // Heard at or before `until`: i <= n - (arrival - until) * rate
-        let low = n - (arrival - w.from) * rate
-        let high = n - (arrival - w.until) * rate
-        guard high >= 0, low < n else { return nil }
+        // Heard at or after `armAt`: i >= n - (arrival - armAt) * rate
+        let low = n - (arrival - armAt) * rate
         let lo = max(0, Int(low.rounded(.up)))
-        let hi = min(frames, Int(high.rounded(.down)) + 1)
-        return lo < hi ? lo..<hi : nil
+        return lo < frames ? lo..<frames : nil
     }
 
-    /// The window is over and can be forgotten.
-    static func isOver(_ w: Window, at now: Double) -> Bool { now > w.until + 1 }
+    /// Once the first buffer that arrived after `armAt` has been kept, the arm is over and can be forgotten.
+    static func isOver(_ armAt: Double, at now: Double) -> Bool { now > armAt + 1 }
 }

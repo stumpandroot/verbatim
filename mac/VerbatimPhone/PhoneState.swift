@@ -374,10 +374,10 @@ final class PhoneState {
             // the Action button, a widget, or Siri, iOS plays nothing; the Live Activity shows the start instead.)
             Haptics.play(.recordStart)
             let thought = pendingThought
+            // The start sound before the microphone takes anything in: the recording keeps what it hears from when the
+            // sound ends (MicArm), so nothing is silenced and the sound isn't in it. Only with Verbose in front.
+            Sounds.playBeforeMic(SoundRules.start(thought: thought), arming: recorder)
             try recorder.start(to: url)
-            // The sound once the microphone is open (iOS plays it then because the session allows system sounds while
-            // recording); what the microphone hears of it is written as silence (MicKeepOut). Only with Verbose in front.
-            Sounds.play(SoundRules.start(thought: thought), keepingOutOf: recorder)
             recordingStartedAt = Date()
             if !soundOnly { recordingWords.begin() }
             // Audio only or a Brain dump: if Verbose is closed mid-recording, recovery files it as that kind.

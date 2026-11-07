@@ -682,10 +682,12 @@ final class DictationController: ObservableObject {
         intoBrainDump = !wantCommand && DayNote.isTarget
         targetAppName = intoBrainDump ? "Today's note" : (target?.localizedName ?? "the front app")
         siteProbe = SiteCapture.probe(bundleID: target?.bundleIdentifier)
-        // The mic starts first: reading the app's text through Accessibility can take a moment, and the
-        // first word must not be lost to it.
+        // The tick plays first and the mic opens with it, before Accessibility is read (that can take a moment); the
+        // recording keeps what the mic hears from when the tick ends (Sounds.playBeforeMic, SoundRules.swift's MicArm),
+        // so nothing is silenced and the tick isn't in it.
         let showWords = LiveWordsSetting.isOn
         recorder.liveTap = showWords ? liveWords.tap : nil
+        Sounds.playBeforeMic(.dictationStart, arming: recorder)
         do {
             try recorder.start(to: app?.store.newRecordingURL() ?? Paths.downloads.appendingPathComponent("dictation-\(Int(Date().timeIntervalSince1970)).wav"))
         } catch {
@@ -693,9 +695,6 @@ final class DictationController: ObservableObject {
             showMicProblem("Couldn't start")
             return
         }
-        // The tick plays as the mic opens, before Accessibility is read, so it lands before you speak; what the mic hears
-        // of it is written as silence (Recorder.keepOut, SoundRules.swift's MicKeepOut).
-        Sounds.play(.dictationStart, keepingOutOf: recorder)
         startedAt = Date()
         session += 1
         toPad = !wantCommand && ThoughtPadController.shared.isOpen && !intoBrainDump
