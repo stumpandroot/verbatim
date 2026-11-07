@@ -31,7 +31,10 @@ final class PhoneState {
     /// Settings › Personalization and preferences › Tab bar: which tabs follow Home, on this iPhone.
     let tabBarStore = PhoneTabBarStore.shared
     var tabBar: PhoneTabBar { tabBarStore.bar }
-    var toast: String? = nil
+    /// The toast at the top of the screen (`say`), with its action when it has one (Undo after Delete).
+    var toast: PhoneToast? = nil
+    /// Whether a finger is on the toast, and when it last lifted (ToastTiming). Plain storage: nothing redraws for it.
+    @ObservationIgnored private(set) var toastHold = ToastHold()
     var showRecorder = false
     /// The screenshot tour's stand-in for a running recording (no microphone in the simulator). UI test mode only.
     var previewRecording = false { didSet { previewRecordingValues.send(previewRecording) } }
@@ -154,6 +157,13 @@ final class PhoneState {
         store.snippetsPublisher.sink { list in
             KeyboardBridge.writeSnippets(list.map { KeyboardBridge.Snippet(id: $0.id, trigger: $0.trigger, expansion: $0.expansion) })
         }.store(in: &bag)
+        // Settings › Limit animation, copied into the App Group so the keyboard follows it too (MotionMirror): now, and
+        // whenever the app's defaults change (the copy writes only a change).
+        mirrorLimitMotion()
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification, object: UserDefaults.standard)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.mirrorLimitMotion() }
+            .store(in: &bag)
         recorder.onAutoPaused = { [weak self] reason in self?.autoPauseReason = reason; self?.say(reason); Haptics.play(.autoPaused) }
         recorder.onInputSwitched = { [weak self] note in
             if self?.recorder.isPaused == false { self?.autoPauseReason = nil }
@@ -263,10 +273,46 @@ final class PhoneState {
         return "\(chosen) seems to be muted. Recording continues on the iPhone microphone."
     }
 
-    func say(_ s: String) {
-        toast = s
-        let current = s
-        Task { try? await Task.sleep(nanoseconds: 3_000_000_000); if self.toast == current { self.toast = nil } }
+    /// Copies Settings › Limit animation into the App Group, where the keyboard reads it (MotionMirror).
+    func mirrorLimitMotion() {
+        MotionMirror.mirror(UserDefaults.standard.bool(forKey: MotionPreference.key), into: KeyboardBridge.defaults)
+    }
+
+    /// Shows a toast. A message alone goes after 3 s; one with an action (Undo) stays at least 8 s, and while a finger
+    /// is on it (ToastTiming, DESIGN.md §7).
+    func say(_ s: String, action: String? = nil, onAction: (() -> Void)? = nil) {
+        let t = PhoneToast(s, action: action, onAction: onAction)
+        toast = t
+        endToastWhenDue(t.id)
+    }
+
+    /// A finger came down on the toast (true) or lifted (false). A toast with an action stays while it's held, and a
+    /// moment after (ToastTiming).
+    func holdToast(_ on: Bool) {
+        guard let t = toast else { return }
+        toastHold.set(on, for: t.id)
+        if !on { endToastWhenDue(t.id) }
+    }
+
+    /// The toast's action (its button): runs it once and closes the toast.
+    func runToastAction() {
+        guard let t = toast else { return }
+        toast = nil
+        t.onAction?()
+    }
+
+    /// Closes toast `id` when its time is up, asking ToastTiming again after each wait (a hold may have started or
+    /// ended meanwhile). A held toast waits for the finger to lift, which asks again.
+    private func endToastWhenDue(_ id: UUID) {
+        guard let t = toast, t.id == id else { return }
+        let now = Date()
+        guard let wait = ToastTiming.remaining(elapsed: now.timeIntervalSince(t.shownAt), hasAction: t.action != nil, plain: ToastTiming.phonePlain,
+                                               held: toastHold.isHeld(id), sinceRelease: toastHold.sinceRelease(id, now: now)) else { return }
+        if wait <= 0 { toast = nil; return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+            self?.endToastWhenDue(id)
+        }
     }
 
     func open(_ id: UUID, segment: UUID? = nil) {
@@ -985,7 +1031,10 @@ final class PhoneState {
 
     func delete(_ ids: [UUID]) {
         for id in ids { forgetKeyboardCopy(id); linkTasks.removeValue(forKey: id)?.cancel(); coordinator.cancelIfActive(id); store.moveToTrash(id) }
-        say(ids.count == 1 ? "Moved to Recently Deleted" : "Moved \(ids.count) to Recently Deleted")
+        // Undo puts them straight back, as on the Mac and in Recently Deleted (Store.restore).
+        say(ids.count == 1 ? "Moved to Recently Deleted" : "Moved \(ids.count) to Recently Deleted", action: ToastUndo.title) { [weak self] in
+            ids.forEach { self?.store.restore($0) }
+        }
     }
     func restore(_ id: UUID) { store.restore(id); say("Restored") }
     func purge(_ id: UUID) { forgetKeyboardCopy(id); if let t = store.transcript(id) { store.delete(t) } }

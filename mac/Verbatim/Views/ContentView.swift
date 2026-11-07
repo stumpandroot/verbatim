@@ -67,7 +67,7 @@ struct ContentView: View {
             Button("Rename") { rename.commit(app.store) }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
-        .onAppear { LaunchClock.rootAppeared(); UITest.run(app: app); app.installLinkPasteMonitor(); NavTrail.shared.installMonitor(app) }
+        .onAppear { LaunchClock.rootAppeared(); UITest.run(app: app); app.installLinkPasteMonitor(); NavTrail.shared.installMonitor(app); ToastUndoKey.shared.install(app) }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }
         // The chrome takes the accent (DESIGN.md §13): toolbar buttons, menus, and selection. Mac switches take
         // `macSwitch` where they're drawn (`refinedSwitchTint()`).

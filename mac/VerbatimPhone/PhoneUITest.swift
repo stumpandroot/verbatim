@@ -593,7 +593,7 @@ enum PhoneUITest {
         let switchedToast = app.toast
         await show("p02r-record-switched")
         check("changing kind while recording files it as the new kind and says so",
-              app.recordingChoice == .kind(.brainDump) && switchedToast == "Now a brain dump, from the start")
+              app.recordingChoice == .kind(.brainDump) && switchedToast?.message == "Now a brain dump, from the start")
         app.switchRecordingKind(to: .thought)
         check("changing to a thought makes it a thought from its start", app.recordingThought && app.recordKind == nil && app.thoughtStartedAt != nil)
         app.switchRecordingKind(to: .voiceNote)

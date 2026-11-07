@@ -24,7 +24,7 @@ struct PhoneDictionarySuggestions: View {
                     HStack(spacing: 10) {
                         Button("Add") {
                             app.store.addSuggestion(s)
-                            app.toast = "Added \(s.preferred) to your Dictionary"
+                            app.say("Added \(s.preferred) to your Dictionary")
                         }
                         .buttonStyle(RefinedActionStyle(kind: .strong))
                         .accessibilityLabel("Add \(s.preferred)")
@@ -132,7 +132,7 @@ struct PhoneContactNamesSheet: View {
                     Button(picked.isEmpty ? "Add" : "Add \(picked.count)") {
                         let names = candidates.filter { picked.contains($0.id) }.map(\.name)
                         app.store.addNames(names, learnedFrom: "From Contacts")
-                        app.toast = names.count == 1 ? "Added 1 name to your Dictionary" : "Added \(names.count) names to your Dictionary"
+                        app.say(names.count == 1 ? "Added 1 name to your Dictionary" : "Added \(names.count) names to your Dictionary")
                         dismiss()
                     }
                     .disabled(picked.isEmpty || phase != .ready)
