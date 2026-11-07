@@ -240,6 +240,8 @@ struct HomeView: View {
         case .thoughts: HomeThoughtsMac(size: item.size)
         case .journal: HomeJournalMac(size: item.size)
         case .meetings, .interviews, .talks, .brainDumps, .audioOnly: kindCard(item)
+        // Recent dictations is the iPhone's (`HomeSection.platformOnly`): the Mac's layout never holds it.
+        case .dictations: EmptyView()
         }
     }
 

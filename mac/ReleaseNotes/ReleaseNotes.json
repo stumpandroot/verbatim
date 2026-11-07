@@ -11,7 +11,34 @@
           "head": "Words that don't go in",
           "icon": "copy",
           "text": "If a dictation's words don't land in the field, they're copied and the keyboard says so.",
-          "detail": "Coming back to a field, like after scrolling in Messages, the keyboard now waits for the field before it types, then checks the words are there."
+          "detail": "Coming back to a field, like after scrolling in Messages, the keyboard now waits for the field before it types, then checks the words are there. Dictations and Home mark those words not pasted."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Recent dictations on Home",
+          "icon": "home",
+          "text": "Your three newest dictations sit on Home under This week, each with a copy button.",
+          "detail": "Tap the words to open one, or See all for Dictations. Hide the section in Edit Home, and your dictations join Recent recordings instead."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "A widget for dictations",
+          "icon": "widgets",
+          "text": "The Recent dictations widget copies a dictation's words without opening Verbose.",
+          "detail": "Small shows the newest with Copy; medium shows the newest three. Tap the title to open Dictations."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Dictations in Library",
+          "icon": "library",
+          "text": "Dictations has its own card at the top of Library, with your newest dictation.",
+          "detail": "It replaces the small Dictations button in the row under the search field."
         }
       ]
     },

@@ -918,10 +918,13 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
-    /// Words that didn't go in: on the clipboard (they're in Recent too), with the notice, and in the log.
+    /// Words that didn't go in: on the clipboard (they're in Recent too), with the notice, and in the log. The app
+    /// hears which dictation (`missedID`, before `report` posts the command note it listens for) and marks it not
+    /// pasted, so Dictations and Home say so.
     private func copyMissed(_ d: UUID, _ text: String, why: String) {
         let copied = hasFullAccess && KeyboardBridge.copyDictation(text)
         if copied { defaults?.set(d.uuidString, forKey: KeyboardBridge.copiedKey) }
+        defaults?.set(d.uuidString, forKey: KeyboardBridge.Key.missedID)
         report(d, "insert: \(why); \(copied ? "copied" : "the copy didn't take")")
         reloadRecent()
         set(.idle)

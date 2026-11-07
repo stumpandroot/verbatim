@@ -77,6 +77,11 @@ enum SystemHooks {
             case .newThought:
                 NSApp.hide(nil)
                 ThoughtCapture.shared.start()
+            case .dictations:
+                // The iPhone's Recent dictations widget's link; no desktop widget makes it, but it opens Dictations.
+                NSApp.activate(ignoringOtherApps: true)
+                app.mainWindow?.makeKeyAndOrderFront(nil)
+                app.go(.dictations)
             }
         }
     }

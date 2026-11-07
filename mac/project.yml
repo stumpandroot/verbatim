@@ -494,6 +494,8 @@ targets:
       # Shared with the widget extension: New thought (widgets, the control, Siri, Shortcuts) and Thoughts' rules.
       - VerbatimWidgets/NewThoughtIntent.swift
       - VerbatimWidgets/ThoughtRules.swift
+      # Shared with the widget extension: Copy on the Recent dictations widget, run in the app's process.
+      - VerbatimWidgets/CopyDictationIntent.swift
       - VerbatimWidgets/WidgetSnapshot.swift
       - Verbatim/App/WidgetFeed.swift
       # Shared with the share and broadcast extensions: the App Group inbox they fill and the app imports.

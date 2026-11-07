@@ -18,6 +18,8 @@ import AppKit
 // 5. Today's thoughts: medium. Today's Thoughts page, its last two thoughts (marked `privacySensitive()`), and New
 //    thought. Tap a thought to open today's page.
 // 6. Thoughts on the Lock Screen (iPhone): circular, New thought; rectangular, today's count only, never the words.
+// 7. Recent dictations (iPhone): small (the newest, with Copy) and medium (the newest three). Copy is an interactive
+//    button (`CopyDictationIntent`) that copies without opening Verbose; anywhere else opens Dictations.
 //
 // Gallery names are sentence case and unique. Mono labels are 12 pt or larger at full strength, and a label on the
 // persimmon fill is SF Pro semibold 14 in the fill's ink (DESIGN.md §1.5, §2).
@@ -856,6 +858,244 @@ private struct ThoughtsLockView: View {
         }
         .buttonStyle(.plain)
         .containerBackground(for: .widget) { Color.clear }
+    }
+}
+#endif
+
+#if os(iOS)
+// MARK: - Recent dictations (iPhone)
+
+/// Recent dictations (November 6, 2026, mockup "Verbose Dictations", frame 2): your newest dictations, to copy without
+/// opening Verbose. Medium: "Recent dictations" with how many are kept, then the newest three, each with the butter
+/// dictation chip, its words on one line, how long ago, and the round copy button; the whole row copies
+/// (`CopyDictationIntent`) and reads Copied for two seconds. Small: "Dictations", how long ago, the newest one's words,
+/// and Copy. The header, and any tap outside a button, opens Dictations. A dictation too long to keep whole in the
+/// snapshot shows a chevron instead of Copy and opens in Verbose. None yet: "No dictations yet."
+struct RecentDictationsWidget: Widget {
+    static let kind = CopyDictationIntent.widgetKind
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: Self.kind, provider: DictationsProvider()) { entry in
+            RecentDictationsView(entry: entry)
+        }
+        .configurationDisplayName("Recent dictations")
+        .description("Your newest dictations. Tap one to copy its words.")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+struct DictationsEntry: TimelineEntry {
+    var date: Date
+    var snapshot: WidgetSnapshot?
+    /// The row that reads Copied in this entry, if any.
+    var copied: UUID?
+}
+
+/// Now, then an entry each time a row's "2 min ago" changes (`WidgetSnapshot.agoChanges`) and when Copied ends, so the
+/// labels move on without the app. The app reloads the widget when a dictation is saved (WidgetFeed).
+struct DictationsProvider: TimelineProvider {
+    func placeholder(in context: Context) -> DictationsEntry { DictationsEntry(date: Date(), snapshot: Self.sample(), copied: nil) }
+
+    func getSnapshot(in context: Context, completion: @escaping (DictationsEntry) -> Void) {
+        let now = Date()
+        var snap = WidgetSnapshotStore.read()
+        if context.isPreview, snap?.dictations?.isEmpty ?? true { snap = Self.sample(now: now) }
+        completion(DictationsEntry(date: now, snapshot: snap, copied: nil))
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<DictationsEntry>) -> Void) {
+        let now = Date()
+        let snap = WidgetSnapshotStore.read()
+        let copied = WidgetSnapshot.copied(marker: KeyboardBridge.defaults?.string(forKey: WidgetSnapshot.copiedKey), now: now)
+        var dates = WidgetSnapshot.agoChanges((snap?.dictations ?? []).map(\.date), now: now)
+        if let c = copied { dates.append(c.until) }
+        let changes = Array(Set(dates)).sorted()
+        let entries = ([now] + changes).map { d in
+            DictationsEntry(date: d, snapshot: snap, copied: copied.flatMap { d < $0.until ? $0.id : nil })
+        }
+        if changes.isEmpty {
+            let midnight = Calendar.current.nextDate(after: now, matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime)
+                ?? now.addingTimeInterval(86_400)
+            completion(Timeline(entries: entries, policy: .after(midnight)))
+        } else {
+            completion(Timeline(entries: entries, policy: .atEnd))
+        }
+    }
+
+    /// The widget gallery's dictations: made-up, neutral examples.
+    static func sample(now: Date = Date()) -> WidgetSnapshot {
+        var snap = HomeData.sample(now: now)
+        snap.dictations = WidgetSnapshot.dictations([
+            (UUID(), "Running ten minutes late, save me a seat.", now.addingTimeInterval(-120)),
+            (UUID(), "Can you pick up milk and coffee filters on the way home? We're out of both.", now.addingTimeInterval(-1_080)),
+            (UUID(), "Thanks for sending the draft. I'll read it tonight and send notes in the morning.", now.addingTimeInterval(-3_600)),
+        ])
+        snap.dictationCount = 12
+        return snap
+    }
+}
+
+private struct RecentDictationsView: View {
+    var entry: DictationsEntry
+    @Environment(\.widgetFamily) private var family
+
+    private var rows: [WidgetSnapshot.Dictation] { entry.snapshot?.dictations ?? [] }
+
+    var body: some View {
+        SkinReader { skin in
+            Group {
+                if family == .systemSmall { small(skin) } else { medium(skin) }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .containerBackground(for: .widget) { Refined.card }
+            // Anywhere outside a button opens Dictations (the small size is one tap target besides Copy).
+            .widgetURL(WidgetLink.dictations.url)
+        }
+    }
+
+    // Medium: the header and the newest three.
+    private func medium(_ skin: Skin) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Link(destination: WidgetLink.dictations.url) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text("Recent dictations").font(Refined.serif(16)).foregroundStyle(skin.text)
+                    Spacer(minLength: 4)
+                    if let n = entry.snapshot?.dictationCount, n > 0 {
+                        Text("\(n.formatted()) kept").font(Refined.mono(12)).foregroundStyle(skin.meta)
+                    }
+                }
+                .lineLimit(1)
+                .padding(.bottom, 4)
+            }
+            .accessibilityHint("Opens Dictations")
+            if rows.isEmpty {
+                Spacer(minLength: 0)
+                empty(skin)
+                Spacer(minLength: 0)
+            } else {
+                ForEach(Array(rows.prefix(WidgetSnapshot.maxDictations).enumerated()), id: \.element.id) { i, row in
+                    if i > 0 { Rectangle().fill(skin.full ? Refined.separator : Color.primary.opacity(0.1)).frame(height: 0.5) }
+                    rowTap(row) { mediumRow(row, skin) }
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private func mediumRow(_ row: WidgetSnapshot.Dictation, _ skin: Skin) -> some View {
+        let copied = entry.copied == row.id
+        return HStack(spacing: 8) {
+            SourceChip(source: .dictation, skin: skin).frame(width: 22, height: 22)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(WidgetSnapshot.shortTitle(row.text, max: WidgetSnapshot.maxDictationText))
+                    .font(Refined.serif(15)).foregroundStyle(skin.text).lineLimit(1).privacySensitive()
+                status(row, copied: copied, skin).font(.system(size: 11, weight: copied ? .semibold : .regular)).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            CopyCircle(whole: row.whole, copied: copied, skin: skin, size: 26)
+        }
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    // Small: the newest one, with Copy.
+    @ViewBuilder private func small(_ skin: Skin) -> some View {
+        if let row = rows.first {
+            let copied = entry.copied == row.id
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Dictations").font(Refined.serif(16)).foregroundStyle(skin.text).lineLimit(1)
+                status(row, copied: copied, skin).font(.system(size: 11, weight: copied ? .semibold : .regular)).lineLimit(1)
+                Text(WidgetSnapshot.shortTitle(row.text, max: WidgetSnapshot.maxDictationText))
+                    .font(Refined.serif(15)).foregroundStyle(skin.text).lineLimit(3).minimumScaleFactor(0.9)
+                    .privacySensitive()
+                    .padding(.top, 6)
+                Spacer(minLength: 4)
+                if row.whole {
+                    Button(intent: CopyDictationIntent(id: row.id)) { copyPill(copied: copied, skin) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Copy")
+                        .accessibilityValue(copied ? "Copied" : "")
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Dictations").font(Refined.serif(16)).foregroundStyle(skin.text).lineLimit(1)
+                Spacer(minLength: 4)
+                empty(skin)
+            }
+        }
+    }
+
+    /// A row's copy: the intent for whole words; otherwise a link to the dictation in Verbose.
+    @ViewBuilder private func rowTap<Label: View>(_ row: WidgetSnapshot.Dictation, @ViewBuilder _ label: () -> Label) -> some View {
+        if row.whole {
+            Button(intent: CopyDictationIntent(id: row.id)) { label() }
+                .buttonStyle(.plain)
+                .accessibilityHint("Copies the words")
+        } else {
+            Link(destination: WidgetLink.transcript(row.id).url) { label() }
+                .accessibilityHint("Opens the dictation in Verbose")
+        }
+    }
+
+    /// "2 min ago", or "Copied" in the accent for two seconds after a copy.
+    @ViewBuilder private func status(_ row: WidgetSnapshot.Dictation, copied: Bool, _ skin: Skin) -> some View {
+        if copied {
+            Text("Copied").foregroundStyle(skin.full ? Refined.accentText : .primary)
+        } else {
+            Text(WidgetSnapshot.ago(row.date, now: entry.date)).foregroundStyle(skin.meta)
+        }
+    }
+
+    private func copyPill(copied: Bool, _ skin: Skin) -> some View {
+        HStack(spacing: 5) {
+            if copied {
+                Image(systemName: "checkmark").font(.system(size: 11, weight: .bold))
+            } else {
+                BrandGlyph(art: .iconCopy, color: skin.full ? Refined.ink : .primary, minLineWidth: 1.2).frame(width: 13, height: 13)
+            }
+            Text(copied ? "Copied" : "Copy").font(.system(size: 13, weight: .semibold))
+        }
+        .foregroundStyle(copied && skin.full ? Refined.accentText : skin.text)
+        .padding(.horizontal, 11).frame(height: 28)
+        .background(Capsule().fill(skin.full ? (copied ? Refined.persimmonTint : Refined.neutral) : Color.primary.opacity(0.12)))
+        .widgetAccentable()
+    }
+
+    private func empty(_ skin: Skin) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SourceChip(source: .dictation, skin: skin).frame(width: 22, height: 22)
+            // The same words as Home's Recent dictations.
+            Text("No dictations yet.").font(Refined.serif(15)).foregroundStyle(.secondary).lineLimit(2)
+        }
+    }
+}
+
+/// The round button at a medium row's end: the copy glyph on the neutral circle, the accent's check on the persimmon
+/// tint while it reads Copied, or a chevron for a dictation that opens in Verbose.
+private struct CopyCircle: View {
+    var whole: Bool
+    var copied: Bool
+    var skin: Skin
+    var size: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle().fill(skin.full ? (copied ? Refined.persimmonTint : Refined.neutral) : Color.primary.opacity(0.12))
+            if copied {
+                Image(systemName: "checkmark").font(.system(size: size * 0.42, weight: .bold))
+                    .foregroundStyle(skin.full ? Refined.accentText : .primary)
+            } else if whole {
+                BrandGlyph(art: .iconCopy, color: skin.full ? Refined.ink : .primary, minLineWidth: 1.1).padding(size * 0.25)
+            } else {
+                Image(systemName: "chevron.right").font(.system(size: size * 0.4, weight: .semibold))
+                    .foregroundStyle(skin.full ? Refined.ink : .primary)
+            }
+        }
+        .frame(width: size, height: size)
+        .widgetAccentable()
+        .accessibilityHidden(true)
     }
 }
 #endif

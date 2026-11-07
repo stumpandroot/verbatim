@@ -66,6 +66,7 @@ enum KeyboardBridge {
         static let cancelID = "kb.d.cancel"               // String UUID
         static let insertedID = "kb.d.inserted"           // the dictation whose text a keyboard already inserted
         static let seenID = "kb.d.seen"                   // the dictation a keyboard has shown as listening
+        static let missedID = "kb.d.missed"               // String UUID: a dictation whose words didn't land in the field (the keyboard copied them); the app marks it not pasted and clears this
         static let keyboardVisibleAt = "kb.k.visible"     // Double: when a keyboard was last on screen (about once a second), 0 when it left
         static let visibleHost = "kb.k.host"              // String: the app a keyboard on screen is in (full builds, when iOS says), for "Into Messages"
 

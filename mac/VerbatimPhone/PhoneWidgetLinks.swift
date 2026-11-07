@@ -3,6 +3,7 @@ import Foundation
 extension PhoneState {
     /// verbatim://transcript/<id>, from the Recent recordings widget (VerbatimWidgets/HomeWidgets.swift): opens that
     /// transcript. With `?t=<seconds>` (Verbose Tasks' Play), it opens on the line said then, ready to play from it. verbatim://thought, from a thought in Today's thoughts: opens today's Thoughts page.
+    /// verbatim://dictations, from Recent dictations (its header, or a tap outside Copy), opens the Dictations list.
     /// verbatim://newthought opens today's Thoughts page too, without starting the microphone: any app or web page can
     /// open a link (security review IPH-15, October 31, 2026), and the iPhone's widgets start a thought with the
     /// unlock-protected `NewThoughtIntent`. True when it was a widget link. Record and Dictate run App Intents.
@@ -16,6 +17,9 @@ extension PhoneState {
         case .newThought?:
             Log.note("widget: a New thought link opened today's Thoughts page without starting the microphone")
             openThoughtPage()
+        case .dictations?:
+            Log.note("widget: opened Dictations")
+            go(.dictations)
         default:
             return false
         }

@@ -3,9 +3,11 @@ import Foundation
 // What the Home Screen and desktop widgets show (VerbatimWidgets/HomeWidgets.swift), written by the app
 // (Verbatim/App/WidgetFeed.swift) to a small JSON file in the App Group container, and read by the widget extensions on
 // iPhone and Mac. Privacy: titles (cut to `maxTitle` characters), dates, lengths, a label, and counts. No transcript
-// text, no audio, no speakers, with one exception: Today's thoughts shows the day's last two thoughts, each cut to
+// text, no audio, no speakers, with two exceptions: Today's thoughts shows the day's last two thoughts, each cut to
 // `maxTitle` characters (the widget marks them `privacySensitive()`, so a locked iPhone hides them; the Lock Screen's
-// Thoughts widget shows only the count). Pure Foundation, so the Linux tests compile it (mac/tools/test-widgets.sh).
+// Thoughts widget shows only the count), and Recent dictations (iPhone) keeps the three newest dictations' words as
+// pasted, each cut to `maxDictationText` characters, so its Copy button works without opening Verbose (also
+// `privacySensitive()`). Pure Foundation, so the Linux tests compile it (mac/tools/test-widgets.sh).
 
 struct WidgetSnapshot: Codable, Equatable {
     /// One recording or dictation in Recent recordings.
@@ -41,6 +43,17 @@ struct WidgetSnapshot: Codable, Equatable {
         var latest: [Line]
     }
 
+    /// A dictation for the Recent dictations widget (iPhone): its words as pasted, when, and whether the words are
+    /// whole. Copy copies only whole words; a longer dictation's row opens it in Verbose instead.
+    struct Dictation: Codable, Equatable, Identifiable {
+        var id: UUID
+        /// Trimmed, line breaks kept (Copy pastes them), at most `maxDictationText` characters.
+        var text: String
+        var date: Date
+        /// False when `text` was cut to fit.
+        var whole: Bool
+    }
+
     /// This calendar week's dictated words, one count per day from the week's first day.
     struct Week: Codable, Equatable {
         var start: Date
@@ -55,6 +68,10 @@ struct WidgetSnapshot: Codable, Equatable {
     static let maxTitle = 60
     /// Rows the large widget shows; the medium one shows the first three.
     static let maxRecent = 5
+    /// Dictations the Recent dictations widget keeps: the medium size shows three, the small one the newest.
+    static let maxDictations = 3
+    /// The most of a dictation's words the snapshot keeps. Longer ones are cut and marked not whole.
+    static let maxDictationText = 280
 
     var version = WidgetSnapshot.currentVersion
     /// Newest first, at most `maxRecent`.
@@ -64,6 +81,11 @@ struct WidgetSnapshot: Codable, Equatable {
     var week: Week
     /// Nil in files from older builds.
     var today: TodayThoughts? = nil
+    /// The newest dictations, newest first, at most `maxDictations` (iPhone). Nil in files from older builds and on
+    /// the Mac, whose widgets don't show them.
+    var dictations: [Dictation]? = nil
+    /// Every dictation kept (not in Recently deleted), for the widget's "12 kept". Nil where `dictations` is.
+    var dictationCount: Int? = nil
 
     // MARK: Building
 
@@ -88,6 +110,22 @@ struct WidgetSnapshot: Codable, Equatable {
             TodayThoughts.Line(id: t.id, date: t.date, text: t.transcribing ? "" : (t.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : shortTitle(t.text)))
         }
         return TodayThoughts(start: start, end: end, count: inPage.count, transcribing: inPage.filter(\.transcribing).count, latest: Array(latest))
+    }
+
+    /// The Recent dictations widget's rows from the app's dictations, in any order: the newest `maxDictations`, each
+    /// one's words trimmed and cut to `maxDictationText` characters with an ellipsis (`whole` false). Dictations with
+    /// no words (nothing heard, or one that didn't finish) are left out: there's nothing to copy.
+    static func dictations(_ items: [(id: UUID, text: String, date: Date)]) -> [Dictation] {
+        items.compactMap { item -> Dictation? in
+            let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            guard text.count > maxDictationText else { return Dictation(id: item.id, text: text, date: item.date, whole: true) }
+            let cut = text.prefix(maxDictationText - 1).trimmingCharacters(in: .whitespacesAndNewlines)
+            return Dictation(id: item.id, text: cut + "…", date: item.date, whole: false)
+        }
+        .sorted { $0.date > $1.date }
+        .prefix(maxDictations)
+        .map { $0 }
     }
 
     /// Today's thoughts as of `now`: the stored page while it lasts, nothing once the next page has started.
@@ -173,6 +211,65 @@ struct WidgetSnapshot: Codable, Equatable {
         return f.string(from: date)
     }
 
+    /// How long ago a dictation was, for Home's Recent dictations and the widget: "Just now" under a minute, "2 min
+    /// ago", "1 hr ago" the same day, "Yesterday", then "Oct 3".
+    static func ago(_ date: Date, now: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let seconds = now.timeIntervalSince(date)
+        if seconds < 60 { return "Just now" }
+        if seconds < 3_600 { return "\(Int(seconds / 60)) min ago" }
+        if calendar.isDate(date, inSameDayAs: now) { return "\(Int(seconds / 3_600)) hr ago" }
+        if let y = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: y) { return "Yesterday" }
+        let f = DateFormatter()
+        f.locale = locale
+        f.calendar = calendar
+        f.timeZone = calendar.timeZone
+        f.setLocalizedDateFormatFromTemplate("MMMd")
+        return f.string(from: date)
+    }
+
+    /// When the `ago` labels of these dates next change after `now`, soonest first, at most `limit`: each minute in a
+    /// dictation's first hour, each hour after that until its day ends, and each midnight it turns Yesterday and then
+    /// a date. A widget's timeline holds an entry at each, so "2 min ago" moves on without the app.
+    static func agoChanges(_ dates: [Date], now: Date, calendar: Calendar = .current, limit: Int = 30) -> [Date] {
+        var out = Set<Date>()
+        for d in dates where d <= now {
+            for m in 1...60 {
+                let t = d.addingTimeInterval(Double(m) * 60)
+                if t > now { out.insert(t) }
+            }
+            var t = d.addingTimeInterval(2 * 3_600)
+            while calendar.isDate(t, inSameDayAs: d) {
+                if t > now { out.insert(t) }
+                t = t.addingTimeInterval(3_600)
+            }
+            let day = calendar.startOfDay(for: d)
+            for n in 1...2 {
+                if let t = calendar.date(byAdding: .day, value: n, to: day), t > now { out.insert(t) }
+            }
+        }
+        return Array(out.sorted().prefix(max(0, limit)))
+    }
+
+    // MARK: Copied (the Recent dictations widget)
+
+    /// The App Group key the widget's Copy writes: "<dictation id> <seconds since 1970>".
+    static let copiedKey = "widget.dictations.copied"
+    /// How long a copied row reads Copied.
+    static let copiedFor: TimeInterval = 2
+
+    static func copiedMarker(_ id: UUID, at date: Date) -> String { "\(id.uuidString) \(date.timeIntervalSince1970)" }
+
+    /// The row that reads Copied as of `now`, and until when; nil when nothing was copied in the last `copiedFor`
+    /// seconds (or the marker is damaged).
+    static func copied(marker: String?, now: Date) -> (id: UUID, until: Date)? {
+        guard let parts = marker?.split(separator: " "), parts.count == 2, let id = UUID(uuidString: String(parts[0])),
+              let t = Double(parts[1]) else { return nil }
+        let at = Date(timeIntervalSince1970: t)
+        let until = at.addingTimeInterval(copiedFor)
+        guard now >= at.addingTimeInterval(-1), now < until else { return nil }
+        return (id, until)
+    }
+
     /// "7:50", "1:04:12"; empty for no length.
     static func lengthLabel(_ seconds: Double) -> String {
         guard seconds.isFinite, seconds >= 1 else { return "" }
@@ -182,7 +279,8 @@ struct WidgetSnapshot: Codable, Equatable {
     }
 }
 
-/// The verbatim:// links the widgets open. iPhone: a transcript (Recent recordings) and today's Thoughts page. Mac: also
+/// The verbatim:// links the widgets open. iPhone: a transcript (Recent recordings), today's Thoughts page, and the
+/// Dictations list (Recent dictations). Mac: also
 /// Record, Dictate, and New thought, which the iPhone widgets do with App Intents instead.
 enum WidgetLink: Equatable {
     case transcript(UUID)
@@ -192,6 +290,8 @@ enum WidgetLink: Equatable {
     case thought
     /// Starts a thought (the desktop widget's fallback when Verbose isn't running).
     case newThought
+    /// The Dictations list (the Recent dictations widget's header and its small size; iPhone).
+    case dictations
 
     static let scheme = "verbatim"
 
@@ -202,6 +302,7 @@ enum WidgetLink: Equatable {
         case .dictate: return URL(string: "\(Self.scheme)://dictate?from=widget")!
         case .thought: return URL(string: "\(Self.scheme)://thought?from=widget")!
         case .newThought: return URL(string: "\(Self.scheme)://newthought?from=widget")!
+        case .dictations: return URL(string: "\(Self.scheme)://dictations?from=widget")!
         }
     }
 
@@ -210,7 +311,7 @@ enum WidgetLink: Equatable {
     var startsCapture: Bool {
         switch self {
         case .record, .dictate, .newThought: return true
-        case .transcript, .thought: return false
+        case .transcript, .thought, .dictations: return false
         }
     }
 
@@ -246,6 +347,7 @@ enum WidgetLink: Equatable {
         case "dictate": self = .dictate
         case "thought": self = .thought
         case "newthought": self = .newThought
+        case "dictations": self = .dictations
         default: return nil
         }
     }
