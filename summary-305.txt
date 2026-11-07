@@ -1,0 +1,4 @@
+Build 305 from 3fbaddb (main)
+Mac self-test: 1237 passed, 1 failed, finished: yes
+2026-11-07T19:24:36Z +446.448s UITEST FAIL who was this with: Dismiss hides it
+Logs, CPU samples, and crash reports: the mac-diagnostics-305 artifact on the workflow run (7 days).
