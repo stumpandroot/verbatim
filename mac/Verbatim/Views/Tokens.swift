@@ -346,6 +346,13 @@ enum Motion {
     static let fade = Animation.easeOut(duration: 0.2)
     /// A view switch in place (a transcript's Original, Cleaned, and Summary; a list's filter): 150 ms.
     static let crossfade = Animation.easeOut(duration: 0.15)
+    /// The Ribbon's and the notch's shape between states, one curve for both (DESIGN.md §12, `SurfaceMotion`): 0.3 s, no
+    /// bounce, and it keeps its velocity if the state changes mid-move. Under Reduce Motion or Limit animation the
+    /// surfaces don't use it; the shape changes at once. (Literals: the widget targets share this file but not
+    /// MotionRules.swift; test-motion.sh checks they match `SurfaceMotion`.)
+    static let surfaceMorph = Animation.smooth(duration: 0.3)
+    /// The surfaces' contents when shape changes are held still: a crossfade over `SurfaceMotion.stillFade` (0.12 s).
+    static let surfaceStillFade = AnyTransition.opacity.animation(.easeOut(duration: 0.12))
 
     /// A card that comes and goes on a dashboard (Home's What's new, the Unlock card): it fades and slides 6 pt,
     /// and the space it leaves closes with `settle`. Under Limit animation it only fades.

@@ -28,7 +28,7 @@ struct MacAudioDetail: View {
                     VStack(alignment: .leading, spacing: 22) {
                         header(t)
                         MacAudioPlayer(transcript: t, player: app.player, clock: app.player.clock)
-                        if !nav.inspector { MacAudioMoments(transcript: t) }
+                        if !nav.inspectorVisible { MacAudioMoments(transcript: t) }
                         notes(t)
                         actions(t)
                         Text(AudioOnlyCopy.transcribeFooter).refinedFont(.meta).foregroundStyle(Refined.mute)
@@ -62,7 +62,7 @@ struct MacAudioDetail: View {
             .refinedFont(.transcriptTitle).foregroundStyle(Refined.ink)
             .accessibilityLabel("Title")
             FlowRow(spacing: 8, lineSpacing: 6) {
-                KindPickerChip(kind: t.kind ?? .audio, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
+                KindPickerChip(kind: t.kind ?? .audio, shown: t.refinedKind ?? .audio, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
                 Text(RefinedRules.transcriptWhen(t.createdAt) + " \u{00B7} " + AudioOnlyRules.statusLine(t))
                     .refinedFont(.meta).foregroundStyle(Refined.mute)
             }

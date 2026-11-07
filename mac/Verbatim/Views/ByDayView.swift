@@ -39,12 +39,15 @@ struct ByDayView: View {
         let month = shownMonth ?? day
         let _ = NavMarks.mark("byday")
         // Two columns (mockup "Verbose Mac Columns"): the day's page on the left, the calendar and days on the right.
-        MacColumns(mainMax: MacColumnsMetrics.readingMax, sideFirstWhenStacked: true) {
+        // Stacked in a narrow window, the heading and the day's writing come first, with a compact day stepper over
+        // the page; the calendar and the days follow under it (MAC-29, GPT-16).
+        MacColumns(mainMax: MacColumnsMetrics.readingMax) {
             VStack(alignment: .leading, spacing: 20) {
                 RefinedPageHeader(title: name, count: titleCount(pages, today: today),
                                   lede: isThoughts ? "One page per day. Pick a day to read it." : "One page per day, from your journal recordings.") {
                     if isThoughts { titleControls }
                 }
+                ByDayStepper(days: pages.map(\.day), selected: day, today: today) { d in selected = d; shownMonth = d }
                 // minWidth 0: the page takes what's left and never asks for more, so the window's split view never
                 // squeezes the sidebar off its edge.
                 DayPageCard(kind: kind, day: day, today: today, items: items)
@@ -139,6 +142,50 @@ struct ByDayView: View {
     }
 }
 
+/// The compact day selector over the page when By day stacks in one column (MAC-29, GPT-16): the day with arrows to
+/// the day before and after that has entries, so you can move through days where you read, without scrolling past the
+/// calendar. Nothing shows in two columns, where the calendar sits beside the page.
+struct ByDayStepper: View {
+    /// Every day with entries.
+    var days: [Date]
+    var selected: Date
+    var today: Date
+    var pick: (Date) -> Void
+    @Environment(\.macColumnsStacked) private var stacked
+
+    var body: some View {
+        if stacked {
+            let sorted = days.sorted()
+            let earlier = sorted.last { $0 < selected }
+            let later = sorted.first { $0 > selected }
+            HStack(spacing: 10) {
+                step(back: true, to: earlier)
+                Text(selected == today ? "Today · \(DayPages.dateTitle(selected))" : DayPages.dateTitle(selected))
+                    .refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                step(back: false, to: later)
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Day")
+            .uiTarget("byday-stepper")
+        }
+    }
+
+    private func step(back: Bool, to day: Date?) -> some View {
+        Button { if let day { pick(day) } } label: {
+            Image(systemName: back ? "chevron.left" : "chevron.right").font(.system(size: 10.5, weight: .bold))
+                .foregroundStyle(day == nil ? Refined.faint : Refined.ink)
+                .frame(width: 26, height: 26)
+                .background(Refined.neutral, in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(RefinedPress())
+        .disabled(day == nil)
+        .help(back ? "The day before with entries" : "The day after with entries")
+        .accessibilityLabel(back ? "Day before" : "Day after")
+    }
+}
+
 /// New thought: starts recording in place (Stop while one records). The kit's quiet action with the Thoughts icon and
 /// its shortcut, never a second persimmon fill beside Record (DESIGN.md §14.9). By day's title row shares it.
 struct NewThoughtPill: View {
@@ -223,12 +270,16 @@ struct DayCalendar: View {
             else if isToday { shape.strokeBorder(Refined.separator, lineWidth: 1.5) }
         }
         .contentShape(Rectangle())
-        .tapArea { pick(d); if !inMonth { month = d } }
+        .tapArea { choose(d, inMonth: inMonth) }
         .accessibilityElement(children: .ignore)
+        // Tab (Full Keyboard Access), Space or Return, and VoiceOver's action pick the day too (GPT-14).
+        .keyActivation { choose(d, inMonth: inMonth) }
         .accessibilityLabel("\(DayPages.dateTitle(d))\(isToday ? ", today" : "")\(dot ? ", " + DayPages.count(entries, "entry", "entries") : "")")
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .uiTarget(dot && inMonth ? "byday-dot-\(Calendar.current.component(.day, from: d))" : "byday-day-\(Calendar.current.component(.day, from: d))")
     }
+
+    private func choose(_ d: Date, inMonth: Bool) { pick(d); if !inMonth { month = d } }
 
     private func arrow(back: Bool, action: @escaping () -> Void) -> some View {
         Image(systemName: back ? "chevron.left" : "chevron.right").font(.system(size: 10.5, weight: .bold))
@@ -237,8 +288,10 @@ struct DayCalendar: View {
             .background(Refined.neutral, in: Circle())
             .contentShape(Circle())
             .tapArea(action)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel(back ? "Month before" : "Month after")
             .accessibilityAddTraits(.isButton)
+            .keyActivation(action)
     }
 }
 
@@ -356,8 +409,7 @@ private struct ThoughtLine: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             PaperRowButton(action: { app.go(.transcript(t.id)) }) {
                 HStack(alignment: .firstTextBaseline, spacing: 16) {
-                    Text(Thoughts.time(t.createdAt, systemFormat: true)).refinedFont(.meta).monospacedDigit()
-                        .foregroundStyle(Refined.mute).frame(width: 64, alignment: .leading)
+                    ThoughtTime(date: t.createdAt)
                     VStack(alignment: .leading, spacing: 4) {
                         words(t)
                         Text(Thoughts.origin(t)).refinedFont(.meta).foregroundStyle(Refined.mute)
@@ -408,8 +460,7 @@ private struct JournalLine: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             PaperRowButton(action: { app.go(.transcript(t.id)) }) {
                 HStack(alignment: .firstTextBaseline, spacing: 16) {
-                    Text(Thoughts.time(t.createdAt, systemFormat: true)).refinedFont(.meta).monospacedDigit()
-                        .foregroundStyle(Refined.mute).frame(width: 64, alignment: .leading)
+                    ThoughtTime(date: t.createdAt)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
                         Text(TranscriptPreview.text(t)).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)

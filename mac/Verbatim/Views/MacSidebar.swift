@@ -22,6 +22,10 @@ struct MacSidebar: View {
     @ObservedObject private var recordAs = RecordAsStore.shared
     @State private var customizing = false
     @Environment(\.limitMotion) private var limitMotion
+    /// Which column has the keyboard (MAC-25): the selected row marks it with a leading bar, or dims while the Library
+    /// has it.
+    @ObservedObject private var columns = ColumnFocus.shared
+    @FocusState private var focused: Bool
 
     var body: some View {
         NavMarks.mark("sidebar")
@@ -102,9 +106,12 @@ struct MacSidebar: View {
         .macSidebarSurface()
         .navigationSplitViewColumnWidth(min: 200, ideal: 232, max: 300)
         .focusable()
-        // The arrow keys still move the selection; the selected row's tint shows where you are, so the system's blue
-        // focus ring around the whole column isn't drawn.
+        .focused($focused)
+        // The arrow keys still move the selection. The system's blue ring around the whole column isn't drawn; the
+        // selected row's leading bar shows the column has the keyboard (MAC-25, `SelectionLook`).
         .focusEffectDisabled()
+        .onChange(of: focused) { _, on in columns.set(.sidebar, on) }
+        .environment(\.selectionLook, SelectionLook.of(.sidebar, focus: columns.focus))
         // A move from the keyboard shows the page at once, without the slide (DESIGN.md §7).
         .onKeyPress(.upArrow) { app.fromKeyboard { step(-1) } }
         .onKeyPress(.downArrow) { app.fromKeyboard { step(1) } }
@@ -282,6 +289,8 @@ struct SidebarRow: View {
     var action: () -> Void
     @State private var hover = false
     @State private var dropping = false
+    /// The sidebar's selection look (MAC-25): the tint, the tint with the focus bar, or dimmed.
+    @Environment(\.selectionLook) private var look
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -295,8 +304,9 @@ struct SidebarRow: View {
         .padding(.horizontal, 10).padding(.vertical, 6)
         .frame(minHeight: 30)
         .background {
-            if selected { shape.fill(Refined.persimmonTint) } else if hover || dropping { shape.fill(Refined.neutral) }
+            if selected { shape.fill(look == .dimmed ? Refined.neutral : Refined.persimmonTint) } else if hover || dropping { shape.fill(Refined.neutral) }
         }
+        .overlay(alignment: .leading) { if selected && look == .focused { FocusBar() } }
         .overlay { if dropping { shape.strokeBorder(Refined.accentText, lineWidth: 1.5) } }
         .contentShape(shape)
         .tapArea(action)
@@ -307,6 +317,39 @@ struct SidebarRow: View {
         .accessibilityLabel(title)
         .accessibilityValue(count ?? "")
         .accessibilityAction { action() }
+    }
+}
+
+/// Which of the window's two keyboard columns has focus, the sidebar or the Library's table (MAC-25). Each sets it as
+/// its focus changes; the rows read it through `SelectionLook`.
+@MainActor
+final class ColumnFocus: ObservableObject {
+    static let shared = ColumnFocus()
+    @Published private(set) var focus: FocusColumn?
+
+    func set(_ column: FocusColumn, _ on: Bool) {
+        if on { if focus != column { focus = column } }
+        else if focus == column { focus = nil }
+    }
+}
+
+/// The focused column's mark on its selected row: a 2 pt `accentText` bar on the leading edge, as a reading turn's
+/// selected line draws (MAC-25).
+struct FocusBar: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 1, style: .continuous).fill(Refined.accentText)
+            .frame(width: SelectionLook.barWidth).padding(.vertical, 6)
+            .accessibilityHidden(true)
+    }
+}
+
+private struct SelectionLookKey: EnvironmentKey { static let defaultValue: SelectionLook = .tint }
+
+extension EnvironmentValues {
+    /// How the rows below draw a selection (`SelectionLook`); the sidebar sets it for its rows.
+    var selectionLook: SelectionLook {
+        get { self[SelectionLookKey.self] }
+        set { self[SelectionLookKey.self] = newValue }
     }
 }
 

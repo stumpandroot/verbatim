@@ -60,7 +60,8 @@ extension View {
 struct MacColumns<Main: View, Side: View>: View {
     /// Caps the main column (reading pages); extra space goes to the margins evenly.
     var mainMax: CGFloat? = nil
-    /// In one column, the side comes first (Thoughts and Journal: the calendar picks the day you read).
+    /// In one column, the side comes first. No page uses it now: By day keeps its heading and the day's writing first
+    /// and shows a compact day stepper instead (MAC-29, GPT-16).
     var sideFirstWhenStacked = false
     @ViewBuilder var main: () -> Main
     @ViewBuilder var side: () -> Side
@@ -114,8 +115,20 @@ struct MacColumns<Main: View, Side: View>: View {
                     .frame(maxWidth: .infinity)
                 }
                 .softScrollEdges(.top)
+                .environment(\.macColumnsStacked, true)
             }
         }
+    }
+}
+
+private struct MacColumnsStackedKey: EnvironmentKey { static let defaultValue = false }
+
+extension EnvironmentValues {
+    /// True inside a `MacColumns` page that stacks in one column (a narrow window), so a page can show a compact
+    /// stand-in for its side column where the reading starts.
+    var macColumnsStacked: Bool {
+        get { self[MacColumnsStackedKey.self] }
+        set { self[MacColumnsStackedKey.self] = newValue }
     }
 }
 

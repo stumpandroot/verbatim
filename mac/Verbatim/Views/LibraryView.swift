@@ -25,6 +25,9 @@ struct LibraryView: View {
     /// Clear for a moment after a chip changes the filter, then fades in (`fadeList`).
     @State private var listShown = true
     @FocusState private var focused: Bool
+    /// Which column has the keyboard (MAC-25): the selected row shows a leading bar while the table has it, and dims
+    /// while the sidebar does.
+    @ObservedObject private var columns = ColumnFocus.shared
 
     /// How many Libraries are on screen, and their rows' order (the self-test).
     static var onScreen = 0
@@ -68,7 +71,9 @@ struct LibraryView: View {
                     .softScrollEdges(.top)
                     .focusable()
                     .focused($focused)
+                    // No blue ring around the table; the selected row's leading bar shows it has the keyboard.
                     .focusEffectDisabled()
+                    .onChange(of: focused) { _, on in columns.set(.library, on) }
                     .onKeyPress(.downArrow) { step(1, order, proxy); return .handled }
                     .onKeyPress(.upArrow) { step(-1, order, proxy); return .handled }
                     // Return and Space open from the keyboard: the transcript shows at once (DESIGN.md §7).
@@ -376,11 +381,12 @@ struct LibraryView: View {
 
     private func table(_ rows: [Transcript], order: [UUID], columns: LibraryColumns) -> some View {
         let projects = app.store.projectsByID
+        let look = SelectionLook.of(.library, focus: self.columns.focus)
         return PaperTable {
             header(columns)
         } rows: {
             ForEach(Array(rows.enumerated()), id: \.element.id) { i, t in
-                LibraryTableRow(transcript: t, columns: columns, selected: selection.contains(t.id), striped: i % 2 == 0,
+                LibraryTableRow(transcript: t, columns: columns, selected: selection.contains(t.id), look: look, striped: i % 2 == 0,
                                 people: Self.people(t, projects: projects),
                                 onClick: { clicked(t.id, order: order) },
                                 dragIDs: { selection.contains(t.id) ? order.filter { selection.contains($0) } : [t.id] })
@@ -395,7 +401,7 @@ struct LibraryView: View {
     /// The column titles: a click sorts by that column, and again turns the order around.
     private func header(_ columns: LibraryColumns) -> some View {
         HStack(spacing: LibraryColumns.gap) {
-            ForEach(LibraryTableSort.allCases, id: \.self) { c in
+            ForEach(LibraryTableSort.allCases.filter { columns.shows($0) }, id: \.self) { c in
                 Button {
                     if c == column { setSort(c, descending: !descending) } else { setSort(c, descending: c.startsDescending) }
                 } label: {
@@ -577,19 +583,28 @@ struct LibraryView: View {
     }
 }
 
-/// The table's column widths for a card `width` points wide: the mockup's shares of 3, 1.2, 1.6, and 1 for Name, Kind,
-/// People or source, and Date, and 60 pt for Length.
+/// The table's column widths for a card `width` points wide (`LibraryColumnPlan`, App/MacCommandRules.swift): Name,
+/// Kind at a fixed width so its chip always reads in full, People or source, Date, and 60 pt for Length. As the card
+/// narrows, People goes first and then Date (MAC-05); a hidden column has width 0 and isn't drawn.
 struct LibraryColumns {
-    static let length: CGFloat = 60
-    static let gap: CGFloat = 12
-    static let inset: CGFloat = 16
+    static let length = LibraryColumnPlan.length
+    static let gap = LibraryColumnPlan.gap
+    static let inset = LibraryColumnPlan.inset
     var name: CGFloat, kind: CGFloat, people: CGFloat, date: CGFloat
 
     init(width: CGFloat) {
-        let free = max(300, width - 2 * Self.inset - Self.length - 4 * Self.gap)
-        let unit = free / 6.8
-        name = (unit * 3).rounded(.down); kind = (unit * 1.2).rounded(.down)
-        people = (unit * 1.6).rounded(.down); date = (unit * 1).rounded(.down)
+        let plan = LibraryColumnPlan(width: width)
+        name = plan.name; kind = LibraryColumnPlan.kind
+        people = plan.people ?? 0; date = plan.date ?? 0
+    }
+
+    /// Whether the column has room at this width.
+    func shows(_ c: LibraryTableSort) -> Bool {
+        switch c {
+        case .people: return people > 0
+        case .date: return date > 0
+        default: return true
+        }
     }
 
     func width(_ c: LibraryTableSort) -> CGFloat {
@@ -611,6 +626,8 @@ private struct LibraryTableRow: View {
     var transcript: Transcript
     var columns: LibraryColumns
     var selected: Bool
+    /// The selection's look (MAC-25): the tint, the tint with the focus bar, or dimmed.
+    var look: SelectionLook = .tint
     var striped: Bool
     var people: String
     var onClick: () -> Void
@@ -621,7 +638,8 @@ private struct LibraryTableRow: View {
             cells(t)
                 .padding(.horizontal, LibraryColumns.inset).padding(.vertical, 8)
                 .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
-                .background(selected ? Refined.persimmonTint : (striped ? Refined.stripe : Color.clear))
+                .background(selected ? (look == .dimmed ? Refined.neutral : Refined.persimmonTint) : (striped ? Refined.stripe : Color.clear))
+                .overlay(alignment: .leading) { if selected && look == .focused { FocusBar() } }
                 .allowsHitTesting(false)
                 .overlay { hitLayer }
                 .accessibilityElement(children: .ignore)
@@ -642,10 +660,14 @@ private struct LibraryTableRow: View {
             .frame(width: columns.name, alignment: .leading)
             KindChip(kind: t.refinedKind)
                 .frame(width: columns.kind, alignment: .leading)
-            peopleCell(t)
-                .frame(width: columns.people, alignment: .leading)
-            Text(RefinedRules.shortDay(t.createdAt)).refinedFont(.rowTitle).foregroundStyle(Refined.dim).lineLimit(1)
-                .frame(width: columns.date, alignment: .leading)
+            if columns.shows(.people) {
+                peopleCell(t)
+                    .frame(width: columns.people, alignment: .leading)
+            }
+            if columns.shows(.date) {
+                Text(RefinedRules.shortDay(t.createdAt)).refinedFont(.rowTitle).foregroundStyle(Refined.dim).lineLimit(1)
+                    .frame(width: columns.date, alignment: .leading)
+            }
             Text(length(t) ?? "").refinedFont(.rowTitle).monospacedDigit().foregroundStyle(Refined.dim).lineLimit(1)
                 .frame(width: LibraryColumns.length, alignment: .trailing)
         }
@@ -718,7 +740,7 @@ extension View {
 // MARK: - Passages
 
 /// Search that finds the moment, not just the file: each matching line with its speaker and time, grouped by
-/// transcript in a card. Click a line to open the transcript there.
+/// transcript in a card. Click a line (or Tab to it and press Space) to open the transcript there.
 struct PassageResults: View {
     var query: String
     /// The library's filtered transcripts, worked out once by the caller.
@@ -772,16 +794,27 @@ struct PassageLine: View {
     var segment: Segment
     var query: String
     @State private var hover = false
+    /// A Button (MAC-23): Tab reaches it with Full Keyboard Access, Space or Return opens it, and VoiceOver reads it as
+    /// one button. The video link beside it is its own button, never nested inside.
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(segment.start.timecode).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.accentText).frame(width: 52, alignment: .leading)
-            VStack(alignment: .leading, spacing: 2) {
-                if transcript.speakers.count >= 2, let sp = transcript.speakerName(segment.speaker) {
-                    Text(sp).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Button(action: open) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(segment.start.timecode).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.accentText).frame(width: 52, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        if transcript.speakers.count >= 2, let sp = transcript.speakerName(segment.speaker) {
+                            Text(sp).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+                        }
+                        Text(marked).refinedFont(.body).foregroundStyle(Refined.ink).lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Text(marked).refinedFont(.body).foregroundStyle(Refined.ink).lineLimit(3)
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 8)
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(RefinedRules.spokenTime(segment.start)), \(segment.text)")
+            .accessibilityHint("Opens \(transcript.title) at this line")
             if let info = transcript.linkInfo, info.supportsTimestamps, hover {
                 Button { if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) } } label: { IconGlyph(art: .iconPlay, size: 15, color: Refined.accentText) }
                     .buttonStyle(.plain).help("Open the video at \(segment.start.timecode)")
@@ -790,11 +823,10 @@ struct PassageLine: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 7)
         .background(hover ? Refined.stripe : .clear)
-        .contentShape(Rectangle())
         .onHover { hover = $0 }
-        .onTapGesture { app.focusSegment = segment.id; app.go(.transcript(transcript.id)) }
-        .accessibilityAddTraits(.isButton)
     }
+
+    private func open() { app.focusSegment = segment.id; app.go(.transcript(transcript.id)) }
 
     /// The query in the line, on the persimmon tint in semibold.
     private var marked: AttributedString {
@@ -842,7 +874,8 @@ struct LibraryPreview: View {
                 .padding(.top, 3)
             HStack(spacing: 8) {
                 if t.audioFileName != nil && t.status == .ready {
-                    Button { nav.play(t, app: app) } label: { Label("Play", systemImage: "play.fill") }   // brand: system surface (the inspector)
+                    // The kit's Play glyph, not an SF Symbol: the inspector isn't a system surface (MAC-40; DESIGN.md §3).
+                    Button { nav.play(t, app: app) } label: { Label { Text("Play") } icon: { IconGlyph(art: .iconPlay, size: 13, color: .white) } }   // white: the prominent button's own label color
                         .buttonStyle(.borderedProminent)
                         .help("Open and play (Space)")
                 }

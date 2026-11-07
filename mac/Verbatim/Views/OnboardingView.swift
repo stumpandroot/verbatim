@@ -88,7 +88,7 @@ struct OnboardingView: View {
             para("You just dictated. These start from Verbose, and New thought starts from any app.")
             Grid(horizontalSpacing: 12, verticalSpacing: 12) {
                 GridRow {
-                    wayTile("Record", keys: "⌥⇧R", spoken: "Option Shift R", "A voice memo or a call. Right-click Record for a meeting or a brain dump.", .iconMic, .persimmon)
+                    wayTile("Record", keys: "⌥⇧R", spoken: "Option Shift R", "A voice note or a call. Right-click Record for a meeting or a brain dump.", .iconMic, .persimmon)
                     wayTile("Import", keys: "⌘O", spoken: "Command O", "Audio or video files, or a YouTube or podcast link.", .iconLinks, .sage)
                 }
                 GridRow {

@@ -437,8 +437,11 @@ struct ColorTileFace: View {
         .contentShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.tile), style: .continuous))
     }
 
+    /// On the Mac the name is one line, shrinking a little before it would be cut, and never breaks mid-word
+    /// ("Dictiona" over "ry" beside Edit Home's inspector, MAC-28; DESIGN.md §6.3).
     private var name: some View {
-        Text(title).refinedFont(.tileName, weight: .semibold).lineLimit(2).minimumScaleFactor(compact ? 0.8 : 1)
+        Text(title).refinedFont(.tileName, weight: .semibold)
+            .lineLimit(mac ? 1 : 2).minimumScaleFactor(mac ? 0.85 : (compact ? 0.8 : 1))
     }
 
     /// The trailing text on one line: it shrinks a little before it would wrap, and never breaks a word.
@@ -692,17 +695,26 @@ struct RefinedChip: View {
     }
 }
 
-/// A row of filter chips, read by VoiceOver as one group ("Filter"): one line that scrolls sideways, with the page's
-/// margin inside it so the first chip lines up with the content and the last one scrolls clear of the edge.
+/// A row of filter chips, read by VoiceOver as one group ("Filter"). On iPhone, one line that scrolls sideways, with
+/// the page's margin inside it so the first chip lines up with the content and the last one scrolls clear of the edge.
+/// On the Mac, where a mouse wheel can't scroll a row sideways, the chips wrap onto a second line when the window is
+/// narrow, so every chip stays reachable in its order (MAC-19).
 struct RefinedChipRow<Content: View>: View {
     var label = "Filter"
     var margin: CGFloat = 0
     @ViewBuilder var content: Content
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) { content }
+        Group {
+            #if os(macOS)
+            FlowRow(spacing: 8, lineSpacing: 8) { content }
                 .padding(.horizontal, margin)
+            #else
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) { content }
+                    .padding(.horizontal, margin)
+            }
+            #endif
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(label)
@@ -922,9 +934,17 @@ struct SegmentRowLayout: Layout {
 /// A transcript's kind as its colored chip, which opens a menu of every kind (the header's meta line): "Suggested by
 /// Verbose" while Verbose picked it. iPhone's tap target is 44 pt tall.
 struct KindPickerChip: View {
+    /// The kind a pick writes over, and the one the menu checks.
     var kind: RecordingKind?
+    /// The kind the chip shows: `refinedKind` (a link is Video or Podcast, a file Audio or Video), so the same
+    /// recording reads the same here as in the Library and on Home (MAC-12). Nil shows `kind`.
+    var shown: RecordingKind?
     var isAuto: Bool
     var onPick: (RecordingKind) -> Void
+
+    init(kind: RecordingKind?, shown: RecordingKind? = nil, isAuto: Bool, onPick: @escaping (RecordingKind) -> Void) {
+        self.kind = kind; self.shown = shown; self.isAuto = isAuto; self.onPick = onPick
+    }
 
     var body: some View {
         Menu {
@@ -936,7 +956,7 @@ struct KindPickerChip: View {
                 }
             }
         } label: {
-            KindChip(kind: kind)
+            KindChip(kind: shown ?? kind)
                 .frame(minHeight: RefinedPlatform.mac ? 0 : CGFloat(RefinedRules.minTapTarget))
                 .contentShape(Rectangle())
         }
@@ -946,7 +966,9 @@ struct KindPickerChip: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Change the kind")
-        .accessibilityLabel("Kind: \(RecordingKind.refinedName(kind)). Change")
+        // The label starts with the word the chip shows (MAC-39; DESIGN.md §8).
+        .accessibilityLabel(RecordingKind.refinedName(shown ?? kind))
+        .accessibilityHint("Changes the kind")
     }
 }
 
@@ -1416,8 +1438,11 @@ struct KindChip: View {
         self.init(title: RecordingKind.refinedName(kind), hue: RefinedRules.kindHue(kind?.rawValue))
     }
 
+    /// Never truncated: the kind's word pairs with its color (DESIGN.md §1.6), so the chip keeps its natural width and
+    /// the Library gives its column a fixed width (MAC-05).
     var body: some View {
         Text(title).refinedFont(.chip, weight: .semibold).lineLimit(1)
+            .fixedSize()
             .foregroundStyle(Refined.onBadge(hue))
             .padding(.horizontal, 9).padding(.vertical, 2)
             .background(Refined.badge(hue), in: Capsule())

@@ -77,6 +77,26 @@ extension Transcript {
         documentEdited = true
     }
 
+    /// The Cleaned tab as it is now: what Redo puts back after an Undo (the Mac's ⇧⌘Z through the window's UndoManager).
+    struct CleanedSnapshot: Equatable {
+        var document: String?
+        var cleanedBy: CleanupSource?
+        var level: String
+        var tone: String
+        var edited: Bool
+    }
+
+    var cleanedSnapshot: CleanedSnapshot {
+        CleanedSnapshot(document: document, cleanedBy: documentCleanedBy, level: documentLevel, tone: documentTone, edited: documentEdited)
+    }
+
+    /// Redo: the Cleaned text an Undo took back, with the text Undo brought back in history again, so Undo works after.
+    mutating func redoDocument(_ s: CleanedSnapshot) {
+        pushDocumentHistory()
+        document = s.document; documentCleanedBy = s.cleanedBy
+        documentLevel = s.level; documentTone = s.tone; documentEdited = s.edited
+    }
+
     /// Reset: back to the corrected lines, with the current text in history.
     mutating func resetCleaned() {
         pushDocumentHistory()

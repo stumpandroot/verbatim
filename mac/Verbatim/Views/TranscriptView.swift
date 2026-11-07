@@ -5,8 +5,8 @@ import AppKit
 /// chip (and the project's), then each turn as the speaker's chip and the time over the serif reading text, and the
 /// glass player bar floating at the foot of the column. The window's toolbar holds Back and Forward, the centered
 /// segmented control (Original, Cleaned, Summary, Review once something was corrected, and a template's result), Share,
-/// and More, and the side column (Moments, Speakers, Export, Details) is the window's inspector (MacChrome.swift). Keys: Space plays, ← and → move 5 seconds, B marks a moment, ⇧⌘C copies the tab, ⌥⇧⌘C copies for AI, and
-/// ⌘+ and ⌘− change the text size.
+/// and More, and the side column (Moments, Speakers, Export, Details) is the window's inspector (MacChrome.swift). Keys: Space plays, ← and → move 5 seconds, B marks a moment, ⇧⌘C copies the tab, ⌥⇧⌘C copies for AI,
+/// ⌘+ and ⌘− change the text size (each a menu item, App/AppCommands.swift), and ⌘F finds in the page (TranscriptFind.swift).
 struct TranscriptView: View {
     /// True while any text field or text view in the key window is being edited.
     static var typing: Bool { NSApp.keyWindow?.firstResponder is NSText }
@@ -34,6 +34,8 @@ struct TranscriptView: View {
     @Environment(\.limitMotion) private var limitMotion
     /// The transcript finishing while it's open (DESIGN.md §7, Celebrations).
     @ObservedObject private var celebrations = CelebrationCenter.shared
+    /// ⌘F's find bar over the Original lines (Views/TranscriptFind.swift).
+    @ObservedObject private var find = TranscriptFind.shared
 
     /// This transcript finishing on its own screen: the processing card stays until its celebration ends, then the text
     /// replaces it.
@@ -102,18 +104,8 @@ struct TranscriptView: View {
                         .transition(limitMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97)))
                 }
             }
-            .background {
-                // Shortcuts live here once. While the stills viewer is open, ⌘+ and ⌘− zoom the still instead.
-                ZStack {
-                    Button("") { ExportMenu.copy(t, copyVersion, app: app) }.keyboardShortcut("c", modifiers: [.command, .shift])
-                    Button("") { CopyForAI.copy(t, app: app) }.keyboardShortcut("c", modifiers: [.command, .option, .shift])
-                    if nav.stillViewer == nil {
-                        Button("") { nav.textSize = WindowNav.textSizes.clamp(nav.textSize + 1) }.keyboardShortcut("=", modifiers: .command)
-                        Button("") { nav.textSize = WindowNav.textSizes.clamp(nav.textSize - 1) }.keyboardShortcut("-", modifiers: .command)
-                    }
-                }
-                .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
-            }
+            // ⇧⌘C, ⌥⇧⌘C, ⌘+, ⌘−, and B are menu items (Edit and View, TranscriptMenuItems in App/AppCommands.swift). While
+            // the stills viewer is open, ⌘+ and ⌘− zoom the still instead (StillViewer.swift).
             .onAppear {
                 if UITest.enabled { Log.note("UITEST nav appear ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000)) segments=\(t.segments.count)") }
                 Self.onScreen += 1
@@ -135,6 +127,7 @@ struct TranscriptView: View {
             // Stops only when the last screen for this transcript goes and no other transcript took playback.
             .onDisappear {
                 Self.onScreen = max(0, Self.onScreen - 1)
+                find.close()
                 celebrations.transcriptLeft(id)
                 if nav.stillViewer?.transcript == id { nav.stillViewer = nil }
                 if app.player.screenLeft(id) { app.player.stop() }
@@ -150,6 +143,9 @@ struct TranscriptView: View {
                 if let raw = n.object as? String, let m = Mode(rawValue: raw) { nav.mode = m }
             }
             .onChange(of: selectedSegment) { _, v in if nav.selectedSegment != v { nav.selectedSegment = v } }
+            // The find bar's current match: the selected line, brought into view. Another tab closes the bar.
+            .onChange(of: find.currentLine) { _, line in if let line { selectedSegment = line; scrollTarget = line } }
+            .onChange(of: nav.mode) { _, m in if m != .original { find.close() } }
             .onChange(of: t.corrections.isEmpty) { _, none in if none, nav.mode == .review { nav.mode = .original } }
         } else {
             Text("This transcript was deleted.").refinedFont(.body).foregroundStyle(Refined.mute)
@@ -189,6 +185,12 @@ struct TranscriptView: View {
                 scrollTarget = nil
             }
         }
+        .overlay(alignment: .top) {
+            // ⌘F: the find bar at the top of the column, at once (it opens from a key).
+            if find.open, view == .original {
+                TranscriptFindBar(find: find).padding(.horizontal, 32).padding(.top, 8)
+            }
+        }
         .overlay(alignment: .bottom) {
             if hasPlayer {
                 // The glass bar over the reading column's foot; the scroll edge effect keeps lines legible under it.
@@ -211,7 +213,7 @@ struct TranscriptView: View {
             title(t)
             FlowRow(spacing: 8, lineSpacing: 6) {
                 if t.kind != .dictation, t.status == .ready {
-                    KindPickerChip(kind: t.kind, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
+                    KindPickerChip(kind: t.kind, shown: t.refinedKind, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
                 }
                 if let project {
                     KindChip(title: project.name, hue: RefinedRules.projectHue(project.colorIndex))
@@ -388,11 +390,18 @@ struct TranscriptView: View {
             wordsRow(t)
             // Fix all, after a correction (Views/TrustViews.swift).
             FixAllBanner(transcriptID: t.id)
+            Group {
             if nav.selecting {
                 SelectableLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, textSize: nav.textSize)
             } else {
                 TranscriptLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, folds: folds,
                                 editable: !nav.showEngine, textSize: nav.textSize, selected: $selectedSegment)
+            }
+            }
+            // The find bar's matches in butter, and its lines as they're shown.
+            .environment(\.pageFindQuery, find.highlight)
+            .onChange(of: find.open ? segs.map(\.text) : [], initial: true) { _, _ in
+                if find.open { find.setLines(segs.map { (id: $0.id, text: $0.text) }) }
             }
             if hideFillerSetting, fillers > 0 {
                 FillerToggle(count: fillers, shown: $showFiller)

@@ -41,6 +41,8 @@ struct SegmentLine: View {
     @State private var renaming = false
     @State private var newName = ""
     @Environment(\.limitMotion) private var limitMotion
+    /// The find bar's query while it's open (Views/TranscriptFind.swift): it marks the line instead of the search.
+    @Environment(\.pageFindQuery) private var findQuery
 
     /// “Quote” — Speaker, Title (12:34) and, when it came from a link, the video at that second.
     private func copyQuote(withLink: Bool) {
@@ -52,10 +54,11 @@ struct SegmentLine: View {
         app.toast = Toast(withLink ? "Quote and link copied" : "Quote copied")
     }
 
-    /// The line's text, with search matches in butter and low-confidence words underlined; while it plays with fresh
+    /// The line's text, with search (or find bar) matches in butter and low-confidence words underlined; while it plays with fresh
     /// word timings, the playing word takes the playing wash too.
     @ViewBuilder private var lineText: some View {
-        let base = UnclearStyle.marked(ReadingHighlight.marked(AttributedString(segment.text), query: app.search), segment)
+        let base = UnclearStyle.marked(ReadingHighlight.marked(AttributedString(segment.text), query: findQuery ?? app.search,
+                                                               minLength: findQuery == nil ? 2 : 1), segment)
         if current, PlaybackSync.timingsFresh(segment) {
             PlayingWordText(segment: segment, base: base, clock: app.player.clock, tint: Refined.playing)
         } else {

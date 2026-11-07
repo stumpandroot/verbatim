@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 // Recently Deleted on the refined kit (DESIGN.md §13): the large serif title with the count,
 // Restore all and Empty, then each transcript in a card with its kind's dot, when it was deleted and the days left,
@@ -17,9 +18,16 @@ struct TrashView: View {
                         Button("Restore all") { app.restore(items.map(\.id)) }
                             .buttonStyle(RefinedActionStyle())
                             .help("Puts every transcript back in your library.")
-                        Button("Empty", role: .destructive) { confirmEmpty(items) }
-                            .buttonStyle(RefinedActionStyle(kind: .strong))
-                            .help("Deletes every transcript here and its audio for good.")
+                        // Permanent, so a quiet button in danger, never the strong primary look (MAC-15).
+                        Button(role: .destructive) { confirmEmpty(items) } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "trash").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Refined.danger).accessibilityHidden(true)
+                                Text("Empty").foregroundStyle(Refined.danger)
+                            }
+                        }
+                        .buttonStyle(RefinedActionStyle(kind: .quiet))
+                        .help("Deletes every transcript here and its audio for good.")
+                        .accessibilityLabel("Empty")
                     }
                 }
                 if items.isEmpty {
@@ -29,7 +37,7 @@ struct TrashView: View {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
                             if i > 0 { PaperDivider(leading: 16, trailing: 16) }
-                            TrashRow(transcript: t, detail: daysLeft(t), restore: { app.restore([t.id]) }, purge: { app.purge([t.id]) })
+                            TrashRow(transcript: t, detail: daysLeft(t), restore: { app.restore([t.id]) }, purge: { confirmPurge(t) })
                         }
                     }
                     .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
@@ -48,10 +56,24 @@ struct TrashView: View {
         let r = RelativeDateTimeFormatter(); r.unitsStyle = .full; r.locale = .autoupdatingCurrent; return r
     }()
 
+    /// "Deleted just now · 30 days left", "Deleted 2 hours ago · 30 days left". A delete time a moment ahead of now (a
+    /// clock between devices) reads as now, never "in 0 seconds" (MAC-38).
     private func daysLeft(_ t: Transcript) -> String {
         guard let d = t.deletedAt else { return "" }
         let left = app.store.trashDaysLeft(t)
-        return "Deleted \(Self.relative.localizedString(for: d, relativeTo: Date())) · \(left) day\(left == 1 ? "" : "s") left"
+        let now = Date()
+        let when = now.timeIntervalSince(d) < 60 ? "just now" : Self.relative.localizedString(for: min(d, now), relativeTo: now)
+        return "Deleted \(when) · \(left) day\(left == 1 ? "" : "s") left"
+    }
+
+    /// Delete now is permanent, so it asks first, as Empty does.
+    private func confirmPurge(_ t: Transcript) {
+        let a = NSAlert()
+        a.messageText = "Delete \u{201C}\(t.title)\u{201D} for good?"
+        a.informativeText = "Its audio is deleted too. This can't be undone."
+        a.addButton(withTitle: "Delete"); a.addButton(withTitle: "Cancel")
+        a.buttons.first?.hasDestructiveAction = true
+        if a.runModal() == .alertFirstButtonReturn { app.purge([t.id]) }
     }
 
     private func confirmEmpty(_ items: [Transcript]) {
@@ -84,10 +106,17 @@ private struct TrashRow: View {
             Button("Restore", action: restore)
                 .buttonStyle(RefinedActionStyle())
                 .help("Puts it back in your library.")
-            Button("Delete now", role: .destructive, action: purge)
-                .buttonStyle(.plain).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.accentText)
-                .padding(.horizontal, 6)
-                .help("Deletes it and its audio for good.")
+            // Destructive: danger with the trash glyph and a word, never persimmon (MAC-15; DESIGN.md §1).
+            Button(role: .destructive, action: purge) {
+                HStack(spacing: 5) {
+                    Image(systemName: "trash").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Refined.danger).accessibilityHidden(true)
+                    Text("Delete now").refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.danger)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 6)
+            .help("Deletes it and its audio for good.")
+            .accessibilityLabel("Delete now")
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
     }

@@ -110,7 +110,6 @@ enum AskOpen {
 struct AskPanelLayer: View {
     @Environment(AppState.self) var app
     @ObservedObject private var nav = AskNav.shared
-    @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -121,13 +120,15 @@ struct AskPanelLayer: View {
                     .onTapGesture { nav.close() }
                     .accessibilityHidden(true)
                     .transition(.opacity)
+                // It nearly always opens from ⌘K or ⌘F, so it's there at once: a 0.1 s fade at most and no drop
+                // (DESIGN.md §7, keyboard actions don't animate; `KeyMotion.recallFade`). The scrim fades with it.
                 AskPanel()
                     .frame(width: 760)
                     .padding(.top, 64)
-                    .transition(limitMotion ? .opacity : .opacity.combined(with: .offset(y: -8)))
+                    .transition(.opacity)
             }
         }
-        .animation(limitMotion ? .easeOut(duration: 0.12) : .easeOut(duration: 0.16), value: nav.panelOpen)
+        .animation(.easeOut(duration: KeyMotion.recallFade), value: nav.panelOpen)
     }
 }
 

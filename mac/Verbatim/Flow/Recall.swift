@@ -4,8 +4,9 @@ import Carbon
 import Carbon.HIToolbox
 
 // Getting a dictation back when its paste failed or landed in the wrong place:
-// - Recent dictations: ⌥⌘V (Settings › Dictation) opens a small paper panel with your last 10 dictations. A number
-//   key or a click copies one; ⇧ with a number, Return, or the selected row's Paste button pastes it where your cursor is.
+// - Recent dictations: ⌥⌘V (Settings › Dictation) opens a small paper panel with your last 10 dictations. The search
+//   field always takes what you type, digits too. ⌘ with a number or a click copies one; ⇧⌘ with a number, Return, or the
+//   selected row's Paste button pastes it where your cursor is (`RecallKeys`, App/MacCommandRules.swift).
 // - The menu bar item lists the same dictations; a click copies one.
 // - A dictation that didn't land (no text field, or the app never read the paste) stays in the Ribbon with Copy and
 //   Paste again, and on the clipboard.
@@ -118,40 +119,19 @@ enum Recall {
     }
 
     /// The key that picks row `index`: 1–9, then 0.
-    static func keyLabel(_ index: Int) -> String? {
-        switch index {
-        case 0..<9: return "\(index + 1)"
-        case 9: return "0"
-        default: return nil
-        }
-    }
+    static func keyLabel(_ index: Int) -> String? { RecallKeys.keyLabel(index) }
 
-    /// The row a number key picks, from the row of number keys or the keypad (key codes, so any layout works).
-    static func index(forKeyCode code: UInt16) -> Int? {
-        let row: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25, 29]   // kVK_ANSI_1…9, 0
-        let pad: [UInt16] = [83, 84, 85, 86, 87, 88, 89, 91, 92, 82]   // kVK_ANSI_Keypad1…9, 0
-        return row.firstIndex(of: code) ?? pad.firstIndex(of: code)
-    }
+    typealias KeyAction = RecallKeys.Action
 
-    enum KeyAction: Equatable { case close, move(Int), copySelected, pasteSelected, copy(Int), paste(Int) }
-
-    /// What a key does in the panel. Numbers pick a row while the search field is empty (with ⌘, always); Shift
-    /// pastes instead of copying. Return pastes the selection, as its Paste pill says. Anything else goes to the search
-    /// field.
-    static func keyAction(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, queryEmpty: Bool) -> KeyAction? {
-        let mods = modifiers.intersection([.command, .option, .control, .shift])
-        let shift = mods.contains(.shift)
-        let rest = mods.subtracting(.shift)
-        switch keyCode {
-        case 53: return .close                                            // Esc
-        case 126: return rest.isEmpty ? .move(-1) : nil                   // ↑
-        case 125: return rest.isEmpty ? .move(1) : nil                    // ↓
-        case 36, 76: return rest.isEmpty ? .pasteSelected : nil           // Return, Enter (with or without ⇧)
-        default: break
-        }
-        guard let i = index(forKeyCode: keyCode) else { return nil }
-        if rest == [.command] || (rest.isEmpty && queryEmpty) { return shift ? .paste(i) : .copy(i) }
-        return nil
+    /// What a key does in the panel (`RecallKeys`): plain digits always type into search; ⌘ with a number copies that
+    /// row and ⇧⌘ pastes it. Return pastes the selection, as its Paste pill says. Anything else goes to the search field.
+    static func keyAction(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> KeyAction? {
+        var mods: RecallMods = []
+        if modifiers.contains(.command) { mods.insert(.command) }
+        if modifiers.contains(.option) { mods.insert(.option) }
+        if modifiers.contains(.control) { mods.insert(.control) }
+        if modifiers.contains(.shift) { mods.insert(.shift) }
+        return RecallKeys.action(keyCode: keyCode, mods: mods)
     }
 
     /// Why a dictation didn't land, when the Ribbon should hold it with Copy and Paste again.
@@ -246,6 +226,9 @@ final class RecallModel: ObservableObject {
     @Published var selection = 0
     /// False until just after the panel is on screen, so it can fade in (0.1 s, no movement).
     @Published var shown = false
+    /// A hover moves the selection only after the pointer really moves (MAC-36): opened under a still pointer, or
+    /// scrolled from the keyboard, the rows don't take the selection from the arrows. Screen points.
+    var pointer = PointerGate()
     var visible: [RecallItem] { Recall.visible(items, query: query) }
 }
 
@@ -282,6 +265,7 @@ final class RecallPanelController {
         model.selection = 0
         model.shown = false
         let mouse = NSEvent.mouseLocation
+        model.pointer = PointerGate(at: mouse)
         guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main ?? NSScreen.screens.first else { return }
         let f = screen.visibleFrame
         let size = Self.size
@@ -348,7 +332,7 @@ final class RecallPanelController {
     }
 
     private func handleKey(_ e: NSEvent) -> Bool {
-        guard let action = Recall.keyAction(keyCode: e.keyCode, modifiers: e.modifierFlags, queryEmpty: model.query.isEmpty) else { return false }
+        guard let action = Recall.keyAction(keyCode: e.keyCode, modifiers: e.modifierFlags) else { return false }
         let list = model.visible
         switch action {
         case .close:
@@ -356,8 +340,6 @@ final class RecallPanelController {
         case .move(let d):
             guard !list.isEmpty else { return true }
             model.selection = min(max(0, model.selection + d), list.count - 1)
-        case .copySelected:
-            if list.indices.contains(model.selection) { copy(list[model.selection]) } else { NSSound.beep() }
         case .pasteSelected:
             if list.indices.contains(model.selection) { paste(list[model.selection]) } else { NSSound.beep() }
         case .copy(let i):
@@ -419,7 +401,7 @@ struct RecallPanelView: View {
                 VStack(spacing: 2) {
                     ForEach(Array(list.enumerated()), id: \.element.id) { i, item in
                         RecallRow(item: item, index: i, selected: i == model.selection,
-                                  onHover: { model.selection = i },
+                                  onHover: { if model.pointer.hover(at: NSEvent.mouseLocation) { model.selection = i } },
                                   onCopy: { controller.copy(item) },
                                   onPaste: { controller.paste(item) })
                             .id(item.id)
@@ -449,8 +431,8 @@ struct RecallPanelView: View {
     private var footer: some View {
         HStack(spacing: 14) {
             // One form throughout: the key, then what it does.
-            hint(model.query.isEmpty ? "1–0" : "⌘ 1–0", "Copy")
-            hint(model.query.isEmpty ? "⇧ 1–0" : "⌘⇧ 1–0", "Paste")
+            hint(RecallKeys.copyHint, "Copy")
+            hint(RecallKeys.pasteHint, "Paste")
             hint("Return", "Paste")
             Spacer(minLength: 0)
             hint("Esc", "Close")
@@ -482,10 +464,12 @@ private struct RecallRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(Recall.keyLabel(index) ?? "")
+            // ⌘ and the number copy it (digits alone type into search).
+            Text(Recall.keyLabel(index).map { "⌘" + $0 } ?? "")
                 .font(Refined.mono(12, weight: .medium))
                 .foregroundStyle(selected ? Refined.accentText : Refined.mute)
-                .frame(width: 22, height: 22)
+                .lineLimit(1).fixedSize()
+                .frame(minWidth: 30, minHeight: 22)
                 .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Refined.card))
                 .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Refined.separator))
                 .accessibilityHidden(true)

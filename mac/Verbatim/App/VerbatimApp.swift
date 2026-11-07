@@ -58,7 +58,7 @@ struct VerbatimApp: App {
                     .keyboardShortcut("o", modifiers: .command)
                 Button("Import Multi-track Recording…") { app.chooseMultitrack() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
-                Button("Record Voice Memo") { app.requestRecord() }
+                Button("Record Voice Note") { app.requestRecord() }
                     .keyboardShortcut("r", modifiers: [.option, .shift])
                 // The six ways to record, as on Record's right-click menu (CaptureBar.swift): a picked kind is yours, so
                 // AutoLabel leaves it and Run automatically uses it (Templates.swift). Meeting… is the meeting capture,
@@ -78,23 +78,22 @@ struct VerbatimApp: App {
                 Button("Export Library as Markdown…") { MarkdownBulkExport.run(MarkdownBulkExport.all(app), app: app) }
             }
             CommandGroup(after: .textEditing) {
-                // One search field (consolidation, October 28, 2026): ⌘F opens the same panel as ⌘K, on Search.
-                Button("Find in Transcripts") {
-                    app.mainWindow?.makeKeyAndOrderFront(nil)
-                    AskNav.shared.open(mode: .search)
-                }
-                .keyboardShortcut("f", modifiers: .command)
-                // Search or ask: the panel over the main window (Views/AskViews.swift).
-                Button("Search or Ask…") {
-                    app.mainWindow?.makeKeyAndOrderFront(nil)
-                    if AskNav.shared.panelOpen { AskNav.shared.close() } else { AskNav.shared.open() }
-                }
-                .keyboardShortcut("k", modifiers: .command)
+                // ⌘F finds in the open transcript and opens Search or ask elsewhere; ⌘G and ⇧⌘G step; ⌘K opens Search or
+                // ask on every screen (App/AppCommands.swift).
+                FindMenuItems(app: app)
+            }
+            // Recording and Dictation: the main actions with their shortcuts, on every screen (App/AppCommands.swift).
+            CommandMenu("Recording") {
+                RecordingMenuItems(app: app, recorder: app.recorder, capture: app.capture, thoughts: ThoughtCapture.shared)
+            }
+            CommandMenu("Dictation") {
+                DictationMenuItems(app: app, thoughts: ThoughtCapture.shared)
             }
             // View › Edit Home: outlines Home's sections and opens Edit Home's inspector (Views/EditHome.swift).
             CommandGroup(after: .sidebar) {
                 Button("Edit Home") { app.goHome(); HomeEditSession.shared.editing = true }
-                // View › Back and Forward (⌘[ and ⌘]) follow as AppKit items (NavMenuItems, App/NavTrail.swift).
+                // View › Back and Forward (⌘[ and ⌘]) follow as AppKit items (NavMenuItems, App/NavTrail.swift), then
+                // Bigger Text, Smaller Text, and Mark This Moment (TranscriptMenuItems, App/AppCommands.swift).
             }
         }
 

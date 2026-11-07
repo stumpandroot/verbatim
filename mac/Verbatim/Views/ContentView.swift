@@ -28,7 +28,8 @@ struct ContentView: View {
                                     onCancel: { app.cancelLinkCard(id) },
                                     onRetry: { app.retryLinkCard(id) },
                                     onLanded: { app.linkCardLanded(id) },
-                                    onClosed: { app.closeLinkCard(id) })
+                                    onClosed: { app.closeLinkCard(id) },
+                                    fromKeyboard: app.linkCardFromKeyboard)
                         .id(id)
                 }
             }

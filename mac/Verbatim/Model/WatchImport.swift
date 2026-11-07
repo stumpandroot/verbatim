@@ -2,7 +2,7 @@ import Foundation
 
 // The iPhone's side of Apple Watch capture (DESIGN.md §20): what a recording from the watch becomes in the Library.
 // A thought is a Thoughts recording (`idea`, chosen by you, so AutoLabel never replaces it) on the page of the day it
-// started, with "Apple Watch" as where it came from; a voice note is a voice memo whose kind AutoLabel picks, like one
+// started, with "Apple Watch" as where it came from; a voice note is a voice note whose kind AutoLabel picks, like one
 // recorded on the iPhone. Marks become bookmarks from the Apple Watch (`MarkSource.watch`, Marks.swift), deduped and
 // snapped to their lines like every other mark. Pure rules, so the Linux tests (`mac/tools/test-watch.sh`) cover them;
 // PhoneWatch.swift does the receiving and the import.
@@ -10,7 +10,9 @@ import Foundation
 enum WatchImport {
     /// The source labels. `ThoughtText.origin` reads "Apple Watch" from them for a thought's meta line.
     static let thoughtLabel = "Thought · Apple Watch"
-    static let voiceLabel = "Voice memo · Apple Watch"
+    static let voiceLabel = "Voice note · Apple Watch"
+    /// What older builds wrote for a voice note from the watch (MAC-30 renamed it); still read as from the watch.
+    static let legacyVoiceLabel = "Voice memo · Apple Watch"
     /// What the meta line under a thought says.
     static let origin = "Apple Watch"
 
@@ -29,12 +31,12 @@ enum WatchImport {
     static func plan(_ t: WatchTransfer) -> Plan {
         let thought = t.kind == .thought
         let marks = t.marks.map { RecordingMark(at: $0.at, source: WatchTransfer.markSource, createdAt: $0.createdAt) }
-        return Plan(title: thought ? "Thought" : "Voice memo", label: thought ? thoughtLabel : voiceLabel,
+        return Plan(title: thought ? "Thought" : "Voice note", label: thought ? thoughtLabel : voiceLabel,
                     kind: thought ? .idea : nil, createdAt: t.startedAt, marks: marks)
     }
 
     /// True for a transcript that came from the watch.
-    static func isFromWatch(_ t: Transcript) -> Bool { t.sourceLabel == thoughtLabel || t.sourceLabel == voiceLabel }
+    static func isFromWatch(_ t: Transcript) -> Bool { [thoughtLabel, voiceLabel, legacyVoiceLabel].contains(t.sourceLabel) }
 
     /// What the iPhone tells the watch: today's thoughts and when their page ends, and the newest recording that isn't
     /// a dictation (for the Smart Stack).
@@ -42,7 +44,7 @@ enum WatchImport {
         let last = live.filter { !$0.isDictation && $0.deletedAt == nil }.max { $0.createdAt < $1.createdAt }
         let kind: String? = last.map { t in
             if t.kind == .idea { return "Thought" }
-            return t.kind?.label ?? "Voice memo"
+            return t.kind?.label ?? "Voice note"
         }
         return WatchContext(thoughtsToday: today.count, pageEnds: pageEnds, lastTitle: last?.title, lastKind: kind,
                             lastDuration: last?.duration, lastAt: last?.createdAt, sentAt: now, haptics: haptics)

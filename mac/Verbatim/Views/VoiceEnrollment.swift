@@ -113,8 +113,8 @@ final class VoiceEnrollment: ObservableObject {
     }
 
     static let goodLine = "Good. A little more makes it great."
-    static let greatLine = "Great — Verbose knows your voice."
-    static let quietLine = "Too many voices — try somewhere quieter."
+    static let greatLine = "Great. Verbose knows your voice."
+    static let quietLine = "Too many voices. Try somewhere quieter."
 
     /// Average reading pace, for the time estimate and for following along when live words are off.
     static let wordsPerSecond = 2.6

@@ -227,5 +227,21 @@ do {
     check("calendar: the source survives a save", roundTrip?.speakerSuggestions?.first?.fromCalendar == true)
 }
 
+// The Cleaned tab's Undo and Redo (the Mac's ⌘Z and ⇧⌘Z through the window's UndoManager, MAC-01).
+do {
+    var d = Transcript(title: "Cleaned", source: .voiceMemo, sourceLabel: "", duration: 1, audioFileName: nil, model: "")
+    d.document = "first draft"
+    d.applyCleanup("tidied", level: "Light", tone: "As spoken", byModel: true)
+    let after = d.cleanedSnapshot
+    check("cleaned: a snapshot holds the text, label, level, and tone", after.document == "tidied" && after.cleanedBy == .model && after.level == "Light")
+    d.undoDocument()
+    check("cleaned: Undo brings the draft back", d.document == "first draft" && d.documentHistory.isEmpty)
+    d.redoDocument(after)
+    check("cleaned: Redo puts the change back, and Undo works again after it",
+          d.document == "tidied" && d.documentCleanedBy == .model && d.documentHistory == ["first draft"])
+    d.undoDocument()
+    check("cleaned: Undo after Redo is the draft again", d.document == "first draft")
+}
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

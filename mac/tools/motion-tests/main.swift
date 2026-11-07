@@ -90,7 +90,22 @@ let listening = block(ribbon, from: "    private var listeningTransition")
 check("keys: the Ribbon's listening contents fade in over 0.1 s, with no delay and no scale",
       listening.contains("KeyMotion.listeningFade") && !listening.contains(".delay(") && !listening.contains(".scale(")
       && block(ribbon, from: "        case .listening:\n            VStack(spacing: 4)").contains(".transition(listeningTransition)"), listening)
-check("keys: the Ribbon's comment matches its morph (0.3 s, no bounce)", !ribbon.contains("0.38 s, a little bounce") && ribbon.contains(".smooth(duration: 0.3)"))
+check("surfaces: the Ribbon and the notch morph on one token, Motion.surfaceMorph (MAC-33)",
+      !ribbon.contains("0.38 s, a little bounce") && ribbon.contains("Motion.surfaceMorph") && read("Verbatim/Flow/Notch.swift").contains("Motion.surfaceMorph")
+      && !read("Verbatim/Flow/Notch.swift").contains(".timingCurve(0.2, 0.8, 0.2, 1, duration: 0.24)")
+      && read("Verbatim/Views/Tokens.swift").contains("static let surfaceMorph = Animation.smooth(duration: \(SurfaceMotion.morphDuration))")
+      && read("Verbatim/Views/Tokens.swift").contains("static let surfaceStillFade = AnyTransition.opacity.animation(.easeOut(duration: \(SurfaceMotion.stillFade)))"))
+check("surfaces: held still, the shape changes at once and the contents crossfade (GPT-09)",
+      ribbon.contains("private var morph: Animation? { SurfaceMotion.morphs(still: reduceMotion) ? Motion.surfaceMorph : nil }")
+      && ribbon.contains("private var liveMorph: Animation? { SurfaceMotion.morphs(still: reduceMotion) ? Motion.surfaceMorph : nil }")
+      && read("Verbatim/Flow/Notch.swift").contains("private var morph: Animation? { SurfaceMotion.morphs(still: still) ? Motion.surfaceMorph : nil }")
+      && !ribbon.contains(".easeOut(duration: 0.12) : .smooth") && ribbon.contains("SurfaceMotion.shownOffset(shown: model.shown, still: reduceMotion)"))
+check("surfaces: the prompt card slides in only with motion on (MAC-11)",
+      ribbon.contains(".transition(reduceMotion ? Motion.surfaceStillFade\n                                    : .asymmetric(insertion: .move(edge: screenEdge)"))
+check("surfaces: the controller shows and hides the Ribbon on the same rule",
+      read("Verbatim/Flow/FlowBar.swift").contains("withAnimation(Self.showAnimation) { self?.model.shown = true }")
+      && read("Verbatim/Flow/FlowBar.swift").contains("still ? .easeOut(duration: SurfaceMotion.stillFade) : Motion.surfaceMorph"))
+check("surfaces: other contents fade without a scale", !block(ribbon, from: "    private var contentTransition").contains(".scale("))
 let notch = read("Verbatim/Flow/Notch.swift")
 check("keys: the notch's listening wings fade in over 0.1 s, no delay or scale",
       notch.contains("KeyMotion.listeningFade") && notch.components(separatedBy: ".transition(listeningFade)").count == 3

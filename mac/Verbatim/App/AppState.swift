@@ -142,6 +142,8 @@ final class AppState: DistinctTracking {
     @ObservationIgnored var linkTasks: [UUID: Task<Void, Never>] = [:]
     /// The link whose card is showing.
     @ObservationIgnored @Distinct var linkCardID: UUID? = nil
+    /// The card on screen came from a key (⌘V): it shows at once (Views/LinkAddedCard.swift). Set with `linkCardID`.
+    @ObservationIgnored var linkCardFromKeyboard = false
     /// Links already counted by the queue but not yet shown in its badge: their card hasn't landed.
     @ObservationIgnored @Distinct var linkBadgeHeld: Set<UUID> = []
     /// Goes up each time a card lands in Queue, so the badge pops.

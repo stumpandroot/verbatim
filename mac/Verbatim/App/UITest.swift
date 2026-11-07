@@ -137,6 +137,9 @@ enum UITest {
             window.makeKeyAndOrderFront(nil)
             await meetingSteps(main: window)
             recordChoiceChecks()
+            // The interactions audit's menus, find in the transcript, the Cleaned tab's Undo, and the inspector's room.
+            await macCommandSteps(app: app, window: window)
+            window.makeKeyAndOrderFront(nil)
             // Thoughts: today's page, the bubble, the menu bar's group, By day, the rename, and the pad's move.
             await thoughtsSteps(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
@@ -1144,14 +1147,20 @@ enum UITest {
               missing.isEmpty)
         // The preview lives in the inspector, which is remembered per Mac and may be closed when this pass starts:
         // open it, let it lay out, then click its Open Transcript.
+        // The self-test window is narrower than the inspector's room (MAC-05: it closes on its own below about 560 pt
+        // of content), so it's shown the way the toolbar's button does without room.
         let inspectorWas = nav.inspector
-        nav.inspector = true
+        check("\(tag): in a \(Int(window.frame.width)) pt window the inspector closes on its own, and the button can still show it",
+              nav.inspectorHasRoom == InspectorFit.shows(chosen: true, detailWidth: nav.detailWidth, inspectorWidth: WindowNav.inspectorRoomWidth))
+        nav.inspector = false
+        nav.toggleInspector()
         try? await Task.sleep(nanoseconds: 700_000_000)
         await step("\(tag): Open Transcript in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
         try? await Task.sleep(nanoseconds: 500_000_000)
         let missingOnTranscript = chromeIDs.filter { id in (windowFrames[id]?() ?? frames[id]) == nil }
         Log.note("UITEST chrome on a transcript with the inspector open: missing \(missingOnTranscript.isEmpty ? "nothing" : missingOnTranscript.joined(separator: ", "))")
         nav.inspector = inspectorWas
+        nav.inspectorForced = false
         app.go(.library)
         try? await Task.sleep(nanoseconds: 500_000_000)
         let fresh = UserDefaults(suiteName: "co.stumpandroot.verbatim.uitest.table") ?? .standard
@@ -1166,7 +1175,8 @@ enum UITest {
         // (build 239): checked on the Library with the inspector open. The click steps still close the inspector first.
         let hadInspector = nav.inspector
         app.go(.library)
-        nav.inspector = true
+        nav.inspector = false
+        nav.toggleInspector()
         try? await Task.sleep(nanoseconds: 900_000_000)
         let content = window.contentView?.bounds ?? .zero
         let recordFrame = windowFrames["tb-record"]?()
@@ -1218,6 +1228,7 @@ enum UITest {
         }
         check("\(tag): a blank name makes no project", app.createProject("  ", adding: []) == nil)
         nav.inspector = hadInspector
+        nav.inspectorForced = false
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
@@ -1808,21 +1819,23 @@ enum UITest {
             check("recent dictations: menu titles are one line of 60", Recall.truncate(long).count == 60 && Recall.truncate(long).hasSuffix("…")
                   && Recall.truncate("Hi\n\nthere  you") == "Hi there you" && Recall.truncate("Short") == "Short")
             check("recent dictations: two-line preview", Recall.preview("One\n\n  Two\nThree") == "One\nTwo")
-            check("recent dictations: number keys 1–9 then 0", Recall.index(forKeyCode: 18) == 0 && Recall.index(forKeyCode: 25) == 8
-                  && Recall.index(forKeyCode: 29) == 9 && Recall.index(forKeyCode: 82) == 9 && Recall.index(forKeyCode: 0) == nil
+            check("recent dictations: number keys 1–9 then 0", RecallKeys.index(forKeyCode: 18) == 0 && RecallKeys.index(forKeyCode: 25) == 8
+                  && RecallKeys.index(forKeyCode: 29) == 9 && RecallKeys.index(forKeyCode: 82) == 9 && RecallKeys.index(forKeyCode: 0) == nil
                   && Recall.keyLabel(0) == "1" && Recall.keyLabel(9) == "0" && Recall.keyLabel(10) == nil)
-            check("recent dictations: a number copies, ⇧ pastes", Recall.keyAction(keyCode: 18, modifiers: [], queryEmpty: true) == .copy(0)
-                  && Recall.keyAction(keyCode: 29, modifiers: [.shift], queryEmpty: true) == .paste(9))
-            check("recent dictations: numbers type into search unless ⌘ is held", Recall.keyAction(keyCode: 18, modifiers: [], queryEmpty: false) == nil
-                  && Recall.keyAction(keyCode: 18, modifiers: [.command], queryEmpty: false) == .copy(0)
-                  && Recall.keyAction(keyCode: 18, modifiers: [.command, .shift], queryEmpty: false) == .paste(0)
-                  && Recall.keyAction(keyCode: 18, modifiers: [.option], queryEmpty: true) == nil)
-            check("recent dictations: arrows, Return, and Esc", Recall.keyAction(keyCode: 125, modifiers: [], queryEmpty: false) == .move(1)
-                  && Recall.keyAction(keyCode: 126, modifiers: [], queryEmpty: true) == .move(-1)
-                  && Recall.keyAction(keyCode: 36, modifiers: [], queryEmpty: false) == .pasteSelected
-                  && Recall.keyAction(keyCode: 36, modifiers: [.shift], queryEmpty: false) == .pasteSelected
-                  && Recall.keyAction(keyCode: 53, modifiers: [], queryEmpty: false) == .close
-                  && Recall.keyAction(keyCode: 0, modifiers: [], queryEmpty: true) == nil)
+            check("recent dictations: ⌘ and a number copy, ⇧⌘ pastes", Recall.keyAction(keyCode: 18, modifiers: [.command]) == .copy(0)
+                  && Recall.keyAction(keyCode: 29, modifiers: [.command, .shift]) == .paste(9))
+            check("recent dictations: plain digits always type into search (GPT-12)", Recall.keyAction(keyCode: 18, modifiers: []) == nil
+                  && Recall.keyAction(keyCode: 29, modifiers: [.shift]) == nil && Recall.keyAction(keyCode: 18, modifiers: [.option]) == nil)
+            check("recent dictations: arrows, Return, and Esc", Recall.keyAction(keyCode: 125, modifiers: []) == .move(1)
+                  && Recall.keyAction(keyCode: 126, modifiers: []) == .move(-1)
+                  && Recall.keyAction(keyCode: 36, modifiers: []) == .pasteSelected
+                  && Recall.keyAction(keyCode: 36, modifiers: [.shift]) == .pasteSelected
+                  && Recall.keyAction(keyCode: 53, modifiers: []) == .close
+                  && Recall.keyAction(keyCode: 0, modifiers: []) == nil)
+            var gate = PointerGate(at: CGPoint(x: 100, y: 100))
+            let stillHover = gate.hover(at: CGPoint(x: 100, y: 100))
+            let movedHover = gate.hover(at: CGPoint(x: 100, y: 130))
+            check("recent dictations: a hover takes the selection only after the pointer moves (MAC-36)", !stillHover && movedHover)
             check("didn't paste: the Ribbon keeps it with no text field or no read", Recall.rescue(for: .copiedOnly, command: false) == .noField
                   && Recall.rescue(for: .failed(.notRead), command: false) == .notRead)
             check("didn't paste: not after a paste that landed, an edit by voice, or a failure with its own fix",
@@ -3511,7 +3524,7 @@ extension UITest {
               LiveCaptionsView.waitingLine(.both(id: "us.zoom.xos", name: "Zoom"), open: true) == "Listening to Zoom and your mic. Words appear here as they're said."
               && LiveCaptionsView.waitingLine(.mic, open: true).hasPrefix("Listening to your mic."))
         check("review: Return pastes the selected recent dictation, as its pill says",
-              Recall.keyAction(keyCode: 36, modifiers: [], queryEmpty: true) == .pasteSelected)
+              Recall.keyAction(keyCode: 36, modifiers: []) == .pasteSelected)
         check("review: the on-device promise has one phrasing", TemplateCopy.onDevice("Mac") == "On this Mac with Apple Intelligence. Nothing leaves it.")
         check("review: saved actions draw brand glyphs", FlowAction.builtIn.allSatisfy { a in
             a.symbol == "sparkles" || a.symbol == "wand.and.stars" || a.art.strokes.count > 1 })
@@ -3595,3 +3608,86 @@ private struct WidePage: View {
     }
 }
 #endif
+
+// MARK: - Interactions audit: commands, find, Undo, and the inspector (November 7, 2026)
+
+// The interactions audit's Mac commands, find, focus, and small-window fixes (November 7, 2026), checked in the
+// running app: the Recording and Dictation menus and the transcript's View and Edit items are in the menu bar, ⌘F
+// opens the find bar on a transcript and steps through matches, the Cleaned tab's Undo goes through the window's
+// UndoManager with Redo after it, and the inspector follows its room. The pure rules are in App/MacCommandRules.swift
+// and run on Linux (mac/tools/test-mac-commands.sh).
+
+extension UITest {
+    static func macCommandSteps(app: AppState, window: NSWindow) async {
+        func menu(_ title: String) -> NSMenu? {
+            let m = NSApp.mainMenu?.items.first(where: { $0.submenu?.title == title })?.submenu
+            m?.update()
+            return m
+        }
+        let recording = menu("Recording")?.items.filter { !$0.isSeparatorItem }.map(\.title) ?? []
+        check("commands: a Recording menu with Stop and Transcribe, Pause, and Mark Moment (\(recording.joined(separator: ", ")))",
+              recording.contains("Stop and Transcribe") && recording.contains("Mark Moment") && recording.contains { $0.hasSuffix("Recording") && $0 != "Stop and Transcribe" })
+        if let stop = menu("Recording")?.items.first(where: { $0.title == "Stop and Transcribe" }) {
+            check("commands: Stop and Transcribe is ⌥⇧. and off while nothing records",
+                  stop.keyEquivalentModifierMask.contains(.option) && (app.recorder.isRecording || app.capture.isCapturing || !stop.isEnabled))
+        }
+        let dictation = menu("Dictation")?.items.filter { !$0.isSeparatorItem }.map(\.title) ?? []
+        check("commands: a Dictation menu with Dictate, New Thought, and Recent Dictations (\(dictation.joined(separator: ", ")))",
+              dictation.contains("Dictate") && dictation.contains { $0 == "New Thought" || $0 == "Stop Thought" } && dictation.contains("Recent Dictations"))
+        let view = menu("View")?.items.map(\.title) ?? []
+        check("commands: View has Bigger Text, Smaller Text, and Mark This Moment", TranscriptMenuItems.viewTitles.allSatisfy(view.contains))
+        let edit = menu("Edit")?.items.map(\.title) ?? []
+        check("commands: Edit has Copy Text, Copy for AI, Find…, Find Next, Find Previous, and Search or Ask…",
+              TranscriptMenuItems.editTitles.allSatisfy(edit.contains) && ["Find…", "Find Next", "Find Previous", "Search or Ask…"].allSatisfy(edit.contains))
+        check("commands: File says Record Voice Note", menu("File")?.items.contains { $0.title == "Record Voice Note" } ?? false)
+
+        // Find in the open transcript.
+        guard let t = app.store.live.first(where: { $0.status == .ready && !$0.showsAudioDetail && $0.segments.count >= 2 }) else {
+            Log.note("UITEST note: no ready transcript with lines for the find checks"); return
+        }
+        app.go(.transcript(t.id))
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        let word = t.segments.first?.text.split(separator: " ").first.map(String.init) ?? "the"
+        let find = TranscriptFind.shared
+        AppCommands.find(app)
+        find.query = word
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        check("find: ⌘F on a transcript opens the find bar, not Search or ask", find.open && !AskNav.shared.panelOpen && frames["transcript-find"] != nil)
+        check("find: the bar counts its matches and selects the first (\(find.countLabel))", !find.matches.isEmpty && find.current == 0 && find.currentLine != nil)
+        let first = find.current
+        find.next()
+        check("find: ⌘G steps to the next match, and ⇧⌘G back", find.matches.count == 1 ? find.current == 0 : find.current != first)
+        find.previous()
+        check("find: and back again", find.current == first)
+        find.close()
+        check("find: Esc or Done closes it and clears the query", !find.open && find.query.isEmpty && find.matches.isEmpty)
+        app.go(.library)
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        AppCommands.find(app)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        check("find: elsewhere ⌘F opens Search or ask", AskNav.shared.panelOpen && !find.open)
+        AskNav.shared.close()
+
+        // The Cleaned tab's Undo and Redo through the window's UndoManager (MAC-01).
+        if let um = window.undoManager, let id = app.store.live.first(where: { $0.status == .ready })?.id {
+            let before = app.store.transcript(id)?.documentText ?? ""
+            app.store.update(id) { $0.applyRuleFixes(before + " Fixed.") }
+            CleanedUndo.registered(um, id: id, store: app.store, name: CleanedUndo.fix)
+            check("undo: Edit › Undo names the Cleaned tab's change", um.canUndo && um.undoActionName == CleanedUndo.fix)
+            um.undo()
+            let undone = app.store.transcript(id)?.documentText == before
+            check("undo: ⌘Z brings the text back, and ⇧⌘Z can redo it", undone && um.canRedo)
+            um.redo()
+            check("undo: ⇧⌘Z redoes the change", app.store.transcript(id)?.documentText == before + " Fixed.")
+            um.undo()
+            um.removeAllActions(withTarget: app.store)
+        }
+
+        // The inspector follows its room (MAC-05).
+        let nav = WindowNav.shared
+        check("inspector: it has room only with about 560 pt of content beside it (\(Int(nav.detailWidth)) pt wide)",
+              nav.inspectorHasRoom == (nav.detailWidth - WindowNav.inspectorRoomWidth >= InspectorFit.minContent))
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+    }
+}
