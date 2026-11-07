@@ -105,8 +105,9 @@ struct MacSidebar: View {
         // The arrow keys still move the selection; the selected row's tint shows where you are, so the system's blue
         // focus ring around the whole column isn't drawn.
         .focusEffectDisabled()
-        .onKeyPress(.upArrow) { step(-1) }
-        .onKeyPress(.downArrow) { step(1) }
+        // A move from the keyboard shows the page at once, without the slide (DESIGN.md §7).
+        .onKeyPress(.upArrow) { app.fromKeyboard { step(-1) } }
+        .onKeyPress(.downArrow) { app.fromKeyboard { step(1) } }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Sidebar")
         .sheet(isPresented: $customizing) { CustomizeSidebarSheet() }

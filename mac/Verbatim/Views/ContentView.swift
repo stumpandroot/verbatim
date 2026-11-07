@@ -102,7 +102,7 @@ struct ContentView: View {
             GeometryReader { g in
                 screenView.frame(width: g.size.width, height: g.size.height)
                     .background(Refined.paper)
-                    .modifier(ScreenEntrance(offset: entranceOffset, limited: limitMotion && app.navCount > 0))
+                    .modifier(ScreenEntrance(offset: entranceOffset, limited: entrance == .fade))
                     // Each screen change is timed from the click to here: a "Navigate" signpost always, and a
                     // UITEST TIMING line in the self-test.
                     .onAppear {
@@ -163,11 +163,18 @@ struct ContentView: View {
         }
     }
 
+    /// How the new screen arrives (`NavEntrance`): at once at launch and after a navigation from the keyboard, faded
+    /// in under Limit Motion, slid in otherwise.
+    private var entrance: NavEntrance {
+        NavEntrance.of(launch: app.navCount == 0, keyboard: app.nav.keyboard, limited: limitMotion)
+    }
+
     /// Where the new screen starts. Opening a transcript slides it in from the right, and leaving one slides the screen in
     /// from the left (`Motion.pageTravel`). A sidebar move rises from below when you go down the sidebar and drops from
-    /// above when you go up (`Motion.sidebarTravel`). The launch screen and Limit Motion don't move.
+    /// above when you go up (`Motion.sidebarTravel`). The launch screen, a navigation from the keyboard, and Limit Motion
+    /// don't move.
     private var entranceOffset: CGSize {
-        if limitMotion || app.navCount == 0 { return .zero }
+        if entrance != .slide { return .zero }
         switch app.direction {
         case .push: return CGSize(width: Motion.pageTravel, height: 0)
         case .pop: return CGSize(width: -Motion.pageTravel, height: 0)
@@ -179,7 +186,8 @@ struct ContentView: View {
 
 /// A new screen's entrance: it starts `offset` away and settles on `Motion.page`, a spring with a slight bounce. It's
 /// opaque from its first frame: build 292's sidebar moves also faded in from clear, which read as the page loading in.
-/// With motion limited it only fades in, over `Motion.fade`.
+/// With motion limited it only fades in, over `Motion.fade`. With no offset and no fade (launch, or a navigation from
+/// the keyboard), it's simply there.
 ///
 /// The spring starts on the main loop's next turn, after the new screen's first frame is committed, not in `onAppear`.
 /// Building and committing a screen like Library or You takes 80 to 180 ms after `onAppear` (the self-test's

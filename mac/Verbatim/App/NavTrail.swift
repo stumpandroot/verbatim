@@ -179,8 +179,9 @@ final class NavMenuItems: NSObject, NSMenuItemValidation {
         return true
     }
 
-    @objc private func goBack(_ sender: Any?) { if let app { NavTrail.shared.goBack(app) } }
-    @objc private func goForward(_ sender: Any?) { if let app { NavTrail.shared.goForward(app) } }
+    // ⌘[ and ⌘] show the screen at once; a click on the menu item slides it in, as other clicks do (DESIGN.md §7).
+    @objc private func goBack(_ sender: Any?) { if let app { app.fromKeyboard(AppState.handlingKeyPress) { NavTrail.shared.goBack(app) } } }
+    @objc private func goForward(_ sender: Any?) { if let app { app.fromKeyboard(AppState.handlingKeyPress) { NavTrail.shared.goForward(app) } } }
 
     private func item(_ title: String, _ key: String, _ action: Selector) -> NSMenuItem {
         let i = NSMenuItem(title: title, action: action, keyEquivalent: key)

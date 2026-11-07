@@ -71,8 +71,9 @@ struct LibraryView: View {
                     .focusEffectDisabled()
                     .onKeyPress(.downArrow) { step(1, order, proxy); return .handled }
                     .onKeyPress(.upArrow) { step(-1, order, proxy); return .handled }
-                    .onKeyPress(.return) { openSelected() ? .handled : .ignored }
-                    .onKeyPress(.space) { playSelected() ? .handled : .ignored }
+                    // Return and Space open from the keyboard: the transcript shows at once (DESIGN.md §7).
+                    .onKeyPress(.return) { app.fromKeyboard { openSelected() } ? .handled : .ignored }
+                    .onKeyPress(.space) { app.fromKeyboard { playSelected() } ? .handled : .ignored }
                     .onKeyPress(.escape) {
                         guard !selection.isEmpty else { return .ignored }
                         selection = []; anchor = nil

@@ -244,7 +244,7 @@ final class RecallModel: ObservableObject {
     @Published var items: [RecallItem] = []
     @Published var query = ""
     @Published var selection = 0
-    /// False until just after the panel is on screen, so it can fade (and settle) in.
+    /// False until just after the panel is on screen, so it can fade in (0.1 s, no movement).
     @Published var shown = false
     var visible: [RecallItem] { Recall.visible(items, query: query) }
 }
@@ -370,11 +370,11 @@ final class RecallPanelController {
 }
 
 /// The panel: a search field, up to 10 rows (key, time, app or website, the first two lines), and the keys.
-/// Opaque paper; nothing sits on glass. Arrives with a 0-bounce spring, or a fade with Limit animation.
+/// Opaque paper; nothing sits on glass. It opens from its shortcut, so it's there at once: a 0.1 s fade at most and no
+/// drop (DESIGN.md §7, keyboard actions don't animate; `KeyMotion.recallFade`). Limit animation keeps the same fade.
 struct RecallPanelView: View {
     @ObservedObject var model: RecallModel
     let controller: RecallPanelController
-    @Environment(\.limitMotion) private var limitMotion
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -391,8 +391,7 @@ struct RecallPanelView: View {
         .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Refined.separator))
         .opacity(model.shown ? 1 : 0)
-        .offset(y: model.shown || limitMotion ? 0 : -8)
-        .animation(limitMotion ? .easeOut(duration: 0.15) : .spring(duration: 0.24, bounce: 0), value: model.shown)
+        .animation(.easeOut(duration: KeyMotion.recallFade), value: model.shown)
         .onAppear { searchFocused = true }
         .onChange(of: model.query) { _, _ in model.selection = 0 }
         .uiTarget("recent-dictations")

@@ -203,6 +203,11 @@ struct NotchView: View {
     }
 
     private var morph: Animation { still ? .easeOut(duration: 0.12) : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.24) }
+    /// Listening is the dictation key's answer: the wings' contents fade in over 0.1 s, with no delay and no scale, as
+    /// the shape morphs (DESIGN.md §7, `KeyMotion.listeningFade`). Reduce Motion keeps the morph's quick fade.
+    private var listeningFade: AnyTransition {
+        still ? .opacity : .asymmetric(insertion: .opacity.animation(.easeOut(duration: KeyMotion.listeningFade)), removal: .opacity)
+    }
     private var stateKey: String {
         "\(look)-\(model.alert?.title ?? "")-\(model.warning)-\(model.notice.count)-\(model.noticeAction ?? "")-\(liveWordsShown)"
     }
@@ -278,9 +283,12 @@ struct NotchView: View {
         case .peek, .notice, .prompt:
             BarsMark(color: Refined.persimmonFixed).frame(width: 14, height: 15)
         case .listening, .open, .working, .error:
-            appIcon
-            Text(model.targetName.isEmpty ? "Dictation" : model.targetName)
-                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.onBlack).lineLimit(1)
+            Group {
+                appIcon
+                Text(model.targetName.isEmpty ? "Dictation" : model.targetName)
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.onBlack).lineLimit(1)
+            }
+            .transition(listeningFade)
         case .pasted:
             appIcon
         }
@@ -293,8 +301,11 @@ struct NotchView: View {
         case .peek:
             DarkKeycap(text: controller.hotkeyKeycap)
         case .listening, .open:
-            VoiceBars(levels: VoiceBars.live(live.levels, count: 9), height: 16)
-            Text(SurfaceClock.text(live.elapsed)).font(SurfaceFont.mono(12)).foregroundStyle(Refined.onBlackDim).monospacedDigit()
+            Group {
+                VoiceBars(levels: VoiceBars.live(live.levels, count: 9), height: 16)
+                Text(SurfaceClock.text(live.elapsed)).font(SurfaceFont.mono(12)).foregroundStyle(Refined.onBlackDim).monospacedDigit()
+            }
+            .transition(listeningFade)
         case .working:
             SurfaceSpinner(size: 13, still: still)
             Text(workingText).font(.system(size: 12.5)).foregroundStyle(Refined.onBlack).lineLimit(1)
