@@ -27,9 +27,9 @@ check("a running dictation shows Listening", KeyboardMode.current(surface: .typi
       && KeyboardMode.current(surface: .home, dictating: true) == .listening)
 check("otherwise the resting view", KeyboardMode.current(surface: .home, dictating: false) == .home
       && KeyboardMode.current(surface: .typing, dictating: false) == .typing)
-check("Inserted bar: 5 s, 12 s with a correction", !InsertedBar.expired(shownFor: 4.9, hasCorrection: false)
-      && InsertedBar.expired(shownFor: 5, hasCorrection: false) && !InsertedBar.expired(shownFor: 8, hasCorrection: true)
-      && InsertedBar.expired(shownFor: 12, hasCorrection: true))
+check("Inserted bar: stays until the next key press or the keyboard leaves, never on a timer (SF-06)",
+      InsertedBar.ends(on: .keyPress) && InsertedBar.ends(on: .keyboardLeft)
+      && !InsertedBar.ends(on: .time(5)) && !InsertedBar.ends(on: .time(12)) && !InsertedBar.ends(on: .time(3600)))
 
 // MARK: Home's stats pages (KeyboardHome.swift)
 

@@ -2983,7 +2983,7 @@ extension UITest {
         let seeded = seedThoughts(app)
         try? await Task.sleep(nanoseconds: 600_000_000)
 
-        check("thoughts: Idea is called Thoughts in pickers and filters", RecordingKind.idea.label == "Thoughts" && RecordingKind.idea.plural == "Thoughts"
+        check("thoughts: Idea is called Thoughts in pickers and filters", RecordingKind.idea.label == "Thought" && RecordingKind.idea.plural == "Thoughts"
               && RecordingKind.idea.rawValue == "idea" && RecordingKind.pickable.contains(.idea))
         let page = app.store.page(.idea, day: today, hour: hour).filter { seeded.contains($0.id) }
         check("thoughts: today's page lists the seeded thoughts in the order they started", page.map(\.id) == seeded && page.count == 5)

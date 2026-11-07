@@ -803,10 +803,10 @@ enum PhoneUITest {
     }
 
     /// Record in the tab bar (RecordAccessory.swift; DESIGN.md §16): Record in the
-    /// tab bar's bottom accessory on every tab, a tap as the plain voice note, the system menu's ways with the line
-    /// under each, the live recording in the accessory, and the recorder sheet with its red stop. The system menu itself
-    /// can't be opened without a finger, so its contents are checked through `RecordAsMenu`. Light only; Run
-    /// automatically and the tab are put back afterward.
+    /// tab bar's bottom accessory on every tab, a tap as the plain voice note, touch and hold opening the same Record as
+    /// tray as Home's card (its ways with the line under each, through `RecordAsMenu.hint`), the live recording in the
+    /// accessory, and the recorder sheet with its red stop. Light only; Run automatically and the tab are put back
+    /// afterward.
     private static func recordAccessoryTour(_ app: PhoneState, suffix: String) async {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") record accessory\(suffix): \(name)") }
         let tray = RecordTray.shared
@@ -841,6 +841,10 @@ enum PhoneUITest {
         // A tap is the plain Record; the menu's rows run each way through the same entry point.
         tray.tap()
         check("a tap on Record starts a plain voice note", picked == [.voiceNote])
+        // Touch and hold on the accessory opens the card's tray (IP-08): the same source, the same rows.
+        tray.tourHold(.card)
+        check("touch and hold on Record opens the Record as tray, as Home's card does", tray.isOpen && tray.source == .card)
+        tray.close()
         tray.override = nil
         check("the menu lists Voice note, Meeting, Interview, Journal entry, Talk, Thought, Brain dump, and Audio only",
               RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought", "Brain dump", "Audio only"])

@@ -385,7 +385,8 @@ struct TranscriptScrubber: View {
         }
         .padding(.leading, 12).padding(.trailing, name == nil ? 12 : 8).frame(height: 34)
         .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
-        .shadow(color: Refined.separator, radius: 6, y: 2)
+        // A hairline separates the floating bubble, with no soft shadow (DESIGN.md §5.4; IP-41).
+        .overlay(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous).strokeBorder(Refined.separator, lineWidth: 1))
     }
 
     /// Hairline ink ticks centered under the handle's path, one per minute (or step), never closer than 18 pt.

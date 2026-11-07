@@ -127,5 +127,26 @@ check("moments: Resume taps before writing starts again, Pause after it stops",
 check("moments: transcript ready plays once per recording, in front", phone.contains("readyOnce.ready(id, foreground: front, queueEmpty: queueEmpty)"))
 check("moments: the watch taps start before its microphone opens", before("play(.recordStart)", "session.setActive(true)", in: watchBegin))
 
+// The keyboard's insert, cancel, and failure taps (SF-07, GPT-27).
+func funcText(_ text: String, _ start: String) -> String {
+    guard let r = text.range(of: start) else { return "" }
+    let rest = text[r.lowerBound...]
+    return String(rest.dropFirst(start.count).range(of: "\n    func ").map { rest[..<$0.lowerBound] } ?? rest.prefix(4000))
+}
+let kbInsertResult = funcText(keyboard, "private func insertResult(")
+check("keyboard: your dictation landing ticks once (selection), right after Inserted shows",
+      before("set(.inserted)", "haptic(.copied)", in: kbInsertResult))
+let kbSnippet = funcText(keyboard, "func insertSnippet(")
+check("keyboard: a snippet going in ticks, as a recent dictation does",
+      before("set(.inserted)", "haptic(.copied)", in: kbSnippet) || keyboard.contains("words: Self.wordCount(s.expansion))\n        set(.inserted)\n        // Inserted is a selection tick, as a recent dictation's is (SF-07).\n        haptic(.copied)"))
+let kbCancel = funcText(keyboard, "func cancel()")
+check("keyboard: Cancel while listening plays the stop tap", kbCancel.contains("if stage == .listening { haptic(.recordStop) }"))
+let failures = ["?? \"Verbose couldn't start a session.\"\n            haptic(.failed)", "notice = \"Verbose didn't start. Tap to try again.\"\n            haptic(.failed)",
+                "?? \"Dictation didn't finish.\"\n            haptic(.failed)", "notice = \"No words were heard.\"\n            haptic(.failed)",
+                "\"The words didn't go in. Tap them in Recent.\"\n        haptic(.failed)"]
+let missingFailures = failures.filter { !keyboard.contains($0) }
+check("keyboard: couldn't start, didn't start, didn't finish, no words heard, and words that didn't go in play the error tap",
+      missingFailures.isEmpty, "\(missingFailures)")
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

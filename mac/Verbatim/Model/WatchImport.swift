@@ -29,7 +29,7 @@ enum WatchImport {
     static func plan(_ t: WatchTransfer) -> Plan {
         let thought = t.kind == .thought
         let marks = t.marks.map { RecordingMark(at: $0.at, source: WatchTransfer.markSource, createdAt: $0.createdAt) }
-        return Plan(title: thought ? "Thought" : "Voice memo", label: thought ? thoughtLabel : voiceLabel,
+        return Plan(title: thought ? "Thought" : "Voice note", label: thought ? thoughtLabel : voiceLabel,
                     kind: thought ? .idea : nil, createdAt: t.startedAt, marks: marks)
     }
 
@@ -43,7 +43,7 @@ enum WatchImport {
         let last = live.filter { !$0.isDictation && $0.deletedAt == nil }.max { $0.createdAt < $1.createdAt }
         let kind: String? = last.map { t in
             if t.kind == .idea { return "Thought" }
-            return t.kind?.label ?? "Voice memo"
+            return t.kind?.label ?? "Voice note"
         }
         return WatchContext(thoughtsToday: today.count, pageEnds: pageEnds, lastTitle: last?.title, lastKind: kind,
                             lastDuration: last?.duration, lastAt: last?.createdAt, sentAt: now, haptics: haptics, limitMotion: limitMotion)

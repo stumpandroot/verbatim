@@ -201,6 +201,26 @@ struct RefinedStatus: View {
     }
 }
 
+/// Something that failed (a transcription, a dictation): the attention glyph and the words in `danger`, never the
+/// persimmon accent, so the state never rests on color alone (DESIGN.md §1; IP-10).
+struct RefinedFailure: View {
+    var text: String
+    var role: RefinedRules.TextRole = .meta
+    var lines: Int? = nil
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            IconGlyph(art: .iconAttention, size: role == .meta ? 13 : 15, color: Refined.danger)
+                .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + 4 }
+                .accessibilityHidden(true)
+            Text(text).refinedFont(role).foregroundStyle(Refined.danger)
+                .lineLimit(lines).multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 /// A box you tick (a plan's tasks, Send to Reminders' rows): the accent's filled check when on, an empty ring in
 /// `faint` when off. 44 pt to tap on iPhone. VoiceOver reads the label you give the row, with the checked trait.
 struct RefinedCheckbox: View {

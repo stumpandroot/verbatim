@@ -292,6 +292,10 @@ enum WidgetLink: Equatable {
     case newThought
     /// The Dictations list (the Recent dictations widget's header and its small size; iPhone).
     case dictations
+    /// The Library (the Recent recordings widget outside its rows, SF-25).
+    case library
+    /// This week's words: the You page on iPhone, Home on the Mac (the This week widget, SF-25).
+    case week
 
     static let scheme = "verbatim"
 
@@ -303,6 +307,8 @@ enum WidgetLink: Equatable {
         case .thought: return URL(string: "\(Self.scheme)://thought?from=widget")!
         case .newThought: return URL(string: "\(Self.scheme)://newthought?from=widget")!
         case .dictations: return URL(string: "\(Self.scheme)://dictations?from=widget")!
+        case .library: return URL(string: "\(Self.scheme)://library?from=widget")!
+        case .week: return URL(string: "\(Self.scheme)://week?from=widget")!
         }
     }
 
@@ -311,7 +317,7 @@ enum WidgetLink: Equatable {
     var startsCapture: Bool {
         switch self {
         case .record, .dictate, .newThought: return true
-        case .transcript, .thought, .dictations: return false
+        case .transcript, .thought, .dictations, .library, .week: return false
         }
     }
 
@@ -348,6 +354,8 @@ enum WidgetLink: Equatable {
         case "thought": self = .thought
         case "newthought": self = .newThought
         case "dictations": self = .dictations
+        case "library": self = .library
+        case "week": self = .week
         default: return nil
         }
     }

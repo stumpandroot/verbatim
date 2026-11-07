@@ -62,7 +62,6 @@ struct TranscriptScreen: View {
     @State private var showFind = false
     @State private var showSpeakers = false
     @State private var showDetails = false
-    @State private var confirmDelete = false
     /// A line Find picked, scrolled to once the sheet has gone.
     @State private var scrollTarget: UUID? = nil
 
@@ -210,10 +209,6 @@ struct TranscriptScreen: View {
                 }
                 .sheet(isPresented: $showSpeakers) { TranscriptSpeakersSheet(id: t.id).phoneState(app) }
                 .sheet(isPresented: $showDetails) { TranscriptDetailsSheet(id: t.id).phoneState(app) }
-                .confirmationDialog("Move this transcript to Recently Deleted?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                    Button("Move to Recently Deleted", role: .destructive) { app.delete([t.id]); dismiss() }
-                    Button("Cancel", role: .cancel) {}
-                } message: { Text("You can restore it for 30 days.") }
                 .sheet(item: $runningAction) { a in
                     PhoneActionSheet(action: a, transcript: t).phoneState(app).presentationDetents([.large])
                 }
@@ -687,7 +682,8 @@ struct TranscriptScreen: View {
             }
             Section {
                 Button { RenameCenter.shared.begin(t) } label: { Label("Rename", systemImage: "pencil") }   // brand: system surface (menu)
-                Button(role: .destructive) { confirmDelete = true } label: { Label("Delete", systemImage: "trash") }
+                // Delete goes at once, with Undo in the toast, as every Delete on iPhone does (IP-19).
+                Button(role: .destructive) { app.delete([t.id]); dismiss() } label: { Label("Delete", systemImage: "trash") }
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -1157,7 +1153,7 @@ struct NotesSheet: View {
                                 if let from = Marks.shortSource(n) { Text("· \(from)").refinedFont(.meta) }
                             }
                             .foregroundStyle(Refined.mute)
-                            if let f = n.frameFile { StillImage(file: f).frame(height: 120).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)) }
+                            if let f = n.frameFile { StillImage(file: f).frame(height: 120).clipShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.square), style: .continuous)) }
                             if let action = n.aiAction {
                                 // Saved from an action: stays marked as Apple Intelligence's, not the transcript's.
                                 HStack(spacing: 6) {
@@ -1170,6 +1166,11 @@ struct NotesSheet: View {
                         .listRowBackground(Refined.card)
                         .contentShape(Rectangle())
                         .onTapGesture { if let at = n.at { app.player.seek(to: at) } }
+                        // A row that plays from its moment says so to VoiceOver, as a button (IP-33).
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(n.at == nil ? [] : .isButton)
+                        .accessibilityHint(n.at == nil ? "" : "Plays from this moment.")
+                        .accessibilityAction { if let at = n.at { app.player.seek(to: at) } }
                     }
                     .onDelete { idx in
                         let notes = app.store.transcript(id)?.notes ?? []

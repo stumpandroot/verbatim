@@ -57,7 +57,8 @@ enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
     var label: String {
         switch self {
         case .journal: return "Journal"
-        case .idea: return "Thoughts"
+        // Singular like every other kind ("Meeting", "Journal"); the plural is `plural` (IP-20).
+        case .idea: return "Thought"
         case .meeting: return "Meeting"
         case .note: return "Note"
         case .dictation: return "Dictation"

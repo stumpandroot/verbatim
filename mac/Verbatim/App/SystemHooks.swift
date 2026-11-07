@@ -82,6 +82,15 @@ enum SystemHooks {
                 NSApp.activate(ignoringOtherApps: true)
                 app.mainWindow?.makeKeyAndOrderFront(nil)
                 app.go(.dictations)
+            case .library:
+                NSApp.activate(ignoringOtherApps: true)
+                app.mainWindow?.makeKeyAndOrderFront(nil)
+                app.go(.library)
+            case .week:
+                // This week lives on Home on the Mac.
+                NSApp.activate(ignoringOtherApps: true)
+                app.mainWindow?.makeKeyAndOrderFront(nil)
+                app.go(.home)
             }
         }
     }

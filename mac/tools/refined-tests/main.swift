@@ -521,7 +521,7 @@ if let washLine = kbView.components(separatedBy: "\n").first(where: { $0.contain
     if v.count == 4 { pair("the keyboard's Insert pill: ink on its wash (SF-08)", H.ink, .tone(H.Tone(v[0], v[1], hc: (v[2], v[3])))) }
     if v.count == 4 { check("the old Insert pill (accent text on the wash) failed in light", R.contrast(H.accentText.light, v[0]) < 4.5) }
 } else { check("the keyboard's wash is found", false) }
-check("the keyboard's Insert pill draws in ink", kbView.contains("Text(\"Insert\").font(.system(size: 13, weight: .bold)).foregroundStyle(KB.ink)"))
+check("the keyboard's Insert pill draws in ink", kbView.contains("Text(\"Insert\").scaledFont(13, weight: .bold).foregroundStyle(KB.ink)"))
 
 // Where the fixes are drawn.
 let captionsScreen = read("\(mac)/VerbatimPhone/LiveCaptionsScreen.swift")
@@ -545,6 +545,47 @@ check("calendars: next-month dates are mute, not faint",
 check("the player: a 44 pt drag band on iPhone and an ink playhead", kit.contains(".frame(height: mac ? 20 : CGFloat(RefinedRules.minTapTarget))") && kit.contains("private func drawPlayhead("))
 check("the Lock Screen's marks take the skin's mark color", read("\(mac)/VerbatimWidgets/ActivitySkin.swift").contains("var mark: Color { dark ? Refined.persimmonFixed : Refined.accentTextOnPaper }")
       && !read("\(mac)/VerbatimWidgets/RecordingLiveActivity.swift").contains("BarsMark(color: Refined.persimmonFixed)"))
+
+// MARK: - Same action, same result (interactions audit, group 6)
+
+let accessory = read("\(mac)/VerbatimPhone/RecordAccessory.swift")
+check("the tab bar's Record opens the same Record as tray as Home's card on touch and hold, not a system menu (IP-08)",
+      accessory.contains(".recordTrayPress(.card) { Self.start(quick, app) }") && !accessory.contains(" Menu {") && !accessory.contains("primaryAction:"))
+check("the accessory's trailing button is named Dictations, for the list it opens (IP-29)",
+      accessory.contains(".accessibilityLabel(\"Dictations\")") && !accessory.contains(".accessibilityLabel(\"Dictate\")"))
+let dictationsList = read("\(mac)/VerbatimPhone/DictationsListScreen.swift")
+check("Dictations rows open on the words and copy only from the round button (IP-07)",
+      dictationsList.contains("Button { state.pushHere(transcript.id) }") && dictationsList.contains("private var copyButton") && !dictationsList.contains("Tapping anywhere copies"))
+let phoneFiles = ["HomeSections.swift", "DictationsListScreen.swift", "AudioDetailScreen.swift"].map { read("\(mac)/VerbatimPhone/\($0)") }
+check("failures draw in danger with the attention glyph, never the accent (IP-10)",
+      phoneFiles.allSatisfy { !$0.contains("status == .failed ? Refined.accentText") } && phoneFiles.allSatisfy { $0.contains("RefinedFailure(") }
+      && read("\(views)/RefinedPages.swift").contains("IconGlyph(art: .iconAttention, size: role == .meta ? 13 : 15, color: Refined.danger)"))
+let deleteFiles = ["TranscriptScreen.swift", "AudioDetailScreen.swift", "ThoughtsScreens.swift"].map { read("\(mac)/VerbatimPhone/\($0)") }
+check("Delete is Delete everywhere on iPhone, with Undo and no extra alert (IP-19)",
+      deleteFiles.allSatisfy { !$0.contains("Move to Recently Deleted") && !$0.contains("confirmDelete") })
+check("Thoughts' menu icons are images, which a context menu can draw (IP-19)",
+      !read("\(mac)/VerbatimPhone/ThoughtsScreens.swift").contains("Label(\"Copy\", art:") && read("\(mac)/VerbatimPhone/ThoughtsScreens.swift").contains("menuArt: .iconCopy"))
+check("one thought capture control on the Thoughts tab's today page (IP-18)",
+      read("\(mac)/VerbatimPhone/ThoughtsScreens.swift").contains("RecordChromeRule.floatingThoughtShown(tab: app.tab"))
+check("the voice profile's delete is the system's destructive confirmation (IP-40)",
+      read("\(mac)/VerbatimPhone/VoiceProfileScreen.swift").contains("Button(\"Delete voice profile\", role: .destructive)"))
+check("the transcript scrubber's bubble has a hairline, no soft shadow (IP-41)",
+      !read("\(mac)/VerbatimPhone/TranscriptScrubber.swift").contains(".shadow("))
+check("the keyboard's menu card has no soft shadow (SF-20)", !kbView.contains(".shadow("))
+check("the keyboard's Home has one way back to the letters, ABC (SF-22)", !kbView.contains(".accessibilityLabel(\"Close\")"))
+check("the keyboard's Full Access card makes the on-device promise (SF-21)", kbView.contains("Nothing you type leaves this iPhone."))
+check("the keyboard's chips, pills, menu rows, and globe are 44 pt to touch (SF-19)",
+      kbView.components(separatedBy: ".keyboardTarget(visible:").count == 4 && kbView.contains("frame(width: CGFloat(KB.minTarget), height: CGFloat(KB.minTarget))")
+      && kbView.contains(".padding(.horizontal, 10).frame(height: CGFloat(KB.minTarget))"))
+let liveActivity = read("\(mac)/VerbatimWidgets/RecordingLiveActivity.swift")
+check("Live Activity actions and the small widget's Copy are 44 pt to touch (GPT-23)",
+      liveActivity.components(separatedBy: ".activityTarget(").count == 4 && read("\(mac)/VerbatimWidgets/HomeWidgets.swift").contains(".activityTarget(height: 28)"))
+check("the Lock Screen's Record and Dictate pills share the widget's height and width (SF-26)",
+      read("\(mac)/VerbatimWidgets/HomeWidgets.swift").contains(".padding(.horizontal, 8).padding(.vertical, 4)\n        .frame(maxWidth: .infinity, maxHeight: .infinity)"))
+check("sentence case: Restore purchases and Save as recipe (IP-27)",
+      !read("\(mac)/Verbatim/Model/Entitlement.swift").contains("\"Restore Purchases\"") && !read("\(mac)/VerbatimPhone/AskScreens.swift").contains("Save as Recipe"))
+check("the Library scrolls the chosen chip into view (IP-21)", kit.contains("withTransaction(t) { proxy.scrollTo(selected, anchor: .center) }"))
+check("kind tabs use the kit's empty state, not \"Choose All\" (IP-31)", read("\(mac)/VerbatimPhone/LibraryScreen.swift").contains("private func kindEmptyState("))
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

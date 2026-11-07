@@ -80,12 +80,12 @@ struct DayPageScreen: View {
                     .padding(.top, 14)
                 }
                 // Room for the New thought button over the last thought.
-                Color.clear.frame(height: thoughts && isToday ? 96 : 32).accessibilityHidden(true)
+                Color.clear.frame(height: showsNewThought ? 96 : 32).accessibilityHidden(true)
             }
             .padding(.horizontal, 20)
         }
         .overlay(alignment: .bottom) {
-            if thoughts && isToday { newThoughtButton.padding(.bottom, 14) }
+            if showsNewThought { newThoughtButton.padding(.bottom, 14) }
         }
         .background(Refined.paper.ignoresSafeArea())
         .navigationTitle(DayPages.title(name, day: day))
@@ -195,6 +195,8 @@ struct DayPageScreen: View {
             HStack(alignment: .firstTextBaseline, spacing: 14) {
                 Text(ThoughtText.compactTime(t.createdAt)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
                     .lineLimit(1).fixedSize().frame(minWidth: 58, alignment: .leading)
+                    // VoiceOver reads the system's time ("9:00 AM"), never "9:00a" letter by letter (IP-37).
+                    .accessibilityLabel(ThoughtText.time(t.createdAt, systemFormat: true))
                 VStack(alignment: .leading, spacing: 4) {
                     if thoughts { ThoughtWords(transcript: t) } else { JournalLine(transcript: t) }
                     Text(thoughts ? ThoughtText.origin(t) : HomeRecentStyle.length(t.duration))
@@ -217,6 +219,13 @@ struct DayPageScreen: View {
                 .refinedFont(.body).foregroundStyle(Refined.dim)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// Today's page shows its own New thought only where Record in the tab bar doesn't already start a thought: on the
+    /// Thoughts tab, Record reads "Record · Thought", so one control does it (IP-18, GPT-25).
+    private var showsNewThought: Bool {
+        thoughts && isToday
+            && RecordChromeRule.floatingThoughtShown(tab: app.tab, chromeHidden: HomeSpacing.hidesRecordChrome(app, tab: app.tab, layout: HomeLayoutStore.shared.layout))
     }
 
     /// The floating New thought button: the record action, so it carries persimmon (§14.1), opaque on the page with
@@ -250,13 +259,14 @@ struct DayPageScreen: View {
     @ViewBuilder private func menu(_ t: Transcript) -> some View {
         let words = ThoughtText.words(t)
         if !words.isEmpty {
-            Button { UIPasteboard.general.string = words; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", art: .iconCopy) }
+            Button { UIPasteboard.general.string = words; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", menuArt: .iconCopy, key: "copy") }
         }
         if thoughts, t.status == .ready {
-            Button { editing = t } label: { Label("Edit", art: .iconNotes) }
+            Button { editing = t } label: { Label("Edit", menuArt: .iconNotes, key: "notes") }
         }
-        Button { app.open(t.id) } label: { Label(thoughts ? "Open as a transcript" : "Open", art: .iconDetails) }
-        Button(role: .destructive) { app.delete([t.id]) } label: { Label("Move to Recently Deleted", art: .iconDeleted) }
+        Button { app.open(t.id) } label: { Label(thoughts ? "Open as a transcript" : "Open", menuArt: .iconDetails, key: "details") }
+        // Delete, named as everywhere else, with Undo in the toast (IP-19).
+        Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
     }
 }
 
@@ -347,7 +357,7 @@ private struct ThoughtEditSheet: View {
                     .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 ToolbarItem(placement: .bottomBar) {
-                    Button("Move to Recently Deleted", role: .destructive) {
+                    Button("Delete", role: .destructive) {
                         app.delete([transcript.id])
                         dismiss()
                     }

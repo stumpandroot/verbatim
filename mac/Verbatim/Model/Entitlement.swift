@@ -366,7 +366,7 @@ enum UnlockCopy {
     static func inTrialFinePrint(daysLeft: Int) -> String {
         "Your free trial has \(daysCount(daysLeft)) left. Unlocking keeps everything, with no subscription."
     }
-    static let restore = "Restore Purchases"
+    static let restore = "Restore purchases"   // sentence case (DESIGN.md §8; IP-27)
     static let terms = "Terms"
     static let privacy = "Privacy"
 

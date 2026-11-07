@@ -218,7 +218,7 @@ private struct MarkButton: View {
             .foregroundStyle(tone.foreground)
             .padding(.horizontal, 15).frame(height: tone.height)
             .overlay(Capsule().strokeBorder(tone.outline, lineWidth: 1.5))
-            .contentShape(Capsule())
+            .activityTarget(height: tone.height)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Mark a moment")
@@ -236,7 +236,7 @@ private struct PauseButton: View {
                 .foregroundStyle(tone.foreground)
                 .frame(width: tone.height, height: tone.height)
                 .overlay(Circle().strokeBorder(tone.outline, lineWidth: 1.5))
-                .contentShape(Circle())
+                .activityTarget(width: tone.height, height: tone.height)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(state.isPaused ? "Resume" : "Pause")
@@ -257,7 +257,7 @@ private struct StopButton: View {
             .frame(maxWidth: wide ? .infinity : nil)
             .frame(height: wide ? 40 : 38)
             .background(Refined.persimmonFixed, in: Capsule())
-            .contentShape(Capsule())
+            .activityTarget(height: wide ? 40 : 38)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Stop")

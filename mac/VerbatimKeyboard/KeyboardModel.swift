@@ -260,7 +260,7 @@ final class KeyboardModel: ObservableObject {
 
     /// A key in the typing view changed the text: an Undo for words inserted earlier no longer lines up.
     private func didType() {
-        guard stage == .inserted else { return }
+        guard stage == .inserted, InsertedBar.ends(on: .keyPress) else { return }
         insertion = nil
         polishing = false
         set(.idle)
@@ -330,6 +330,7 @@ final class KeyboardModel: ObservableObject {
         logMemory("left")
         closeMenu()
         stopTimer()
+        endInsertedBarOnLeave()
         // Gone from the screen: a take from the Action button now goes to the clipboard instead.
         defaults?.set(0.0, forKey: KeyboardBridge.Key.keyboardVisibleAt)
         defaults?.removeObject(forKey: KeyboardBridge.Key.visibleHost)
@@ -500,6 +501,8 @@ final class KeyboardModel: ObservableObject {
         if let d = dictation {
             defaults?.set(d.uuidString, forKey: KeyboardBridge.Key.cancelID)
             KeyboardBridge.post(KeyboardBridge.Note.command)
+            // Cancel while listening is a stop: the soft stop tap, as Discard plays in the app (SF-07).
+            if stage == .listening { haptic(.recordStop) }
         }
         dictation = nil
         request = nil
@@ -617,6 +620,8 @@ final class KeyboardModel: ObservableObject {
         showingSnippets = false
         insertion = Insertion(inserted: inserted, text: s.expansion, raw: s.expansion, words: Self.wordCount(s.expansion))
         set(.inserted)
+        // Inserted is a selection tick, as a recent dictation's is (SF-07).
+        haptic(.copied)
     }
 
     private func reloadSnippets() {
@@ -649,15 +654,23 @@ final class KeyboardModel: ObservableObject {
         if s != .inserted { insertedBarSince = nil }
     }
 
-    /// "✓ Inserted" in the Typing bar goes back to the plain bar after a few seconds (`InsertedBar`); Undo goes
-    /// with it. The clock starts once polishing is over, when the bar first shows.
+    /// "✓ Inserted" in the Typing bar and its Undo stay until the next key press (`didType`) or until the keyboard
+    /// leaves (`pause`), never on a timer (`InsertedBar`). The clock still starts once polishing is over, for the log.
     private func expireInsertedBar() {
         guard stage == .inserted, !polishing else { return }
         guard let since = insertedBarSince else { insertedBarSince = Date(); return }
-        if InsertedBar.expired(shownFor: Date().timeIntervalSince(since), hasCorrection: correction != nil) {
+        if InsertedBar.ends(on: .time(Date().timeIntervalSince(since))) {
             insertion = nil
             set(.idle)
         }
+    }
+
+    /// The keyboard left the screen: the Inserted bar and its Undo go with it (`InsertedBar`), unless the polished
+    /// words are still on their way (their swap needs the insertion when the keyboard is back).
+    private func endInsertedBarOnLeave() {
+        guard stage == .inserted, !polishing, InsertedBar.ends(on: .keyboardLeft) else { return }
+        insertion = nil
+        set(.idle)
     }
 
     /// The memory the extension has left before iOS ends it (`os_proc_available_memory`), as a debug line in the
@@ -741,6 +754,7 @@ final class KeyboardModel: ObservableObject {
         guard let r = request else { set(.idle); return }
         if KeyboardBridge.uuid(KeyboardBridge.Key.requestFailed) == r {
             notice = defaults.string(forKey: KeyboardBridge.Key.requestMessage) ?? "Verbose couldn't start a session."
+            haptic(.failed)
             request = nil
             dropDictation()
             set(.idle)
@@ -759,6 +773,7 @@ final class KeyboardModel: ObservableObject {
             }
         } else if Date().timeIntervalSince(stageSince) > 20 {
             notice = "Verbose didn't start. Tap to try again."
+            haptic(.failed)
             request = nil
             dropDictation()
             set(.idle)
@@ -802,6 +817,7 @@ final class KeyboardModel: ObservableObject {
             insertResult(d, defaults)
         case .failed:
             notice = defaults.string(forKey: KeyboardBridge.Key.message) ?? "Dictation didn't finish."
+            haptic(.failed)
             dictation = nil
             clock.setLevel(0)
             set(.idle)
@@ -870,6 +886,7 @@ final class KeyboardModel: ObservableObject {
         clearLive()
         guard !text.isEmpty else {
             notice = "No words were heard."
+            haptic(.failed)
             set(.idle)
             return
         }
@@ -888,6 +905,8 @@ final class KeyboardModel: ObservableObject {
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: KeyboardSurface.lastInsertedKey)
         polishing = final == text && defaults.string(forKey: KeyboardBridge.Key.polishing) == d.uuidString
         set(.inserted)
+        // Your dictation landing: one selection tick, as a snippet or a recent dictation does (SF-07, GPT-27).
+        haptic(.copied)
         notice = nil
         noticeCorrections(raw: raw, inserted: final)
         reloadRecent()
@@ -934,6 +953,7 @@ final class KeyboardModel: ObservableObject {
         reloadRecent()
         set(.idle)
         notice = copied ? InsertLanding.copiedNotice : "The words didn't go in. Tap them in Recent."
+        haptic(.failed)
     }
 
     // MARK: Polish after inserting

@@ -5,14 +5,14 @@ import UIKit
 // tab bar's bottom accessory, the slot Apple Music uses for its player, on every tab but Home's own screen, where the
 // refined Record card stands in for it while it's shown (HomeSpacing.hidesRecordChrome). A tap records a voice note
 // (a thought on Thoughts, a journal entry on Journal, and a kind's tab its kind, a meeting on Meetings: `TabRecordDefault`);
-// touch and hold opens Record as, a system Menu built like Books' reading menu (an icon row for Dictate, Live
-// captions, and Import, then the ways to record, each with the line that says what it does). While a recording runs,
+// touch and hold opens Record as, the same tray Home's Record card opens (RecordTray.swift), with its light tap and its
+// rows. While a recording runs,
 // the accessory is the minimized recorder (`PhoneMiniRecorder`, the refined kit's design: the persimmon dot, the time,
 // your newest words or the kind, Pause, and Stop), and a tap brings the recorder back. The tab bar shrinks when you
 // scroll down, with Record beside it. Before iOS 26 there's no accessory, so the same content sits in an opaque bar
 // above the tab bar (`RecordBar`, MiniRecorder.swift).
 //
-// Record, its menu, and VoiceOver's actions call the same entry points as Home's Record card (RecordTray's `tap` and
+// Record, its tray, and VoiceOver's actions call the same entry points as Home's Record card (RecordTray's `tap` and
 // `PhoneState.startRecordChoice`, which run `requestRecord`), so their haptics and checks are the same. The accessory
 // sits on the system's glass, where Apple puts text (§13's layer rule); its text is the refined ink.
 
@@ -64,12 +64,12 @@ private struct PlacementReader<Content: View>: View {
 
 // MARK: - Record at rest
 
-/// The record disc, "Record" over "Voice note", and Dictate at the trailing end. A tap is the plain Record; touch and
-/// hold opens Record as (the system menu, with its own haptic on each row).
+/// The record disc, "Record" over "Voice note", and Dictations at the trailing end. A tap is the plain Record (the
+/// tab's kind); touch and hold opens the same Record as tray as Home's Record card, with its light tap on open and its
+/// rows (IP-08).
 struct AccessoryRecordButton: View {
     @Environment(PhoneState.self) var app
     var inline = false
-    @ObservedObject private var auto = TemplateSettingsModel.shared
     /// At accessibility text sizes the accessory drops its subtitle, so "Record" keeps its room.
     @Environment(\.dynamicTypeSize) private var typeSize
 
@@ -77,41 +77,38 @@ struct AccessoryRecordButton: View {
         // On Thoughts a tap records a thought, on Journal a journal entry, on a kind's tab that kind; elsewhere a voice note.
         let quick = TabRecordDefault.forTab(app.tab)
         HStack(spacing: 4) {
-            Menu {
-                RecordAsMenu(settings: auto.settings, templates: app.store.allTemplates)
-            } label: {
-                HStack(spacing: 12) {
-                    AccessoryRecordDisc(size: inline ? 22 : 28)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("Record").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
-                        if !inline, !typeSize.isAccessibilitySize {
-                            Text(quick.subtitle).refinedFont(.meta).foregroundStyle(Refined.dim)
-                        }
+            HStack(spacing: 12) {
+                AccessoryRecordDisc(size: inline ? 22 : 28)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Record").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                    if !inline, !typeSize.isAccessibilitySize {
+                        Text(quick.subtitle).refinedFont(.meta).foregroundStyle(Refined.dim)
                     }
-                    .lineLimit(1)
-                    Spacer(minLength: 0)
                 }
-                .padding(.leading, inline ? 8 : 12)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
-            } primaryAction: {
-                Self.start(quick, app)
+                .lineLimit(1)
+                Spacer(minLength: 0)
             }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
+            .padding(.leading, inline ? 8 : 12)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .recordTrayPress(.card) { Self.start(quick, app) }
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
             .accessibilityLabel("Record")
             .accessibilityHint(quick.hint)
+            .accessibilityAction { Self.start(quick, app) }
             .recordChoiceActions(app)
             .accessibilityIdentifier("accessory.record")
             if !inline {
+                // It opens Dictations (the list and how to use the keyboard), so it's named for that (IP-29).
                 Button { app.go(.dictations) } label: {
                     IconGlyph(art: .iconDictations, size: 20, color: Refined.ink)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Dictate")
-                .accessibilityHint(HomeTileAction.hint(.dictate))
+                .accessibilityLabel("Dictations")
+                .accessibilityHint("Opens your dictations and how to use the Verbose keyboard.")
                 .padding(.trailing, 4)
             }
         }
@@ -134,36 +131,10 @@ extension AccessoryRecordButton {
     }
 }
 
-/// Record as, as a system menu: Dictate, Live captions, and Import as an icon row (a ControlGroup, as Books draws Line
-/// Guide and Share), then the ways to record with what each one does. A menu is system chrome, so its items carry SF
-/// Symbols in the label color, like every item in Apple's menus; the system's highlight shows where a lift lands.
-struct RecordAsMenu: View {
-    @Environment(PhoneState.self) var app
-    var settings: AutoRunSettings
-    var templates: [TranscriptTemplate]
-    @ObservedObject private var rows = RecordAsStore.shared
-
-    var body: some View {
-        ControlGroup {
-            Button { app.go(.dictations) } label: { Label("Dictate", systemImage: "mic") }   // brand: system surface
-            Button { app.requestCaptions() } label: { Label("Live captions", systemImage: "captions.bubble") }   // brand: system surface
-            Button { app.requestImport() } label: { Label("Import", systemImage: "square.and.arrow.down") }   // brand: system surface
-        }
-        Section("Record as") {
-            ForEach(rows.visible) { c in
-                // A menu item's second Text is its subtitle.
-                Button { app.startRecordChoice(c) } label: {
-                    Label(c.name, systemImage: c.menuSymbol)
-                    Text(RecordAsMenu.hint(c, settings: settings, templates: templates))
-                }
-            }
-        }
-        // The rows you hid (Interview, Journal entry, and Talk start hidden) come back here.
-        Button { app.showRecordAsEditor = true } label: { Label("Edit Record as", systemImage: "slider.horizontal.3") }   // brand: system surface
-    }
-
-    /// The line under a kind: what runs when it finishes, or what it does (`RecordChoice.hint`). Voice note says that
-    /// Verbose picks the kind.
+/// The line under each way to record in Record as (the tray and its VoiceOver actions): what runs when it finishes, or
+/// what it does (`RecordChoice.hint`). Voice note says that Verbose picks the kind. (Record as was a system menu on
+/// the tab bar's Record until November 7, 2026; it opens the tray now, as Home's Record card does.)
+enum RecordAsMenu {
     static func hint(_ c: RecordChoice, settings: AutoRunSettings, templates: [TranscriptTemplate]) -> String {
         if case .voiceNote = c { return "Verbose picks the kind" }
         return c.hint(settings: settings, templates: templates)

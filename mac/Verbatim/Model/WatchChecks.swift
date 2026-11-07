@@ -108,7 +108,7 @@ enum WatchChecks {
         check("watch import: the chip says from the Apple Watch", p.notes.first.flatMap(Marks.chip) == "Moment 4:12 · from the Apple Watch"
               && p.notes.first.flatMap(Marks.shortSource) == "Apple Watch")
         let v = WatchImport.plan(note)
-        check("watch import: a voice note is a voice memo whose kind AutoLabel picks", v.kind == nil && v.title == "Voice memo" && v.label == WatchImport.voiceLabel)
+        check("watch import: a voice note is titled Voice note, and AutoLabel picks its kind", v.kind == nil && v.title == "Voice note" && v.label == WatchImport.voiceLabel)
         check("watch import: two marks within 3 seconds are one moment", v.notes.count == 2)
         var t = Transcript(title: p.title, source: .voiceMemo, sourceLabel: p.label, duration: 42.5, audioFileName: nil, model: "")
         t.kind = p.kind

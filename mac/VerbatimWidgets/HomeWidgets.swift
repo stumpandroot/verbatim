@@ -431,12 +431,15 @@ private struct RecordDictateView: View {
                 BarsMark(color: .primary).frame(width: 12, height: 12).widgetAccentable()
                 Text("Verbose").scaledFont(14, weight: .semibold).lineLimit(1)
             }
+            // Each pill takes half the width and the rest of the height, so neither is a 22 pt target beside the other,
+            // which starts the microphone too (SF-26).
             HStack(spacing: 6) {
                 RecordTap { lockPill("Record", record: true) }.accessibilityLabel("Record a voice note")
                 DictateTap { lockPill("Dictate", record: false) }.accessibilityLabel("Start a dictation session")
             }
+            .frame(maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
         .containerBackground(for: .widget) { Color.clear }
     }
@@ -451,7 +454,9 @@ private struct RecordDictateView: View {
             Text(title).scaledFont(12, weight: .semibold).lineLimit(1)
         }
         .padding(.horizontal, 8).padding(.vertical, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AccessoryWidgetBackground().clipShape(Capsule()))
+        .contentShape(Capsule())
     }
     #endif
 }
@@ -512,6 +517,8 @@ private struct RecentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
             .containerBackground(for: .widget) { Refined.card }
+            // Outside a row, a tap opens the Library rather than wherever Verbose was left (SF-25).
+            .widgetURL(WidgetLink.library.url)
         }
     }
 
@@ -643,6 +650,8 @@ private struct WeekView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
         .containerBackground(for: .widget) { Refined.card }
+        // A tap opens where this week's words are: the You page on iPhone, Home on the Mac (SF-25).
+        .widgetURL(WidgetLink.week.url)
     }
 }
 
@@ -1073,6 +1082,8 @@ private struct RecentDictationsView: View {
         .padding(.horizontal, 11).frame(height: 28)
         .background(Capsule().fill(skin.full ? (copied ? Refined.persimmonTint : Refined.neutral) : Color.primary.opacity(0.12)))
         .widgetAccentable()
+        // 44 pt to touch around the 28 pt pill (GPT-23).
+        .activityTarget(height: 28)
     }
 
     private func empty(_ skin: Skin) -> some View {

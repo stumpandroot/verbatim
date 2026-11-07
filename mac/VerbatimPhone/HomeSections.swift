@@ -175,9 +175,14 @@ private struct HomeDictationRow: View {
         HStack(alignment: .center, spacing: 6) {
             Button { app.open(transcript.id) } label: {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(HomeDictationText.preview(transcript))
-                        .refinedFont(.body).foregroundStyle(transcript.status == .failed ? Refined.accentText : Refined.ink)
-                        .lineLimit(large ? 2 : 1).multilineTextAlignment(.leading)
+                    if transcript.status == .failed {
+                        // A failure in danger with its glyph, never the accent (IP-10).
+                        RefinedFailure(text: HomeDictationText.preview(transcript), role: .body, lines: large ? 2 : 1)
+                    } else {
+                        Text(HomeDictationText.preview(transcript))
+                            .refinedFont(.body).foregroundStyle(Refined.ink)
+                            .lineLimit(large ? 2 : 1).multilineTextAlignment(.leading)
+                    }
                     if large {
                         HStack(spacing: 0) {
                             Text(ago).foregroundStyle(Refined.mute)
@@ -221,7 +226,7 @@ private struct HomeDictationRow: View {
             .frame(width: 36, height: 36)
             .frame(width: CGFloat(RefinedRules.minTapTarget), height: CGFloat(RefinedRules.minTapTarget))
             .contentShape(Rectangle())
-            .animation(limitMotion ? Motion.fade : .easeOut(duration: 0.18), value: copied)
+            .animation(limitMotion ? Motion.fade : Motion.touch, value: copied)
         }
         .buttonStyle(RefinedPress())
         .sensoryFeedback(trigger: copies) { _, _ in Haptics.feedback(.copied) }

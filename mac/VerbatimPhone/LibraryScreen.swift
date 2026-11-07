@@ -135,7 +135,9 @@ struct LibraryScreen: View {
                 if let p = project, !selecting { addFromLibrary(p) }
                 if searching { askAbout }
                 if !passages.isEmpty { passagesSection(passages) }
-                if items.isEmpty { emptyState(project: project) }
+                if items.isEmpty {
+                    if let k = kindTabKind, !searching, project == nil { kindEmptyState(k) } else { emptyState(project: project) }
+                }
                 ForEach(Self.daySections(lines(items)), id: \.label) { day in
                     daySection(day)
                 }
@@ -329,14 +331,17 @@ struct LibraryScreen: View {
     /// in place.
     private var chips: some View {
         let current = currentChip
-        return RefinedChipRow(label: "Filter", margin: 20) {
+        return RefinedChipRow(label: "Filter", margin: 20, selected: otherFilterName != nil ? AnyHashable("other") : current.map { AnyHashable($0) }) {
             RefinedChip(title: LibraryChip.all.label, selected: current == .all) { choose(.all) }
+                .id(AnyHashable(LibraryChip.all))
             if let other = otherFilterName {
                 RefinedChip(title: other, selected: true) { choose(.all) }
                     .accessibilityHint("Clears this filter.")
+                    .id(AnyHashable("other"))
             }
             ForEach(LibraryChip.allCases.filter { $0 != .all }) { c in
                 RefinedChip(title: c.label, selected: current == c) { choose(current == c ? .all : c) }
+                    .id(AnyHashable(c))
             }
         }
     }
@@ -516,6 +521,25 @@ struct LibraryScreen: View {
             PhonePassageCard(transcript: hit.transcript, lines: hit.lines, count: hit.count, query: search)
                 .modifier(PageRow(top: 4, bottom: 4))
         }
+    }
+
+    /// The kind this screen is the tab for (Meetings, Brain dumps), while it shows that kind and nothing else.
+    private var kindTabKind: RecordingKind? {
+        guard tabTitle != nil, typeFilter == .all, case .kind(let k) = filter, k.rawValue == route?.request else { return nil }
+        return k
+    }
+
+    /// A kind's tab with nothing in it (IP-31): the kit's empty state with the kind's glyph and color, what it's for,
+    /// and how to record one, instead of "Choose All".
+    private func kindEmptyState(_ k: RecordingKind) -> some View {
+        let name = RecordChoice.kind(k).name
+        let title = k == .audio ? "No Audio only recordings yet" : "No \(k.plural.lowercased()) yet"
+        return RefinedEmptyState(art: k.refinedArt, hue: k.refinedHue, title: title,
+                                 message: "Tap Record below to start one, or touch and hold Record and choose \(name).",
+                                 action: k == .audio ? "Record audio only" : "Record \(k == .interview ? "an" : "a") \(name.lowercased())") {
+            AccessoryRecordButton.start(TabRecordDefault.forTab(app.tab), app)
+        }
+        .modifier(PageRow(top: 16, bottom: 8))
     }
 
     private func emptyState(project: UUID?) -> some View {

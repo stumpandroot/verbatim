@@ -147,31 +147,20 @@ struct VoiceProfileScreen: View {
                 .disabled(!status.isEnrolled)
             if status.isEnrolled || status.isPartial {
                 SettingsDivider()
-                if confirmingDelete {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Delete your voice profile from this iPhone?").scaledFont(16, weight: .semibold).foregroundStyle(Refined.ink)
-                        Text("Transcripts stop naming you You. You can set it up again any time.")
-                            .scaledFont(14).foregroundStyle(Refined.mute)
-                            .fixedSize(horizontal: false, vertical: true)
-                        HStack(spacing: 10) {
-                            Button("Cancel") { confirmingDelete = false }.buttonStyle(RefinedActionStyle(kind: .quiet))
-                            Button("Delete") {
-                                status.delete()
-                                confirmingDelete = false
-                                overview = false
-                                model.backToIntro()
-                            }
-                            .buttonStyle(RefinedActionStyle(kind: .strong))
-                            .accessibilityLabel("Delete voice profile")
-                        }
+                // The system's destructive confirmation, red Delete and all (IP-40): it's permanent, so it asks.
+                Button { confirmingDelete = true } label: {
+                    SettingsRow(hue: .persimmon, art: .iconDeleteAll, title: "Delete voice profile", danger: true) { EmptyView() }
+                }
+                .buttonStyle(SettingsRowPress())
+                .confirmationDialog("Delete your voice profile from this iPhone?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                    Button("Delete voice profile", role: .destructive) {
+                        status.delete()
+                        overview = false
+                        model.backToIntro()
                     }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    Button { confirmingDelete = true } label: {
-                        SettingsRow(hue: .persimmon, art: .iconDeleteAll, title: "Delete voice profile", danger: true) { EmptyView() }
-                    }
-                    .buttonStyle(SettingsRowPress())
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Transcripts stop naming you You. You can set it up again any time.")
                 }
             }
         }

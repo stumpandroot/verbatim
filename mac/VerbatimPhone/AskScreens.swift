@@ -94,7 +94,7 @@ struct AskScreen: View {
                     if let r = center.result, center.phase == .done {
                         Button { UIPasteboard.general.string = r.copyText; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", systemImage: "doc.on.doc") }   // brand: system surface (menu)
                         if recipesShown {
-                            Button { editing = RecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as Recipe", systemImage: "bookmark") }   // brand: system surface (menu)
+                            Button { editing = RecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as recipe", systemImage: "bookmark") }   // brand: system surface (menu)
                         }
                     }
                     if recipesShown {

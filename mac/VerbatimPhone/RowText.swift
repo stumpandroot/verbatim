@@ -13,7 +13,7 @@ enum RecordingRowTitle {
         guard trimmed.isEmpty || placeholders.contains(trimmed) else { return trimmed }
         let what: String
         if t.kind == .idea { what = "Thought" }
-        else if trimmed.isEmpty || trimmed == "Voice memo" || trimmed == "Untitled" { what = t.isDictation ? "Dictation" : "Voice note" }
+        else if trimmed.isEmpty || trimmed == "Voice memo" || trimmed == "Voice note" || trimmed == "Untitled" { what = t.isDictation ? "Dictation" : "Voice note" }
         else { what = trimmed }
         guard withTime else { return what }
         return "\(what) · \(Formats.style(date: .none, time: .short).string(from: t.createdAt))"

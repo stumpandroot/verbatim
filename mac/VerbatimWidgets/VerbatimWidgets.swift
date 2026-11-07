@@ -390,7 +390,7 @@ private struct RibbonButton<I: AppIntent>: View {
                 .padding(.vertical, 8)
                 .background(primary ? Refined.persimmonFixed : (onDark ? Color.white.opacity(0.12) : Refined.inkFixed.opacity(0.08)),
                             in: Capsule())
-                .contentShape(Capsule())
+                .activityTarget(height: 34)
         }
         .buttonStyle(.plain)
     }

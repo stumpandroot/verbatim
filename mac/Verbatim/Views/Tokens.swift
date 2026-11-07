@@ -313,6 +313,17 @@ extension View {
     }
 }
 
+// MARK: - Touch targets
+
+extension View {
+    /// A 44 pt touch area around a control drawn smaller (a Live Activity's or a widget's button, a keyboard chip),
+    /// without changing its layout (GPT-23, SF-26): the area grows past the drawn shape on each side that's under 44 pt.
+    func activityTarget(width: CGFloat? = nil, height: CGFloat) -> some View {
+        let v = max(0, (44 - height) / 2), h = width.map { max(0, (44 - $0) / 2) } ?? 0
+        return padding(.vertical, v).padding(.horizontal, h).contentShape(Rectangle()).padding(.vertical, -v).padding(.horizontal, -h)
+    }
+}
+
 // MARK: - Apple Watch
 
 /// The Apple Watch app and its complications (DESIGN.md §20). Always dark: the page is the dark paper, text is paper,

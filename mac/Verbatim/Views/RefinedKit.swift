@@ -699,15 +699,29 @@ struct RefinedChip: View {
 struct RefinedChipRow<Content: View>: View {
     var label = "Filter"
     var margin: CGFloat = 0
+    /// The chosen chip's `.id`: the row scrolls it into view when it appears and when the choice changes, at once,
+    /// so the selection is never off screen (IP-21).
+    var selected: AnyHashable? = nil
     @ViewBuilder var content: Content
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) { content }
-                .padding(.horizontal, margin)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) { content }
+                    .padding(.horizontal, margin)
+            }
+            .onAppear { reveal(proxy) }
+            .onChange(of: selected) { _, _ in reveal(proxy) }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(label)
+    }
+
+    private func reveal(_ proxy: ScrollViewProxy) {
+        guard let selected else { return }
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t) { proxy.scrollTo(selected, anchor: .center) }
     }
 }
 

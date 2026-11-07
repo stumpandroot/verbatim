@@ -45,14 +45,24 @@ enum KeyboardMode: Equatable {
     }
 }
 
-/// How long the Typing bar shows "✓ Inserted" before it goes back to the plain bar (longer with a spoken-correction
-/// notice, which has more to read).
+/// How long the Typing bar shows "✓ Inserted" with Undo (and a spoken correction's notice): until the next key press
+/// or until the keyboard goes away, never on a timer, so Undo is there for as long as it's yours to take (DESIGN.md §7;
+/// SF-06, GPT-22). It used to go after 5 s (12 s with a correction).
 enum InsertedBar {
-    static let seconds: TimeInterval = 5
-    static let correctionSeconds: TimeInterval = 12
+    enum Event: Equatable {
+        /// A key in the typing view changed the text.
+        case keyPress
+        /// The keyboard left the screen (another keyboard, the app closed, the field lost focus).
+        case keyboardLeft
+        /// Time passed with the bar on screen.
+        case time(TimeInterval)
+    }
 
-    static func expired(shownFor t: TimeInterval, hasCorrection: Bool) -> Bool {
-        t >= (hasCorrection ? correctionSeconds : seconds)
+    static func ends(on event: Event) -> Bool {
+        switch event {
+        case .keyPress, .keyboardLeft: return true
+        case .time: return false
+        }
     }
 }
 

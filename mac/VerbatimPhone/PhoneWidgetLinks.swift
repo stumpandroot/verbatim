@@ -20,6 +20,12 @@ extension PhoneState {
         case .dictations?:
             Log.note("widget: opened Dictations")
             go(.dictations)
+        case .library?:
+            Log.note("widget: opened the Library")
+            go(.library)
+        case .week?:
+            Log.note("widget: opened the You page (This week)")
+            openSettings(page: "you")
         default:
             return false
         }

@@ -12,6 +12,8 @@ import UIKit
 /// in both appearances.
 enum KB {
     static var uiInk: UIColor { Refined.uiColor(RefinedHex.ink) }
+    /// The least a control is to touch, as in the app (44 pt).
+    static let minTarget: Double = 44
 
     static let paper = Refined.paper
     static let ink = Refined.ink
@@ -149,18 +151,14 @@ struct KeyboardView: View {
         }
     }
 
-    /// Close (to Typing) on the left; ABC, Recent, and Settings on the right. The session's time left sits between,
-    /// when the app set an idle timeout.
+    /// The session's time left on the left, when the app set an idle timeout; ABC, Recent, and Settings on the right.
+    /// ABC is the one way back to the letter keys, as Apple's mode keys are (the xmark that did the same retired; SF-22).
     private var homeBar: some View {
         bar {
-            CircleButton(look: .soft, action: model.showTyping) { Image(systemName: "xmark").font(.system(size: 16, weight: .medium)) }
-                .accessibilityLabel("Close")
-                .accessibilityHint("Shows the typing keyboard")
-            Spacer(minLength: 6)
             if model.hasFullAccess, model.sessionLive, let ends = model.sessionEndsAt {
-                SessionCountdown(clock: model.clock, endsAt: ends)
-                Spacer(minLength: 6)
+                SessionCountdown(clock: model.clock, endsAt: ends).padding(.leading, 4)
             }
+            Spacer(minLength: 6)
             CircleButton(look: .outline, action: model.showTyping) {
                 Text("ABC").font(.system(size: 15, weight: .bold))
             }
@@ -254,8 +252,9 @@ struct KeyboardView: View {
     }
 
     private var globe: some View {
+        // 44 pt to touch, the glyph centered in it (SF-19): at the bar's edge a miss used to land on Tap to talk's row.
         GlobeKey(controller: model.controllerForGlobe)
-            .frame(width: 34, height: 34)
+            .frame(width: CGFloat(KB.minTarget), height: CGFloat(KB.minTarget))
             .accessibilityLabel("Next keyboard")
     }
 
@@ -835,8 +834,9 @@ private struct MenuCard: View {
         .padding(6)
         .frame(width: 228)
         .background(KB.card, in: RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous))
+        // A hairline separates it, with no soft shadow (DESIGN.md §5.4; SF-20); the separator strengthens under
+        // Increase Contrast.
         .overlay(RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous).strokeBorder(KB.hairline, lineWidth: 1))
-        .shadow(color: Color.black.opacity(0.18), radius: 10, y: 4)
         .accessibilityElement(children: .contain)
         .accessibilityAction(.escape) { model.closeMenu() }
     }
@@ -854,7 +854,7 @@ private struct MenuCard: View {
                     Text(value).scaledFont(12).monospacedDigit().foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.75)
                 }
             }
-            .padding(.horizontal, 10).frame(height: 40)
+            .padding(.horizontal, 10).frame(height: CGFloat(KB.minTarget))
             .contentShape(Rectangle())
         }
         .buttonStyle(MenuRowPress())
@@ -986,7 +986,8 @@ private struct FullAccessCard: View {
                 .font(KB.serif(21)).foregroundStyle(KB.ink)
                 .multilineTextAlignment(.center)
                 .lineLimit(1).minimumScaleFactor(0.75)
-            Text("So the Verbose app can pass your words to this keyboard. Typing works without it.")
+            // The on-device promise where you decide (SF-21), as the app's keyboard page says it.
+            Text("So the Verbose app can pass your words to this keyboard. Nothing you type leaves this iPhone. Typing works without it.")
                 .scaledFont(12.5).foregroundStyle(KB.muted)
                 .multilineTextAlignment(.center).lineSpacing(1.5)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1142,7 +1143,7 @@ private struct CleanupChip: View {
             }
             .padding(.horizontal, 12).frame(height: 34)
             .background(KB.wash, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+            .keyboardTarget(visible: 34)
         }
         .buttonStyle(PressFade())
         .disabled(!enabled)
@@ -1296,7 +1297,7 @@ private struct Chip: View {
             Text(title).scaledFont(13.5, weight: .semibold).foregroundStyle(KB.ink).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 34)
                 .background(KB.wash, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+                .keyboardTarget(visible: 34)
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(title)
@@ -1312,10 +1313,19 @@ private struct DarkPill: View {
             Text(title).scaledFont(13, weight: .semibold).foregroundStyle(KB.paper).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 30)
                 .background(KB.ink, in: Capsule())
-                .contentShape(Capsule())
+                .keyboardTarget(visible: 30)
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(title)
+    }
+}
+
+extension View {
+    /// A 44 pt target around a smaller chip or pill (SF-19, GPT-23): the touch area grows above and below without
+    /// moving anything in the bar.
+    func keyboardTarget(visible height: CGFloat) -> some View {
+        let grow = max(0, (CGFloat(KB.minTarget) - height) / 2)
+        return padding(.vertical, grow).contentShape(Rectangle()).padding(.vertical, -grow)
     }
 }
 

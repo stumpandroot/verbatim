@@ -466,6 +466,14 @@ struct IconPlate: View {
 }
 
 #if os(iOS)
+extension Label where Title == Text, Icon == Image {
+    /// A menu row with a brand icon as a template image: context menus draw only images, so `Label(_:art:)`'s drawn
+    /// icon showed nothing there (IP-19). `key` names the rendered image in the cache.
+    @MainActor init(_ title: String, menuArt art: BrandArt, key: String) {
+        self.init { Text(title) } icon: { Image(uiImage: art.templateImage(size: 20, key: "menu-\(key)")) }
+    }
+}
+
 extension BrandArt {
     /// The icon as a template image for places that only take an Image (tab bar items), so the system tints it
     /// for selection, Dark mode, and Liquid Glass. Rendered once per art and size.

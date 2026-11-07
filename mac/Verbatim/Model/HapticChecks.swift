@@ -41,8 +41,10 @@ enum HapticChecks {
         var typing = keyboard
         typing.typingKeys = true
         check("haptics: with Typing haptics on, each key is a light tap at 0.6", typing.haptic(for: .typingKey) == .impact(.light, intensity: 0.6))
+        check("haptics: the keyboard's failures (couldn't start, didn't finish, no words) are an error, as the app's are",
+              keyboard.haptic(for: .failed) == .error && keyboard.haptic(for: .failed) == phone.haptic(for: .failed))
         check("haptics: the keyboard plays nothing for the app's other events",
-              [HapticEvent.pause, .mark, .transcriptReady, .recordingSaved, .milestone, .failed, .autoPaused, .smallSave].allSatisfy { keyboard.haptic(for: $0) == nil })
+              [HapticEvent.pause, .mark, .transcriptReady, .recordingSaved, .milestone, .autoPaused, .smallSave].allSatisfy { keyboard.haptic(for: $0) == nil })
 
         // The watch: start, click, stop, failure, and nothing else.
         let watch = HapticPolicy(enabled: true, platform: .watch)
