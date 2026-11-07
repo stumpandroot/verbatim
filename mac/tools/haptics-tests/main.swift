@@ -104,6 +104,19 @@ check("moments: Stop and Discard tap before saving", before("Haptics.play(.recor
 let afterSave = finish.components(separatedBy: "await recorder.stopAndSave(").dropFirst().joined()
 let afterSavePlays = afterSave.components(separatedBy: "Haptics.play(").dropFirst().map { String($0.prefix(while: { $0 != ")" })) }
 check("moments: nothing plays after saving but an error", afterSavePlays.allSatisfy { $0 == ".failed" }, "\(afterSavePlays)")
+// A recording saved from the recorder's Stop adds `.success` as the stop ring fills (DESIGN.md §7, Celebrations): only
+// through the ring, only for a saved recording, never for Discard or a thought (RecordingFinish decides).
+let ring = body(phone, "private func finishRing(")
+check("moments: success for a saved recording plays only through the stop ring, once it's saved",
+      ring.contains("if haptic && saved { Haptics.play(.recordingSaved) }") && finish.contains("RecordingFinish.phone(source: source, discard: discard")
+      && before("await recorder.stopAndSave(", "await finishRing(ring, tapped: tapped, saved: saved, haptic: plan.haptic)", in: finish)
+      && phone.components(separatedBy: "Haptics.play(.recordingSaved)").count == 2, ring)
+check("moments: only the recorder's own Stop passes its source", read("VerbatimPhone/RecorderSheet.swift").contains("app.stopRecording(from: .recorderButton)")
+      && code.filter { $0.1.contains("stopRecording(from: .recorderButton)") }.count == 1)
+let ready = body(phone, "private func playReady(")
+check("moments: the ready haptic and sound wait for the celebration's fill, or play at once with nothing on screen",
+      ready.contains("Haptics.play(.transcriptReady)") && ready.contains("feedback?(); return nil") && ready.contains("feedback: feedback)"), ready)
+check("moments: a word milestone is success as its fill completes, on Home", read("VerbatimPhone/HomeScreen.swift").contains("{ Haptics.play(.milestone) }"))
 check("moments: Live captions tap before their microphone opens",
       before("Haptics.play(.recordStart)", "try recorder.start(to: url)", in: read("VerbatimPhone/LiveCaptionsScreen.swift")))
 check("moments: the keyboard session taps before its microphone opens",
