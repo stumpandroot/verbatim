@@ -872,7 +872,7 @@ private struct ThoughtsLockView: View {
 /// and Copy. The header, and any tap outside a button, opens Dictations. A dictation too long to keep whole in the
 /// snapshot shows a chevron instead of Copy and opens in Verbose. None yet: "No dictations yet."
 struct RecentDictationsWidget: Widget {
-    static let kind = "co.stumpandroot.verbatim.ios.widget.dictations"
+    static let kind = CopyDictationIntent.widgetKind
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: Self.kind, provider: DictationsProvider()) { entry in
