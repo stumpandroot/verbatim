@@ -1,11 +1,13 @@
 import SwiftUI
 
 /// Library › Recently Deleted on the iPhone, on the refined kit (DESIGN.md §13): the serif title
-/// with the count, the deleted recordings on a card with the days each has left, swipe right to restore and left to
-/// delete now, and Restore all or Empty in the bar's menu.
+/// with the count, the deleted recordings on a card with the days each has left, swipe right to restore and left for
+/// Delete now (no full swipe; it asks first), and Restore all or Empty in the bar's menu.
 struct TrashScreen: View {
     @Environment(PhoneState.self) var app
     @State private var confirmEmpty = false
+    /// The transcript whose Delete now is waiting for your answer.
+    @State private var confirmDelete: Transcript?
     var body: some View {
         // `store.trash` filters and sorts every transcript; read it once per render.
         let trash = app.store.trash
@@ -34,7 +36,12 @@ struct TrashScreen: View {
                         Button { app.restore(t.id) } label: { Label("Restore", systemImage: "arrow.uturn.backward") }   // brand: system surface (swipe action)
                             .tint(Refined.sageText)
                     }
-                    .swipeActions(edge: .trailing) { Button(role: .destructive) { app.purge(t.id) } label: { Label("Delete now", systemImage: "trash") } }
+                    // Delete now ends recovery, so it never fires on a full swipe and asks first, as Empty does (GPT-04).
+                    // No destructive role: that role takes the row away before you've answered.
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button { confirmDelete = t } label: { Label("Delete now", systemImage: "trash") }
+                            .tint(Refined.danger)
+                    }
                 }
             }
             .listRowBackground(Refined.card)
@@ -56,6 +63,11 @@ struct TrashScreen: View {
             Button("Delete permanently", role: .destructive) { emptyTrash(trash) }
             Button("Cancel", role: .cancel) {}
         } message: { Text("Their audio and text are deleted for good, on every device that syncs them. You can’t undo this.") }
+        .confirmationDialog("Delete this transcript now?", isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
+                            titleVisibility: .visible, presenting: confirmDelete) { t in
+            Button("Delete permanently", role: .destructive) { app.purge(t.id); confirmDelete = nil }
+            Button("Cancel", role: .cancel) { confirmDelete = nil }
+        } message: { _ in Text("Its audio and text are deleted for good, on every device that syncs it. You can’t undo this.") }
     }
 
     private func restoreAll(_ list: [Transcript]) {
