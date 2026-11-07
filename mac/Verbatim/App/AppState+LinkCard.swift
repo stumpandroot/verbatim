@@ -7,7 +7,9 @@ extension AppState {
     // MARK: The card
 
     /// `fromKeyboard`: ⌘V, or Return in the link field, shows the card at once (MAC-10).
-    func showLinkCard(_ id: UUID, fromKeyboard: Bool = AppState.handlingKeyPress) {
+    /// (Nil reads the current event: a default argument can't read main-actor state.)
+    func showLinkCard(_ id: UUID, fromKeyboard: Bool? = nil) {
+        let fromKeyboard = fromKeyboard ?? AppState.handlingKeyPress
         // A second paste replaces the card on screen; the first link still counts in Queue.
         if let old = linkCardID, old != id { linkBadgeHeld.remove(old); retireLinkImportIfDone(old) }
         linkBadgeHeld.insert(id)
