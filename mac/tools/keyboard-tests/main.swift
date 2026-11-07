@@ -311,5 +311,29 @@ check("unknown: text but nothing reported before the cursor", InsertLanding.verd
 check("no words is never missing", InsertLanding.verdict(before: "", hasText: false, inserted: "  ") == .landed)
 check("the notice has no em dash or exclamation point", !InsertLanding.copiedNotice.contains("\u{2014}") && !InsertLanding.copiedNotice.contains("!"))
 
+// MARK: Undo and Use as spoken reverse only their own insertion (InsertionGuard.swift)
+
+let put = " Running ten minutes late, save me a seat."
+check("undo: the field still ends with the words", InsertionGuard.recovery(inserted: put, before: "Hey." + put, sameField: true, selected: nil) == .allowed)
+check("undo: a host that reports only the last 16+ characters", InsertionGuard.recovery(inserted: put, before: "late, save me a seat.", sameField: true, selected: "") == .allowed)
+check("undo off: too little reported to be sure", InsertionGuard.recovery(inserted: put, before: "a seat.", sameField: true, selected: nil) == .blocked("too little text before the cursor to be sure"))
+check("undo: a partial report right after a line break inside the words", InsertionGuard.recovery(inserted: "Hi\nok", before: "ok", sameField: true, selected: nil) == .allowed)
+check("undo off: the cursor moved (other words before it)", InsertionGuard.recovery(inserted: put, before: "Hey." + put + " More", sameField: true, selected: nil) == .blocked("the text before the cursor changed"))
+check("undo off: the cursor moved back into the words", InsertionGuard.recovery(inserted: put, before: "Hey. Running ten minutes", sameField: true, selected: nil) != .allowed)
+check("undo off: another field", InsertionGuard.recovery(inserted: put, before: "Hey." + put, sameField: false, selected: nil) == .blocked("a different text field"))
+check("undo off: text is selected", InsertionGuard.recovery(inserted: put, before: "Hey." + put, sameField: true, selected: "seat") == .blocked("text is selected"))
+check("undo off: the host reports nothing", InsertionGuard.recovery(inserted: put, before: nil, sameField: true, selected: nil) != .allowed
+      && InsertionGuard.recovery(inserted: put, before: "", sameField: true, selected: nil) != .allowed)
+check("undo off: nothing was inserted", InsertionGuard.recovery(inserted: "", before: "Hey.", sameField: true, selected: nil) != .allowed)
+check("undo off: the words were edited after inserting", InsertionGuard.recovery(inserted: put, before: "Hey. Running ten minutes late, save me a chair.", sameField: true, selected: nil) != .allowed)
+check("polish swap uses the same ending check", InsertionGuard.ending(before: "x" + put, inserted: put) == .matches
+      && InsertionGuard.ending(before: "t.", inserted: put) == .tooShort && InsertionGuard.ending(before: "zzz", inserted: put) == .changed)
+check("host change: still lined up keeps Undo", InsertionGuard.keepAfterHostChange(inserted: put, before: "Hey." + put, sameField: true, selected: nil, age: 3))
+check("host change: cursor moved withdraws Undo", !InsertionGuard.keepAfterHostChange(inserted: put, before: "Hey.", sameField: true, selected: nil, age: 3))
+check("host change: a late report just after inserting keeps Undo", InsertionGuard.keepAfterHostChange(inserted: put, before: "Hey.", sameField: true, selected: nil, age: 0.1))
+check("host change: a selection withdraws Undo even just after inserting", !InsertionGuard.keepAfterHostChange(inserted: put, before: "Hey." + put, sameField: true, selected: "Hey", age: 0.1))
+check("host change: another field withdraws Undo even just after inserting", !InsertionGuard.keepAfterHostChange(inserted: put, before: "Hey." + put, sameField: false, selected: nil, age: 0.1))
+check("the changed notice has no em dash or exclamation point", !InsertionGuard.changedNotice.contains("\u{2014}") && !InsertionGuard.changedNotice.contains("!"))
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
