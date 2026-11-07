@@ -1,7 +1,9 @@
 {
   "notes": [
     {
-      "build": "next",
+      "build": "302",
+      "date": "2026-11-07",
+      "version": "1.0 beta",
       "title": "Names and titles for calls without an invite",
       "items": [
         {
