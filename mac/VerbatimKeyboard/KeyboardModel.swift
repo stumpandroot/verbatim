@@ -539,6 +539,7 @@ final class KeyboardModel: ObservableObject {
         let new = lead + ins.raw
         proxy?.insertText(new)
         ins.inserted = new; ins.text = ins.raw; ins.words = Self.wordCount(ins.raw)
+        ins.at = Date()   // a fresh insertion: the host gets InsertionGuard.settle to catch up
         insertion = ins
         // You chose your own words: a polished version arriving later doesn't replace them.
         polishing = false
@@ -1019,6 +1020,7 @@ final class KeyboardModel: ObservableObject {
             updated.inserted = new
             updated.text = polished
             updated.words = Self.wordCount(polished)
+            updated.at = Date()   // a fresh insertion: the host gets InsertionGuard.settle to catch up
             insertion = updated
             haptic(.picked)
             report(d, "swapped")
