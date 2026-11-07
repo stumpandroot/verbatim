@@ -11,7 +11,7 @@ import WatchKit
 // through `WatchRecorder`; all three ask this policy first. The Mac plays none.
 //
 // One cause, one haptic. Start and stop are clear system taps, frequent actions a selection tick or a light tap, and
-// `.success` marks a finished transcript once per recording. Every haptic comes with something you can see. The system
+// `.success` marks a finished transcript once per recording and a recording saved from the recorder's Stop. Every haptic comes with something you can see. The system
 // skips a haptic it can't play (System Haptics off, Vibration off, an iPad, or Verbose in the background), so callers
 // never check for that; nothing here tries to play from the background.
 
@@ -22,6 +22,9 @@ enum HapticEvent: String, CaseIterable {
     case recordStart
     /// Stop, Stop & add, Discard, Live captions' Stop or Save, the keyboard's Done: at the tap, not after saving.
     case recordStop
+    /// The recorder's Stop, tapped, has saved the recording: `.success` as the stop ring finishes filling
+    /// (RecordingFinish in CelebrationRules.swift). Never for Discard, a thought, or a stop from outside the recorder.
+    case recordingSaved
     case pause
     case resume
     /// Mark a moment while recording (`HapticPolicy.markBuzzes`).
@@ -39,7 +42,7 @@ enum HapticEvent: String, CaseIterable {
     case copied
     /// A note or bookmark added, a speaker suggestion used, moved to a project.
     case smallSave
-    /// A rare milestone: Your voice set up.
+    /// A rare milestone: Your voice set up, and a word milestone (1, 10,000, 100,000 words) as its fill completes.
     case milestone
     /// Send to Reminders added a plan's tasks (DayPlan.swift): `.success`, with "Added 9 reminders to Studio" showing.
     case sentToReminders
@@ -111,7 +114,7 @@ struct HapticPolicy {
             case .recordStop: return Self.stop
             case .pause, .resume: return Self.pauseTap
             case .mark: return Self.markBuzzes ? Self.markTap : nil
-            case .transcriptReady, .milestone, .sentToReminders: return .success
+            case .transcriptReady, .recordingSaved, .milestone, .sentToReminders: return .success
             case .failed: return .error
             case .autoPaused, .lowStorage: return .warning
             case .copied, .picked: return .selection

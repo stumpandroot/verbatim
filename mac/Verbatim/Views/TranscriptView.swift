@@ -32,6 +32,12 @@ struct TranscriptView: View {
     /// with the window's toolbar and inspector (MacChrome.swift).
     @EnvironmentObject private var nav: WindowNav
     @Environment(\.limitMotion) private var limitMotion
+    /// The transcript finishing while it's open (DESIGN.md §7, Celebrations).
+    @ObservedObject private var celebrations = CelebrationCenter.shared
+
+    /// This transcript finishing on its own screen: the processing card stays until its celebration ends, then the text
+    /// replaces it.
+    private var readyTicket: CelebrationTicket? { celebrations.ready[id].flatMap { $0.surface == .transcript ? $0 : nil } }
 
     /// Raw values stay stable: UI tests, Home, and Fix all post them in `.verbatimShowMode`.
     enum Mode: String, CaseIterable {
@@ -111,6 +117,7 @@ struct TranscriptView: View {
             .onAppear {
                 if UITest.enabled { Log.note("UITEST nav appear ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000)) segments=\(t.segments.count)") }
                 Self.onScreen += 1
+                celebrations.transcriptAppeared(id)
                 // Opened from search, a link, a note, or an Ask citation: land on that passage, on Original.
                 let focus = app.focusSegment.flatMap { f in t.segments.first { $0.id == f } }
                 nav.opened(t, focus: focus != nil)
@@ -128,6 +135,7 @@ struct TranscriptView: View {
             // Stops only when the last screen for this transcript goes and no other transcript took playback.
             .onDisappear {
                 Self.onScreen = max(0, Self.onScreen - 1)
+                celebrations.transcriptLeft(id)
                 if nav.stillViewer?.transcript == id { nav.stillViewer = nil }
                 if app.player.screenLeft(id) { app.player.stop() }
             }
@@ -171,7 +179,8 @@ struct TranscriptView: View {
                 if nav.follow, app.player.isPlaying, view == .original, !nav.selecting,
                    let s = t.segments.first(where: { now >= $0.start && now < $0.end }), s.id != followed {
                     followed = s.id
-                    withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
+                    // Limit animation jumps to the passage instead of scrolling to it.
+                    withAnimation(limitMotion ? nil : Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
                 }
             }
             .onChange(of: scrollTarget, initial: true) { _, target in
@@ -327,7 +336,7 @@ struct TranscriptView: View {
     // MARK: Content per tab
 
     @ViewBuilder private func content(_ t: Transcript) -> some View {
-        if t.status == .processing { processing(t) }
+        if t.status == .processing || readyTicket != nil { processing(t).transition(.opacity) }
         else if t.status == .failed { failed(t) }
         else {
             // A tab change slides the body in from the side of the tab you picked as the old one fades (DESIGN.md §7, view switches).
@@ -460,17 +469,27 @@ struct TranscriptView: View {
         }
     }
 
+    /// The processing card. When the transcript finishes while it's open (with Verbose in front), its tint fills the
+    /// card, "Ready" shows, and then the text replaces it (DESIGN.md §7, Celebrations); nothing around it moves.
     private func processing(_ t: Transcript) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                SignalRings().frame(width: 40, height: 40).padding(6)
-                VStack(alignment: .leading, spacing: 2) {
-                    LiveStage(t) { t in Text(t.stageText).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink) }
-                    Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.").refinedFont(.meta).foregroundStyle(Refined.mute)
+        CelebrationBurst(ticket: readyTicket, script: .transcript) { burst in
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
+                    SignalRings().frame(width: 40, height: 40).padding(6)
+                    VStack(alignment: .leading, spacing: 2) {
+                        LiveStage(t) { t in Text(t.status == .processing ? t.stageText : "Transcribing").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink) }
+                        Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.").refinedFont(.meta).foregroundStyle(Refined.mute)
+                    }
                 }
-            }
-            ForEach(0..<4, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 4).fill(Refined.neutral).frame(width: CGFloat([480, 420, 500, 300][i]), height: 14).padding(.vertical, 6)
+                .opacity(burst.active ? burst.old : 1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .celebrationWord(burst.active ? CelebrationWord.ready : nil, state: burst, size: 16)
+                .celebrationSweep(readyTicket?.tone.tint ?? Refined.persimmonTint, state: burst, radius: RefinedPlatform.radius(.card), outset: 8)
+                .scaleEffect(burst.active ? burst.scale : 1)
+                ForEach(0..<4, id: \.self) { i in
+                    RoundedRectangle(cornerRadius: 4).fill(Refined.neutral).frame(width: CGFloat([480, 420, 500, 300][i]), height: 14).padding(.vertical, 6)
+                }
+                .opacity(burst.active ? burst.old : 1)
             }
         }
     }

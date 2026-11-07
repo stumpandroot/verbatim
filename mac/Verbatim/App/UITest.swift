@@ -156,6 +156,11 @@ enum UITest {
             // The build 228 review's Mac fixes (Thoughts, Settings and You, surfaces, the kit).
             await reviewFixesMacB(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
+            // Motion (DESIGN.md §7): Undo toasts and ⌘Z, and navigation from the keyboard.
+            await motionSteps(app: app, window: window)
+            // Celebrations (DESIGN.md §7): the open transcript's Ready, the Record card's Saved, and a milestone.
+            await celebrationSteps(app: app, window: window)
+            window.makeKeyAndOrderFront(nil)
             logicChecks()
             // Dictation polish: timing, pause hints, paste decisions, and cleanup's time limit.
             await DictationPolishChecks.run { name, ok in
@@ -3338,6 +3343,130 @@ extension UITest {
     }
 
     /// View › `title`, validated as the menu bar would before it opens.
+    /// Motion's rules (MotionChecks), then in the window: Delete's Undo toast is still there after 6 s and ⌘Z runs it,
+    /// a message alone still goes after 4.5 s, and a navigation from the keyboard shows the screen at once while a click
+    /// still slides it in.
+    static func motionSteps(app: AppState, window: NSWindow) async {
+        MotionChecks.run { check($0, $1) }
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+
+        var t = Transcript(title: "Self-test undo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 8, audioFileName: nil, model: "Test")
+        t.segments = [Segment(start: 0, end: 8, text: "A seeded line for Delete's Undo.", speaker: "S1")]
+        t.original = t.segments
+        app.store.add(t)
+        let id = t.id
+        app.delete([id])
+        let toast = app.toast
+        check("motion: Delete offers Undo", toast?.action == ToastUndo.title && app.store.transcript(id)?.deletedAt != nil)
+        try? await Task.sleep(nanoseconds: 6_000_000_000)
+        check("motion: a toast with Undo is still showing after 6 s", app.toast != nil && app.toast?.id == toast?.id)
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(nil)
+        let z = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
+                                 windowNumber: window.windowNumber, context: nil, characters: "z", charactersIgnoringModifiers: "z",
+                                 isARepeat: false, keyCode: 6)
+        let used = z.map { ToastUndoKey.shared.handle($0) } ?? false
+        check("motion: ⌘Z runs the toast's Undo and restores the transcript", used && app.toast == nil && app.store.transcript(id)?.deletedAt == nil)
+        if let x = app.store.transcript(id) { app.store.delete(x) }
+
+        app.toast = Toast("Self-test message")
+        let plain = app.toast?.id
+        try? await Task.sleep(nanoseconds: 5_100_000_000)
+        check("motion: a message alone still goes after 4.5 s", plain != nil && app.toast?.id != plain)
+        let shift = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: ProcessInfo.processInfo.systemUptime,
+                                     windowNumber: window.windowNumber, context: nil, characters: "Z", charactersIgnoringModifiers: "z",
+                                     isARepeat: false, keyCode: 6)
+        var ran = false
+        app.toast = Toast("Self-test redo", action: ToastUndo.title) { ran = true }
+        let redoLeft = shift.map { !ToastUndoKey.shared.handle($0) } ?? false
+        check("motion: ⇧⌘Z leaves the toast alone", redoLeft && !ran && app.toast != nil)
+        app.toast = nil
+
+        // Navigation: from the keyboard at once, from a click with the slide.
+        app.fromKeyboard { app.go(.library) }
+        let byKey = app.nav.keyboard && !app.navFromKeyboard
+            && NavEntrance.of(launch: false, keyboard: app.nav.keyboard, limited: false) == .still
+        check("motion: a navigation from the keyboard shows the screen without the slide", byKey && app.screen == .library)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        await step("motion: a click still slides the screen in", window, target: "side-home",
+                   check: { app.screen == .home && !app.nav.keyboard })
+    }
+
+    /// Celebrations (DESIGN.md §7, Celebrations; CelebrationRules.swift): the rules, then in the window, each held at its
+    /// end state for a still (`CelebrationCenter.holdsEnd`) and cleared before the next: a transcript finishing while
+    /// it's open, "Saved" on Home's Record card, and 10,000 words on This week. A dictation finishing celebrates nowhere,
+    /// and nothing is left showing.
+    static func celebrationSteps(app: AppState, window: NSWindow) async {
+        CelebrationChecks.run { check($0, $1) }
+        let center = CelebrationCenter.shared
+        func clear() async {
+            center.holdsEnd = false
+            center.clearAll()
+            app.toast = nil
+            try? await Task.sleep(nanoseconds: 600_000_000)
+        }
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+
+        // A voice note finishing while it's open: the card fills, "Ready", then the text replaces it.
+        var t = Transcript(title: "Garden bed plan", source: .voiceMemo, sourceLabel: "Voice memo", duration: 198, audioFileName: nil, model: "Test")
+        t.status = .processing
+        t.stage = "Transcribing 98%"
+        t.segments = [Segment(start: 0, end: 9, text: "Front bed gets the tomatoes this year. The herbs move to the pots by the back steps.", speaker: "S1")]
+        t.original = t.segments
+        app.store.add(t)
+        let id = t.id
+        app.go(.transcript(id))
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        check("celebrations: an open transcript says it's on screen", center.isOpen(id))
+        center.holdsEnd = true
+        app.store.update(id) { $0.status = .ready; $0.stage = nil }
+        app.transcriptReady(id, corrections: 0, queueEmpty: true)
+        let front = NSApp.isActive
+        check("celebrations: a transcript finishing while open (Verbose in front) celebrates on its card, with no toast",
+              front ? (center.ready[id]?.surface == .transcript && app.toast == nil) : (center.ready[id] == nil && app.toast?.action == "Open"))
+        if !front { Log.note("UITEST note: Verbose wasn't in front, so the transcript's celebration was skipped") }
+        await show("06l-transcript-ready")
+        await clear()
+        check("celebrations: when it ends, the text replaces the card", center.ready[id] == nil)
+
+        // A dictation never celebrates.
+        var d = Transcript(title: "Dictation", source: .dictation, sourceLabel: "Dictation", duration: 3, audioFileName: nil, model: "Test")
+        d.kind = .dictation
+        app.store.add(d)
+        app.transcriptReady(d.id, corrections: 0, queueEmpty: true)
+        check("celebrations: a dictation finishing celebrates nowhere", center.ready[d.id] == nil && app.toast?.celebration == nil)
+        await clear()
+
+        // "Saved" on Home's Record card, and a milestone on This week.
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        center.holdsEnd = true
+        center.showSaved(after: 0)
+        await show("02k-home-record-saved")
+        check("celebrations: Saved shows on Home's Record card", center.saved != nil)
+        await clear()
+        check("celebrations: Saved follows only a click on Home's recording card",
+              RecordingFinish.mac(source: .homeCardClick, thought: false, homeOnScreen: true, appActive: true).savedChip
+              && !RecordingFinish.mac(source: .keyboard, thought: false, homeOnScreen: true, appActive: true).savedChip)
+
+        MilestoneStore.shared.reset()
+        MilestoneStore.shared.note(old: 9_963, new: 10_000)
+        center.showPendingMilestone(mac: true, weekShown: true, feedback: nil)
+        check("celebrations: the tour's Home doesn't take a waiting milestone on its own", center.milestone == nil && MilestoneStore.shared.pending != nil)
+        center.holdsEnd = true
+        if let p = MilestoneStore.shared.take() { center.showMilestone(p, mac: true, feedback: nil) }
+        await show("02j-home-week-milestone")
+        check("celebrations: 10,000 words shows on This week, from the old total",
+              center.milestone?.milestone == PendingMilestone(threshold: 10_000, from: 9_963, to: 10_000) && center.milestone?.mac == true)
+        await clear()
+        MilestoneStore.shared.reset()
+
+        check("celebrations: nothing is left celebrating", center.ready.isEmpty && center.saved == nil && center.milestone == nil && !center.holdsEnd)
+        for x in [id, d.id] { if let tx = app.store.transcript(x) { app.store.delete(tx) } }
+    }
+
     private static func viewMenuItem(_ title: String) -> NSMenuItem? {
         guard let menu = NSApp.mainMenu?.items.first(where: { $0.submenu?.title == "View" })?.submenu else { return nil }
         menu.update()

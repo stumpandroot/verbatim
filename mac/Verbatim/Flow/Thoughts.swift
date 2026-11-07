@@ -110,8 +110,12 @@ final class ThoughtCapture: ObservableObject {
         }
     }
 
-    /// Starts a thought, or stops the one recording.
-    func toggle() { if isRecording { stop() } else { start() } }
+    /// Starts a thought, or stops the one recording. `source`: a click on the bubble's disc fills the saved check once
+    /// (RecordingFinish, DESIGN.md §7, Celebrations); the hotkey and everything else show it as it always was.
+    func toggle(source: StopSource = .elsewhere) { if isRecording { stop(source: source) } else { start() } }
+
+    /// The saved check fills once (a click on the bubble stopped it); read by the bubble when it shows Saved.
+    @Published private(set) var checkFills = false
 
     func start() {
         guard let app, !isRecording else { return }
@@ -159,8 +163,9 @@ final class ThoughtCapture: ObservableObject {
         phase = .recording
     }
 
-    func stop() {
+    func stop(source: StopSource = .elsewhere) {
         guard isRecording, !stopping else { return }
+        checkFills = RecordingFinish.mac(source: source, thought: true, homeOnScreen: false, appActive: false).thoughtCheck
         let started = startedAt ?? Date()
         if simulate {
             phase = .idle

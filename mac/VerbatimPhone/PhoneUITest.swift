@@ -456,6 +456,8 @@ enum PhoneUITest {
             app.appearance = "light"
             // Verbose Unlock: the sheet, the recorder's 9:00 chip, Home's cards, Settings' row, and the tour's offer.
             await unlockTour(app)
+            // Celebrations (DESIGN.md §7): each at its end state, held for its shot, then cleared before the next.
+            await celebrationTour(app)
             // The welcome tour: the welcome, the microphone, the ways to record, the keyboard, and the last step.
             for (i, name) in [(0, "p10-onboarding"), (1, "p11-onboarding"), (2, "p11a-onboarding-ways"), (3, "p11b-onboarding-keyboard"), (4, "p12-onboarding")] {
                 onboardingStep = i
@@ -466,9 +468,185 @@ enum PhoneUITest {
             }
             onboardingStep = 0
             app.appearance = "system"
+            // Motion (DESIGN.md §7): Undo toasts, Delete's Undo, and Limit animation in the keyboard. Last, so its
+            // toasts stay out of the screenshots.
+            await motionChecks(app)
             write("done")
             Log.note("UITEST phone tour done")
         }
+    }
+
+    // MARK: Celebrations
+
+    /// Celebrations (DESIGN.md §7, Celebrations; CelebrationRules.swift): the rules, then each one on this iPhone, held at
+    /// its end state for a still (`CelebrationCenter.holdsEnd`) and cleared before the next: a transcribing row's pale
+    /// badge, a Library row's "Ready", the toast's sweep with Open, the open transcript's "Ready", the stop ring, the
+    /// Record card's "Saved", and a 10,000-word milestone on This week. Then a dictation finishing celebrates nowhere, and nothing is left showing.
+    private static func celebrationTour(_ app: PhoneState) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") celebrations: \(name)") }
+        CelebrationChecks.run { check($0.replacingOccurrences(of: "celebrations: ", with: ""), $1) }
+        let center = CelebrationCenter.shared
+        func clear() async {
+            center.holdsEnd = false
+            center.clearAll()
+            app.toast = nil
+            try? await Task.sleep(nanoseconds: 700_000_000)
+        }
+
+        // A file transcribing: its badge is pale (the kind's tint, an ink glyph).
+        var t = Transcript(title: "Kitchen remodel tour", source: .file, sourceLabel: "MOV file", duration: 562, audioFileName: nil, model: "")
+        t.kind = .video
+        t.status = .processing
+        t.stage = "Transcribing 96%"
+        t.segments = [Segment(start: 0, end: 6, text: "This is where the island goes, with the sink facing the window.")]
+        app.store.add(t)
+        let id = t.id
+        app.libraryFilterRequest = "all"
+        app.libraryPath = NavigationPath()
+        app.tab = .library
+        await show("p16a-library-transcribing-pale")
+        check("a transcribing row's badge is pale, a ready one full",
+              app.store.transcript(id).map { LibraryScreen.badgeFill($0) == 0 } == true
+              && LibraryScreen.badgeFill(Transcript(title: "x", source: .file, sourceLabel: "", duration: 1, audioFileName: nil, model: "")) == 1)
+        check("the Library says which rows are on screen", center.rowOnScreen(id))
+
+        // It finishes with its row on screen: the disc grows, "Ready" for 1.6 s (held here for the still).
+        center.holdsEnd = true
+        app.store.update(id) { $0.status = .ready; $0.stage = nil }
+        app.transcriptReady(id, corrections: 0, queueEmpty: true)
+        check("a transcript finishing with its row on screen celebrates on the row, and no toast says it again",
+              center.ready[id]?.surface == .libraryRow && app.toast == nil)
+        await show("p16b-library-row-ready")
+        await clear()
+
+        // With neither the transcript nor its row on screen: the toast, with Open, and the fill sweeping it.
+        var away = Transcript(title: "Porch interview", source: .voiceMemo, sourceLabel: "Voice memo", duration: 1445, audioFileName: nil, model: "")
+        away.status = .processing
+        app.store.add(away)
+        app.tab = .home
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        center.holdsEnd = true
+        app.store.update(away.id) { $0.status = .ready }
+        app.transcriptReady(away.id, corrections: 0, queueEmpty: true)
+        check("with nothing else on screen, Transcript ready shows with Open and its fill sweeps it",
+              app.toast?.message == "Transcript ready" && app.toast?.action == "Open" && app.toast?.celebration?.surface == .toast
+              && center.ready[away.id]?.surface == .toast)
+        await show("p16g-toast-ready")
+        await clear()
+        app.tab = .library
+        try? await Task.sleep(nanoseconds: 600_000_000)
+
+        // The same, open: the processing card fills, "Ready", then the text replaces it.
+        var open = Transcript(title: "Garden bed plan", source: .voiceMemo, sourceLabel: "Voice memo", duration: 198, audioFileName: nil, model: "")
+        open.status = .processing
+        open.stage = "Transcribing 98%"
+        open.segments = [Segment(start: 0, end: 9, text: "Front bed gets the tomatoes this year. The herbs move to the pots by the back steps.")]
+        app.store.add(open)
+        app.libraryPath.append(open.id)
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        check("an open transcript says it's on screen", center.isOpen(open.id))
+        center.holdsEnd = true
+        app.store.update(open.id) { $0.status = .ready; $0.stage = nil }
+        app.transcriptReady(open.id, corrections: 0, queueEmpty: true)
+        check("a transcript finishing while open celebrates on its card, with no toast", center.ready[open.id]?.surface == .transcript && app.toast == nil)
+        await show("p16c-transcript-ready")
+        await clear()
+        check("when it ends, the text replaces the card", center.ready[open.id] == nil)
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 600_000_000)
+
+        // A dictation (the keyboard's, even after Retry) never celebrates.
+        var d = Transcript(title: "Dictation", source: .dictation, sourceLabel: "Dictation · Keyboard", duration: 4, audioFileName: nil, model: "")
+        d.kind = .dictation
+        app.store.add(d)
+        app.transcriptReady(d.id, corrections: 0, queueEmpty: true)
+        check("a dictation finishing celebrates nowhere", center.ready[d.id] == nil && app.toast?.celebration == nil)
+        await clear()
+
+        // The stop ring, filled, while "Saving…" shows.
+        app.tab = .home
+        app.homePath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        app.showRecorder = true
+        app.savingRecording = true
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        center.holdsEnd = true
+        let ring = center.fillRing(tone: .persimmon)
+        await show("p16d-record-stop-ring")
+        check("the stop ring fills while Saving… shows", center.ring?.id == ring.id)
+        center.clearRing()
+        app.savingRecording = false
+        app.showRecorder = false
+        await clear()
+
+        // "Saved" on the Record card.
+        center.holdsEnd = true
+        center.showSaved(after: 0)
+        await show("p16e-home-record-saved")
+        check("Saved shows on Home's Record card", center.saved != nil)
+        await clear()
+
+        // A milestone on This week: 9,963 to 10,000, "10,000 words".
+        MilestoneStore.shared.reset()
+        MilestoneStore.shared.note(old: 9_963, new: 10_000)
+        center.showPendingMilestone(mac: false, weekShown: true, feedback: nil)
+        check("the tour's Home doesn't take a waiting milestone on its own", center.milestone == nil && MilestoneStore.shared.pending != nil)
+        NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-week")
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        center.holdsEnd = true
+        if let p = MilestoneStore.shared.take() { center.showMilestone(p, mac: false, feedback: nil) }
+        await show("p16f-home-milestone")
+        check("10,000 words shows on This week, from the old total", center.milestone?.milestone == PendingMilestone(threshold: 10_000, from: 9_963, to: 10_000))
+        await clear()
+        MilestoneStore.shared.reset()
+        NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-top")
+
+        check("nothing is left celebrating", center.ready.isEmpty && center.ring == nil && center.saved == nil && center.milestone == nil && !center.holdsEnd)
+        for x in [id, away.id, open.id, d.id] { if let tx = app.store.transcript(x) { app.store.delete(tx) } }
+        try? await Task.sleep(nanoseconds: 600_000_000)
+    }
+
+    // MARK: Motion
+
+    /// Motion's rules (MotionChecks), then on this iPhone: Delete offers Undo, the toast is still there after 6 s (a
+    /// message alone has gone by then), Undo restores the transcript, and Limit animation reaches the App Group, where
+    /// the keyboard reads it.
+    private static func motionChecks(_ app: PhoneState) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") motion: \(name)") }
+        MotionChecks.run(check)
+
+        var t = Transcript(title: "Self-test undo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 8, audioFileName: nil, model: "")
+        t.segments = [Segment(start: 0, end: 8, text: "A seeded line for Delete's Undo.")]
+        app.store.add(t)
+        let id = t.id
+        app.delete([id])
+        let toast = app.toast
+        check("Delete moves the transcript to Recently Deleted and offers Undo",
+              app.store.transcript(id)?.deletedAt != nil && toast?.action == ToastUndo.title && toast?.message == "Moved to Recently Deleted")
+        try? await Task.sleep(nanoseconds: 6_000_000_000)
+        check("a toast with Undo is still showing after 6 s", app.toast != nil && app.toast?.id == toast?.id)
+        app.runToastAction()
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        check("Undo restores the transcript and closes the toast", app.store.transcript(id)?.deletedAt == nil && app.toast == nil)
+        if let x = app.store.transcript(id) { app.store.delete(x) }
+
+        app.say("Self-test message")
+        let plain = app.toast?.id
+        try? await Task.sleep(nanoseconds: 3_600_000_000)
+        check("a message alone still goes after 3 s", plain != nil && app.toast?.id != plain)
+
+        let d = UserDefaults.standard
+        let stored = d.object(forKey: MotionPreference.key)
+        d.set(true, forKey: MotionPreference.key)
+        app.mirrorLimitMotion()
+        let on = MotionMirror.limited(in: KeyboardBridge.defaults)
+        d.set(false, forKey: MotionPreference.key)
+        app.mirrorLimitMotion()
+        let off = !MotionMirror.limited(in: KeyboardBridge.defaults)
+        if let stored { d.set(stored, forKey: MotionPreference.key) } else { d.removeObject(forKey: MotionPreference.key) }
+        app.mirrorLimitMotion()
+        check("the keyboard bridge carries Limit animation, on and off", on && off)
+        check("the App Group's copy follows the setting", MotionMirror.limited(in: KeyboardBridge.defaults) == d.bool(forKey: MotionPreference.key))
     }
 
     // MARK: Record as
@@ -593,7 +771,7 @@ enum PhoneUITest {
         let switchedToast = app.toast
         await show("p02r-record-switched")
         check("changing kind while recording files it as the new kind and says so",
-              app.recordingChoice == .kind(.brainDump) && switchedToast == "Now a brain dump, from the start")
+              app.recordingChoice == .kind(.brainDump) && switchedToast?.message == "Now a brain dump, from the start")
         app.switchRecordingKind(to: .thought)
         check("changing to a thought makes it a thought from its start", app.recordingThought && app.recordKind == nil && app.thoughtStartedAt != nil)
         app.switchRecordingKind(to: .voiceNote)

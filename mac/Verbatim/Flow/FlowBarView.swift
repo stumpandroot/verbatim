@@ -82,18 +82,26 @@ struct FlowBarView: View {
     }
 
 
-    /// Every state shares one paper tab. Between states the tab springs to its new size (0.38 s, a little bounce,
-    /// tuned in the Ribbon prototype) and keeps its velocity if the state changes mid-move, while the contents
-    /// fade in a beat after the shape starts moving. Reduce Motion turns the morph into a quick fade.
+    /// Every state shares one paper tab. Between states the tab eases to its new size (0.3 s, no bounce) and keeps its
+    /// velocity if the state changes mid-move. Reduce Motion turns the morph into a quick fade.
     private var morph: Animation? { reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.3) }
 
-    /// Contents arrive just after the tab starts growing and leave at once, so text never squeezes into a tab
-    /// that's still small.
+    /// Contents other than listening arrive a beat after the tab starts growing, so text never squeezes into a tab
+    /// that's still small, and leave at once.
     private var contentTransition: AnyTransition {
         if reduceMotion { return .opacity }
         return .asymmetric(
             insertion: .opacity.combined(with: .scale(scale: 0.94)).animation(.easeOut(duration: 0.18).delay(0.07)),
             removal: .opacity.animation(.easeOut(duration: 0.08)))
+    }
+
+    /// Listening is the dictation key's answer, so it shows at once (DESIGN.md §7, keyboard actions don't animate): its
+    /// contents fade in over 0.1 s with no delay and no scale (`KeyMotion.listeningFade`) while the tab morphs as
+    /// before, and leave at once. Reduce Motion keeps the morph's quick fade.
+    private var listeningTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(insertion: .opacity.animation(.easeOut(duration: KeyMotion.listeningFade)),
+                           removal: .opacity.animation(.easeOut(duration: 0.08)))
     }
 
     private var closed: Bool { model.phase == .idle && !(model.hover || model.dragging) }
@@ -229,7 +237,7 @@ struct FlowBarView: View {
                     Text(model.warning).font(.system(size: 10.5, weight: .medium)).foregroundStyle(RibbonInk.persimmonText).lineLimit(1).fixedSize()
                 }
             }
-            .transition(contentTransition)
+            .transition(listeningTransition)
         case .working:
             edgeRow(spacing: 9) {
                 SweepBar(edge: model.edge, reduceMotion: reduceMotion)

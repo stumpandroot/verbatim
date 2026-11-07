@@ -221,19 +221,82 @@ struct PhoneRoot: View {
             app.importPhotos(picks)
             photoPicks = []
         }
-        .overlay(alignment: .top) {
-            if let t = app.toast {
-                Text(t).refinedFont(.hint, weight: .medium).foregroundStyle(Refined.paper)
-                    .padding(.horizontal, 16).padding(.vertical, 10)
-                    .background(Refined.ink, in: Capsule())
-                    .padding(.top, 8)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .accessibilityAddTraits(.updatesFrequently)
-            }
-        }
-        .animation(Motion.settle, value: app.toast)
+        .overlay(alignment: .top) { PhoneToastView() }
         // Settings › Appearance: read here rather than in the App struct, which doesn't observe PhoneState.
         .preferredColorScheme(app.colorScheme)
+    }
+}
+
+/// A toast at the top of the screen (`PhoneState.say`): a message, and an action when it has one (Undo after Delete).
+struct PhoneToast: Identifiable, Equatable {
+    let id = UUID()
+    let message: String
+    var action: String? = nil
+    var onAction: (() -> Void)? = nil
+    /// "Transcript ready" when no transcript or Library row shows it: the transcript's color sweeps the toast
+    /// (DESIGN.md §7, Celebrations).
+    var celebration: CelebrationTicket? = nil
+    /// When it appeared, for how long it stays (ToastTiming).
+    let shownAt = Date()
+    init(_ message: String, action: String? = nil, onAction: (() -> Void)? = nil) {
+        self.message = message; self.action = action; self.onAction = onAction
+    }
+    static func == (a: PhoneToast, b: PhoneToast) -> Bool { a.id == b.id }
+}
+
+/// The toast: it slides down from the top and fades in, and fades out; under Limit animation it only fades (DESIGN.md
+/// §7). One with an action shows it as a button and stays while a finger is on it.
+private struct PhoneToastView: View {
+    @Environment(PhoneState.self) var app
+    @Environment(\.limitMotion) private var limitMotion
+
+    var body: some View {
+        ZStack {
+            if let t = app.toast {
+                // A finished transcript's fill sweeps the toast in its color, and the words turn to ink with it.
+                CelebrationBurst(ticket: t.celebration, script: .toast) { burst in
+                    let on = burst.active && burst.covered
+                    let ink = on ? Refined.onFill : Refined.paper
+                    HStack(spacing: 12) {
+                        Text(t.message).refinedFont(.hint, weight: .medium).foregroundStyle(ink)
+                        if let a = t.action {
+                            Button { app.runToastAction() } label: {
+                                Text(a).refinedFont(.hint, weight: .semibold).foregroundStyle(ink)
+                                    .lineLimit(1).fixedSize()
+                                    .padding(.horizontal, 12).frame(minHeight: 30)
+                                    .overlay(Capsule().strokeBorder(ink, lineWidth: 1.5))
+                                    .contentShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.leading, 16).padding(.trailing, t.action == nil ? 16 : 6).padding(.vertical, t.action == nil ? 10 : 6)
+                    // The fill behind the words, so they stay on top of it.
+                    .background {
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Refined.ink)
+                            if burst.active, let c = t.celebration {
+                                Capsule().fill(c.tone.fill)
+                                    .scaleEffect(x: max(0.0001, burst.fill), y: 1, anchor: .leading)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        .allowsHitTesting(false)
+                    }
+                    .scaleEffect(burst.active ? burst.scale : 1)
+                }
+                .onDisappear { if let c = t.celebration { CelebrationCenter.shared.didFinish(c.id) } }
+                // A finger on the toast keeps it (ToastTiming); the button still takes its tap.
+                .simultaneousGesture(DragGesture(minimumDistance: 0)
+                    .onChanged { _ in if !app.toastHold.isHeld(t.id) { app.holdToast(true) } }
+                    .onEnded { _ in app.holdToast(false) })
+                .padding(.top, 8)
+                .transition(limitMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                .accessibilityElement(children: .contain)
+                .accessibilityAddTraits(.updatesFrequently)
+            }
+        }
+        .animation(limitMotion ? Motion.fade : Motion.settle, value: app.toast)
     }
 }
 

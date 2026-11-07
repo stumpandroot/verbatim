@@ -192,10 +192,12 @@ struct RecordCard: View {
     var accessibilityHint: String? = nil
     var compact = false
     var actions: [RecordCardAction] = []
+    /// "Saved" on the chip after a recording (DESIGN.md §7, Celebrations).
+    var saved: BurstState = .idle
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) { RecordCardFace(status: status, title: title, hint: hint, compact: compact) }
+        Button(action: action) { RecordCardFace(status: status, title: title, hint: hint, compact: compact, saved: saved) }
             .buttonStyle(RefinedPress())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)
@@ -215,12 +217,29 @@ struct RecordCardFace: View {
     var title = "Record"
     var hint: String
     var compact = false
+    /// "Saved" on the chip after a recording, with the small bounce, for 1.6 s (DESIGN.md §7, Celebrations): an ink
+    /// pill over the chip, which gives way under it; nothing moves around it.
+    var saved: BurstState = .idle
     @CurrentPalette private var palette: AppPalette
     private let mac = RefinedPlatform.mac
 
     /// Spelled out: the palette's wrapper is private, which would keep the synthesized one to this file.
-    init(status: String, title: String = "Record", hint: String, compact: Bool = false) {
-        self.status = status; self.title = title; self.hint = hint; self.compact = compact
+    init(status: String, title: String = "Record", hint: String, compact: Bool = false, saved: BurstState = .idle) {
+        self.status = status; self.title = title; self.hint = hint; self.compact = compact; self.saved = saved
+    }
+
+    /// The status line or chip, with "Saved" over it while it shows.
+    private func savedOver<V: View>(_ v: V) -> some View {
+        v.opacity(saved.active ? saved.old : 1)
+            .overlay(alignment: .leading) {
+                if saved.active {
+                    CelebrationPill(CelebrationWord.saved, size: mac ? 13.5 : 15)
+                        .scaleEffect(saved.scale, anchor: .leading)
+                        .offset(y: saved.rise)
+                        .opacity(saved.word)
+                        .allowsHitTesting(false)
+                }
+            }
     }
 
     var body: some View {
@@ -231,7 +250,7 @@ struct RecordCardFace: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title).refinedFont(.sectionTitle)
-                        Text(status).refinedFont(.chip, weight: .semibold).lineLimit(1)
+                        savedOver(Text(status).refinedFont(.chip, weight: .semibold).lineLimit(1))
                     }
                     Spacer(minLength: 8)
                     // Room for the disc, which the art draws in the rings' own coordinates.
@@ -241,7 +260,7 @@ struct RecordCardFace: View {
                 .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
-                    ReadyChip(text: status)
+                    savedOver(ReadyChip(text: status))
                     Spacer(minLength: 14)
                     HStack(alignment: .bottom, spacing: 12) {
                         VStack(alignment: .leading, spacing: mac ? 3 : 2) {
@@ -1053,6 +1072,11 @@ struct PaperRow<Trailing: View>: View {
     var meta: String
     var badge: CGFloat = 34
     var pinned = false
+    /// The badge's fill (iPhone Library): below 1 while the recording transcribes (`KindBadge`).
+    var badgeFill: CGFloat = 1
+    /// A transcript finishing on this row (iPhone Library, DESIGN.md §7): the badge's disc grows and bounces, and the
+    /// meta line and length give way to "Ready", all over the row, never changing its height.
+    var celebration: BurstState? = nil
     @ViewBuilder var trailing: Trailing
     private let mac = RefinedPlatform.mac
 
@@ -1070,8 +1094,10 @@ struct PaperRow<Trailing: View>: View {
             .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
             .contentShape(Rectangle())
         } else {
+            let burst = celebration?.active == true ? celebration : nil
             HStack(spacing: 12) {
-                KindBadge(kind: kind, size: badge)
+                KindBadge(kind: kind, size: badge, fill: burst.map { $0.fill } ?? badgeFill)
+                    .scaleEffect(burst?.scale ?? 1)
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 5) {
                         if pinned { IconGlyph(art: .iconPin, size: 13, color: Refined.mute).accessibilityHidden(true) }
@@ -1079,9 +1105,11 @@ struct PaperRow<Trailing: View>: View {
                     }
                     .alignmentGuide(.rowTitle) { d in d[VerticalAlignment.center] }
                     Text(meta).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+                        .opacity(burst?.old ?? 1)
+                        .celebrationWord(burst == nil ? nil : CelebrationWord.ready, state: burst ?? .idle, size: 14)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                trailing
+                trailing.opacity(burst?.old ?? 1)
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
@@ -1205,9 +1233,11 @@ struct WeekCard: View {
     }
 
     private var label: some View { Text("This week").refinedFont(.meta).foregroundStyle(Refined.mute) }
+    /// The week's words change in place when a dictation adds to them (DESIGN.md §7, `countChange`).
     private var number: some View {
         Text(words.formatted()).font(.system(size: mac ? 28 : 30, weight: .semibold)).monospacedDigit()
             .foregroundStyle(Refined.ink).lineLimit(1).minimumScaleFactor(0.6)
+            .countChange(words)
     }
 
     private var macCard: some View {
@@ -1319,23 +1349,47 @@ extension RecordingKind {
 /// A kind as a colored circle with its ink glyph (Recent and Library rows): 34 pt on iPhone's Home, 32 in the
 /// Library. Under 16 pt it's a plain dot (the Mac's Recent rows). Nil is a voice note. Decorative: the row's meta
 /// line says the kind.
+///
+/// `fill` below 1 is the iPhone Library's transcribing badge (DESIGN.md §7, Celebrations): the kind's pale tint with
+/// an ink glyph, and the full-color disc grown from the center to `fill` of its size, so when the transcript is ready
+/// the celebration grows it to the full badge.
 struct KindBadge: View {
     var kind: RecordingKind?
+    var fill: CGFloat = 1
     @ScaledMetric private var side: CGFloat
 
-    init(kind: RecordingKind?, size: CGFloat = 34) {
+    init(kind: RecordingKind?, size: CGFloat = 34, fill: CGFloat = 1) {
         self.kind = kind
+        self.fill = fill
         _side = ScaledMetric(wrappedValue: size, relativeTo: .body)
     }
 
     var body: some View {
         let hue = RefinedRules.kindHue(kind?.rawValue)
-        Circle().fill(Refined.badge(hue))
-            .frame(width: side, height: side)
-            .overlay {
-                if side >= 16 { IconGlyph(art: kind?.refinedArt ?? .iconMic, size: side * 0.47, color: Refined.onBadge(hue)) }
+        // One structure at every fill, so a change of `fill` animates: the disc's scale and the glyphs' opacity
+        // interpolate (a branch on `fill` would jump to its end value).
+        ZStack {
+            if fill < 1 || side >= 16 { Circle().fill(KindBadge.tint(hue)) }
+            Circle().fill(Refined.badge(hue)).scaleEffect(max(0.0001, fill))
+            if side >= 16 {
+                // The glyph turns from the tint's ink to the fill's ink as the disc grows under it.
+                if fill < 1 { IconGlyph(art: kind?.refinedArt ?? .iconMic, size: side * 0.47, color: Refined.ink).opacity(Double(1 - fill)) }
+                IconGlyph(art: kind?.refinedArt ?? .iconMic, size: side * 0.47, color: Refined.onBadge(hue)).opacity(Double(fill))
             }
-            .accessibilityHidden(true)
+        }
+        .frame(width: side, height: side)
+        .accessibilityHidden(true)
+    }
+
+    /// A badge's pale tint while its recording transcribes: the kind's own tint.
+    static func tint(_ hue: RefinedHue) -> Color {
+        switch hue {
+        case .persimmon: return Refined.persimmonTint
+        case .butter: return Refined.butterTint
+        case .sage: return Refined.sageTint
+        case .petal: return Refined.petalTint
+        case .neutral: return Refined.neutralSquare
+        }
     }
 }
 
@@ -1462,6 +1516,9 @@ struct LargeSerifTitle: View {
     var title: String
     var eyebrow: String? = nil
     var count: String? = nil
+    /// The number in `count`, when it changes in place (the Library's count as a filter or search changes it): its
+    /// digits roll to the new value (`countChange`). Nil leaves the line still.
+    var countValue: Int? = nil
 
     /// The line above the title: the eyebrow and the count, joined.
     static func line(eyebrow: String?, count: String?) -> String? {
@@ -1475,6 +1532,8 @@ struct LargeSerifTitle: View {
                 if RefinedPlatform.mac {
                     Text(line.uppercased()).refinedFont(.caption, weight: .semibold).kerning(0.6)
                         .foregroundStyle(Refined.mute).accessibilityLabel(line)
+                } else if let countValue {
+                    Text(line).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).countChange(countValue)
                 } else {
                     Text(line).refinedFont(.meta).foregroundStyle(Refined.mute)
                 }

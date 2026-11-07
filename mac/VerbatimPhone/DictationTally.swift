@@ -51,6 +51,9 @@ final class DictationTally: ObservableObject, @unchecked Sendable {
             try? data.write(to: file, options: .atomic)
         }
         DispatchQueue.main.async { [self] in
+            // A word milestone this total crossed waits for Home (WordMilestones, DESIGN.md §7, Celebrations); nothing
+            // celebrates here, at paste time.
+            if totals.0.words != allTime.words { MilestoneStore.shared.note(old: allTime.words, new: totals.0.words) }
             if allTime != totals.0 { allTime = totals.0 }
             if since != totals.1 { since = totals.1 }
         }

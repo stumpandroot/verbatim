@@ -51,9 +51,10 @@ struct VerbatimApp: App {
             CommandGroup(replacing: .newItem) {
                 // One Import (consolidation, October 28, 2026): files, a folder, or a link, in one panel. ⌘O opens it
                 // with the link field ready; ⌘N (New Transcript) is a second way to the same panel.
-                Button("New Transcript") { app.openImport() }
+                // From ⌘N or ⌘O, Home shows at once; from a click on the menu, it slides in (DESIGN.md §7).
+                Button("New Transcript") { app.fromKeyboard(AppState.handlingKeyPress) { app.openImport() } }
                     .keyboardShortcut("n", modifiers: .command)
-                Button("Import…") { app.openImport() }
+                Button("Import…") { app.fromKeyboard(AppState.handlingKeyPress) { app.openImport() } }
                     .keyboardShortcut("o", modifiers: .command)
                 Button("Import Multi-track Recording…") { app.chooseMultitrack() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])

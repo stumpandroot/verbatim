@@ -84,14 +84,17 @@ extension AppState {
         requestRecord(appendTo: id)
     }
 
-    func stopRecording() {
-        Task { await finishRecording() }
+    /// Stop. `source`: a click on Home's recording card shows "Saved" on the Record card afterward; a key or anywhere
+    /// else doesn't (RecordingFinish, DESIGN.md §7, Celebrations).
+    func stopRecording(from source: StopSource = .elsewhere) {
+        Task { await finishRecording(source: source) }
     }
 
     /// Stop: capture ends at once, then the recording is saved off the main thread ("Saving…" on Home) and
     /// joins the queue. Nothing that reached the disk is thrown away: only a recording with no audio at all is
     /// removed, with a toast saying so.
-    func finishRecording() async {
+    func finishRecording(source: StopSource = .elsewhere) async {
+        let plan = RecordingFinish.mac(source: source, thought: false, homeOnScreen: screen == .home, appActive: NSApp.isActive)
         // Stop while the mic is still starting cancels the start: nothing was recorded.
         let wasStarting = recorder.isStarting
         // Moments marked while it recorded (MarkCenter): bookmarks on the transcript, each on its line once transcribed.
@@ -134,6 +137,8 @@ extension AppState {
             return
         }
         guard let name = store.adoptRecording(r.url) else { toast = Toast("Couldn't save the recording."); return }
+        // "Saved" on Home's Record card, once the recording card has turned back into it.
+        if plan.savedChip { CelebrationCenter.shared.showSaved(after: 0) }
         var t = Transcript(title: kind == .audio ? "Audio only" : "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo",
                            duration: r.duration, audioFileName: name, model: "")
         t.waveform = r.envelope

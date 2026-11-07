@@ -181,7 +181,8 @@ struct AskPanel: View {
                 .font(.system(size: 19))
                 .foregroundStyle(Refined.ink)
                 .focused($focused)
-                .onSubmit { submit() }
+                // Return: the Library shows at once (a keyboard navigation doesn't slide, DESIGN.md §7).
+                .onSubmit { app.fromKeyboard { submit() } }
                 .uiTarget("ask-field")
             modeSwitch
         }

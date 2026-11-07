@@ -66,10 +66,27 @@ extension AppState: TranscriptionHost {
             return
         }
         // In a batch, stay quiet until the last one; then one chime and one toast. Never for a dictation (it pastes).
-        if queueEmpty {
-            let t = store.transcript(id)
-            if let moment = SoundRules.transcriptDone(isDictation: t?.isDictation ?? false, isThought: t?.kind == .idea) { Sounds.play(moment) }
-            toast = Toast(n > 0 ? "Transcript ready · Dictionary fixed \(n) word\(n == 1 ? "" : "s")" : "Transcript ready", action: "Open") { [weak self] in self?.go(.transcript(id)) }
+        // With Verbose in front, the transcript celebrates on the first surface on screen, the open transcript or the
+        // toast, and the chime waits for its fill (DESIGN.md §7, Celebrations).
+        let t = store.transcript(id)
+        let moment = SoundRules.transcriptDone(isDictation: t?.isDictation ?? false, isThought: t?.kind == .idea)
+        let center = CelebrationCenter.shared
+        let first = center.firstReady(id)
+        let surface = ReadyCelebration.surface(isDictation: t?.isDictation ?? false, isThought: t?.kind == .idea, first: first,
+                                               foreground: NSApp.isActive, transcriptOpen: center.isOpen(id), rowOnScreen: false,
+                                               toastShows: queueEmpty, phone: false)
+        let chime: (() -> Void)? = queueEmpty ? { if let moment { Sounds.play(moment) } } : nil
+        var celebration: CelebrationTicket?
+        if let surface, let t, ReadyCelebration.feedbackWaits(for: surface) {
+            celebration = center.celebrateReady(id, on: surface, tone: CelebrationTone.of(source: t.source.rawValue), feedback: chime)
+        } else {
+            chime?()
+        }
+        // The toast stays away while the open transcript celebrates (exactly one place says so).
+        if ReadyCelebration.toastShows(queueEmpty: queueEmpty, surface: celebration?.surface) {
+            var ready = Toast(n > 0 ? "Transcript ready · Dictionary fixed \(n) word\(n == 1 ? "" : "s")" : "Transcript ready", action: "Open") { [weak self] in self?.go(.transcript(id)) }
+            ready.celebration = celebration?.surface == .toast ? celebration : nil
+            toast = ready
         }
     }
 

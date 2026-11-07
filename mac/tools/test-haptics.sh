@@ -1,9 +1,10 @@
 #!/bin/bash
 # Compiles the real HapticPolicy.swift and HapticChecks.swift (DESIGN.md §7, Haptics) with the cases in
 # haptics-tests/main.swift and runs them: which event plays which haptic on the iPhone, the keyboard, and the Apple
-# Watch, the switch turning them all off, transcript ready once per recording, and the keyboard's typing taps off by
-# default; then, against the sources, every recording session allowing haptics before it activates, every haptic
-# going through the policy, and start and stop playing at the right moment. Needs only a Swift toolchain (macOS or
+# Watch, the switch turning them all off, transcript ready once per recording, a recording saved from the recorder's
+# Stop, and the keyboard's typing taps off by default; then, against the sources, every recording session allowing
+# haptics before it activates, every haptic going through the policy, start and stop playing at the right moment, and
+# the celebrations' success (the stop ring, a finished transcript's fill, a milestone) landing where they should. Needs only a Swift toolchain (macOS or
 # Linux), not Xcode.
 #   bash mac/tools/test-haptics.sh
 set -euo pipefail

@@ -32,11 +32,15 @@ final class AppState: DistinctTracking {
     /// Where we are, how we got here, and how many times we've moved: one value, one publish per navigation.
     /// On macOS 26 a view flushed by `withAnimation` with half-updated state keeps showing the old screen
     /// (the publish that follows is dropped), so navigation never changes two properties in a row.
-    struct Nav: Equatable { var screen: Screen; var direction: SlideDirection; var count: Int }
+    /// `keyboard`: the navigation came from a key (⌘[ and ⌘], Return or Space on a selected row, Return in Search,
+    /// ⌘N and ⌘O), so the new screen shows at once instead of sliding in (DESIGN.md §7, `NavEntrance`).
+    struct Nav: Equatable { var screen: Screen; var direction: SlideDirection; var count: Int; var keyboard = false }
     @ObservationIgnored @Distinct var nav = Nav(screen: .home, direction: .up, count: 0)
     var screen: Screen { nav.screen }
     var direction: SlideDirection { nav.direction }
     var navCount: Int { nav.count }
+    /// Set by a keyboard path for the navigations it makes (`fromKeyboard`); `go` copies it into `nav`. Not published.
+    @ObservationIgnored private(set) var navFromKeyboard = false
     @ObservationIgnored var navStartedAt = Date()
     /// The open "Navigate" signpost (Perf), from `go` to the new screen's root `onAppear`. Not published.
     @ObservationIgnored private var navInterval: OSSignpostIntervalState?
@@ -305,8 +309,29 @@ final class AppState: DistinctTracking {
         let trail = NavTrail.shared
         trail.record(from: NavStop(screen, project: projectFilter), to: NavStop(next, project: projectFilter))
         ScreenPlaces.shared.navigating(from: screen, to: next, app: self)
-        nav = Nav(screen: next, direction: direction, count: nav.count + 1)
+        nav = Nav(screen: next, direction: direction, count: nav.count + 1, keyboard: navFromKeyboard)
         trail.publish()
+    }
+
+    /// Runs `body` as a keyboard action when `yes`: any navigation it makes shows the new screen at once, without the
+    /// slide. The flag is cleared as `body` returns, so a later click still slides.
+    @discardableResult
+    func fromKeyboard<T>(_ yes: Bool = true, _ body: () -> T) -> T {
+        let was = navFromKeyboard
+        navFromKeyboard = yes
+        defer { navFromKeyboard = was }
+        return body()
+    }
+
+    /// True while AppKit is handling a key press (a menu item's key equivalent), false for a click on the same item.
+    static var handlingKeyPress: Bool { NSApp.currentEvent?.type == .keyDown }
+    /// True while a mouse click is being handled (a button's action from a click, not its keyboard shortcut): only a
+    /// click celebrates (RecordingFinish, DESIGN.md §7).
+    static var clickedNow: Bool {
+        switch NSApp.currentEvent?.type {
+        case .leftMouseUp?, .leftMouseDown?: return true
+        default: return false
+        }
     }
 
     func goHome() { go(.home) }

@@ -78,6 +78,7 @@ enum KB {
 /// Typing works without Allow Full Access; Home explains why dictation needs it.
 struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -91,6 +92,9 @@ struct KeyboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             if model.showingMenu && model.mode == .typing { menuLayer }
         }
+        // The system's Reduce Motion, or Verbose's Limit animation from the App Group (Full Access only), stills the
+        // voice bars (DESIGN.md §7).
+        .environment(\.limitMotion, systemReduceMotion || model.motionLimited)
         // No background: Apple's keyboard backdrop shows through (see `KB`).
     }
 
@@ -1155,8 +1159,8 @@ private struct CheckDisc: View {
 }
 
 /// The voice bars: ink bars that move with your voice, flat in a quiet room. The keyboard's only motion; still under
-/// Reduce Motion and whenever nothing is listening (starting, writing, polishing). Redrawn at most 30 times a
-/// second, in one Canvas.
+/// Reduce Motion or Verbose's Limit animation (`limitMotion`, from `KeyboardView`) and whenever nothing is listening
+/// (starting, writing, polishing). Redrawn at most 30 times a second, in one Canvas.
 private struct VoiceWave: View {
     /// The voice level (`clock.level`): watched here, so the level redraws only the bars.
     @ObservedObject var clock: KeyboardClock
@@ -1165,7 +1169,7 @@ private struct VoiceWave: View {
     var count = 13
     /// The widest a bar gets; narrower when the bars are close together.
     var barWidth: CGFloat = 6
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.limitMotion) private var reduceMotion
     @Environment(\.self) private var environment
 
     var body: some View {

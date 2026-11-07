@@ -433,6 +433,9 @@ targets:
       - Verbatim/Views/RefinedPlayback.swift
       # The page parts the remaining screens share: headers, empty states, row buttons, groups, statuses, checkboxes.
       - Verbatim/Views/RefinedPages.swift
+      # Celebrations (DESIGN.md §7): the burst, the word pill, and This week's milestone, shared with the Mac. The rules
+      # are in Verbatim/Model (CelebrationRules.swift).
+      - Verbatim/Views/Celebration.swift
       - Verbatim/Views/Brand.swift
       # What's new's sheet after a bigger update, its hero, and its rows (shared with the Mac).
       - Verbatim/Views/WhatsNewSheet.swift
@@ -624,6 +627,8 @@ targets:
       - Verbatim/Flow/SpokenCorrections.swift
       # Which haptic each event plays, shared with the app and the watch (DESIGN.md §7).
       - Verbatim/Model/HapticPolicy.swift
+      # Motion's rules: Limit animation's copy in the App Group, which the keyboard follows (DESIGN.md §7).
+      - Verbatim/Model/MotionRules.swift
     info:
       path: VerbatimKeyboard/Info.plist
       properties:
@@ -813,6 +818,10 @@ targets:
         excludes: ["Info.plist", "VerbatimWatch.entitlements"]
       - Verbatim/Model/WatchTransfer.swift
       - Verbatim/Model/HapticPolicy.swift
+      # Sent to iPhone's ring and check (DESIGN.md §7, Celebrations): the timings and WatchSentMotion. Its surface rule
+      # reads SoundRules, so that comes too (Foundation only, no sounds play on the watch).
+      - Verbatim/Model/CelebrationRules.swift
+      - Verbatim/Model/SoundRules.swift
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Brand.swift
     dependencies:

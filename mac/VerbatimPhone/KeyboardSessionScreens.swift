@@ -201,33 +201,36 @@ private struct WayBackCoach: View {
     }
 }
 
-/// The bottom of a phone: its edge, the home indicator, and a persimmon dot that travels right along it.
+/// The bottom of a phone: its edge, the home indicator, and a persimmon dot that travels right along it, rests, and
+/// travels again. Drawn from the time by `LoopTimeline` (30 frames a second at most, paused off screen), never a
+/// repeating animation (DESIGN.md §7, `SwipeHintLoop`). Still under Limit animation, with an arrow.
 private struct SwipeHint: View {
     @Environment(\.limitMotion) private var limitMotion
-    @State private var travel = false
 
     var body: some View {
         GeometryReader { g in
-            let w = g.size.width, h = g.size.height
-            ZStack(alignment: .topLeading) {
-                UnevenRoundedRectangle(bottomLeadingRadius: 16, bottomTrailingRadius: 16, style: .continuous)
-                    .stroke(Refined.ink, lineWidth: 1.5)
-                    .frame(width: w, height: h)
-                Capsule().fill(Refined.ink).frame(width: w * 0.46, height: 4)
-                    .position(x: w / 2, y: h - 9)
-                Circle().fill(Refined.persimmon).frame(width: 12, height: 12)
-                    .position(x: limitMotion || travel ? w * 0.72 : w * 0.28, y: h - 9)
-                    .opacity(limitMotion ? 1 : (travel ? 0.15 : 1))
-                if limitMotion {
-                    Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.accentText)
-                        .position(x: w * 0.5, y: h - 24)
-                }
+            LoopTimeline(running: !limitMotion) { date in
+                hint(w: g.size.width, h: g.size.height,
+                     progress: limitMotion ? 1 : SwipeHintLoop.progress(at: date.timeIntervalSinceReferenceDate))
             }
         }
         .accessibilityHidden(true)
-        .onAppear {
-            guard !limitMotion else { return }
-            withAnimation(.easeInOut(duration: 1.3).delay(0.3).repeatForever(autoreverses: false)) { travel = true }
+    }
+
+    private func hint(w: CGFloat, h: CGFloat, progress p: Double) -> some View {
+        ZStack(alignment: .topLeading) {
+            UnevenRoundedRectangle(bottomLeadingRadius: 16, bottomTrailingRadius: 16, style: .continuous)
+                .stroke(Refined.ink, lineWidth: 1.5)
+                .frame(width: w, height: h)
+            Capsule().fill(Refined.ink).frame(width: w * 0.46, height: 4)
+                .position(x: w / 2, y: h - 9)
+            Circle().fill(Refined.persimmon).frame(width: 12, height: 12)
+                .position(x: w * (0.28 + 0.44 * p), y: h - 9)
+                .opacity(limitMotion ? 1 : 1 - 0.85 * p)
+            if limitMotion {
+                Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.accentText)
+                    .position(x: w * 0.5, y: h - 24)
+            }
         }
     }
 }

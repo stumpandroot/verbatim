@@ -216,7 +216,7 @@ struct LibraryScreen: View {
     /// The serif title with the count, the search field, the chips, and a platform row under Links.
     @ViewBuilder private func header(items: [Transcript], scoped: [Transcript]) -> some View {
         if !isTabRoot {
-            LargeSerifTitle(title: title, count: countText(items))
+            LargeSerifTitle(title: title, count: countText(items), countValue: countNumber(items))
                 .padding(.top, 8)
                 .accessibilityElement(children: .combine)
                 .modifier(PageRow(top: 0, bottom: 0))
@@ -282,6 +282,11 @@ struct LibraryScreen: View {
     private func noteShown() {
         if case .kind(let k) = filter { Self.shownKind = k.rawValue } else { Self.shownKind = nil }
         Self.shownTitle = title
+    }
+
+    /// The number `countText` shows, so it changes in place.
+    private func countNumber(_ items: [Transcript]) -> Int {
+        typeFilter == .all && filter == .all && !searching ? recordingCount : items.count
     }
 
     /// "47 recordings", or with a filter on, how many it shows ("8 meetings", "3 pinned").
@@ -545,11 +550,12 @@ struct LibraryScreen: View {
             .modifier(CardRow(first: first, last: last, divider: 58, top: day0Gap(first: first)))
             .tag(t.id)
             .contextMenu { RowActions(transcript: t) }
+            // A swipe action tells the celebrations to wait for it to settle (SwipeSettle).
             .swipeActions(edge: .trailing) {
-                Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
+                Button(role: .destructive) { CelebrationCenter.shared.swiped(); app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
             }
             .swipeActions(edge: .leading) {
-                Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: t.pinned ? "pin.slash" : "pin") }   // brand: system surface (swipe action)
+                Button { CelebrationCenter.shared.swiped(); app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: t.pinned ? "pin.slash" : "pin") }   // brand: system surface (swipe action)
                     .tint(Refined.accentText)
             }
     }
@@ -703,6 +709,10 @@ struct LibraryScreen: View {
         return parts.joined(separator: " · ")
     }
 
+    /// A row's badge: pale while its recording transcribes (or waits to), full once it's ready or didn't finish
+    /// (DESIGN.md §7, Celebrations).
+    static func badgeFill(_ t: Transcript) -> CGFloat { t.status == .processing ? 0 : 1 }
+
     /// "Meeting · Tim, Jonathan", "Voice note · Idea", "Journal · 3 moments", "youtube.com · Video" (Add from Library's
     /// rows).
     static func meta(_ t: Transcript) -> String {
@@ -726,34 +736,46 @@ struct LibraryScreen: View {
 /// opens it, except while selecting, when the list's selection takes the tap. An Audio only recording with no words
 /// yet plays from here: its sage play button and waveform sit under the title. VoiceOver reads the title, the meta
 /// line (the kind first), and the length.
+///
+/// While it transcribes, its badge is pale (the kind's tint with an ink glyph); when it's ready with the row on screen,
+/// the full-color disc grows from the center and bounces, and the meta line reads "Ready" for 1.6 s (DESIGN.md §7,
+/// Celebrations), all over the row, so its height never changes.
 private struct LibraryRow: View {
     @Environment(PhoneState.self) var app
+    @ObservedObject private var celebrations = CelebrationCenter.shared
     var transcript: Transcript
     var selecting: Bool
 
     var body: some View {
-        // The live progress (StageClock): a tick re-renders this row, not the Library.
-        LiveStage(transcript) { t in
-            VStack(alignment: .leading, spacing: 0) {
-                if selecting {
-                    face(t)
-                } else {
-                    Button { app.open(t.id) } label: { face(t) }
-                        .buttonStyle(RefinedPress())
-                        .accessibilityHint("Opens the transcript.")
-                }
-                if t.showsAudioDetail && !selecting {
-                    PhoneAudioRowPlayer(transcript: t)
-                        .padding(.leading, 53).padding(.trailing, 14).padding(.bottom, 8)
+        let ticket = celebrations.ready[transcript.id].flatMap { $0.surface == .libraryRow ? $0 : nil }
+        return CelebrationBurst(ticket: ticket, script: .row) { burst in
+            // The live progress (StageClock): a tick re-renders this row, not the Library.
+            LiveStage(transcript) { t in
+                VStack(alignment: .leading, spacing: 0) {
+                    if selecting {
+                        face(t, burst: burst)
+                    } else {
+                        Button { app.open(t.id) } label: { face(t, burst: burst) }
+                            .buttonStyle(RefinedPress())
+                            .accessibilityHint("Opens the transcript.")
+                    }
+                    if t.showsAudioDetail && !selecting {
+                        PhoneAudioRowPlayer(transcript: t)
+                            .padding(.leading, 53).padding(.trailing, 14).padding(.bottom, 8)
+                    }
                 }
             }
         }
+        // Rows on screen, for which surface a finished transcript celebrates on (ReadyCelebration).
+        .onAppear { celebrations.rowAppeared(transcript.id) }
+        .onDisappear { celebrations.rowLeft(transcript.id) }
     }
 
-    private func face(_ t: Transcript) -> some View {
+    private func face(_ t: Transcript, burst: BurstState) -> some View {
         let meta = LibraryScreen.rowMeta(t)
         let length = t.duration > 0 && !(t.kind == .idea && t.audioFileName == nil) ? HomeRecentStyle.length(t.duration) : nil
-        return PaperRow(kind: t.refinedKind, title: RecordingRowTitle.title(t, withTime: false), meta: meta, badge: 32, pinned: t.pinned) {
+        return PaperRow(kind: t.refinedKind, title: RecordingRowTitle.title(t, withTime: false), meta: meta, badge: 32, pinned: t.pinned,
+                        badgeFill: LibraryScreen.badgeFill(t), celebration: burst.active ? burst : nil) {
             if let length { RowLength(text: length) }
         }
         .accessibilityElement(children: .ignore)

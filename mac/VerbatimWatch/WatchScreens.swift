@@ -188,19 +188,36 @@ struct WatchVoiceBars: View {
 }
 
 /// Sent to iPhone: the audio stays on the watch until the iPhone has it.
+///
+/// When you stopped it yourself, the ring trims around in persimmon, slow then fast, and the check pops with the small
+/// bounce as it completes (DESIGN.md §7, Celebrations; `WatchSentMotion`). With the wrist down (`isLuminanceReduced`)
+/// it's held still, drawn whole; under Reduce Motion it fades in over 0.2 s; and a recording that stopped on its own
+/// (a call, a full watch) shows it whole.
 struct WatchSent: View {
     var transfer: WatchTransfer
     var reachable: Bool
     var note: String?
     var done: () -> Void
+    @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.isLuminanceReduced) private var dimmed
+    @State private var ring: CGFloat = 1
+    @State private var check: Double = 1
+    @State private var pop: CGFloat = 1
 
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
                 Circle().strokeBorder(WatchColor.hair, lineWidth: 1.5)
-                    .overlay(Image(systemName: "checkmark").font(.system(size: 24, weight: .semibold)).foregroundStyle(WatchColor.record))
+                    .overlay {
+                        Circle().inset(by: 0.75).trim(from: 0, to: ring)
+                            .stroke(WatchColor.record, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                    }
+                    .overlay(Image(systemName: "checkmark").font(.system(size: 24, weight: .semibold)).foregroundStyle(WatchColor.record)
+                        .scaleEffect(pop).opacity(check))
                     .frame(width: 54, height: 54)
                     .accessibilityHidden(true)
+                    .task { await celebrate() }
                 Text("Sent to iPhone").font(.system(size: 17, weight: .semibold)).foregroundStyle(WatchColor.text).padding(.top, 10)
                 Text(WatchRules.sentDetail(transfer.kind, reachable: reachable))
                     .font(.system(size: 13)).foregroundStyle(WatchColor.dim).multilineTextAlignment(.center).padding(.top, 3)
@@ -213,11 +230,39 @@ struct WatchSent: View {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 8)
         }
+        .onChange(of: dimmed) { _, down in
+            // The wrist went down mid-way: the ring and check hold still, whole.
+            if down { var t = Transaction(); t.disablesAnimations = true; withTransaction(t) { ring = 1; check = 1; pop = 1 } }
+        }
         .task {
             // Back to Record and New thought after a few seconds.
             try? await Task.sleep(nanoseconds: 6_000_000_000)
             guard !Task.isCancelled else { return }
             done()
+        }
+    }
+}
+
+extension WatchSent {
+    /// The ring trims, then the check pops: once, as Sent to iPhone appears (`WatchSentMotion`).
+    private func celebrate() async {
+        let T = CelebrationTiming.self
+        switch WatchSentMotion.of(stoppedByYou: note == nil, luminanceReduced: dimmed, limited: limitMotion) {
+        case .still:
+            ring = 1; check = 1; pop = 1
+        case .fade:
+            ring = 1; pop = 1; check = 0
+            withAnimation(.easeOut(duration: T.reduced)) { check = 1 }
+        case .burst:
+            ring = 0; check = 0; pop = 1
+            withAnimation(.timingCurve(T.fillCurve.x1, T.fillCurve.y1, T.fillCurve.x2, T.fillCurve.y2, duration: T.fill)) { ring = 1 }
+            try? await Task.sleep(nanoseconds: UInt64(T.fill * 1_000_000_000))
+            guard !Task.isCancelled, !dimmed else { return }
+            check = 1
+            withAnimation(.spring(duration: T.bounceDuration, bounce: T.bounceBounce)) { pop = CGFloat(T.bounceTarget(peak: CelebrationSize.small.peak)) }
+            try? await Task.sleep(nanoseconds: UInt64(T.bounceTurn * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            withAnimation(.spring(duration: T.bounceDuration, bounce: T.bounceBounce)) { pop = 1 }
         }
     }
 }
