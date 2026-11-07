@@ -376,6 +376,24 @@ extension View {
     func slideSwitch<Key: Hashable>(on key: Key, order: Int) -> some View { modifier(SlideSwitch(key: key, order: order)) }
 }
 
+/// A count that changes in place (This week's words, the Library's count, the recorder's moments, a run's part): the
+/// digits roll to the new value on `Motion.snap`, and only when the count itself changes; under Limit animation they
+/// crossfade (DESIGN.md §7). Never on a running clock, which changes every second.
+struct CountChange: ViewModifier {
+    var value: Int
+    @Environment(\.limitMotion) private var limited
+    func body(content: Content) -> some View {
+        content
+            .contentTransition(limited ? .opacity : .numericText(value: Double(value)))
+            .animation(limited ? Motion.crossfade : Motion.snap, value: value)
+    }
+}
+
+extension View {
+    /// See `CountChange`.
+    func countChange(_ value: Int) -> some View { modifier(CountChange(value: value)) }
+}
+
 /// A view switch with a direction (a transcript's tabs): the new view slides in `Motion.switchTravel` from the side of the
 /// tab you picked, toward a later tab from the right and an earlier one from the left, as the old one fades out, on
 /// `Motion.page`. Limit animation keeps only the crossfade. `order` is the chosen tab's place in its row.

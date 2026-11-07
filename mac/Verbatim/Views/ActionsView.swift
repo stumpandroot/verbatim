@@ -58,6 +58,8 @@ struct ActionSheet: View {
     @State private var result = ""
     @State private var state: Phase = .running
     @State private var part = ""
+    /// The part `part` names, so "Part 2 of 5" changes in place (`countChange`).
+    @State private var partIndex = 0
     @State private var runID = 0
     @State private var job: Task<Void, Never>? = nil
     @State private var failure: String? = nil
@@ -84,7 +86,7 @@ struct ActionSheet: View {
                     VStack(spacing: 10) {
                         ProgressView().controlSize(.small)
                         Text(part.isEmpty ? "Working on your Mac…" : part).refinedFont(.meta).foregroundStyle(Refined.mute)
-                            .contentTransition(.numericText())
+                            .countChange(partIndex)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .done:
@@ -148,14 +150,14 @@ struct ActionSheet: View {
     private func start() {
         stop()
         let id = runID
-        state = .running; part = ""; failure = nil; skipped = ""
+        state = .running; part = ""; partIndex = 0; failure = nil; skipped = ""
         let instruction = action.instruction, kind = action.kind, text = source
         if let t = transcript {
             let timestamps = TranscriptActions.spec(action.id)?.timestamps ?? false
             job = Task { @MainActor in
                 do {
                     let out = try await TranscriptActions.run(instruction: instruction, extracts: kind == .extract, timestamps: timestamps, on: t) { i, n in
-                        Task { @MainActor in if id == runID { part = n > 1 ? "Part \(i) of \(n)" : "" } }
+                        Task { @MainActor in if id == runID { part = n > 1 ? "Part \(i) of \(n)" : ""; partIndex = i } }
                     }
                     guard id == runID else { return }
                     result = out.text
@@ -171,7 +173,7 @@ struct ActionSheet: View {
         }
         job = Task { @MainActor in
             let out = await FlowCleanup.apply(instruction: instruction, to: text, kind: kind) { i, n in
-                if id == runID { part = n > 1 ? "Part \(i) of \(n)" : "" }
+                if id == runID { part = n > 1 ? "Part \(i) of \(n)" : ""; partIndex = i }
             }
             guard id == runID else { return }   // closed or restarted meanwhile
             if let out { result = out; state = .done } else { state = .failed }

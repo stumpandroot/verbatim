@@ -13,7 +13,6 @@ struct PhoneOnboarding: View {
     @State private var syncWanted = Cloud.wantsSync
     /// The keyboard step's Open Settings was tapped, so its button reads Continue.
     @State private var openedSettings = false
-    @Environment(\.limitMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
     private let total = 5
 
@@ -32,8 +31,9 @@ struct PhoneOnboarding: View {
                 default: ScrollView { quality }.scrollBounceBehavior(.basedOnSize)
                 }
             }
-            .id(step)
-            .transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+            // Continue slides the next step in from the right, Back the step before from the left; Limit animation
+            // crossfades (DESIGN.md §7, `slideSwitch`).
+            .slideSwitch(on: step, order: step)
             Spacer(minLength: 16)
             HStack(spacing: 6) {
                 ForEach(0..<total, id: \.self) { i in

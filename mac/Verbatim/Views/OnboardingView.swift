@@ -39,8 +39,9 @@ struct OnboardingView: View {
                 case .quality: quality
                 }
             }
-            .id(step)
-            .transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+            // Continue slides the next step in from the right, Back the step before from the left; Limit animation
+            // crossfades (DESIGN.md §7, `slideSwitch`).
+            .slideSwitch(on: step, order: step)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             footer
         }

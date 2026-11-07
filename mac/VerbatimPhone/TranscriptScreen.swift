@@ -55,6 +55,7 @@ struct TranscriptScreen: View {
     /// The transcript is long enough for the scrubber, which then replaces the system scroll indicator.
     @State private var scrubLong = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.limitMotion) private var limitMotion
     /// More's Find, Speakers, and Details open sheets; Delete asks first.
     @State private var showFind = false
     @State private var showSpeakers = false
@@ -135,7 +136,8 @@ struct TranscriptScreen: View {
                             guard follow, app.player.isPlaying, mode == .transcript, !selecting,
                                   let s = PlaybackSync.line(at: now, in: t.segments), s.id != followed else { return }
                             followed = s.id
-                            withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
+                            // Limit animation jumps to the line instead of scrolling to it.
+                            withAnimation(limitMotion ? nil : Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
                         }
                         .onChange(of: scrollTarget) { _, id in
                             guard let id else { return }
@@ -146,7 +148,7 @@ struct TranscriptScreen: View {
                             // Follow turned back on: go to the playing line now.
                             guard on, let s = PlaybackSync.line(at: app.player.time, in: t.segments) else { return }
                             followed = s.id
-                            withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
+                            withAnimation(limitMotion ? nil : Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
                         }
                         // Long transcripts: hold the right edge and drag to move fast. Original tab only, not in Select text.
                         if t.status == .ready, mode == .transcript, !selecting {

@@ -313,8 +313,10 @@ struct RecorderSheet: View {
             } label: {
                 HStack(spacing: 6) {
                     IconGlyph(art: .iconMarked, size: 14, color: Refined.accentText).accessibilityHidden(true)
+                    // The count changes in place as you mark (DESIGN.md §7); the moments' times never tick.
                     Text(app.lastMark.map { Marks.confirmation($0) } ?? RefinedRules.momentsLine(list.map(\.at)))
                         .refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1)
+                        .countChange(list.count)
                 }
                 .frame(minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
                 .contentShape(Rectangle())

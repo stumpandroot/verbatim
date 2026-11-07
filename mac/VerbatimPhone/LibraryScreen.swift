@@ -216,7 +216,7 @@ struct LibraryScreen: View {
     /// The serif title with the count, the search field, the chips, and a platform row under Links.
     @ViewBuilder private func header(items: [Transcript], scoped: [Transcript]) -> some View {
         if !isTabRoot {
-            LargeSerifTitle(title: title, count: countText(items))
+            LargeSerifTitle(title: title, count: countText(items), countValue: countNumber(items))
                 .padding(.top, 8)
                 .accessibilityElement(children: .combine)
                 .modifier(PageRow(top: 0, bottom: 0))
@@ -282,6 +282,11 @@ struct LibraryScreen: View {
     private func noteShown() {
         if case .kind(let k) = filter { Self.shownKind = k.rawValue } else { Self.shownKind = nil }
         Self.shownTitle = title
+    }
+
+    /// The number `countText` shows, so it changes in place.
+    private func countNumber(_ items: [Transcript]) -> Int {
+        typeFilter == .all && filter == .all && !searching ? recordingCount : items.count
     }
 
     /// "47 recordings", or with a filter on, how many it shows ("8 meetings", "3 pinned").

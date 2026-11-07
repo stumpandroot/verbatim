@@ -1205,9 +1205,11 @@ struct WeekCard: View {
     }
 
     private var label: some View { Text("This week").refinedFont(.meta).foregroundStyle(Refined.mute) }
+    /// The week's words change in place when a dictation adds to them (DESIGN.md §7, `countChange`).
     private var number: some View {
         Text(words.formatted()).font(.system(size: mac ? 28 : 30, weight: .semibold)).monospacedDigit()
             .foregroundStyle(Refined.ink).lineLimit(1).minimumScaleFactor(0.6)
+            .countChange(words)
     }
 
     private var macCard: some View {
@@ -1462,6 +1464,9 @@ struct LargeSerifTitle: View {
     var title: String
     var eyebrow: String? = nil
     var count: String? = nil
+    /// The number in `count`, when it changes in place (the Library's count as a filter or search changes it): its
+    /// digits roll to the new value (`countChange`). Nil leaves the line still.
+    var countValue: Int? = nil
 
     /// The line above the title: the eyebrow and the count, joined.
     static func line(eyebrow: String?, count: String?) -> String? {
@@ -1475,6 +1480,8 @@ struct LargeSerifTitle: View {
                 if RefinedPlatform.mac {
                     Text(line.uppercased()).refinedFont(.caption, weight: .semibold).kerning(0.6)
                         .foregroundStyle(Refined.mute).accessibilityLabel(line)
+                } else if let countValue {
+                    Text(line).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).countChange(countValue)
                 } else {
                     Text(line).refinedFont(.meta).foregroundStyle(Refined.mute)
                 }

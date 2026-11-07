@@ -171,7 +171,8 @@ struct TranscriptView: View {
                 if nav.follow, app.player.isPlaying, view == .original, !nav.selecting,
                    let s = t.segments.first(where: { now >= $0.start && now < $0.end }), s.id != followed {
                     followed = s.id
-                    withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
+                    // Limit animation jumps to the passage instead of scrolling to it.
+                    withAnimation(limitMotion ? nil : Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
                 }
             }
             .onChange(of: scrollTarget, initial: true) { _, target in
