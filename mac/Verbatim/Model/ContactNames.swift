@@ -43,6 +43,52 @@ enum ContactNames {
         }.value
     }
 
+    /// A contact's name as Contacts shows it: first and last, else the company.
+    private static func displayName(_ c: CNContact) -> String? {
+        let full = [c.givenName, c.familyName].map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
+        if !full.isEmpty { return full }
+        let company = c.organizationName.trimmingCharacters(in: .whitespaces)
+        return company.isEmpty ? nil : company
+    }
+
+    private static let nameKeys = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactOrganizationNameKey] as [CNKeyDescriptor]
+
+    /// The names of contacts Contacts' own search finds for `name` (at most 5), for a name a call window showed
+    /// (CallWindowNames.preferContact). Only with access already allowed; it never asks. Blocks while Contacts reads, so
+    /// call it off the main thread.
+    static func fullNames(matching name: String) -> [String] {
+        guard isAllowed, !name.isEmpty else { return [] }
+        let found = (try? CNContactStore().unifiedContacts(matching: CNContact.predicateForContacts(matchingName: name), keysToFetch: nameKeys)) ?? []
+        return Array(found.prefix(5).compactMap(displayName))
+    }
+
+    /// The one contact with this phone number or email, by name, for a call window that showed a number instead of a
+    /// name. Nil without access (it never asks), with no match, or with more than one. Only names are read. Blocks while
+    /// Contacts reads, so call it off the main thread.
+    static func name(forHandle handle: String) -> String? {
+        guard isAllowed, !handle.isEmpty else { return nil }
+        let predicate = handle.contains("@") ? CNContact.predicateForContacts(matchingEmailAddress: handle)
+            : CNContact.predicateForContacts(matching: CNPhoneNumber(stringValue: handle))
+        let found = (try? CNContactStore().unifiedContacts(matching: predicate, keysToFetch: nameKeys)) ?? []
+        let names = Set(found.compactMap(displayName))
+        return names.count == 1 ? names.first : nil
+    }
+
+    /// Every contact's name (first and last, else the company), each once, for "Who was this with?" as you type. Only
+    /// with access already allowed; it never asks. Runs off the main thread.
+    static func allNames() async -> [String] {
+        guard isAllowed else { return [] }
+        let people = await people()
+        var seen = Set<String>(), out: [String] = []
+        for p in people {
+            let full = [p.given, p.family].map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
+            let n = full.isEmpty ? p.company.trimmingCharacters(in: .whitespaces) : full
+            guard n.count >= 2, seen.insert(n.lowercased()).inserted else { continue }
+            out.append(n)
+        }
+        return out
+    }
+
     /// Full names, plus single names and companies that aren't ordinary words, minus anything already in the
     /// Dictionary or the built-in vocabulary. Sorted by name.
     static func candidates(_ people: [Person], dictionary: [DictionaryEntry]) -> [Candidate] {

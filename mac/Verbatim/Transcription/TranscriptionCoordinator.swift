@@ -388,12 +388,16 @@ final class TranscriptionCoordinator: ObservableObject {
     }
 
     /// Once a recording is transcribed (speakers included): suggests a kind, a title, and tags on this device
-    /// (AutoLabel). Runs once per transcript (while `kind` is nil) and never overwrites what the person set.
+    /// (AutoLabel). Runs once per transcript (while `kind` is nil) and never overwrites what the person set. A call
+    /// with its generated title ("Meeting · FaceTime · …", `waitsForModelTitle`) already has its kind and gets the
+    /// title only.
     private func labelIfNeeded(_ id: UUID) {
         guard AutoLabel.enabled, let t = store.transcript(id), t.status == .ready, t.source != .dictation,
-              AudioOnlyRules.labels(t), t.wantsSuggestedKind, !t.segments.isEmpty else { return }
+              AudioOnlyRules.labels(t), t.wantsSuggestedKind || t.waitsForModelTitle, !t.segments.isEmpty else { return }
+        let labelsKind = t.wantsSuggestedKind
         // An imported file with a made-up name (a TikTok download, IMG_4821) gets a title too (Transcript.mayAutoTitle).
         let wantTitle = t.mayAutoTitle(config.autoTitleSources)
+        guard labelsKind || wantTitle else { return }
         // Sponsor reads (detectSponsors, just before) never name or tag the recording.
         let segs = t.segmentsWithoutSponsors, speakers = max(t.speakers.count, Set(t.segments.compactMap(\.speaker)).count), duration = t.duration
         let origin = KindRule.origin(of: t)
@@ -405,8 +409,12 @@ final class TranscriptionCoordinator: ObservableObject {
                     // A kind you picked (Record a meeting, or the kind chip) is never replaced (Templates.swift).
                     x.applySuggestedKind(r.kind)
                     // A title written from the summary covers the whole recording; it wins over this excerpt-based one.
-                    if wantTitle, x.titleIsAuto, !SummaryCenter.shared.retitled.contains(id), let title = r.title { x.title = title; x.titleByModel = true }
-                    if !r.tags.isEmpty { x.tags = AutoLabel.merge(x.tags, r.tags) }
+                    if wantTitle, x.titleIsAuto, !SummaryCenter.shared.retitled.contains(id), let title = r.title {
+                        x.title = title; x.titleByModel = true
+                        // A call whose other side is named already: "… with Dana" when it reads naturally.
+                        x.addCallNameToTitle()
+                    }
+                    if labelsKind, !r.tags.isEmpty { x.tags = AutoLabel.merge(x.tags, r.tags) }
                 }
                 Log.note("autolabel: kind \(r.kind.rawValue), title \(wantTitle && r.title != nil ? "suggested" : "kept"), \(r.tags.count) tags, model \(r.usedModel)")
             }
@@ -587,7 +595,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         if freeLimit == nil { x.freeTranscriptLimit = nil }
                         self.promoteAudioOnly(&x, id)
                         if !wave.isEmpty { x.waveform = wave }
-                        if x.mayAutoTitle(autoTitle), !x.titleByModel, let auto = Transcript.titleFrom(fixed) { x.title = auto }
+                        if x.mayAutoTitle(autoTitle), !x.titleByModel, !x.waitsForModelTitle, let auto = Transcript.titleFrom(fixed) { x.title = auto }
                         // New words: a summary Apple Intelligence wrote for the old ones goes (an edited one stays).
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
                         if let old {
@@ -652,7 +660,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         // yours), each as a correction Review lists with Undo (MeetingNames.correctNames).
                         if let m = meeting {
                             fixedNames = MeetingNames.correctNames(&x.segments, corrections: &x.corrections, speakers: x.speakers,
-                                                                   attendees: m.attendees, selfNames: me, title: m.title, known: knownNames)
+                                                                   attendees: m.attendees, selfNames: me, title: m.meetingTitle, known: knownNames)
                         }
                         x.status = .ready
                         x.stage = nil
@@ -717,7 +725,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         if freeLimit == nil { x.freeTranscriptLimit = nil }
                         self.promoteAudioOnly(&x, id)
                         if !out.wave.isEmpty { x.waveform = out.wave }
-                        if x.mayAutoTitle(autoTitle), !x.titleByModel, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
+                        if x.mayAutoTitle(autoTitle), !x.titleByModel, !x.waitsForModelTitle, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
                         if let old {
                             x.previousVersion = old

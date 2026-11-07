@@ -86,6 +86,13 @@ final class MeetingSession: ObservableObject {
     private var stillCapture: CallStillCapture?
     /// The call you set up to wait for started this recording on its own: it starts with its own sound (Sounds).
     private var startedAutomatically = false
+    /// What the call app's window showed so far (CallWindowReader, CallWindowNames): read at the start, 10 seconds in,
+    /// and every minute after, kept in the sidecar as it changes.
+    private var windowTally = CallWindowNames.Tally()
+    /// Seconds into the recording of the next read of the call window.
+    private var nextWindowRead: TimeInterval = 0
+    private var windowReading = false
+    private var windowReadUnavailableLogged = false
 
     @available(macOS 14.4, *)
     private var tap: ProcessTapCapture? { tapObject as? ProcessTapCapture }
@@ -131,6 +138,7 @@ final class MeetingSession: ObservableObject {
         self.speaker = speaker
         eventTitle = title.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
         eventAttendees = attendees
+        windowTally = CallWindowNames.Tally(); nextWindowRead = 0; windowReading = false; windowReadUnavailableLogged = false
         remoteSilent = false; slept = false; micOnly = false; pausedForSleep = false
         micName = AudioDevices.current()?.name ?? "Microphone"
         phase = .starting
@@ -333,6 +341,10 @@ final class MeetingSession: ObservableObject {
             }
         }
         checkRemoteSilence()
+        if elapsed >= nextWindowRead {
+            nextWindowRead = nextWindowRead < 10 ? 10 : nextWindowRead + 60
+            readCallWindow()
+        }
         let silent = currentSilentFor
         if silent >= 30, elapsed - lastSilenceNote >= 30 {
             lastSilenceNote = elapsed
@@ -407,6 +419,42 @@ final class MeetingSession: ObservableObject {
             writeSidecar()
             Log.noteNow("meeting: keeping the mic only; the system track is dropped")
         }
+    }
+
+    // MARK: The call window
+
+    /// Reads the call app's window off the main thread (CallWindowReader): the other person's name and the meeting's
+    /// own name, kept in the sidecar when they change. Without Accessibility, without a call app (all system audio), or
+    /// with nothing found, nothing changes. The log says what was found as counts, never the names.
+    private func readCallWindow() {
+        guard !windowReading, let bundle = appBundleID, !UITest.enabled else { return }
+        windowReading = true
+        let me = MeetingNames.selfNames()
+        Task.detached(priority: .utility) { [weak self] in
+            let reading = CallWindowReader.read(bundleID: bundle, selfNames: me)
+            await self?.keepWindowReading(reading, bundleID: bundle)
+        }
+    }
+
+    private func keepWindowReading(_ reading: CallWindowNames.Reading?, bundleID: String) {
+        windowReading = false
+        guard isActive, appBundleID == bundleID else { return }
+        guard let reading else {
+            if !windowReadUnavailableLogged {
+                windowReadUnavailableLogged = true
+                Log.note("meeting: the call window can't be read (Accessibility is off or the app isn't running)")
+            }
+            return
+        }
+        let before = (windowTally.names, windowTally.title)
+        windowTally.add(reading)
+        let names = windowTally.names, title = windowTally.title
+        guard names != before.0 || title != before.1 else { return }
+        sidecar?.windowNames = names.isEmpty ? nil : names
+        sidecar?.windowTitle = title
+        writeSidecar()
+        let source = MeetingApps.known.first { $0.bundleID.lowercased() == bundleID.lowercased() }?.name ?? "call app"
+        Log.note("meeting: the \(source) window shows \(names.count) name\(names.count == 1 ? "" : "s") and \(title == nil ? "no" : "a") meeting title (read \(windowTally.reads) time\(windowTally.reads == 1 ? "" : "s"))")
     }
 
     /// The meters' levels (0…1) right now: the mic track and the system track.
@@ -547,22 +595,28 @@ final class MeetingSession: ObservableObject {
         // A system track of exact zeros (no permission) only adds an empty speaker.
         let systemOK = usable(system) && sidecar.track(.system)?.heardSignal != false
         var side = sidecar
-        // A call set up from a calendar event takes the event's title (November 3, 2026).
-        let title = side.title.map { recovered ? "Recovered: \($0)" : $0 }
-            ?? "\(recovered ? "Recovered meeting" : "Meeting") · \(side.track(.system)?.speaker ?? side.targetName) · \(Store.stamp(side.createdAt))"
+        // A call set up from a calendar event takes the event's title (November 3, 2026); without one, the meeting's
+        // own name from the call window's title ("Meet - Weekly design sync"). Either stays as it is. Otherwise the
+        // generated title, which Apple Intelligence may replace from the summary (Transcript.isMeetingPlaceholder).
+        let named = side.title ?? side.windowTitle
+        let title = named.map { recovered ? "Recovered: \($0)" : $0 }
+            ?? Transcript.meetingPlaceholder(app: side.track(.system)?.speaker ?? side.targetName, stamp: Store.stamp(side.createdAt), recovered: recovered)
+        let titleIsAuto = named == nil
         let label = recovered ? "Recovered meeting" : "Meeting"
         // A calendar call: the event's title and the other invitees go with the recording, for the engine's word list,
-        // the call track's name, and names fixed after the call (MeetingNames). You're left out by name too.
+        // the call track's name, and names fixed after the call (MeetingNames). You're left out by name too. The call
+        // window's name and title go too: the name is suggested like the one other invitee.
         let me = MeetingNames.selfNames()
         var meeting: MeetingContext? = MeetingContext(title: side.title ?? "", attendees: MeetingNames.others(side.attendees ?? [], selfNames: me),
-                                                      app: side.track(.system)?.speaker)
+                                                      app: side.track(.system)?.speaker,
+                                                      windowNames: MeetingNames.others(side.windowNames ?? [], selfNames: me), windowTitle: side.windowTitle)
         if meeting?.isEmpty == true { meeting = nil }
         if micOK, systemOK, let mic, let system, let micTrack = side.track(.mic), let sysTrack = side.track(.system) {
             let plan = MeetingAlign.plan(side)
             Log.noteNow("meeting: alignment \(MeetingAlign.describe(plan))")
             let id = app.startMultitrack(sources: [mic.url, system.url], sourceNames: [micTrack.fileName, sysTrack.fileName],
                                          speakers: [micTrack.speaker, sysTrack.speaker], offsets: plan.offsets,
-                                         durations: [mic.duration, system.duration], title: title, align: false, ignoreBleed: true,
+                                         durations: [mic.duration, system.duration], title: title, titleIsAuto: titleIsAuto, align: false, ignoreBleed: true,
                                          source: .app, sourceLabel: label, recordedAt: side.createdAt, meeting: meeting) { ok in
                 if ok {
                     try? fm.removeItem(at: folder)
@@ -579,8 +633,9 @@ final class MeetingSession: ObservableObject {
                 app.store.update(id) { $0.stills = stills.map { VideoStill(at: max(0, $0.at + shift), file: $0.file, aspect: $0.aspect) } }
             }
             // A calendar call's attendees: the names to pick from for the call's track (S2), kept as speaker
-            // suggestions from the calendar (Transcript.calendarNames). The one other invitee, or the other half of a
-            // one-on-one title, shows as a suggestion with Use; nothing is renamed on its own.
+            // suggestions from the calendar (Transcript.calendarNames). The one other invitee, the other half of a
+            // one-on-one title, or the one person the call window showed, shows as a suggestion with Use; nothing is
+            // renamed on its own.
             if let id, let meeting {
                 let suggestions = MeetingNames.suggestions(meeting, selfNames: me, speakerId: MultitrackMath.speakerID(1))
                 if !suggestions.isEmpty { app.store.update(id) { $0.speakerSuggestions = suggestions } }
@@ -602,7 +657,7 @@ final class MeetingSession: ObservableObject {
         var t = Transcript(title: title, source: micOK ? .voiceMemo : .app, sourceLabel: label, duration: only.duration, audioFileName: name, model: "")
         t.createdAt = side.createdAt
         t.kind = .meeting
-        t.titleIsAuto = false
+        t.titleIsAuto = titleIsAuto
         t.meeting = meeting
         if let stills = side.stills, !stills.isEmpty { t.stills = stills.map { VideoStill(at: $0.at, file: $0.file, aspect: $0.aspect) } }
         app.enqueue(t)

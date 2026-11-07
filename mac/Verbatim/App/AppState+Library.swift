@@ -98,6 +98,8 @@ extension AppState {
             // Any name works: first and last, initials, underscores. Only surrounding spaces are trimmed.
             let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
             if let i = t.speakers.firstIndex(where: { $0.id == sid }), !clean.isEmpty { t.speakers[i].name = clean }
+            // The other side of a call named: an automatic title takes "with Dana" when it reads naturally.
+            t.addCallNameToTitle()
         }
         SpeakerVoices.remember(transcript: id, speaker: sid, name: name)
     }
@@ -112,6 +114,11 @@ extension AppState {
     /// Dismiss: the suggestion hides and isn't made again.
     func dismissSpeakerSuggestion(transcript id: UUID, _ s: SpeakerSuggestion) {
         store.update(id) { $0.markSpeakerSuggestion(s.id, .dismissed) }
+    }
+
+    /// Dismiss on "Who was this with?" (Views/WhoWasThisRow.swift): it doesn't ask about this transcript again.
+    func dismissWhoWasThis(transcript id: UUID) {
+        store.update(id) { $0.askWhoDismissed = true }
     }
 
     func assign(transcript id: UUID, segment seg: UUID, to speaker: String?) {

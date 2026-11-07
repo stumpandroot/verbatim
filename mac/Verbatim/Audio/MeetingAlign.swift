@@ -54,6 +54,10 @@ struct MeetingSidecar: Codable, Equatable {
     var attendees: [String]? = nil
     /// Stills of shared screens kept while recording (App/CallStills.swift), so a recovered session keeps them too.
     var stills: [MeetingStill]? = nil
+    /// What the call app's window showed while recording (App/CallWindowReader.swift): the other person's name (most
+    /// seen first) and the meeting's own name from the window title. Nil when nothing was found.
+    var windowNames: [String]? = nil
+    var windowTitle: String? = nil
 
     func track(_ role: MeetingTrack.Role) -> MeetingTrack? { tracks.first { $0.role == role } }
 

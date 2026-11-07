@@ -180,11 +180,13 @@ extension AppState {
 
     /// Makes a multi-track transcript from files recorded at the same time, one speaker each: the sheet's tracks,
     /// or a meeting capture's mic and system tracks (App/MeetingSession.swift), which pass offsets from host time
-    /// with `align` off, and a calendar call's `meeting`. `onPrepared` runs on the main actor once the working copies and the mix are made (true) or
-    /// that failed (false); the sources can go after true. Returns the transcript's ID.
+    /// with `align` off, a calendar call's `meeting`, and `titleIsAuto` true for a call's generated title (Apple
+    /// Intelligence may replace it; Transcript.isMeetingPlaceholder). `onPrepared` runs on the main actor once the
+    /// working copies and the mix are made (true) or that failed (false); the sources can go after true. Returns the
+    /// transcript's ID.
     @discardableResult
     func startMultitrack(sources: [URL], sourceNames: [String], speakers: [String], offsets known: [Double?], durations: [Double],
-                         title: String, align auto: Bool, ignoreBleed: Bool, source: SourceKind = .file, sourceLabel: String? = nil,
+                         title: String, titleIsAuto: Bool = false, align auto: Bool, ignoreBleed: Bool, source: SourceKind = .file, sourceLabel: String? = nil,
                          recordedAt: Date? = nil, meeting: MeetingContext? = nil, onPrepared: ((Bool) -> Void)? = nil) -> UUID? {
         guard sources.count >= 2, sources.count == speakers.count else { return nil }
         let fileNames = sources.indices.map { "track-\($0 + 1).wav" }
@@ -195,7 +197,8 @@ extension AppState {
         t.meeting = meeting
         t.status = .processing; t.stage = "Preparing tracks"
         t.kind = .meeting
-        t.titleIsAuto = false
+        // A title from the sheet or a calendar event stays; a call's generated title may be replaced.
+        t.titleIsAuto = titleIsAuto
         t.multitrack = MultitrackInfo(tracks: sources.indices.map { i in
             let speaker = speakers[i].trimmingCharacters(in: .whitespaces)
             return AudioTrack(fileName: fileNames[i], sourceName: i < sourceNames.count ? sourceNames[i] : sources[i].lastPathComponent,
