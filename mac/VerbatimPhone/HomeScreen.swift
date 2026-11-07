@@ -30,6 +30,9 @@ struct HomeScreen: View {
     @ObservedObject private var flow = FlowSettings.shared
     /// All time for This week's card (DictationTally.swift).
     @ObservedObject private var tally = DictationTally.shared
+    /// "Saved" on the Record card and a word milestone on This week (DESIGN.md §7, Celebrations).
+    @ObservedObject private var celebrations = CelebrationCenter.shared
+    @Environment(\.scenePhase) private var scenePhase
     /// The What's new sheet after a bigger update (WhatsNewSheet.swift), once.
     @State private var whatsNewPopup: ReleaseNote?
     @AppStorage(ReleaseNotes.lastSeenKey) private var whatsNewLastSeen = 0
@@ -91,7 +94,10 @@ struct HomeScreen: View {
         .onAppear {
             now = Date(); readyText = RecordingRoute.readyText(); Self.recordCardsOnScreen += 1
             checkWhatsNew()
+            showMilestone()
         }
+        // Coming back to Home from another app counts as Home appearing (a milestone crossed in the keyboard shows now).
+        .onChange(of: scenePhase) { _, phase in if phase == .active { showMilestone() } }
         .onDisappear { Self.recordCardsOnScreen = max(0, Self.recordCardsOnScreen - 1) }
         .onChange(of: app.recordingActive) { _, _ in readyText = RecordingRoute.readyText() }
         .onReceive(Self.minute) { now = $0 }
@@ -194,6 +200,13 @@ struct HomeScreen: View {
         whatsNewPopup = note
     }
 
+    /// A word milestone waiting since a dictation crossed it (WordMilestones) shows on This week now, never at paste
+    /// time, with `.milestone` as its fill completes. Only while This week is on Home and nothing covers it.
+    private func showMilestone() {
+        guard app.tab == .home, !app.showRecorder, !app.showSettings else { return }
+        celebrations.showPendingMilestone(mac: false, weekShown: layouts.layout.isVisible(.week)) { Haptics.play(.milestone) }
+    }
+
     /// Puts a dictation's words on the clipboard (a Dictations row). The row itself confirms with a check.
     static func copyDictation(_ text: String) {
         UIPasteboard.general.string = text
@@ -216,7 +229,10 @@ struct HomeScreen: View {
     private func recordCard(compact: Bool) -> some View {
         let pressed = recordPress != .idle
         let hint = app.recordingActive ? "Tap to open the recorder" : "Tap for a voice note, hold for more"
-        return RecordCardFace(status: recordStatus, hint: hint, compact: compact)
+        // "Saved" on the chip after a recording, with the small bounce, for 1.6 s (DESIGN.md §7, Celebrations).
+        return CelebrationBurst(ticket: celebrations.saved, script: .saved) { saved in
+            RecordCardFace(status: recordStatus, hint: hint, compact: compact, saved: saved)
+        }
             .scaleEffect(pressed && !limitMotion ? 0.98 : 1)
             .opacity(pressed && limitMotion ? 0.8 : 1)
             .animation(limitMotion ? Motion.fade : Motion.press, value: pressed)
@@ -278,8 +294,11 @@ struct HomeScreen: View {
         return Button { Self.openProfile(app) } label: {
             WeekCard(words: week.words, detail: "\(week.words == 1 ? "word" : "words"), \(recordingsText)",
                      saved: "\(saved) saved", total: total, days: week.cardDays, large: size == .large)
+                // A word milestone sweeps the card (DESIGN.md §7, Celebrations).
+                .milestoneOverlay(celebrations.milestone, radius: RefinedPlatform.radius(.card))
         }
         .buttonStyle(RefinedPress())
+        .celebrationTapSkips(celebrations.milestone?.id)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(recordingsText), \(saved) saved typing\(total.map { ", \($0)" } ?? "").")
         .accessibilityHint("Opens your You page, with the whole week.")

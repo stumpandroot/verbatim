@@ -56,6 +56,8 @@ struct TranscriptScreen: View {
     @State private var scrubLong = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.limitMotion) private var limitMotion
+    /// The transcript finishing while it's open (DESIGN.md §7, Celebrations).
+    @ObservedObject private var celebrations = CelebrationCenter.shared
     /// More's Find, Speakers, and Details open sheets; Delete asks first.
     @State private var showFind = false
     @State private var showSpeakers = false
@@ -87,6 +89,10 @@ struct TranscriptScreen: View {
 
     private var t: Transcript? { app.store.transcript(id) }
 
+    /// This transcript finishing on its own screen: the processing card stays until its celebration ends, then the text
+    /// replaces it.
+    private var readyTicket: CelebrationTicket? { celebrations.ready[id].flatMap { $0.surface == .transcript ? $0 : nil } }
+
     var body: some View {
         // Audio only with no words yet: its own screen (AudioDetailScreen.swift), until Transcribe brings the words.
         if app.store.transcript(id)?.showsAudioDetail == true {
@@ -104,7 +110,7 @@ struct TranscriptScreen: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
                                 header(t)
-                                if t.status == .ready {
+                                if t.status == .ready && readyTicket == nil {
                                     RefinedSegmented(options: modes(t), selection: $mode)
                                         .padding(.top, 14)
                                         .onChange(of: t.corrections.isEmpty) { _, none in if none, mode == .review { mode = .transcript } }
@@ -259,8 +265,8 @@ struct TranscriptScreen: View {
             }
         }
         // Reading: Record's accessory turns off with the tab bar (RecordAccessory.swift).
-        .onAppear { app.readingScreens.insert(readingToken); Self.shownScreens.insert(readingToken) }
-        .onDisappear { app.readingScreens.remove(readingToken); Self.shownScreens.remove(readingToken) }
+        .onAppear { app.readingScreens.insert(readingToken); Self.shownScreens.insert(readingToken); celebrations.transcriptAppeared(id) }
+        .onDisappear { app.readingScreens.remove(readingToken); Self.shownScreens.remove(readingToken); celebrations.transcriptLeft(id) }
     }
 
     /// Shares the recording's audio file, after it downloads from iCloud when it lives on the other device.
@@ -406,16 +412,26 @@ struct TranscriptScreen: View {
     }
 
     @ViewBuilder private func content(_ t: Transcript) -> some View {
-        if t.status == .processing {
-            HStack(spacing: 14) {
-                SignalRings(active: t.processingDevice == Device.id).frame(width: 44, height: 44)
-                VStack(alignment: .leading, spacing: 3) {
-                    LiveStage(t) { t in Text(t.stageText).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink) }
-                    Text(t.processingDevice == Device.id ? "On this iPhone. The first run downloads the model once." : "It appears here when it's done.")
-                        .refinedFont(.hint).foregroundStyle(Refined.mute)
+        if t.status == .processing || readyTicket != nil {
+            // The processing card. When the transcript finishes here, its tint fills the card, "Ready" shows, and then
+            // the text replaces the card (DESIGN.md §7, Celebrations); nothing around it moves.
+            CelebrationBurst(ticket: readyTicket, script: .transcript) { burst in
+                HStack(spacing: 14) {
+                    SignalRings(active: t.processingDevice == Device.id).frame(width: 44, height: 44)
+                    VStack(alignment: .leading, spacing: 3) {
+                        LiveStage(t) { t in Text(t.status == .processing ? t.stageText : "Transcribing").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink) }
+                        Text(t.processingDevice == Device.id || t.status == .ready ? "On this iPhone. The first run downloads the model once." : "It appears here when it's done.")
+                            .refinedFont(.hint).foregroundStyle(Refined.mute)
+                    }
                 }
+                .opacity(burst.active ? burst.old : 1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .celebrationWord(burst.active ? CelebrationWord.ready : nil, state: burst, size: 17)
+                .celebrationSweep(readyTicket?.tone.tint ?? Refined.persimmonTint, state: burst, radius: RefinedPlatform.radius(.card), outset: 12)
+                .scaleEffect(burst.active ? burst.scale : 1)
             }
             .padding(.top, 8)
+            .transition(.opacity)
         } else if t.status == .failed {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {

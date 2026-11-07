@@ -279,9 +279,11 @@ final class PhoneState {
     }
 
     /// Shows a toast. A message alone goes after 3 s; one with an action (Undo) stays at least 8 s, and while a finger
-    /// is on it (ToastTiming, DESIGN.md §7).
-    func say(_ s: String, action: String? = nil, onAction: (() -> Void)? = nil) {
-        let t = PhoneToast(s, action: action, onAction: onAction)
+    /// is on it (ToastTiming, DESIGN.md §7). `celebration`: a finished transcript's fill sweeps it (DESIGN.md §7,
+    /// Celebrations).
+    func say(_ s: String, action: String? = nil, celebration: CelebrationTicket? = nil, onAction: (() -> Void)? = nil) {
+        var t = PhoneToast(s, action: action, onAction: onAction)
+        t.celebration = celebration
         toast = t
         endToastWhenDue(t.id)
     }
@@ -482,10 +484,11 @@ final class PhoneState {
 
     /// Stop: capture ends at once, the recorder says "Saving…" while a long
     /// recording's parts are joined off the main thread, then it joins the queue. Nothing that reached the disk
-    /// is thrown away: only a recording with no audio at all is removed, with a message saying so.
-    func stopRecording() {
+    /// is thrown away: only a recording with no audio at all is removed, with a message saying so. `source`: where the
+    /// Stop came from; only the recorder's own Stop celebrates (RecordingFinish, DESIGN.md §7).
+    func stopRecording(from source: StopSource = .elsewhere) {
         guard !savingRecording else { return }
-        Task { await finishRecording(discard: false) }
+        Task { await finishRecording(discard: false, source: source) }
     }
 
     /// Discard: after you confirm, the recording goes to Recently Deleted (not transcribed, restorable for 30 days).
@@ -494,7 +497,7 @@ final class PhoneState {
         Task { await finishRecording(discard: true) }
     }
 
-    private func finishRecording(discard: Bool) async {
+    private func finishRecording(discard: Bool, source: StopSource = .elsewhere) async {
         // Stop or Discard: the stop tap plays at the tap, not after a long recording's parts are joined.
         Haptics.play(.recordStop)
         lastStopDiscarded = discard
@@ -511,13 +514,23 @@ final class PhoneState {
         let thoughtStart = recordingThought ? (thoughtStartedAt ?? Date()) : nil
         recordingThought = false
         thoughtStartedAt = nil
+        // Finishing a recording (DESIGN.md §7, Celebrations): a tap on the recorder's Stop fills its ring while it saves,
+        // `.success` lands as the ring fills, and "Saved" shows on Home's Record card when Home is under the recorder.
+        let plan = RecordingFinish.phone(source: source, discard: discard, thought: thoughtStart != nil, homeUnderneath: tab == .home && homePath.isEmpty)
+        let tapped = Date()
+        let ring = plan.ring ? CelebrationCenter.shared.fillRing(tone: thoughtStart != nil ? .butter : .persimmon) : nil
         savingRecording = true
         // The stop sound once the microphone is off (so it isn't recorded), before a long recording's parts are joined.
         // A thought saved has its own; Discard is a stop too.
         let stopSound = SoundRules.stop(thought: thoughtStart != nil && !discard)
         let stopped = await recorder.stopAndSave(captureEnded: { Sounds.play(stopSound) })
+        if let ring {
+            let saved = stopped.map { !$0.joinFailed && $0.framesWritten > 0 } ?? false
+            await finishRing(ring, tapped: tapped, saved: saved, haptic: plan.haptic)
+        }
         savingRecording = false
         showRecorder = false
+        CelebrationCenter.shared.clearRing()
         guard let r = stopped else { return }
         if r.joinFailed {
             // Every part stays in the recordings folder; launch recovery joins it into one recording (and the
@@ -544,6 +557,8 @@ final class PhoneState {
             else { say("Couldn't move the recording. Verbose recovers it the next time it opens."); Haptics.play(.failed) }
             return
         }
+        // "Saved" on Home's Record card once the recorder has closed over it.
+        if plan.savedChip { CelebrationCenter.shared.showSaved(after: CelebrationTiming.afterSheet) }
         // A free recording past 10 minutes is saved in full; its first 10 minutes transcribe (FreeTranscription).
         let freeLimit = UnlockStore.shared.freeLimit(forDuration: r.duration)
         if let target {
@@ -576,6 +591,19 @@ final class PhoneState {
         t.freeTranscriptLimit = freeLimit
         enqueue(t)
         if freeLimit != nil { UnlockStore.shared.savedPastFreeTranscription(noun: kind.map { RecordChoice.kind($0).name.lowercased() } ?? "voice note") }
+    }
+
+    /// The stop ring after the save (DESIGN.md §7, Celebrations): `.success` as the ring finishes filling, once the
+    /// recording is saved (at once when saving took longer than the fill), then the ring holds a moment and the recorder
+    /// closes. A tap on the recorder skips to the end. Discard, a thought, and a stop from outside the recorder have no
+    /// ring (RecordingFinish).
+    private func finishRing(_ ring: CelebrationTicket, tapped: Date, saved: Bool, haptic: Bool) async {
+        let center = CelebrationCenter.shared
+        let toFill = RecordingFinish.hapticDelay(sinceTap: Date().timeIntervalSince(tapped), skipped: center.skipped(ring.id))
+        if toFill > 0 { _ = await celebrationWait(toFill, ring.id) }
+        if haptic && saved { Haptics.play(.recordingSaved) }
+        let toClose = RecordingFinish.closeDelay(sinceTap: Date().timeIntervalSince(tapped), ring: true, skipped: center.skipped(ring.id))
+        if toClose > 0 { _ = await celebrationWait(toClose, ring.id) }
     }
 
     /// Mark a moment (Model/Marks.swift): a bookmark at the recording's current time, saved with it when you stop. From
@@ -1270,9 +1298,14 @@ extension PhoneState: TranscriptionHost {
         say("Switched to \(store.transcript(id)?.model ?? "the other words")")
     }
 
+    /// A transcript is ready: "Transcript ready" with Open for the last in a batch, and its celebration on the first
+    /// surface on screen (the open transcript, its Library row, or the toast), with the ready haptic and sound timed to
+    /// its fill (DESIGN.md §7, Celebrations).
     func transcriptReady(_ id: UUID, corrections: Int, queueEmpty: Bool) {
-        if queueEmpty { say("Transcript ready") }
-        playReady(id, queueEmpty: queueEmpty)
+        let celebration = playReady(id, queueEmpty: queueEmpty, celebrates: true)
+        if queueEmpty {
+            say("Transcript ready", action: "Open", celebration: celebration?.surface == .toast ? celebration : nil) { [weak self] in self?.open(id) }
+        }
     }
 
     func jobFailed(_ id: UUID, error: Error) {
@@ -1295,12 +1328,27 @@ extension PhoneState: TranscriptionHost {
     /// `.success` once per recording, with Verbose in front and the "ready" message showing. A template that runs
     /// after it adds no second one. The transcription done sound with it, for recordings only (not a thought or a
     /// dictation, SoundRules.transcriptDone).
-    private func playReady(_ id: UUID, queueEmpty: Bool) {
+    ///
+    /// With `celebrates`, a finished transcript celebrates on the first surface on screen (ReadyCelebration): the open
+    /// transcript, its Library row, or the toast. The haptic and sound then wait for its fill, so they land together;
+    /// with nothing on screen they play at once. Returns the celebration posted, if any.
+    @discardableResult
+    private func playReady(_ id: UUID, queueEmpty: Bool, celebrates: Bool = false) -> CelebrationTicket? {
         let front = UIApplication.shared.applicationState == .active
-        guard readyOnce.ready(id, foreground: front, queueEmpty: queueEmpty) else { return }
-        Haptics.play(.transcriptReady)
+        let first = !readyOnce.played.contains(id)
+        let plays = readyOnce.ready(id, foreground: front, queueEmpty: queueEmpty)
         let t = store.transcript(id)
-        if let moment = SoundRules.transcriptDone(isDictation: t?.isDictation ?? false, isThought: t?.kind == .idea) { Sounds.play(moment) }
+        let moment = SoundRules.transcriptDone(isDictation: t?.isDictation ?? false, isThought: t?.kind == .idea)
+        let feedback: (() -> Void)? = plays ? {
+            Haptics.play(.transcriptReady)
+            if let moment { Sounds.play(moment) }
+        } : nil
+        let center = CelebrationCenter.shared
+        let surface = !celebrates ? nil : ReadyCelebration.surface(
+            isDictation: t?.isDictation ?? false, isThought: t?.kind == .idea, first: first, foreground: front,
+            transcriptOpen: center.isOpen(id), rowOnScreen: center.rowOnScreen(id), toastShows: queueEmpty, phone: true)
+        guard let surface, let t, ReadyCelebration.feedbackWaits(for: surface) else { feedback?(); return nil }
+        return center.celebrateReady(id, on: surface, tone: CelebrationTone.of(source: t.source.rawValue), feedback: feedback)
     }
 
     func notify(_ message: String) { say(message) }

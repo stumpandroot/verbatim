@@ -233,6 +233,9 @@ struct PhoneToast: Identifiable, Equatable {
     let message: String
     var action: String? = nil
     var onAction: (() -> Void)? = nil
+    /// "Transcript ready" when no transcript or Library row shows it: the transcript's color sweeps the toast
+    /// (DESIGN.md §7, Celebrations).
+    var celebration: CelebrationTicket? = nil
     /// When it appeared, for how long it stays (ToastTiming).
     let shownAt = Date()
     init(_ message: String, action: String? = nil, onAction: (() -> Void)? = nil) {
@@ -250,21 +253,39 @@ private struct PhoneToastView: View {
     var body: some View {
         ZStack {
             if let t = app.toast {
-                HStack(spacing: 12) {
-                    Text(t.message).refinedFont(.hint, weight: .medium).foregroundStyle(Refined.paper)
-                    if let a = t.action {
-                        Button { app.runToastAction() } label: {
-                            Text(a).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.paper)
-                                .lineLimit(1).fixedSize()
-                                .padding(.horizontal, 12).frame(minHeight: 30)
-                                .overlay(Capsule().strokeBorder(Refined.paper, lineWidth: 1.5))
-                                .contentShape(Capsule())
+                // A finished transcript's fill sweeps the toast in its color, and the words turn to ink with it.
+                CelebrationBurst(ticket: t.celebration, script: .toast) { burst in
+                    let on = burst.active && burst.covered
+                    let ink = on ? Refined.onFill : Refined.paper
+                    HStack(spacing: 12) {
+                        Text(t.message).refinedFont(.hint, weight: .medium).foregroundStyle(ink)
+                        if let a = t.action {
+                            Button { app.runToastAction() } label: {
+                                Text(a).refinedFont(.hint, weight: .semibold).foregroundStyle(ink)
+                                    .lineLimit(1).fixedSize()
+                                    .padding(.horizontal, 12).frame(minHeight: 30)
+                                    .overlay(Capsule().strokeBorder(ink, lineWidth: 1.5))
+                                    .contentShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.leading, 16).padding(.trailing, t.action == nil ? 16 : 6).padding(.vertical, t.action == nil ? 10 : 6)
+                    // The fill behind the words, so they stay on top of it.
+                    .background {
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Refined.ink)
+                            if burst.active, let c = t.celebration {
+                                Capsule().fill(c.tone.fill)
+                                    .scaleEffect(x: max(0.0001, burst.fill), y: 1, anchor: .leading)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        .allowsHitTesting(false)
+                    }
+                    .scaleEffect(burst.active ? burst.scale : 1)
                 }
-                .padding(.leading, 16).padding(.trailing, t.action == nil ? 16 : 6).padding(.vertical, t.action == nil ? 10 : 6)
-                .background(Refined.ink, in: Capsule())
+                .onDisappear { if let c = t.celebration { CelebrationCenter.shared.didFinish(c.id) } }
                 // A finger on the toast keeps it (ToastTiming); the button still takes its tap.
                 .simultaneousGesture(DragGesture(minimumDistance: 0)
                     .onChanged { _ in if !app.toastHold.isHeld(t.id) { app.holdToast(true) } }

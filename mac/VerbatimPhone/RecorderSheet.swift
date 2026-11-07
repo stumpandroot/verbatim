@@ -37,6 +37,8 @@ struct RecorderSheet: View {
     /// kind can switch.
     @EnvironmentObject private var recorder: Recorder
     @ObservedObject private var auto = TemplateSettingsModel.shared
+    /// The stop ring after a tap on Stop (DESIGN.md §7, Celebrations).
+    @ObservedObject private var celebrations = CelebrationCenter.shared
     @State private var naming: RecordingMoment.ID? = nil
     @State private var nameDraft = ""
     /// Discard asks first: the recording moves to Recently Deleted.
@@ -75,6 +77,9 @@ struct RecorderSheet: View {
             .scrollBounceBehavior(.basedOnSize)
             controls.padding(.top, 4).padding(.bottom, 6)
         }
+        // A tap anywhere on the recorder while the stop ring fills jumps it to the end (the controls are disabled
+        // while saving, so this sits outside them).
+        .celebrationTapSkips(celebrations.ring?.id)
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Refined.paper.ignoresSafeArea())
@@ -340,7 +345,11 @@ struct RecorderSheet: View {
                 .disabled(paused || saving)
                 .accessibilityHint("Saves this point in the recording as a moment.")
                 .frame(maxWidth: .infinity)
-                RecorderStopButton(saving: saving) { app.stopRecording() }
+                CelebrationBurst(ticket: celebrations.ring, script: .ring) { ring in
+                    RecorderStopButton(saving: saving, ring: ring, ringColor: celebrations.ring?.tone.fill ?? Refined.persimmon) {
+                        app.stopRecording(from: .recorderButton)
+                    }
+                }
                     .accessibilityHint(stopHint)
                     .accessibilityIdentifier("native.recorder.stop")
                     .onAppear { RecorderSheet.stopColor = Refined.recordRed }
