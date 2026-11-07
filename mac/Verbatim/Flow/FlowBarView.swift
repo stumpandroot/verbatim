@@ -82,24 +82,25 @@ struct FlowBarView: View {
     }
 
 
-    /// Every state shares one paper tab. Between states the tab eases to its new size (0.3 s, no bounce) and keeps its
-    /// velocity if the state changes mid-move. Reduce Motion turns the morph into a quick fade.
-    private var morph: Animation? { reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.3) }
+    /// Every state shares one paper tab. Between states the tab eases to its new size on `Motion.surfaceMorph` (0.3 s, no
+    /// bounce, the notch's curve too) and keeps its velocity if the state changes mid-move. Reduce Motion and Limit
+    /// animation change the shape at once and only crossfade the contents (`SurfaceMotion`, DESIGN.md §12).
+    private var morph: Animation? { SurfaceMotion.morphs(still: reduceMotion) ? Motion.surfaceMorph : nil }
 
     /// Contents other than listening arrive a beat after the tab starts growing, so text never squeezes into a tab
-    /// that's still small, and leave at once.
+    /// that's still small, and leave at once. A fade only, no scale (MAC-33). Held still, a crossfade.
     private var contentTransition: AnyTransition {
-        if reduceMotion { return .opacity }
+        if reduceMotion { return Motion.surfaceStillFade }
         return .asymmetric(
-            insertion: .opacity.combined(with: .scale(scale: 0.94)).animation(.easeOut(duration: 0.18).delay(0.07)),
+            insertion: .opacity.animation(.easeOut(duration: 0.18).delay(0.07)),
             removal: .opacity.animation(.easeOut(duration: 0.08)))
     }
 
     /// Listening is the dictation key's answer, so it shows at once (DESIGN.md §7, keyboard actions don't animate): its
     /// contents fade in over 0.1 s with no delay and no scale (`KeyMotion.listeningFade`) while the tab morphs as
-    /// before, and leave at once. Reduce Motion keeps the morph's quick fade.
+    /// before, and leave at once. Held still, the shape doesn't morph and the contents crossfade.
     private var listeningTransition: AnyTransition {
-        if reduceMotion { return .opacity }
+        if reduceMotion { return Motion.surfaceStillFade }
         return .asymmetric(insertion: .opacity.animation(.easeOut(duration: KeyMotion.listeningFade)),
                            removal: .opacity.animation(.easeOut(duration: 0.08)))
     }
@@ -112,8 +113,8 @@ struct FlowBarView: View {
     /// The words as the Ribbon shows them: the end only, so the line stays short to lay out.
     private var liveTail: LiveWords { words.words.tail(model.edge == .bottom ? 90 : 80) }
     /// The tab eases to its new size when live words start, stop, or change state; with Reduce Motion or Limit
-    /// animation, a quick ease instead (no spring).
-    private var liveMorph: Animation { reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.3) }
+    /// animation, it takes the new size at once.
+    private var liveMorph: Animation? { SurfaceMotion.morphs(still: reduceMotion) ? Motion.surfaceMorph : nil }
     /// Keyed on the live words' state only: each dictated word is a high-frequency change, so the tab takes the new
     /// word's width at once instead of re-animating on every word (DESIGN.md §7).
     private var liveKey: String { liveWordsShown ? "\(words.state)" : "" }
@@ -122,6 +123,8 @@ struct FlowBarView: View {
     private var stateKey: String {
         "\(ribbonStyle)-\(model.phase)-\(closed)-\(model.dragging)-\(model.handsFree)-\(model.warning.isEmpty)-\(model.alert?.title ?? "")-\(model.command)-\(model.edge)-\(model.noticeAction ?? "")-\(model.notice.count)"
     }
+
+    private var shownOffset: CGFloat { CGFloat(SurfaceMotion.shownOffset(shown: model.shown, still: reduceMotion)) }
 
     private var screenEdge: Edge { switch model.edge { case .left: return .leading; case .right: return .trailing; case .bottom: return .bottom } }
 
@@ -139,7 +142,9 @@ struct FlowBarView: View {
                         .padding(model.edge == .bottom ? .bottom : (model.edge == .left ? .leading : .trailing), 10)
                         .accessibilityElement(children: .contain)
                         .accessibilityLabel(p.title)
-                        .transition(.asymmetric(insertion: .move(edge: screenEdge).combined(with: .opacity), removal: .opacity))
+                        // From the edge as it arrives; held still, a crossfade only (MAC-11).
+                        .transition(reduceMotion ? Motion.surfaceStillFade
+                                    : .asymmetric(insertion: .move(edge: screenEdge).combined(with: .opacity), removal: .opacity))
                 } else {
                     tabbed
                         .contentShape(Rectangle())
@@ -153,13 +158,14 @@ struct FlowBarView: View {
                         .accessibilityAddTraits(.isButton)
                         .accessibilityLabel(accessibilityLabel)
                         .accessibilityAction { controller.clicked() }
-                        .transition(.opacity)
+                        .transition(reduceMotion ? Motion.surfaceStillFade : .opacity)
                 }
             }
             // Where the content really is, in panel coordinates: the clickable area follows it.
             .surfaceFrame(in: Self.space)
-            // Slides in from the edge when it first appears (and after sleep or a display change).
-            .offset(x: model.shown ? 0 : (model.edge == .left ? -12 : model.edge == .right ? 12 : 0), y: model.shown || model.edge != .bottom ? 0 : 12)
+            // Slides in from the edge when it first appears (and after sleep or a display change); held still, it only
+            // fades in (`SurfaceMotion.shownOffset`).
+            .offset(x: model.edge == .left ? -shownOffset : model.edge == .right ? shownOffset : 0, y: model.edge == .bottom ? shownOffset : 0)
             .opacity(model.shown ? 1 : 0)
         }
         .coordinateSpace(name: Self.space)
@@ -232,7 +238,7 @@ struct FlowBarView: View {
                         Text(a.detail).font(.system(size: 10.5, weight: a.strong ? .medium : .regular)).foregroundStyle(a.strong ? RibbonInk.persimmonText : RibbonInk.muted)
                     }
                     .lineLimit(1).fixedSize()
-                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
+                    .transition(reduceMotion ? Motion.surfaceStillFade : .opacity.combined(with: .scale(scale: 0.96)))
                 } else if !model.warning.isEmpty {
                     Text(model.warning).font(.system(size: 10.5, weight: .medium)).foregroundStyle(RibbonInk.persimmonText).lineLimit(1).fixedSize()
                 }

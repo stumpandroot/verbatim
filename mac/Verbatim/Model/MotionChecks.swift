@@ -59,6 +59,13 @@ enum MotionChecks {
 
         check("motion: a keyboard action's fade is 0.1 s at most", KeyMotion.recallFade <= 0.1 && KeyMotion.listeningFade <= 0.1)
 
+        // The Ribbon and the notch (DESIGN.md §12).
+        check("motion: the surfaces morph with motion on and hold their shape still under Reduce Motion or Limit animation",
+              SurfaceMotion.morphs(still: false) && !SurfaceMotion.morphs(still: true) && SurfaceMotion.stillFade <= 0.15)
+        check("motion: the Ribbon slides 12 pt in from its edge, and not at all when held still",
+              SurfaceMotion.shownOffset(shown: false, still: false) == 12 && SurfaceMotion.shownOffset(shown: true, still: false) == 0
+              && SurfaceMotion.shownOffset(shown: false, still: true) == 0)
+
         // The swipe hint's loop.
         let L = SwipeHintLoop.self
         check("motion: the swipe hint rests, travels, and starts again",

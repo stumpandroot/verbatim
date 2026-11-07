@@ -103,6 +103,26 @@ enum KeyMotion {
     static let listeningFade: TimeInterval = 0.1
 }
 
+/// The Ribbon's and the notch's state changes (DESIGN.md §12; GPT-09, MAC-11, MAC-33). Both morph on one token,
+/// `Motion.surfaceMorph`, so the same change moves the same way on either surface. Under Reduce Motion or Limit animation
+/// nothing changes shape over time: the width, height, and corners take their new values at once, the 12 pt slide-in
+/// from the edge is gone, and only the contents crossfade over `stillFade`. The controller follows the same rule when
+/// it shows or hides the Ribbon.
+enum SurfaceMotion {
+    /// `Motion.surfaceMorph`'s length: the one morph for both surfaces, no bounce.
+    static let morphDuration: TimeInterval = 0.3
+    /// What the contents crossfade over when shape changes are held still.
+    static let stillFade: TimeInterval = 0.12
+    /// How far the Ribbon slides in from its edge when it appears.
+    static let shownTravel: Double = 12
+
+    /// Whether the shape animates between states.
+    static func morphs(still: Bool) -> Bool { !still }
+
+    /// The Ribbon's slide-in offset from its edge: the travel while it comes in, none once shown or when held still.
+    static func shownOffset(shown: Bool, still: Bool) -> Double { shown || still ? 0 : shownTravel }
+}
+
 /// The keyboard session screen's swipe hint (iPhone): the dot rests at the start, then travels along the phone's edge
 /// as it fades, and starts again. Drawn from the time by a `LoopTimeline`, never a repeating animation (DESIGN.md §7).
 enum SwipeHintLoop {

@@ -202,12 +202,16 @@ struct NotchView: View {
         }
     }
 
-    private var morph: Animation { still ? .easeOut(duration: 0.12) : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.24) }
+    /// The shape between states on `Motion.surfaceMorph`, the Ribbon's curve too (MAC-33). Reduce Motion and Limit
+    /// animation change the width, height, and corners at once and only crossfade the contents (`SurfaceMotion`, GPT-09).
+    private var morph: Animation? { SurfaceMotion.morphs(still: still) ? Motion.surfaceMorph : nil }
     /// Listening is the dictation key's answer: the wings' contents fade in over 0.1 s, with no delay and no scale, as
-    /// the shape morphs (DESIGN.md §7, `KeyMotion.listeningFade`). Reduce Motion keeps the morph's quick fade.
+    /// the shape morphs (DESIGN.md §7, `KeyMotion.listeningFade`). Held still, a crossfade.
     private var listeningFade: AnyTransition {
-        still ? .opacity : .asymmetric(insertion: .opacity.animation(.easeOut(duration: KeyMotion.listeningFade)), removal: .opacity)
+        still ? Motion.surfaceStillFade : .asymmetric(insertion: .opacity.animation(.easeOut(duration: KeyMotion.listeningFade)), removal: .opacity)
     }
+    /// Other contents fade with the morph; held still, they crossfade on their own.
+    private var contentFade: AnyTransition { still ? Motion.surfaceStillFade : .opacity }
     private var stateKey: String {
         "\(look)-\(model.alert?.title ?? "")-\(model.warning)-\(model.notice.count)-\(model.noticeAction ?? "")-\(liveWordsShown)"
     }
@@ -218,7 +222,7 @@ struct NotchView: View {
             if let g = layout.geometry, look != .hidden {
                 shape(g)
                     .offset(x: g.centerX - g.panelFrame.midX)
-                    .transition(.opacity)
+                    .transition(contentFade)
             }
         }
         .coordinateSpace(name: Self.space)
@@ -354,7 +358,7 @@ struct NotchView: View {
                 }
                 .padding(.leading, 16).padding(.trailing, 12).padding(.top, 10).padding(.bottom, 12)
             }
-            .transition(.opacity)
+            .transition(contentFade)
         case .pasted:
             if g.hasNotch { pastedLine.frame(height: 30).padding(.bottom, 4) }
         case .error:

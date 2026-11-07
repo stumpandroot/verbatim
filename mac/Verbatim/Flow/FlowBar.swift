@@ -102,6 +102,12 @@ final class FlowBarController {
     /// Leaving the Ribbon restarts a held notice or prompt with at least this long to go, so it never vanishes
     /// just as you reach for it again.
     static let resumeSeconds: TimeInterval = 4
+    /// The Ribbon coming in or going: `Motion.surfaceMorph`, or under Reduce Motion or Limit animation a short fade
+    /// with no slide (the view drops the 12 pt offset too, `SurfaceMotion`; GPT-09).
+    static var showAnimation: Animation {
+        let still = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion || UserDefaults.standard.bool(forKey: MotionPreference.key)
+        return still ? .easeOut(duration: SurfaceMotion.stillFade) : Motion.surfaceMorph
+    }
     private var pollTimer: Timer?
     private var monitors: [Any] = []
     private var dragOffset: CGPoint = .zero
@@ -179,13 +185,13 @@ final class FlowBarController {
                 withTransaction(t) { model.shown = false }
                 p.orderFrontRegardless()
                 DispatchQueue.main.async { [weak self] in
-                    withAnimation(.smooth(duration: 0.3)) { self?.model.shown = true }
+                    withAnimation(Self.showAnimation) { self?.model.shown = true }
                 }
             }
         } else if let p = panel, p.isVisible, !hiding {
             menu.close()
             hiding = true
-            withAnimation(.smooth(duration: 0.25)) { model.shown = false }
+            withAnimation(Self.showAnimation) { model.shown = false }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.26) { [weak self] in
                 guard let self, self.hiding else { return }
                 self.hiding = false
