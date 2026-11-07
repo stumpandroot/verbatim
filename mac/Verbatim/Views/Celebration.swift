@@ -429,25 +429,45 @@ struct MilestoneBurst: View {
         _total = State(initialValue: ticket.milestone.from)
     }
 
+    private var labelText: some View { Text(CelebrationWord.onDevice(mac: ticket.mac)).refinedFont(.hint) }
+    private func totalText(_ size: CGFloat = RefinedPlatform.mac ? 18 : 19.5) -> some View {
+        Text(CelebrationWord.number(total))
+            .font(.system(size: size, weight: .bold)).monospacedDigit()
+            .contentTransition(.numericText(value: Double(total)))
+    }
+    private var pillView: some View {
+        CelebrationPill(CelebrationWord.milestone(ticket.milestone.threshold), size: 16)
+            .offset(y: rise).opacity(pill)
+    }
+
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         ZStack(alignment: .leading) {
             shape.fill(CelebrationTone.milestone.fill)
                 .scaleEffect(x: max(0.0001, fill), y: 1, anchor: .leading)
                 .clipShape(shape)
-            HStack(spacing: 10) {
-                Text(CelebrationWord.onDevice(mac: ticket.mac)).refinedFont(.hint)
-                Text(CelebrationWord.number(total))
-                    .font(.system(size: RefinedPlatform.mac ? 18 : 19.5, weight: .bold)).monospacedDigit()
-                    .contentTransition(.numericText(value: Double(total)))
-                Spacer(minLength: 8)
-                CelebrationPill(CelebrationWord.milestone(ticket.milestone.threshold), size: 16)
-                    .offset(y: rise).opacity(pill)
+            // One row where the card is wide (iPhone, a wide Mac Home); stacked where it's narrow (the Mac's This week
+            // card beside Recent), so the label and total never truncate.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    labelText.fixedSize()
+                    totalText().fixedSize()
+                    Spacer(minLength: 8)
+                    pillView
+                }
+                .padding(.leading, 15).padding(.trailing, 9)
+                VStack(alignment: .leading, spacing: 6) {
+                    labelText
+                    totalText(28)
+                    pillView
+                }
+                .lineLimit(1).minimumScaleFactor(0.6)
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .lineLimit(1).minimumScaleFactor(0.7)
+            .lineLimit(1)
             .foregroundStyle(Refined.onFill)
             .opacity(label)
-            .padding(.leading, 15).padding(.trailing, 9)
         }
         .scaleEffect(scale)
         .opacity(shown)

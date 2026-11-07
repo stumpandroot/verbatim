@@ -487,7 +487,9 @@ struct TranscriptView: View {
                 .celebrationSweep(readyTicket?.tone.tint ?? Refined.persimmonTint, state: burst, radius: RefinedPlatform.radius(.card), outset: 8)
                 .scaleEffect(burst.active ? burst.scale : 1)
                 ForEach(0..<4, id: \.self) { i in
-                    RoundedRectangle(cornerRadius: 4).fill(Refined.neutral).frame(width: CGFloat([480, 420, 500, 300][i]), height: 14).padding(.vertical, 6)
+                    // Placeholder lines up to these widths, narrower in a narrow window, so the card never pushes the column wider.
+                    RoundedRectangle(cornerRadius: 4).fill(Refined.neutral).frame(maxWidth: CGFloat([480, 420, 500, 300][i])).frame(height: 14)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
                 }
                 .opacity(burst.active ? burst.old : 1)
             }
