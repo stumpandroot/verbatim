@@ -76,7 +76,7 @@ struct TemplatesScreen: View {
     private func row(_ t: TranscriptTemplate, _ s: AutoRunSettings) -> some View {
         let kinds = s.kinds(for: t.id)
         return SettingsRow(hue: .neutral, art: t.art, title: t.name, subtitle: TemplateLibrary.summaryLine(t), subtitleLines: 1) {
-            if !kinds.isEmpty { Text("Auto").font(.system(size: 14)).foregroundStyle(Refined.mute) }
+            if !kinds.isEmpty { Text("Auto").scaledFont(14).foregroundStyle(Refined.mute) }
             SettingsChevron()
         }
         .accessibilityElement(children: .combine)

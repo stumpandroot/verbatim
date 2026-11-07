@@ -41,7 +41,7 @@ struct ThoughtsSettingsScreen: View {
                     .frame(height: 170)
                     .padding(.top, 8)
                 Text("Start a thought from anywhere. Each one is added, with its time, to today's page.")
-                    .font(.system(size: 15)).foregroundStyle(Refined.dim)
+                    .scaledFont(15).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 8)
@@ -71,7 +71,7 @@ struct ThoughtsSettingsScreen: View {
             StepCard(art: .iconBackTap, icon: "hand.tap", title: ("Back", "Tap"), steps: backTapSteps) {
                 HStack(spacing: 10) {
                     pill("Open Shortcuts") { if let u = URL(string: "shortcuts://") { openURL(u) } }
-                    Text("Then come back here.").font(.system(size: 13)).foregroundStyle(Refined.mute)
+                    Text("Then come back here.").scaledFont(13).foregroundStyle(Refined.mute)
                 }
             }
             .padding(.top, 12)
@@ -163,8 +163,8 @@ private struct StepCard<Footer: View>: View {
             }
             ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("\(i + 1).").font(.system(size: 15, weight: .medium).monospacedDigit()).foregroundStyle(Refined.mute)
-                    Text(step).font(.system(size: 15.5)).foregroundStyle(Refined.ink)
+                    Text("\(i + 1).").scaledFont(15, weight: .medium).monospacedDigit().foregroundStyle(Refined.mute)
+                    Text(step).scaledFont(15.5).foregroundStyle(Refined.ink)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .accessibilityElement(children: .combine)
@@ -183,12 +183,12 @@ private struct SiriCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 SettingsLabel(hue: .sage, art: .iconSpeak, title: "").fixedSize()
-                Text("Siri").font(.system(size: 20, design: .serif)).foregroundStyle(Refined.ink)
+                Text("Siri").scaledFont(20, design: .serif).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
             }
-            Text("Say this, with no setup:").font(.system(size: 15)).foregroundStyle(Refined.dim)
+            Text("Say this, with no setup:").scaledFont(15).foregroundStyle(Refined.dim)
             Text("\u{201C}\(ThoughtRules.siriPhrase)\u{201D}")
-                .font(.system(size: 21, design: .serif)).foregroundStyle(Refined.ink)
+                .scaledFont(21, design: .serif).foregroundStyle(Refined.ink)
                 .textSelection(.enabled)
         }
         .padding(16)

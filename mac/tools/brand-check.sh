@@ -6,6 +6,9 @@
 #      player bar (Views/RefinedPlayback.swift, DESIGN.md §13) is the one place text sits on glass, as in Apple's own
 #      players; its line says `// brand: glass ok (the refined player, text allowed by DESIGN.md §13)`.
 #   4. The retired V mark, BrandArt.mark (§4)
+#   5. Fixed text sizes on iPhone (§13 Type 3): `.font(.system(size:` in VerbatimPhone/ only for an Image (an SF Symbol
+#      glyph), or on a line marked `// type: fixed (why)` or `// type: scaled (@ScaledMetric)`. Text uses `refinedFont`
+#      or `scaledFont`, which scale with Dynamic Type.
 # Run from anywhere: bash mac/tools/brand-check.sh   (exit 1 lists each problem as file:line)
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -31,6 +34,9 @@ glass=$(grep -rnE --include=*.swift '\.(ultraThinMaterial|thinMaterial|regularMa
 
 mark=$(grep -rnE --include=*.swift 'BrandArt\.mark\b|art: *\.mark\b' $SRC | grep -v 'Views/Brand.swift' | cut -d: -f1,2)
 [ -n "$mark" ] && report "The retired V mark (use the bars mark):" "$mark"
+
+fixed=$(grep -rn --include=*.swift '\.font(\.system(size:' VerbatimPhone | grep -v '// type: ' | awk '{ i = index($0, ".font(.system(size:"); if (index(substr($0, 1, i), "Image(") == 0) print }' | cut -d: -f1,2)
+[ -n "$fixed" ] && report "Fixed text sizes on iPhone (use refinedFont or scaledFont, or mark '// type: fixed (why)'):" "$fixed"
 
 [ $fail -eq 0 ] && echo "brand-check: OK"
 exit $fail

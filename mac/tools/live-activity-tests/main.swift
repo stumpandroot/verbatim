@@ -236,7 +236,7 @@ check("the session's updates carry a stale date", sessionApp.contains("staleDate
 check("the session refreshes its Live Activity while nothing else changes",
       sessionApp.contains("if Date().timeIntervalSince(lastActivityPush) >= LiveFreshness.sessionRefresh { updateActivity() }"))
 check("the session pushes its level at the cadence the threshold was checked against",
-      sessionApp.contains("if Date().timeIntervalSince(lastLevelPush) >= LiveFreshness.sessionLevelTick {"))
+      sessionApp.contains("Date().timeIntervalSince(lastLevelPush) >= LiveFreshness.sessionLevelTick {"))
 for (name, s, title) in [("recording", recording, "recordingTitle"), ("session", session, "sessionTitle")] {
     check("the \(name) Lock Screen draws the stale presentation", s.contains("LiveFreshness.showsStale(isStale: context.isStale")
           && s.contains("StaleLockScreen(title: LiveFreshness.\(title), skin: skin)"))
@@ -283,6 +283,48 @@ for (file, s) in [("RecordingLiveActivity.swift", code(recording)), ("VerbatimWi
 check("both Islands' words views were found", wordViews == 2, "\(wordViews)")
 check("the Lock Screens never read words", (structBody("RibbonLockScreen", in: code(session)).map { !$0.contains(".liveWords") } ?? false)
       && (structBody("ThoughtLockScreen", in: code(recording)).map { !$0.contains("state.words") } ?? false))
+// MARK: Dynamic Type on widgets, the Lock Screen's Live Activities, the watch, and the keyboard (SF-11, SF-23, GPT-07)
+
+/// Lines that set a fixed size on text (not an SF Symbol, not a self-counting timer in a measured frame).
+func fixedText(_ text: String) -> [String] {
+    text.components(separatedBy: "\n").enumerated().compactMap { i, l in
+        guard let r = l.range(of: ".font(.system(size:") ?? l.range(of: ".font(Refined.serif(") ?? l.range(of: ".font(Refined.mono(") else { return nil }
+        let before = l[..<r.lowerBound]
+        if before.contains("Image(") || l.contains("Timer(") || l.contains("// type: fixed") { return nil }
+        return "\(i + 1): \(l.trimmingCharacters(in: .whitespaces).prefix(80))"
+    }
+}
+/// A private struct's text, from its declaration to the next top-level declaration.
+func structBody(_ text: String, _ name: String) -> String {
+    guard let r = text.range(of: "private struct \(name)") else { return "" }
+    let rest = text[r.lowerBound...]
+    return String(rest.dropFirst(10).range(of: "\nprivate ").map { rest[..<$0.lowerBound] } ?? rest)
+}
+for f in ["VerbatimWidgets/HomeWidgets.swift", "VerbatimWidgets/StartSessionWidgets.swift", "VerbatimWatch/WatchScreens.swift", "VerbatimWatchWidgets/WatchWidgets.swift"] {
+    let bad = fixedText(source(f))
+    check("\(f): text scales with Dynamic Type (scaledFont), no fixed sizes", bad.isEmpty, bad.joined(separator: " | "))
+}
+let recordingActivity = source("VerbatimWidgets/RecordingLiveActivity.swift"), sessionActivity = source("VerbatimWidgets/VerbatimWidgets.swift")
+for (name, text) in [("RecordingLockScreen", recordingActivity), ("ThoughtLockScreen", recordingActivity), ("RibbonLockScreen", sessionActivity)] {
+    let body = structBody(text, name)
+    check("the Lock Screen's \(name) scales its text (only its timer keeps a measured size)", !body.isEmpty && fixedText(body).isEmpty, fixedText(body).joined(separator: " | "))
+}
+check("the Live Activities' Lock Screen and the widgets cap Dynamic Type so text stays inside them",
+      source("VerbatimWidgets/ActivitySkin.swift").contains(".dynamicTypeSize(...DynamicTypeSize.xxLarge)")
+      && source("VerbatimWidgets/HomeWidgets.swift").components(separatedBy: ".dynamicTypeSize(...DynamicTypeSize.xxLarge)").count
+         == source("VerbatimWidgets/HomeWidgets.swift").components(separatedBy: ".containerBackground(for: .widget)").count)
+var tiny: [String] = []
+for f in ["VerbatimWidgets/HomeWidgets.swift", "VerbatimWidgets/RecordingLiveActivity.swift", "VerbatimWidgets/VerbatimWidgets.swift", "VerbatimWatch/WatchScreens.swift", "VerbatimWatchWidgets/WatchWidgets.swift"] {
+    for (i, line) in source(f).components(separatedBy: "\n").enumerated() where !matches(#"scaledFont\(([0-9]|10|11\.[0-9]+)[,)]"#, in: line).isEmpty {
+        tiny.append("\(f):\(i + 1)")
+    }
+}
+check("widget, Live Activity, and watch text starts at 11 pt or more (the week's day letters), 12 for data (SF-23)", tiny.isEmpty, tiny.joined(separator: ", "))
+check("the week's day letters are SF Pro 11 semibold, not 8 pt Rounded", source("VerbatimWidgets/HomeWidgets.swift").contains(".scaledFont(11, weight: .semibold).foregroundStyle(color)")
+      && !source("VerbatimWidgets/HomeWidgets.swift").contains("design: .rounded"))
+check("the keyboard's notices, lists, and status lines scale, capped short of the accessibility sizes (GPT-07)",
+      keyboard.contains(".dynamicTypeSize(...DynamicTypeSize.xxxLarge)") && keyboard.contains("Text(meta).scaledFont(12).monospacedDigit()")
+      && keyboard.contains("Text(Self.oneLine(text)).scaledFont(14.5)") && keyboard.contains("Text(i).scaledFont(12.5, weight: .medium)"))
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

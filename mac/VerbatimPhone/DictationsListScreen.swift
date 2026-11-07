@@ -74,7 +74,7 @@ struct DictationsListScreen: View {
                         }
                         .swipeActions(edge: .leading) {
                             Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: t.pinned ? "pin.slash" : "pin") }   // brand: system surface (swipe action)
-                                .tint(Refined.accentText)
+                                .tint(Refined.accentFillFixed)   // white on it in dark too (IP-03)
                         }
                 }
             }
@@ -134,54 +134,76 @@ private struct DictationPageRow: ViewModifier {
 }
 
 /// One dictation, a row in its day's card: the app's initial on a neutral square, the app and time in the meta style,
-/// the words, and the cleanup level when one was set. Tapping anywhere copies the words; the round button turns into
-/// a check for 1.6 seconds.
+/// the words, and the cleanup level when one was set. As on Home's Recent dictations (IP-07), a tap on the words
+/// opens the dictation and only the round button copies (it turns into a check for 1.6 seconds); Copy is in the menu
+/// too.
 struct PhoneDictationRow: View {
+    @Environment(PhoneState.self) var state
     var transcript: Transcript
     @State private var copied = false
     @State private var copies = 0
     @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
-        Button { copy() } label: {
-            HStack(alignment: .top, spacing: 12) {
-                Text(Self.initial(app)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.ink)
-                    .frame(width: 22, height: 22)
-                    .background(Refined.neutralSquare, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(app) · \(Formats.style(date: .none, time: .short).string(from: transcript.createdAt))")
-                        .refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1)
-                    Text(HomeDictationText.body(transcript))
-                        .refinedFont(.body).foregroundStyle(transcript.status == .failed ? Refined.accentText : Refined.ink)
-                        .lineLimit(8)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if Self.statusLine(level: level, notPasted: notPasted) != nil { status.refinedFont(.meta) }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                ZStack {
-                    Circle().fill(copied ? Refined.persimmonTint : Refined.neutral)
-                    if copied {
-                        Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Refined.accentText)
-                            .transition(.opacity)
-                    } else {
-                        IconGlyph(art: .iconCopy, size: 15, color: Refined.ink).transition(.opacity)
+        HStack(alignment: .top, spacing: 6) {
+            Button { state.pushHere(transcript.id) } label: {
+                HStack(alignment: .top, spacing: 12) {
+                    Text(Self.initial(app)).scaledFont(13, weight: .semibold).foregroundStyle(Refined.ink)
+                        .frame(width: 22, height: 22)
+                        .background(Refined.neutralSquare, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(app) · \(Formats.style(date: .none, time: .short).string(from: transcript.createdAt))")
+                            .refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).rowLines()
+                        if transcript.status == .failed {
+                            // A failure in danger with its glyph, never the accent (IP-10).
+                            RefinedFailure(text: HomeDictationText.body(transcript), role: .body, lines: 8)
+                        } else {
+                            Text(HomeDictationText.body(transcript))
+                                .refinedFont(.body).foregroundStyle(Refined.ink)
+                                .lineLimit(8)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if Self.statusLine(level: level, notPasted: notPasted) != nil { status.refinedFont(.meta) }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(width: 36, height: 36)
-                .frame(width: 44, height: 44)
-                .animation(limitMotion ? Motion.fade : .easeOut(duration: 0.18), value: copied)
-                .accessibilityHidden(true)
+                .padding(.vertical, 10).padding(.leading, 14)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 10).padding(.leading, 14).padding(.trailing, 6)
-            .contentShape(Rectangle())
+            .buttonStyle(RefinedRowPress())
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Opens the dictation.")
+            .accessibilityAddTraits(.isButton)
+            copyButton.padding(.top, 6)
         }
-        .buttonStyle(RefinedRowPress())
+        .padding(.trailing, 6)
+    }
+
+    /// The round copy button (36 pt in a 44 pt target), the same as Home's.
+    private var copyButton: some View {
+        Button { copy() } label: {
+            ZStack {
+                Circle().fill(copied ? Refined.persimmonTint : Refined.neutral)
+                if copied {
+                    Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Refined.accentText)
+                        .transition(.opacity)
+                } else {
+                    IconGlyph(art: .iconCopy, size: 15, color: Refined.ink).transition(.opacity)
+                }
+            }
+            .frame(width: 36, height: 36)
+            .frame(width: CGFloat(RefinedRules.minTapTarget), height: CGFloat(RefinedRules.minTapTarget))
+            .contentShape(Rectangle())
+            .animation(limitMotion ? Motion.fade : Motion.touch, value: copied)
+        }
+        .buttonStyle(RefinedPress())
         .sensoryFeedback(trigger: copies) { _, _ in Haptics.feedback(.copied) }
-        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Copy")
         .accessibilityValue(copied ? "Copied" : "")
         .accessibilityHint("Copies the words.")
+        .accessibilityIdentifier("dictations.copy")
     }
 
     private var app: String {

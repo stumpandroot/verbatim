@@ -888,7 +888,8 @@ final class KeyboardSession: ObservableObject {
         writeLive(d)
         KeyboardBridge.post(KeyboardBridge.Note.state)
         // The Live Activity's level, about once a second (ActivityKit isn't for 10 updates a second).
-        if Date().timeIntervalSince(lastLevelPush) >= LiveFreshness.sessionLevelTick { lastLevelPush = Date(); updateActivity() }
+        // With Limit animation or Reduce Motion the level holds still, so there's nothing new to send (SF-03).
+        if !Self.activityStill, Date().timeIntervalSince(lastLevelPush) >= LiveFreshness.sessionLevelTick { lastLevelPush = Date(); updateActivity() }
         checkCommands()
         if dictating, seconds >= KeyboardBridge.maxSeconds { finishDictation() }
         // A first-tap dictation nobody came back to: stop listening after a minute.
@@ -1503,12 +1504,18 @@ final class KeyboardSession: ObservableObject {
         return .ready
     }
 
+    /// Whether the Live Activity's bars keep still: the system's Reduce Motion or Settings › Limit animation (SF-03).
+    private static var activityStill: Bool {
+        ActivityLevel.keepsStill(systemReduceMotion: UIAccessibility.isReduceMotionEnabled,
+                                 limitAnimation: UserDefaults.standard.bool(forKey: MotionPreference.key))
+    }
+
     private func activityState() -> VerbatimSessionAttributes.ContentState {
         let phase = ribbonPhase
         let shownResult = phase == result?.phase ? result : nil
         return VerbatimSessionAttributes.ContentState(listening: dictating, endsAt: endsAt, phase: phase, sessionStartedAt: sessionStartedAt,
                                                       takeStartedAt: dictating ? takeStartedAt : nil,
-                                                      level: dictating ? min(1, max(0, Double(capture.level))) : 0,
+                                                      level: dictating ? ActivityLevel.shown(Double(capture.level), still: Self.activityStill) : 0,
                                                       words: shownResult?.words ?? 0, takes: takes, message: shownResult?.message,
                                                       target: activityTarget,
                                                       liveWords: dictating && Self.islandWordsOn ? Ribbon.islandWords(live.words.text) : nil,

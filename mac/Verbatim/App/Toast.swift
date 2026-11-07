@@ -18,8 +18,10 @@ struct Toast: Identifiable, Equatable {
 
 /// The toast at the window's foot: it slides up and fades in, and fades out (as the iPhone's does from the top). The
 /// container stays, so whoever sets `app.toast`, with or without an animation, the toast animates; Limit animation
-/// fades it both ways. A message alone goes after 4.5 s; one with an action stays at least 8 s and while the pointer is
-/// on it (ToastTiming), and ⌘Z runs its Undo (`ToastUndoKey`).
+/// fades it both ways. A message alone stays by its length (4.5 to 10 s); one with an action stays at least 8 s; any
+/// toast stays while the pointer is on it (ToastTiming), and ⌘Z runs its Undo (`ToastUndoKey`). VoiceOver hears every
+/// toast and its action (`ToastSpeech`, MAC-07), reads it as one element with the action as a named action, and while
+/// it runs a toast with an action stays until it's dismissed or replaced.
 struct ToastView: View {
     @Environment(AppState.self) var app
     @Environment(\.limitMotion) private var limitMotion
@@ -27,6 +29,11 @@ struct ToastView: View {
     var body: some View {
         ZStack { toast }
             .animation(limitMotion ? Motion.fade : Motion.settle, value: app.toast)
+            // Whoever sets `app.toast`, VoiceOver hears it.
+            .onChange(of: app.toast?.id) { _, id in
+                guard id != nil, let t = app.toast else { return }
+                HomeAnnounce.say(ToastSpeech.announcement(message: t.message, action: t.action))
+            }
     }
 
     private var transition: AnyTransition {
@@ -72,8 +79,10 @@ struct ToastView: View {
             .frame(maxWidth: 520)
             .padding(.bottom, 24)
             .transition(transition)
-            // The pointer on a toast with an action keeps it (ToastTiming).
-            .onHover { over in if t.action != nil { hold.set(over, for: t.id) } }
+            .accessibilityElement(children: .combine)
+            .modifier(MacToastActions(action: t.action, run: { app.toast = nil; t.onAction?() }, dismiss: { if app.toast == t { app.toast = nil } }))
+            // The pointer on any toast keeps it (ToastTiming).
+            .onHover { over in hold.set(over, for: t.id) }
             .task(id: HoldKey(id: t.id, held: hold.isHeld(t.id))) { await endWhenDue(t) }
         }
     }
@@ -81,13 +90,35 @@ struct ToastView: View {
     private struct HoldKey: Equatable { var id: UUID; var held: Bool }
 
     /// Closes toast `t` when its time is up. Runs again when the pointer comes or goes; while it's on the toast, waits.
+    /// One kept for VoiceOver asks again each second, so it goes on time once VoiceOver is off.
     private func endWhenDue(_ t: Toast) async {
         while !Task.isCancelled {
             let now = Date()
-            guard let wait = ToastTiming.remaining(elapsed: now.timeIntervalSince(t.shownAt), hasAction: t.action != nil, plain: ToastTiming.macPlain,
-                                                   held: hold.isHeld(t.id), sinceRelease: hold.sinceRelease(t.id, now: now)) else { return }
-            if wait <= 0 { if app.toast == t { app.toast = nil }; return }
-            try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+            let held = hold.isHeld(t.id)
+            let wait = ToastTiming.remaining(elapsed: now.timeIntervalSince(t.shownAt), hasAction: t.action != nil,
+                                             plain: ToastTiming.plain(for: t.message, floor: ToastTiming.macPlain),
+                                             held: held, sinceRelease: hold.sinceRelease(t.id, now: now),
+                                             voiceOver: NSWorkspace.shared.isVoiceOverEnabled)
+            if wait == nil && held { return }
+            if let wait, wait <= 0 { if app.toast == t { app.toast = nil }; return }
+            try? await Task.sleep(nanoseconds: UInt64((wait ?? 1) * 1_000_000_000))
+        }
+    }
+}
+
+/// The toast's action as a VoiceOver named action, and Dismiss to close it without the action.
+private struct MacToastActions: ViewModifier {
+    var action: String?
+    var run: () -> Void
+    var dismiss: () -> Void
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if let action {
+            content
+                .accessibilityAction(named: Text(action), run)
+                .accessibilityAction(named: Text("Dismiss"), dismiss)
+        } else {
+            content.accessibilityAction(named: Text("Dismiss"), dismiss)
         }
     }
 }

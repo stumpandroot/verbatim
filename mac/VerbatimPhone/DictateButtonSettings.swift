@@ -12,7 +12,7 @@ struct DictateButtonSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Dictate button").font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.dim)
+            Text("Dictate button").scaledFont(13, weight: .semibold).foregroundStyle(Refined.dim)
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) {
                 DictateButtonPreview(look: look)
@@ -24,7 +24,7 @@ struct DictateButtonSettings: View {
             }
             .cardSurface(radius: Radius.row)
             Text("Large makes the keyboard 16 pt taller. Position also moves Tap to talk and Done.")
-                .font(.system(size: 13)).foregroundStyle(Refined.mute)
+                .scaledFont(13).foregroundStyle(Refined.mute)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 4)
         }
@@ -32,7 +32,7 @@ struct DictateButtonSettings: View {
 
     private func choiceRow(_ title: String, _ options: [(String, String)], _ selection: Binding<String>) -> some View {
         HStack(spacing: 10) {
-            Text(title).font(.system(size: 16)).foregroundStyle(Refined.ink)
+            Text(title).scaledFont(16).foregroundStyle(Refined.ink)
                 .accessibilityHidden(true)
             Spacer(minLength: 8)
             RefinedSegmented(label: title, options: options, selection: selection)
@@ -103,7 +103,7 @@ private struct PreviewDictateButton: View {
                 .modifier(Surface(filled: look.style == .filled, shape: Circle()))
         } else {
             HStack(spacing: 10) {
-                Text("Start").font(.system(size: 17, weight: .bold)).foregroundStyle(foreground)
+                Text("Start").scaledFont(17, weight: .bold).foregroundStyle(foreground)
                 bars(height: 20, width: 3)
             }
             .padding(.leading, 20).padding(.trailing, 16).frame(height: 46)

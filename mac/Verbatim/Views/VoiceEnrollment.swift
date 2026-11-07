@@ -158,7 +158,7 @@ final class VoiceEnrollment: ObservableObject {
             #if os(macOS)
             micName = "MacBook Pro Microphone"
             #else
-            micName = "iPhone Microphone"
+            micName = RecordingInputRules.builtInName
             #endif
             return
         }
@@ -492,7 +492,8 @@ final class VoiceEnrollment: ObservableObject {
             self?.micName = name
         }
         #else
-        micName = AVAudioSession.sharedInstance().currentRoute.inputs.first?.portName ?? "iPhone Microphone"
+        // Named as the recorder names it ("iPhone microphone", or the accessory's name), in sentence case (IP-27).
+        micName = RecordingInputRules.displayName(AVAudioSession.sharedInstance().currentRoute.inputs.first.map(RecordingRoute.input))
         #endif
     }
 
@@ -575,10 +576,14 @@ struct VoiceQualityPanel: View {
     }
 }
 
-/// The passage being read: words read so far in ink, the rest faint.
+/// The passage being read (MAC-08, GPT-08): every word readable, the next phrase to read in ink with an accent
+/// underline, the words already read in ink, and the rest in `mute` (5:1; `faint` measured 3.1:1 and put the weight on
+/// the words already done). It grows with Dynamic Type on iPhone (GPT-07).
 struct VoicePassageCard: View {
     @ObservedObject var model: VoiceEnrollment
     var size: CGFloat = 23
+    /// Dynamic Type's factor on iPhone (1 on the Mac), on the title's curve.
+    @ScaledMetric(relativeTo: .title2) private var scale: CGFloat = 1
 
     /// The passage split into the words read so far and the rest. Display words and comparable words line up,
     /// except for stray punctuation tokens, which count as read along with the word before them.
@@ -594,14 +599,31 @@ struct VoicePassageCard: View {
         return (tokens.prefix(readTokens).joined(separator: " "), tokens.dropFirst(readTokens).joined(separator: " "))
     }
 
+    /// The rest split into the phrase to read now and what comes after: up to `limit` words, ending early after a word
+    /// that closes a clause (a comma, a period, a colon, and the like).
+    static func phrase(_ rest: String, limit: Int = 5) -> (now: String, later: String) {
+        let tokens = rest.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        var take = 0, words = 0
+        for t in tokens {
+            take += 1
+            if !VoicePassages.normalized(t).isEmpty { words += 1 }
+            if words >= limit || t.last.map({ ",.;:!?\u{2014}".contains($0) }) == true { break }
+        }
+        return (tokens.prefix(take).joined(separator: " "), tokens.dropFirst(take).joined(separator: " "))
+    }
+
     var body: some View {
         let (read, rest) = Self.split(model.passageTokens, wordsRead: model.wordsRead)
-        (Text(read).foregroundStyle(Refined.ink) + Text(read.isEmpty || rest.isEmpty ? rest : " " + rest).foregroundStyle(Refined.faint))
+        let (now, later) = Self.phrase(rest)
+        let size = self.size * scale
+        (Text(read).foregroundStyle(Refined.ink)
+         + Text(read.isEmpty || now.isEmpty ? now : " " + now).foregroundStyle(Refined.ink).underline(true, color: Refined.accentText)
+         + Text(later.isEmpty ? "" : " " + later).foregroundStyle(Refined.mute))
             .font(Refined.serif(size))
             .lineSpacing(size * 0.25)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, size > 22 ? 24 : 18).padding(.vertical, size > 22 ? 22 : 18)
+            .padding(.horizontal, self.size > 22 ? 24 : 18).padding(.vertical, self.size > 22 ? 22 : 18)
             .cardSurface(radius: Radius.tile, fill: Refined.card)
             // Each word you read turns ink at once: a word is a high-frequency change and never animates (DESIGN.md §7).
             .id(model.passageIndex)
@@ -639,7 +661,8 @@ struct VoiceProgress: View {
     }
 }
 
-/// The big persimmon button: a square while recording (pause), a triangle while paused (resume).
+/// Voice setup's Pause and Resume (IP-16, GPT-17): the recorder's own controls, pause bars while recording and a play
+/// triangle while paused, in ink on the neutral wash. The square means Stop everywhere, so it isn't used here.
 struct VoiceRecordButton: View {
     @ObservedObject var model: VoiceEnrollment
     var size: CGFloat = 52
@@ -647,13 +670,14 @@ struct VoiceRecordButton: View {
     var body: some View {
         Button { model.togglePause() } label: {
             ZStack {
-                Circle().fill(Refined.persimmon)
+                Circle().fill(Refined.neutral)
                 if model.isPaused {
-                    IconGlyph(art: .iconPlay, size: size * 0.36, color: Refined.inkFixed)
+                    RecorderPlayGlyph().fill(Refined.ink)
+                        .frame(width: size * 0.27, height: size * 0.32)
                         .offset(x: size * 0.03)
                 } else {
-                    RoundedRectangle(cornerRadius: size * 0.06, style: .continuous).fill(Refined.inkFixed)
-                        .frame(width: size * 0.26, height: size * 0.26)
+                    RecorderPauseGlyph().fill(Refined.ink)
+                        .frame(width: size * 0.27, height: size * 0.32)
                 }
             }
             .frame(width: size, height: size)

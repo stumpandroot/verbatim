@@ -34,7 +34,7 @@ struct TrashScreen: View {
                     .accessibilityElement(children: .combine)
                     .swipeActions(edge: .leading) {
                         Button { app.restore(t.id) } label: { Label("Restore", systemImage: "arrow.uturn.backward") }   // brand: system surface (swipe action)
-                            .tint(Refined.sageText)
+                            .tint(Refined.sageFillFixed)   // white on it in dark too (IP-03)
                     }
                     // Delete now ends recovery, so it never fires on a full swipe and asks first, as Empty does (GPT-04).
                     // No destructive role: that role takes the row away before you've answered.

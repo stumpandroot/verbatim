@@ -314,7 +314,8 @@ private struct WeekBars: View {
     }
 }
 
-/// S M T W T F S, from the calendar's first weekday, in SF Pro Rounded.
+/// S M T W T F S, from the calendar's first weekday, in SF Pro at 11 semibold (SF-23; 8 pt Rounded was under the
+/// floor and outside the brand's faces).
 private struct DayLetters: View {
     var count: Int
     var color: Color
@@ -325,7 +326,8 @@ private struct DayLetters: View {
         HStack(spacing: spacing) {
             ForEach(0..<count, id: \.self) { i in
                 Text(symbols[(cal.firstWeekday - 1 + i) % symbols.count])
-                    .font(.system(size: 8, weight: .bold, design: .rounded)).foregroundStyle(color)
+                    .scaledFont(11, weight: .semibold).foregroundStyle(color)
+                    .lineLimit(1).minimumScaleFactor(0.8)
                     .frame(maxWidth: .infinity)
             }
         }
@@ -357,6 +359,7 @@ private struct RecordDictateView: View {
     // Small: the Record button alone (and StandBy).
     private func small(_ skin: Skin) -> some View {
         RecordTap { RecordPanel(skin: skin) }
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
             .containerBackground(for: .widget) { Refined.persimmon }
             .accessibilityLabel("Record a voice note")
     }
@@ -372,6 +375,7 @@ private struct RecordDictateView: View {
                 .accessibilityLabel("Start dictating")
                 #endif
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
         .containerBackground(for: .widget) { Refined.paper }
     }
 
@@ -381,19 +385,19 @@ private struct RecordDictateView: View {
         return VStack(alignment: .leading, spacing: 0) {
             if record {
                 // On persimmon, ink text is semibold 14 or larger (DESIGN.md §1.5).
-                Text("Voice note").font(.system(size: 14, weight: .semibold)).foregroundStyle(skin.onPanel).lineLimit(1)
+                Text("Voice note").scaledFont(14, weight: .semibold).foregroundStyle(skin.onPanel).lineLimit(1)
             } else {
                 DictateMark(skin: skin, size: 18)
             }
             Spacer(minLength: 4)
             HStack(alignment: .bottom, spacing: 6) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(record ? "Record" : "Dictate").font(Refined.serif(23)).foregroundStyle(skin.onPanel).lineLimit(1).minimumScaleFactor(0.8)
+                    Text(record ? "Record" : "Dictate").scaledFont(23, design: .serif).foregroundStyle(skin.onPanel).lineLimit(1).minimumScaleFactor(0.8)
                     if !record {
                         #if os(iOS)
-                        Text("Into any app").font(.system(size: 12)).foregroundStyle(skin.onPanel).lineLimit(1)
+                        Text("Into any app").scaledFont(12).foregroundStyle(skin.onPanel).lineLimit(1)
                         #else
-                        Text("Into the app in front").font(.system(size: 12)).foregroundStyle(skin.onPanel).lineLimit(1)
+                        Text("Into the app in front").scaledFont(12).foregroundStyle(skin.onPanel).lineLimit(1)
                         #endif
                     }
                 }
@@ -415,6 +419,7 @@ private struct RecordDictateView: View {
                 RecordDisc(size: 28)
             }
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
         .containerBackground(for: .widget) { Color.clear }
         .accessibilityLabel("Record a voice note")
     }
@@ -424,14 +429,18 @@ private struct RecordDictateView: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
                 BarsMark(color: .primary).frame(width: 12, height: 12).widgetAccentable()
-                Text("Verbose").font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                Text("Verbose").scaledFont(14, weight: .semibold).lineLimit(1)
             }
+            // Each pill takes half the width and the rest of the height, so neither is a 22 pt target beside the other,
+            // which starts the microphone too (SF-26).
             HStack(spacing: 6) {
                 RecordTap { lockPill("Record", record: true) }.accessibilityLabel("Record a voice note")
                 DictateTap { lockPill("Dictate", record: false) }.accessibilityLabel("Start a dictation session")
             }
+            .frame(maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
         .containerBackground(for: .widget) { Color.clear }
     }
 
@@ -442,10 +451,12 @@ private struct RecordDictateView: View {
             } else {
                 BrandGlyph(art: .iconDictations, color: .primary, minLineWidth: 1.2).frame(width: 10, height: 10)
             }
-            Text(title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+            Text(title).scaledFont(12, weight: .semibold).lineLimit(1)
         }
         .padding(.horizontal, 8).padding(.vertical, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AccessoryWidgetBackground().clipShape(Capsule()))
+        .contentShape(Capsule())
     }
     #endif
 }
@@ -462,10 +473,10 @@ private struct RecordPanel: View {
                 .frame(width: 92, height: 92)
                 .offset(x: 26, y: -30)
             VStack(alignment: .leading, spacing: 0) {
-                Text("Voice note").font(.system(size: 14, weight: .semibold)).foregroundStyle(skin.onPanel).lineLimit(1)
+                Text("Voice note").scaledFont(14, weight: .semibold).foregroundStyle(skin.onPanel).lineLimit(1)
                 Spacer(minLength: 0)
                 HStack(alignment: .bottom, spacing: 4) {
-                    Text("Record").font(Refined.serif(26)).foregroundStyle(skin.onPanel).lineLimit(1).minimumScaleFactor(0.8)
+                    Text("Record").scaledFont(26, design: .serif).foregroundStyle(skin.onPanel).lineLimit(1).minimumScaleFactor(0.8)
                     Spacer(minLength: 0)
                     RecordDisc(size: 40)
                 }
@@ -492,7 +503,7 @@ private struct RecentView: View {
                 if rows.isEmpty {
                     Spacer(minLength: 0)
                     Text("Your recordings and dictations show up here.")
-                        .font(Refined.serif(15)).foregroundStyle(.secondary)
+                        .scaledFont(15, design: .serif).foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                 } else {
                     ForEach(Array(rows.enumerated()), id: \.element.id) { i, item in
@@ -504,16 +515,19 @@ private struct RecentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
             .containerBackground(for: .widget) { Refined.card }
+            // Outside a row, a tap opens the Library rather than wherever Verbose was left (SF-25).
+            .widgetURL(WidgetLink.library.url)
         }
     }
 
     private func header(_ skin: Skin) -> some View {
         let kept = entry.snapshot?.kept ?? 0
         return HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text("Recent recordings").font(Refined.serif(16)).foregroundStyle(skin.text)
+            Text("Recent recordings").scaledFont(16, design: .serif).foregroundStyle(skin.text)
             Spacer(minLength: 4)
-            if kept > 0 { Text("\(kept.formatted()) kept").font(Refined.mono(12)).foregroundStyle(skin.meta) }
+            if kept > 0 { Text("\(kept.formatted()) kept").scaledFont(12).monospacedDigit().foregroundStyle(skin.meta) }
         }
         .lineLimit(1)
         .padding(.bottom, 6)
@@ -525,11 +539,11 @@ private struct RecentView: View {
         return HStack(spacing: 8) {
             SourceChip(source: item.source, skin: skin).frame(width: 22, height: 22)
             VStack(alignment: .leading, spacing: 0) {
-                Text(item.title).font(Refined.serif(15)).foregroundStyle(skin.text).lineLimit(1).privacySensitive()
-                Text("\(item.label) · \(day)").font(.system(size: 11)).foregroundStyle(skin.meta).lineLimit(1)
+                Text(item.title).scaledFont(15, design: .serif).foregroundStyle(skin.text).lineLimit(1).privacySensitive()
+                Text("\(item.label) · \(day)").scaledFont(12).foregroundStyle(skin.meta).lineLimit(1)
             }
             Spacer(minLength: 4)
-            if !length.isEmpty { Text(length).font(Refined.mono(12)).foregroundStyle(skin.text) }
+            if !length.isEmpty { Text(length).scaledFont(12).monospacedDigit().foregroundStyle(skin.text) }
         }
         .padding(.vertical, 4)
     }
@@ -539,8 +553,8 @@ private struct RecentView: View {
         return VStack(spacing: 6) {
             Rectangle().fill(skin.full ? Refined.separator : Color.primary.opacity(0.1)).frame(height: 1)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("This week").font(Refined.mono(12)).foregroundStyle(skin.meta)
-                Text("\(week.words.formatted()) \(week.words == 1 ? "word" : "words")").font(Refined.serif(17)).foregroundStyle(skin.text)
+                Text("This week").scaledFont(12).monospacedDigit().foregroundStyle(skin.meta)
+                Text("\(week.words.formatted()) \(week.words == 1 ? "word" : "words")").scaledFont(17, design: .serif).foregroundStyle(skin.text)
                 Spacer(minLength: 4)
                 WeekBars(week: week, today: WidgetSnapshot.todayIndex(in: week, now: entry.date),
                          bar: skin.full ? Refined.waveRest : Color.primary.opacity(0.5),
@@ -609,10 +623,10 @@ private struct WeekView: View {
 
     @ViewBuilder private func content(_ week: WidgetSnapshot.Week, _ today: Int?, _ skin: Skin) -> some View {
         let lead = VStack(alignment: .leading, spacing: 0) {
-            Text("This week").font(Refined.mono(12)).foregroundStyle(skin.meta)
+            Text("This week").scaledFont(12).monospacedDigit().foregroundStyle(skin.meta)
             Spacer(minLength: 4)
-            Text(week.words, format: .number).font(Refined.serif(30)).foregroundStyle(skin.text).lineLimit(1).minimumScaleFactor(0.5)
-            Text(week.words == 1 ? "word" : "words").font(Refined.serif(22)).foregroundStyle(skin.text).lineLimit(1)
+            Text(week.words, format: .number).scaledFont(30, design: .serif).foregroundStyle(skin.text).lineLimit(1).minimumScaleFactor(0.5)
+            Text(week.words == 1 ? "word" : "words").scaledFont(22, design: .serif).foregroundStyle(skin.text).lineLimit(1)
         }
         let bars = WeekBars(week: week, today: today, bar: skin.full ? Refined.waveRest : Color.primary.opacity(0.5),
                             todayColor: skin.full ? Refined.persimmon : .primary)
@@ -634,7 +648,10 @@ private struct WeekView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
         .containerBackground(for: .widget) { Refined.card }
+        // A tap opens where this week's words are: the You page on iPhone, Home on the Mac (SF-25).
+        .widgetURL(WidgetLink.week.url)
     }
 }
 
@@ -648,6 +665,7 @@ private struct QuickCaptureView: View {
             Button(intent: NewThoughtIntent()) { content(skin) }
                 .buttonStyle(.plain)
                 .accessibilityLabel("New thought")
+                .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
                 .containerBackground(for: .widget) { Refined.persimmonTint }
         }
     }
@@ -656,8 +674,8 @@ private struct QuickCaptureView: View {
         VStack(alignment: .leading, spacing: 0) {
             mark(skin)
             Spacer(minLength: 4)
-            Text("New thought").font(Refined.serif(22)).foregroundStyle(skin.text).lineLimit(1)
-            Text("Starts recording at once").font(.system(size: 12)).foregroundStyle(skin.text)
+            Text("New thought").scaledFont(22, design: .serif).foregroundStyle(skin.text).lineLimit(1)
+            Text("Starts recording at once").scaledFont(12).foregroundStyle(skin.text)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -757,14 +775,14 @@ private struct TodayThoughtsView: View {
                 let lines = (today?.latest ?? []).filter { !$0.text.isEmpty }
                 if lines.isEmpty {
                     Spacer(minLength: 0)
-                    Text("Nothing on today's page yet.").font(Refined.serif(15)).foregroundStyle(.secondary)
+                    Text("Nothing on today's page yet.").scaledFont(15, design: .serif).foregroundStyle(.secondary)
                 } else {
                     ForEach(lines) { line in
                         Link(destination: WidgetLink.thought.url) {
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
                                 Text(line.date, format: .dateTime.hour().minute())
-                                    .font(Refined.mono(12)).foregroundStyle(skin.meta)
-                                Text(line.text).font(.system(size: 13)).foregroundStyle(skin.text).lineLimit(1).privacySensitive()
+                                    .scaledFont(12).monospacedDigit().foregroundStyle(skin.meta)
+                                Text(line.text).scaledFont(13).foregroundStyle(skin.text).lineLimit(1).privacySensitive()
                             }
                         }
                     }
@@ -772,12 +790,13 @@ private struct TodayThoughtsView: View {
                 Spacer(minLength: 0)
                 HStack {
                     let n = today?.transcribing ?? 0
-                    Text(n == 0 ? "" : (n == 1 ? "One transcribing" : "\(n) transcribing")).font(.system(size: 11.5)).foregroundStyle(skin.meta)
+                    Text(n == 0 ? "" : (n == 1 ? "One transcribing" : "\(n) transcribing")).scaledFont(12).foregroundStyle(skin.meta)
                     Spacer(minLength: 4)
                     Button(intent: NewThoughtIntent()) { newThought(skin) }.buttonStyle(.plain)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
             .containerBackground(for: .widget) { Refined.card }
         }
     }
@@ -785,10 +804,10 @@ private struct TodayThoughtsView: View {
     private func header(_ today: WidgetSnapshot.TodayThoughts?, _ skin: Skin) -> some View {
         let count = today?.count ?? 0
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("Today's thoughts").font(Refined.serif(16)).foregroundStyle(skin.text)
-            if count > 0 { Text("\(count)").font(Refined.mono(12)).foregroundStyle(skin.meta) }
+            Text("Today's thoughts").scaledFont(16, design: .serif).foregroundStyle(skin.text)
+            if count > 0 { Text("\(count)").scaledFont(12).monospacedDigit().foregroundStyle(skin.meta) }
             Spacer(minLength: 4)
-            Text(entry.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day()).font(Refined.mono(12)).foregroundStyle(skin.meta)
+            Text(entry.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day()).scaledFont(12).monospacedDigit().foregroundStyle(skin.meta)
         }
         .lineLimit(1)
     }
@@ -801,7 +820,7 @@ private struct TodayThoughtsView: View {
                 BrandGlyph(art: .iconThought, color: skin.full ? Refined.persimmon : .primary, minLineWidth: 1.1).padding(3)
             }
             .frame(width: 18, height: 18)
-            Text("New thought").font(.system(size: 12.5, weight: .semibold))
+            Text("New thought").scaledFont(12.5, weight: .semibold)
                 .foregroundStyle(skin.full ? Refined.onFill : .primary)
         }
         .padding(.leading, 5).padding(.trailing, 11).frame(height: 28)
@@ -845,11 +864,11 @@ private struct ThoughtsLockView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 5) {
                         Image("thought").font(.system(size: 13, weight: .semibold))
-                        Text("Thoughts").font(.system(size: 14, weight: .semibold))
+                        Text("Thoughts").scaledFont(14, weight: .semibold)
                     }
                     .widgetAccentable()
-                    Text(ThoughtRules.lockCount(count)).font(.system(size: 17, weight: .semibold)).monospacedDigit().lineLimit(1)
-                    Text("Tap to add one").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(ThoughtRules.lockCount(count)).scaledFont(17, weight: .semibold).monospacedDigit().lineLimit(1)
+                    Text("Tap to add one").scaledFont(13).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
@@ -857,6 +876,7 @@ private struct ThoughtsLockView: View {
             }
         }
         .buttonStyle(.plain)
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
         .containerBackground(for: .widget) { Color.clear }
     }
 }
@@ -947,6 +967,7 @@ private struct RecentDictationsView: View {
                 if family == .systemSmall { small(skin) } else { medium(skin) }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
             .containerBackground(for: .widget) { Refined.card }
             // Anywhere outside a button opens Dictations (the small size is one tap target besides Copy).
             .widgetURL(WidgetLink.dictations.url)
@@ -958,10 +979,10 @@ private struct RecentDictationsView: View {
         VStack(alignment: .leading, spacing: 0) {
             Link(destination: WidgetLink.dictations.url) {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text("Recent dictations").font(Refined.serif(16)).foregroundStyle(skin.text)
+                    Text("Recent dictations").scaledFont(16, design: .serif).foregroundStyle(skin.text)
                     Spacer(minLength: 4)
                     if let n = entry.snapshot?.dictationCount, n > 0 {
-                        Text("\(n.formatted()) kept").font(Refined.mono(12)).foregroundStyle(skin.meta)
+                        Text("\(n.formatted()) kept").scaledFont(12).monospacedDigit().foregroundStyle(skin.meta)
                     }
                 }
                 .lineLimit(1)
@@ -988,8 +1009,8 @@ private struct RecentDictationsView: View {
             SourceChip(source: .dictation, skin: skin).frame(width: 22, height: 22)
             VStack(alignment: .leading, spacing: 0) {
                 Text(WidgetSnapshot.shortTitle(row.text, max: WidgetSnapshot.maxDictationText))
-                    .font(Refined.serif(15)).foregroundStyle(skin.text).lineLimit(1).privacySensitive()
-                status(row, copied: copied, skin).font(.system(size: 11, weight: copied ? .semibold : .regular)).lineLimit(1)
+                    .scaledFont(15, design: .serif).foregroundStyle(skin.text).lineLimit(1).privacySensitive()
+                status(row, copied: copied, skin).scaledFont(12, weight: copied ? .semibold : .regular).lineLimit(1)
             }
             Spacer(minLength: 4)
             CopyCircle(whole: row.whole, copied: copied, skin: skin, size: 26)
@@ -1004,10 +1025,10 @@ private struct RecentDictationsView: View {
         if let row = rows.first {
             let copied = entry.copied == row.id
             VStack(alignment: .leading, spacing: 0) {
-                Text("Dictations").font(Refined.serif(16)).foregroundStyle(skin.text).lineLimit(1)
-                status(row, copied: copied, skin).font(.system(size: 11, weight: copied ? .semibold : .regular)).lineLimit(1)
+                Text("Dictations").scaledFont(16, design: .serif).foregroundStyle(skin.text).lineLimit(1)
+                status(row, copied: copied, skin).scaledFont(12, weight: copied ? .semibold : .regular).lineLimit(1)
                 Text(WidgetSnapshot.shortTitle(row.text, max: WidgetSnapshot.maxDictationText))
-                    .font(Refined.serif(15)).foregroundStyle(skin.text).lineLimit(3).minimumScaleFactor(0.9)
+                    .scaledFont(15, design: .serif).foregroundStyle(skin.text).lineLimit(3).minimumScaleFactor(0.9)
                     .privacySensitive()
                     .padding(.top, 6)
                 Spacer(minLength: 4)
@@ -1020,7 +1041,7 @@ private struct RecentDictationsView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                Text("Dictations").font(Refined.serif(16)).foregroundStyle(skin.text).lineLimit(1)
+                Text("Dictations").scaledFont(16, design: .serif).foregroundStyle(skin.text).lineLimit(1)
                 Spacer(minLength: 4)
                 empty(skin)
             }
@@ -1039,10 +1060,10 @@ private struct RecentDictationsView: View {
         }
     }
 
-    /// "2 min ago", or "Copied" in the accent for two seconds after a copy.
+    /// "2 min ago", or "✓ Copied" in the accent for two seconds after a copy.
     @ViewBuilder private func status(_ row: WidgetSnapshot.Dictation, copied: Bool, _ skin: Skin) -> some View {
         if copied {
-            Text("Copied").foregroundStyle(skin.full ? Refined.accentText : .primary)
+            Text("\u{2713} Copied").foregroundStyle(skin.full ? Refined.accentText : .primary)
         } else {
             Text(WidgetSnapshot.ago(row.date, now: entry.date)).foregroundStyle(skin.meta)
         }
@@ -1055,19 +1076,21 @@ private struct RecentDictationsView: View {
             } else {
                 BrandGlyph(art: .iconCopy, color: skin.full ? Refined.ink : .primary, minLineWidth: 1.2).frame(width: 13, height: 13)
             }
-            Text(copied ? "Copied" : "Copy").font(.system(size: 13, weight: .semibold))
+            Text(copied ? "Copied" : "Copy").scaledFont(13, weight: .semibold)
         }
         .foregroundStyle(copied && skin.full ? Refined.accentText : skin.text)
         .padding(.horizontal, 11).frame(height: 28)
         .background(Capsule().fill(skin.full ? (copied ? Refined.persimmonTint : Refined.neutral) : Color.primary.opacity(0.12)))
         .widgetAccentable()
+        // 44 pt to touch around the 28 pt pill (GPT-23).
+        .activityTarget(height: 28)
     }
 
     private func empty(_ skin: Skin) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             SourceChip(source: .dictation, skin: skin).frame(width: 22, height: 22)
             // The same words as Home's Recent dictations.
-            Text("No dictations yet.").font(Refined.serif(15)).foregroundStyle(.secondary).lineLimit(2)
+            Text("No dictations yet.").scaledFont(15, design: .serif).foregroundStyle(.secondary).lineLimit(2)
         }
     }
 }

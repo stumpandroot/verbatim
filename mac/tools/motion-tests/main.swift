@@ -63,19 +63,34 @@ check("loops: the keyboard session's swipe hint is a LoopTimeline drawn from Swi
 
 // Toasts.
 let phoneApp = read("VerbatimPhone/PhoneApp.swift")
-check("toasts: the iPhone toast only fades under Limit animation",
-      phoneApp.contains(".transition(limitMotion ? .opacity : .move(edge: .top).combined(with: .opacity))")
+check("toasts: the iPhone toast rises from the bottom and only fades under Limit animation",
+      phoneApp.contains(".transition(limitMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))")
       && phoneApp.contains(".animation(limitMotion ? Motion.fade : Motion.settle, value: app.toast)"))
 check("toasts: a finger on the iPhone toast holds it", phoneApp.contains("app.holdToast(true)") && phoneApp.contains("app.holdToast(false)"))
+check("toasts: the iPhone toast sits at the bottom of the tab, above the tab bar and its accessory, clear of Back and More (IP-02)",
+      phoneApp.contains(".overlay(alignment: .bottom) { if t == app.tab { PhoneToastView() } }\n            .miniRecorderInset(t)")
+      && !phoneApp.contains(".overlay(alignment: .top) { PhoneToastView() }")
+      && read("VerbatimPhone/TranscriptScreen.swift").contains("app.toastClearance = $0"))
+check("toasts: the iPhone toast's action has a 44 pt target, and VoiceOver gets it as a named action and Magic Tap (IP-01, IP-11)",
+      phoneApp.contains("minHeight: CGFloat(RefinedRules.minTapTarget)") && phoneApp.contains(".accessibilityAction(named: Text(action), run)")
+      && phoneApp.contains(".accessibilityAction(.magicTap, run)") && phoneApp.contains(".accessibilityAction(.escape, dismiss)")
+      && !phoneApp.contains(".updatesFrequently"))
 let phone = read("VerbatimPhone/PhoneState.swift")
-check("toasts: the iPhone times its toasts with ToastTiming (3 s alone)",
-      phone.contains("ToastTiming.remaining(") && phone.contains("plain: ToastTiming.phonePlain") && !phone.contains("3_000_000_000); if self.toast"))
+check("toasts: the iPhone times its toasts by length with ToastTiming, keeps action toasts for VoiceOver, and announces each one",
+      phone.contains("ToastTiming.remaining(") && phone.contains("plain: ToastTiming.plain(for: t.message, floor: ToastTiming.phonePlain)")
+      && phone.contains("voiceOver: UIAccessibility.isVoiceOverRunning")
+      && phone.contains("UIAccessibility.post(notification: .announcement, argument: ToastSpeech.announcement(message: s, action: action))")
+      && !phone.contains("3_000_000_000); if self.toast"))
 let delete = block(phone, from: "    func delete(_ ids: [UUID])")
 check("toasts: Delete on iPhone offers Undo, which restores through the Store",
       delete.contains("action: ToastUndo.title") && delete.contains("store.restore($0)"), delete)
 let macToast = read("Verbatim/App/Toast.swift")
-check("toasts: the Mac times its toasts with ToastTiming (4.5 s alone) and holds one under the pointer",
-      macToast.contains("plain: ToastTiming.macPlain") && macToast.contains(".onHover") && !macToast.contains("4_500_000_000"))
+check("toasts: the Mac times its toasts by length with ToastTiming and holds any one under the pointer",
+      macToast.contains("plain: ToastTiming.plain(for: t.message, floor: ToastTiming.macPlain)") && macToast.contains(".onHover { over in hold.set(over, for: t.id) }")
+      && !macToast.contains("4_500_000_000"))
+check("toasts: the Mac announces every toast and its action, and keeps an action toast for VoiceOver (MAC-07)",
+      macToast.contains("HomeAnnounce.say(ToastSpeech.announcement(message: t.message, action: t.action))")
+      && macToast.contains("voiceOver: NSWorkspace.shared.isVoiceOverEnabled") && macToast.contains(".accessibilityAction(named: Text(action), run)"))
 check("toasts: ⌘Z on the Mac runs the toast's Undo through ToastUndo, never while editing text",
       macToast.contains("ToastUndo.commandZRuns(") && macToast.contains("firstResponder is NSText")
       && read("Verbatim/Views/ContentView.swift").contains("ToastUndoKey.shared.install(app)"))
@@ -174,6 +189,31 @@ check("keyboard: it reads Limit animation from the App Group only with Full Acce
       && kbView.contains(".environment(\\.limitMotion, systemReduceMotion || model.motionLimited)")
       && !kbView.contains("@Environment(\\.accessibilityReduceMotion) private var reduceMotion") && bars.contains("@Environment(\\.limitMotion)"))
 check("keyboard: MotionRules is in the keyboard's target", read("project.yml").contains("      - Verbatim/Model/MotionRules.swift"))
+
+// Limit animation reaches the watch and the Live Activity (SF-12, SF-03).
+check("watch: the iPhone sends Limit animation in the watch's context, and the watch stores it where LimitMotionRoot reads it",
+      read("VerbatimPhone/PhoneWatch.swift").contains("limitMotion: UserDefaults.standard.bool(forKey: MotionPreference.key)")
+      && read("VerbatimWatch/WatchLink.swift").contains("UserDefaults.standard.set(c.limitMotion, forKey: MotionPreference.key)")
+      && phone.contains("PhoneWatchLink.shared.publish(store)"))
+let presence = read("VerbatimPhone/RecordingPresence.swift"), session = read("VerbatimPhone/KeyboardSession.swift")
+check("live activity: the voice bars get one still level under Limit animation or Reduce Motion (ActivityLevel)",
+      presence.contains("ActivityLevel.keepsStill(systemReduceMotion: UIAccessibility.isReduceMotionEnabled")
+      && presence.components(separatedBy: "ActivityLevel.shown(").count == 3
+      && session.contains("ActivityLevel.shown(Double(capture.level), still: Self.activityStill)") && session.contains("if !Self.activityStill,"))
+let ribbonActivity = read("VerbatimWidgets/VerbatimWidgets.swift")
+check("live activity: the bars ask for no content transition, and the comment no longer says updates don't animate",
+      ribbonActivity.contains(".contentTransition(.identity)") && read("VerbatimWidgets/RecordingLiveActivity.swift").contains(".contentTransition(.identity)")
+      && !ribbonActivity.contains("a Live Activity doesn't animate between updates"))
+
+// Keyboard-initiated changes don't animate (GPT-11), and onboarding fades under Limit animation (IP-22).
+check("keys: a segmented control's card moves at once for a key press",
+      read("Verbatim/Views/RefinedKit.swift").contains("if limitMotion || Self.keyPressNow { selection = value }"))
+check("keys: ⌃⌥P changes the thought bubble at once; the return to idle still animates",
+      read("Verbatim/App/Dictation.swift").contains("ThoughtCapture.shared.toggle(fromKey: true)")
+      && read("Verbatim/Flow/ThoughtBubble.swift").contains(".animation(capture.keyDriven ? nil :")
+      && read("Verbatim/Flow/Thoughts.swift").contains("self?.keyDriven = false; self?.phase = .idle"))
+check("onboarding: the step's dashes and labels fade under Limit animation (iPhone)",
+      read("VerbatimPhone/PhoneOnboarding.swift").contains(".animation(limitMotion ? Motion.fade : Motion.settle, value: step)"))
 
 // The springs Tim kept (November 7, 2026).
 check("kept: page and glide springs unchanged",

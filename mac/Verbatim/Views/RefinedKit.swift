@@ -1,6 +1,8 @@
 import SwiftUI
 #if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
 #endif
 
 // The refined look's kit (DESIGN.md §13), shared by the Mac and iPhone apps: the content layer that Verbose draws
@@ -702,6 +704,9 @@ struct RefinedChip: View {
 struct RefinedChipRow<Content: View>: View {
     var label = "Filter"
     var margin: CGFloat = 0
+    /// The chosen chip's `.id`: the row scrolls it into view when it appears and when the choice changes, at once,
+    /// so the selection is never off screen (IP-21).
+    var selected: AnyHashable? = nil
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -710,14 +715,25 @@ struct RefinedChipRow<Content: View>: View {
             FlowRow(spacing: 8, lineSpacing: 8) { content }
                 .padding(.horizontal, margin)
             #else
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) { content }
-                    .padding(.horizontal, margin)
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) { content }
+                        .padding(.horizontal, margin)
+                }
+                .onAppear { reveal(proxy) }
+                .onChange(of: selected) { _, _ in reveal(proxy) }
             }
             #endif
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(label)
+    }
+
+    private func reveal(_ proxy: ScrollViewProxy) {
+        guard let selected else { return }
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t) { proxy.scrollTo(selected, anchor: .center) }
     }
 }
 
@@ -841,6 +857,15 @@ struct RefinedSegmented<Value: Hashable>: View {
         self.label = label; self.options = options; _selection = selection
     }
 
+    /// Whether the event being handled is a key press (the Mac; iPhone segments are touched).
+    @MainActor private static var keyPressNow: Bool {
+        #if os(macOS)
+        return NSApp.currentEvent?.type == .keyDown
+        #else
+        return false
+        #endif
+    }
+
     var body: some View {
         Group {
             if mac {
@@ -879,8 +904,9 @@ struct RefinedSegmented<Value: Hashable>: View {
         let shape = RoundedRectangle(cornerRadius: mac ? 6 : 7, style: .continuous)
         return Button {
             guard selection != value else { return }
-            // The card slides to the new segment with a slight bounce; with motion limited it moves at once.
-            if limitMotion { selection = value } else { withAnimation(Motion.glide) { selection = value } }
+            // The card slides to the new segment with a slight bounce; with motion limited, or from the keyboard (Space
+            // or Return on a focused segment), it moves at once (DESIGN.md §7; GPT-11).
+            if limitMotion || Self.keyPressNow { selection = value } else { withAnimation(Motion.glide) { selection = value } }
         } label: {
             Text(title).refinedFont(mac ? .meta : .hint, weight: .semibold).lineLimit(1)
                 .foregroundStyle(on ? Refined.ink : Refined.dim)
@@ -1101,6 +1127,9 @@ struct PaperRow<Trailing: View>: View {
     var celebration: BurstState? = nil
     @ViewBuilder var trailing: Trailing
     private let mac = RefinedPlatform.mac
+    /// At accessibility text sizes the title and meta wrap to three lines and the trailing item moves under them
+    /// (IP-09), so a title never shrinks to a few letters.
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         if mac {
@@ -1117,27 +1146,48 @@ struct PaperRow<Trailing: View>: View {
             .contentShape(Rectangle())
         } else {
             let burst = celebration?.active == true ? celebration : nil
+            let large = typeSize.isAccessibilitySize
+            let lines = large ? 3 : 1
+            let words = VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 5) {
+                    if pinned { IconGlyph(art: .iconPin, size: 13, color: Refined.mute).accessibilityHidden(true) }
+                    Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(lines)
+                }
+                .alignmentGuide(.rowTitle) { d in d[VerticalAlignment.center] }
+                Text(meta).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(lines)
+                    .opacity(burst?.old ?? 1)
+                    .celebrationWord(burst == nil ? nil : CelebrationWord.ready, state: burst ?? .idle, size: 14)
+            }
             HStack(spacing: 12) {
                 KindBadge(kind: kind, size: badge, fill: burst.map { $0.fill } ?? badgeFill)
                     .scaleEffect(burst?.scale ?? 1)
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 5) {
-                        if pinned { IconGlyph(art: .iconPin, size: 13, color: Refined.mute).accessibilityHidden(true) }
-                        Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                if large {
+                    VStack(alignment: .leading, spacing: 4) {
+                        words
+                        trailing.opacity(burst?.old ?? 1)
                     }
-                    .alignmentGuide(.rowTitle) { d in d[VerticalAlignment.center] }
-                    Text(meta).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
-                        .opacity(burst?.old ?? 1)
-                        .celebrationWord(burst == nil ? nil : CelebrationWord.ready, state: burst ?? .idle, size: 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    words.frame(maxWidth: .infinity, alignment: .leading)
+                    trailing.opacity(burst?.old ?? 1)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                trailing.opacity(burst?.old ?? 1)
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
             .contentShape(Rectangle())
         }
     }
+}
+
+/// One line at the usual text sizes, up to three at accessibility sizes (IP-09): a row's title or meta that would
+/// otherwise truncate to a few letters.
+struct RowLines: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var typeSize
+    func body(content: Content) -> some View { content.lineLimit(typeSize.isAccessibilitySize ? 3 : 1) }
+}
+
+extension View {
+    func rowLines() -> some View { modifier(RowLines()) }
 }
 
 /// A card with a header that stays at the top of the scroll view while its rows scroll under it (the Mac Library's

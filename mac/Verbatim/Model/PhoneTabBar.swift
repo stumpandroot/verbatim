@@ -189,6 +189,13 @@ enum RecordChromeRule {
     static func readingHidesTabBar(recording: Bool, systemAccessory: Bool) -> Bool {
         !(recording && systemAccessory)
     }
+
+    /// Whether today's Thoughts page shows its own floating New thought button (IP-18, GPT-25): only when Record in the
+    /// tab bar doesn't already start a thought there. On the Thoughts tab Record reads "Record · Thought" (or carries
+    /// the running recording), so a second control for the same action would stack above it.
+    static func floatingThoughtShown(tab: PhoneTab, chromeHidden: Bool) -> Bool {
+        chromeHidden || TabRecordDefault.forTab(tab) != .thought
+    }
 }
 
 /// What a tap on Record in the tab bar's accessory starts: on Thoughts a thought, on Journal a journal entry, and on a

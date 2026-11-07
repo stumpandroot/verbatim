@@ -40,14 +40,14 @@ struct PhonePrivacyScreen: View {
     var body: some View {
         List {
             Section {
-                Text(PrivacyStatement.text).font(.system(size: 15)).foregroundStyle(Refined.ink)
+                Text(PrivacyStatement.text).scaledFont(15).foregroundStyle(Refined.ink)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Section {
                 Toggle(isOn: $model.localOnly) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Local only").font(.system(size: 16, weight: .semibold))
-                        Text(PrivacyStatement.localOnlyDetail).font(.system(size: 13)).foregroundStyle(Refined.mute)
+                        Text("Local only").scaledFont(16, weight: .semibold)
+                        Text(PrivacyStatement.localOnlyDetail).scaledFont(13).foregroundStyle(Refined.mute)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -58,7 +58,7 @@ struct PhonePrivacyScreen: View {
             Section {
                 if model.events.isEmpty {
                     Text("Nothing yet. Verbose hasn't used the network on this iPhone since the list was cleared.")
-                        .font(.system(size: 14)).foregroundStyle(Refined.mute)
+                        .scaledFont(14).foregroundStyle(Refined.mute)
                 } else {
                     ForEach(model.events) { e in PhoneNetworkEventRow(event: e) }
                 }
@@ -66,7 +66,7 @@ struct PhonePrivacyScreen: View {
                 HStack {
                     Text("Network activity")
                     Spacer()
-                    if !model.events.isEmpty { Button("Clear") { model.clear() }.font(.system(size: 14, weight: .semibold)) }
+                    if !model.events.isEmpty { Button("Clear") { model.clear() }.scaledFont(14, weight: .semibold) }
                 }
             } footer: {
                 Text("When, why, and the host. Never what was sent. The last 500 are kept on this iPhone.")
@@ -84,16 +84,16 @@ struct PhoneNetworkEventRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(event.purpose.label).font(.system(size: 15, weight: .medium)).foregroundStyle(Refined.ink)
-                Text(event.host.isEmpty ? "Unknown host" : event.host).font(.system(size: 13)).foregroundStyle(Refined.dim).lineLimit(1).truncationMode(.middle)
+                Text(event.purpose.label).scaledFont(15, weight: .medium).foregroundStyle(Refined.ink)
+                Text(event.host.isEmpty ? "Unknown host" : event.host).scaledFont(13).foregroundStyle(Refined.dim).lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 6)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(NetworkActivityModel.when(event.date)).font(.system(size: 13)).foregroundStyle(Refined.mute).monospacedDigit()
+                Text(NetworkActivityModel.when(event.date)).scaledFont(13).foregroundStyle(Refined.mute).monospacedDigit()
                 if event.refused {
-                    Text("Refused by Local Only").font(.system(size: 12, weight: .medium)).foregroundStyle(Refined.accentText)
+                    Text("Refused by Local Only").scaledFont(12, weight: .medium).foregroundStyle(Refined.accentText)
                 } else if let b = ByteText.format(event.bytes) {
-                    Text(b).font(.system(size: 12)).foregroundStyle(Refined.mute).monospacedDigit()
+                    Text(b).scaledFont(12).foregroundStyle(Refined.mute).monospacedDigit()
                 }
             }
         }

@@ -53,7 +53,7 @@ private struct WatchCardHeader: View {
     var body: some View {
         HStack(spacing: 5) {
             BarsMark(color: WatchColor.record).frame(width: 11, height: 11)
-            Text("Verbose").font(.system(size: 12, weight: .bold)).foregroundStyle(WatchColor.record)
+            Text("Verbose").scaledFont(12, weight: .bold).foregroundStyle(WatchColor.record)
         }
         .widgetAccentable()
         .accessibilityElement(children: .combine)
@@ -71,6 +71,7 @@ struct WatchRecordComplication: Widget {
             }
             .accessibilityLabel("Record")
             .widgetURL(WatchRules.recordLink)
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
             .containerBackground(WatchColor.card, for: .widget)
         }
         .configurationDisplayName("Record")
@@ -87,12 +88,13 @@ struct WatchThoughtsComplication: Widget {
             VStack(alignment: .leading, spacing: 1) {
                 WatchCardHeader()
                 Text(WatchRules.complicationTitle(entry.thoughts))
-                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(WatchColor.text).monospacedDigit()
-                Text(WatchRules.complicationDetail).font(.system(size: 12)).foregroundStyle(WatchColor.dim)
+                    .scaledFont(14, weight: .semibold).foregroundStyle(WatchColor.text).monospacedDigit()
+                Text(WatchRules.complicationDetail).scaledFont(12).foregroundStyle(WatchColor.dim)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
             .widgetURL(WatchRules.thoughtLink)
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
             .containerBackground(WatchColor.card, for: .widget)
         }
         .configurationDisplayName("Today's thoughts")
@@ -110,18 +112,19 @@ struct WatchSmartStackCard: Widget {
             VStack(alignment: .leading, spacing: 1) {
                 WatchCardHeader()
                 if let c = entry.context, let title = c.lastTitle {
-                    Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(WatchColor.text).lineLimit(1).privacySensitive()
+                    Text(title).scaledFont(15, weight: .semibold).foregroundStyle(WatchColor.text).lineLimit(1).privacySensitive()
                     if let line = WatchRules.lastLine(c, time: { $0.formatted(date: .omitted, time: .shortened) }) {
-                        Text(line).font(.system(size: 12)).foregroundStyle(WatchColor.dim).lineLimit(1)
+                        Text(line).scaledFont(12).foregroundStyle(WatchColor.dim).lineLimit(1)
                     }
                 } else {
-                    Text(WatchRules.complicationTitle(entry.thoughts)).font(.system(size: 15, weight: .semibold)).foregroundStyle(WatchColor.text)
+                    Text(WatchRules.complicationTitle(entry.thoughts)).scaledFont(15, weight: .semibold).foregroundStyle(WatchColor.text)
                 }
-                Text("Tap to record").font(.system(size: 12, weight: .semibold)).foregroundStyle(WatchColor.record)
+                Text("Tap to record").scaledFont(12, weight: .semibold).foregroundStyle(WatchColor.record)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
             .widgetURL(WatchRules.recordLink)
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
             .containerBackground(WatchColor.card, for: .widget)
         }
         .configurationDisplayName("Last capture")

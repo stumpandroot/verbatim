@@ -12,6 +12,8 @@ import UIKit
 /// in both appearances.
 enum KB {
     static var uiInk: UIColor { Refined.uiColor(RefinedHex.ink) }
+    /// The least a control is to touch, as in the app (44 pt).
+    static let minTarget: Double = 44
 
     static let paper = Refined.paper
     static let ink = Refined.ink
@@ -95,6 +97,9 @@ struct KeyboardView: View {
         // The system's Reduce Motion, or Verbose's Limit animation from the App Group (Full Access only), stills the
         // voice bars (DESIGN.md §7).
         .environment(\.limitMotion, systemReduceMotion || model.motionLimited)
+        // The notices, lists, and status lines grow with Dynamic Type (`scaledFont`, GPT-07) up to the largest size
+        // short of the accessibility sizes, so they still fit the keyboard's height; the keys keep their geometry.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         // No background: Apple's keyboard backdrop shows through (see `KB`).
     }
 
@@ -146,18 +151,14 @@ struct KeyboardView: View {
         }
     }
 
-    /// Close (to Typing) on the left; ABC, Recent, and Settings on the right. The session's time left sits between,
-    /// when the app set an idle timeout.
+    /// The session's time left on the left, when the app set an idle timeout; ABC, Recent, and Settings on the right.
+    /// ABC is the one way back to the letter keys, as Apple's mode keys are (the xmark that did the same retired; SF-22).
     private var homeBar: some View {
         bar {
-            CircleButton(look: .soft, action: model.showTyping) { Image(systemName: "xmark").font(.system(size: 16, weight: .medium)) }
-                .accessibilityLabel("Close")
-                .accessibilityHint("Shows the typing keyboard")
-            Spacer(minLength: 6)
             if model.hasFullAccess, model.sessionLive, let ends = model.sessionEndsAt {
-                SessionCountdown(clock: model.clock, endsAt: ends)
-                Spacer(minLength: 6)
+                SessionCountdown(clock: model.clock, endsAt: ends).padding(.leading, 4)
             }
+            Spacer(minLength: 6)
             CircleButton(look: .outline, action: model.showTyping) {
                 Text("ABC").font(.system(size: 15, weight: .bold))
             }
@@ -193,7 +194,7 @@ struct KeyboardView: View {
                     if model.notice != nil || model.info != nil { statusLine }
                     else {
                         Text(StartCard.secondary)
-                            .font(.system(size: 12.5)).foregroundStyle(KB.muted)
+                            .scaledFont(12.5).foregroundStyle(KB.muted)
                             .lineLimit(1).minimumScaleFactor(0.8)
                     }
                 }
@@ -233,26 +234,27 @@ struct KeyboardView: View {
         .padding(.horizontal, KB.barInset).padding(.bottom, 10)
     }
 
-    /// A failure, a short confirmation ("Copied."), or Paused for a call, above Tap to talk.
+    /// A failure, a short confirmation ("✓ Copied"), or Paused for a call, above Tap to talk.
     @ViewBuilder private var statusLine: some View {
         if let n = model.notice {
-            Text(n).font(.system(size: 12.5)).foregroundStyle(KB.deep)
+            Text(n).scaledFont(12.5).foregroundStyle(KB.deep)
                 .lineLimit(2).minimumScaleFactor(0.85).multilineTextAlignment(.center)
                 .accessibilityAddTraits(.updatesFrequently)
         } else if let i = model.info {
-            Text(i).font(.system(size: 12.5, weight: .medium)).foregroundStyle(KB.muted)
+            Text(i).scaledFont(12.5, weight: .medium).foregroundStyle(KB.muted)
                 .lineLimit(2).minimumScaleFactor(0.85).multilineTextAlignment(.center)
                 .accessibilityAddTraits(.updatesFrequently)
         } else if model.sessionPaused {
-            Text("Paused for a call · picks up when it ends").font(.system(size: 12.5, weight: .medium)).foregroundStyle(KB.muted)
+            Text("Paused for a call · picks up when it ends").scaledFont(12.5, weight: .medium).foregroundStyle(KB.muted)
                 .lineLimit(1).minimumScaleFactor(0.8)
                 .accessibilityAddTraits(.updatesFrequently)
         }
     }
 
     private var globe: some View {
+        // 44 pt to touch, the glyph centered in it (SF-19): at the bar's edge a miss used to land on Tap to talk's row.
         GlobeKey(controller: model.controllerForGlobe)
-            .frame(width: 34, height: 34)
+            .frame(width: CGFloat(KB.minTarget), height: CGFloat(KB.minTarget))
             .accessibilityLabel("Next keyboard")
     }
 
@@ -287,7 +289,7 @@ struct KeyboardView: View {
                 }
                 CheckDisc()
                 Text("Inserted · \(model.insertion?.words ?? 0) \((model.insertion?.words ?? 0) == 1 ? "word" : "words")")
-                    .font(.system(size: 13.5, weight: .semibold)).monospacedDigit().foregroundStyle(KB.ink)
+                    .scaledFont(13.5, weight: .semibold).monospacedDigit().foregroundStyle(KB.ink)
                     .lineLimit(1).minimumScaleFactor(0.75)
                     .layoutPriority(-1)
                 Spacer(minLength: 6)
@@ -333,15 +335,15 @@ struct KeyboardView: View {
 
     @ViewBuilder private var typingNotice: some View {
         if let n = model.notice {
-            Text(n).font(.system(size: 12)).foregroundStyle(KB.deep)
+            Text(n).scaledFont(12).foregroundStyle(KB.deep)
                 .lineLimit(2).minimumScaleFactor(0.8)
                 .accessibilityAddTraits(.updatesFrequently)
         } else if let i = model.info {
-            Text(i).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
+            Text(i).scaledFont(12, weight: .medium).foregroundStyle(KB.muted)
                 .lineLimit(2).minimumScaleFactor(0.8)
                 .accessibilityAddTraits(.updatesFrequently)
         } else if model.sessionPaused {
-            Text("Paused for a call").font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
+            Text("Paused for a call").scaledFont(12, weight: .medium).foregroundStyle(KB.muted)
                 .lineLimit(1).minimumScaleFactor(0.8)
                 .accessibilityAddTraits(.updatesFrequently)
         }
@@ -364,7 +366,7 @@ struct KeyboardView: View {
     /// After a spoken correction changed the inserted words: what changed, Use as spoken, and Turn off.
     private func correctionStrip(_ summary: String) -> some View {
         HStack(spacing: 6) {
-            Text(summary).font(.system(size: 12.5)).foregroundStyle(KB.ink)
+            Text(summary).scaledFont(12.5).foregroundStyle(KB.ink)
                 .lineLimit(2).truncationMode(.middle).minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Chip(title: "Use as spoken") { model.useAsSpoken() }
@@ -517,7 +519,7 @@ private struct SessionCountdown: View {
 
     var body: some View {
         Text("\(KeyboardView.clock(endsAt.timeIntervalSince(clock.now))) left")
-            .font(KB.mono(12)).foregroundStyle(KB.muted)
+            .scaledFont(12).monospacedDigit().foregroundStyle(KB.muted)
             .lineLimit(1).minimumScaleFactor(0.8)
             .accessibilityLabel(accessibility)
     }
@@ -832,8 +834,9 @@ private struct MenuCard: View {
         .padding(6)
         .frame(width: 228)
         .background(KB.card, in: RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous))
+        // A hairline separates it, with no soft shadow (DESIGN.md §5.4; SF-20); the separator strengthens under
+        // Increase Contrast.
         .overlay(RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous).strokeBorder(KB.hairline, lineWidth: 1))
-        .shadow(color: Color.black.opacity(0.18), radius: 10, y: 4)
         .accessibilityElement(children: .contain)
         .accessibilityAction(.escape) { model.closeMenu() }
     }
@@ -845,13 +848,13 @@ private struct MenuCard: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 KBIcon(art: art, symbol: symbol, size: 18, color: KB.ink)
-                Text(title).font(.system(size: 14.5)).foregroundStyle(KB.ink).lineLimit(1)
+                Text(title).scaledFont(14.5).foregroundStyle(KB.ink).lineLimit(1)
                 Spacer(minLength: 6)
                 if let value {
-                    Text(value).font(KB.mono(12)).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.75)
+                    Text(value).scaledFont(12).monospacedDigit().foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.75)
                 }
             }
-            .padding(.horizontal, 10).frame(height: 40)
+            .padding(.horizontal, 10).frame(height: CGFloat(KB.minTarget))
             .contentShape(Rectangle())
         }
         .buttonStyle(MenuRowPress())
@@ -983,13 +986,14 @@ private struct FullAccessCard: View {
                 .font(KB.serif(21)).foregroundStyle(KB.ink)
                 .multilineTextAlignment(.center)
                 .lineLimit(1).minimumScaleFactor(0.75)
-            Text("So the Verbose app can pass your words to this keyboard. Typing works without it.")
-                .font(.system(size: 12.5)).foregroundStyle(KB.muted)
+            // The on-device promise where you decide (SF-21), as the app's keyboard page says it.
+            Text("So the Verbose app can pass your words to this keyboard. Nothing you type leaves this iPhone. Typing works without it.")
+                .scaledFont(12.5).foregroundStyle(KB.muted)
                 .multilineTextAlignment(.center).lineSpacing(1.5)
                 .fixedSize(horizontal: false, vertical: true)
             if showsPath {
                 Text("Settings › Verbose › Keyboards › Allow Full Access")
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.ink)
+                    .scaledFont(13, weight: .semibold).foregroundStyle(KB.ink)
                     .multilineTextAlignment(.center)
                     .lineLimit(2).minimumScaleFactor(0.75)
                     .accessibilityLabel("Open Settings, then Verbose, then Keyboards, and turn on Allow Full Access")
@@ -1049,7 +1053,7 @@ private struct StartSessionWays: View {
     private func way(_ symbol: String, _ text: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: symbol).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.ink).frame(width: 16)
-            Text(text).font(.system(size: 13)).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.75)
+            Text(text).scaledFont(13).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.75)
         }
     }
 }
@@ -1081,11 +1085,12 @@ private struct ListRow: View {
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(meta).font(KB.mono(12)).foregroundStyle(KB.muted).lineLimit(1)
-                Text(Self.oneLine(text)).font(.system(size: 14.5)).foregroundStyle(KB.ink).lineLimit(1)
+                Text(meta).scaledFont(12).monospacedDigit().foregroundStyle(KB.muted).lineLimit(1)
+                Text(Self.oneLine(text)).scaledFont(14.5).foregroundStyle(KB.ink).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Insert").font(.system(size: 13, weight: .bold)).foregroundStyle(Refined.accentText)
+            // Ink on the wash (about 9:1); the accent measured 3.3:1 there in light (SF-08).
+            Text("Insert").scaledFont(13, weight: .bold).foregroundStyle(KB.ink)
                 .padding(.horizontal, 11).frame(height: 28)
                 .background(Capsule().fill(KB.wash))
         }
@@ -1093,8 +1098,11 @@ private struct ListRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: insert)
         .onLongPressGesture(minimumDuration: 0.45, perform: { copy?() })
+        // Labeled with the word the pill shows, so Voice Control's "Tap Insert" finds it; the text is its value (SF-31).
         .accessibilityElement()
-        .accessibilityLabel(String(text.prefix(200)))
+        .accessibilityLabel("Insert")
+        .accessibilityValue(String(text.prefix(200)))
+        .accessibilityInputLabels([Text("Insert"), Text(String(Self.oneLine(text).prefix(30)))])
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(hint)
         .accessibilityActions {
@@ -1126,8 +1134,8 @@ private struct CleanupChip: View {
         Button(action: next) {
             HStack(spacing: 5) {
                 KBIcon(art: .iconAI, symbol: "wand.and.stars", size: 14, color: KB.ink)
-                Text(level).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
-                Text("· \(format)").font(.system(size: 13.5, weight: .medium)).foregroundStyle(KB.muted)
+                Text(level).scaledFont(13.5, weight: .semibold).foregroundStyle(KB.ink).lineLimit(1)
+                Text("· \(format)").scaledFont(13.5, weight: .medium).foregroundStyle(KB.muted)
                     .lineLimit(1).minimumScaleFactor(0.8)
                 if enabled {
                     Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(KB.ink)
@@ -1135,7 +1143,7 @@ private struct CleanupChip: View {
             }
             .padding(.horizontal, 12).frame(height: 34)
             .background(KB.wash, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+            .keyboardTarget(visible: 34)
         }
         .buttonStyle(PressFade())
         .disabled(!enabled)
@@ -1286,10 +1294,10 @@ private struct Chip: View {
     var action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
+            Text(title).scaledFont(13.5, weight: .semibold).foregroundStyle(KB.ink).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 34)
                 .background(KB.wash, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+                .keyboardTarget(visible: 34)
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(title)
@@ -1302,13 +1310,22 @@ private struct DarkPill: View {
     var action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.paper).lineLimit(1)
+            Text(title).scaledFont(13, weight: .semibold).foregroundStyle(KB.paper).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 30)
                 .background(KB.ink, in: Capsule())
-                .contentShape(Capsule())
+                .keyboardTarget(visible: 30)
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(title)
+    }
+}
+
+extension View {
+    /// A 44 pt target around a smaller chip or pill (SF-19, GPT-23): the touch area grows above and below without
+    /// moving anything in the bar.
+    func keyboardTarget(visible height: CGFloat) -> some View {
+        let grow = max(0, (CGFloat(KB.minTarget) - height) / 2)
+        return padding(.vertical, grow).contentShape(Rectangle()).padding(.vertical, -grow)
     }
 }
 

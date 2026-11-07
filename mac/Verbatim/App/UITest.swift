@@ -1765,6 +1765,11 @@ enum UITest {
               && VoiceEnrollment.clock(75) == "1:15" && VoiceEnrollment.clock(.nan) == "0:00")
         let split = VoicePassageCard.split(["The", "morning", "—", "light"], wordsRead: 2)
         check("voice: the passage card darkens read words with their punctuation", split.read == "The morning —" && split.rest == "light")
+        let phrase = VoicePassageCard.phrase("light comes in, slow and gold over the hills")
+        let longPhrase = VoicePassageCard.phrase("one two three four five six seven")
+        check("voice: the next phrase to read ends at a comma or after five words, and the rest stays readable",
+              phrase.now == "light comes in," && phrase.later == "slow and gold over the hills"
+              && longPhrase.now == "one two three four five" && longPhrase.later == "six seven" && VoicePassageCard.phrase("").now.isEmpty)
         var guardOK = false
         if case .failure(.noSpeech) = VoiceProfile.prepareSamples([]), case .failure(.silent) = VoiceProfile.prepareSamples([Float](repeating: 0, count: 32_000)),
            case .success(let short) = VoiceProfile.prepareSamples([Float.nan, 0.1, -0.2]), case .success(let long) = VoiceProfile.prepareSamples([Float](repeating: 0.1, count: 32_000)) {
@@ -2994,7 +2999,7 @@ extension UITest {
         let seeded = seedThoughts(app)
         try? await Task.sleep(nanoseconds: 600_000_000)
 
-        check("thoughts: Idea is called Thoughts in pickers and filters", RecordingKind.idea.label == "Thoughts" && RecordingKind.idea.plural == "Thoughts"
+        check("thoughts: Idea is called Thoughts in pickers and filters", RecordingKind.idea.label == "Thought" && RecordingKind.idea.plural == "Thoughts"
               && RecordingKind.idea.rawValue == "idea" && RecordingKind.pickable.contains(.idea))
         let page = app.store.page(.idea, day: today, hour: hour).filter { seeded.contains($0.id) }
         check("thoughts: today's page lists the seeded thoughts in the order they started", page.map(\.id) == seeded && page.count == 5)
@@ -3607,7 +3612,6 @@ private struct WidePage: View {
         .background(Refined.paper)
     }
 }
-#endif
 
 // MARK: - Interactions audit: commands, find, Undo, and the inspector (November 7, 2026)
 
@@ -3691,3 +3695,4 @@ extension UITest {
         try? await Task.sleep(nanoseconds: 300_000_000)
     }
 }
+#endif

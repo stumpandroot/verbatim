@@ -259,7 +259,7 @@ struct DayCalendar: View {
         let dot = entries > 0
         return VStack(spacing: 2) {
             Text("\(Calendar.current.component(.day, from: d))").refinedFont(.rowTitle, weight: isSelected ? .semibold : .regular).monospacedDigit()
-                .foregroundStyle(isSelected ? Refined.accentText : (inMonth ? Refined.ink : Refined.faint))
+                .foregroundStyle(isSelected ? Refined.accentText : (inMonth ? Refined.ink : Refined.mute))   // the next month's dates are tappable: mute (5:1), never faint (GPT-19)
             // Ink, not the kind's fill: a butter dot on the card was about 1.4:1 (critique; DESIGN.md §14.6).
             Circle().fill(Refined.ink).frame(width: 5, height: 5).opacity(dot ? 1 : 0)
         }

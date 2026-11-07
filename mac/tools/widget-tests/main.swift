@@ -112,13 +112,18 @@ check("transcript link round-trips", WidgetLink(url: WidgetLink.transcript(id).u
 let atMoment = URL(string: "verbatim://transcript/\(id.uuidString)?t=258")!
 check("Verbose Tasks' Play link opens the transcript at its moment", WidgetLink(url: atMoment) == .transcript(id) && WidgetLink.moment(in: atMoment) == 258
       && WidgetLink.moment(in: WidgetLink.transcript(id).url) == nil && WidgetLink.moment(in: URL(string: "verbatim://transcript/\(id.uuidString)?t=-4")!) == nil)
-for l in [WidgetLink.record, .dictate, .thought, .newThought, .dictations] {
+for l in [WidgetLink.record, .dictate, .thought, .newThought, .dictations, .library, .week] {
     check("\(l) round-trips", WidgetLink(url: l.url) == l)
 }
 // Capture links carry Verbose's link key on the Mac (security review MC-02).
 check("Record, Dictate, and New thought start capture; the others don't",
       [WidgetLink.record, .dictate, .newThought].allSatisfy(\.startsCapture) && !WidgetLink.thought.startsCapture && !WidgetLink.transcript(id).startsCapture
-      && !WidgetLink.dictations.startsCapture)
+      && !WidgetLink.dictations.startsCapture && !WidgetLink.library.startsCapture && !WidgetLink.week.startsCapture)
+let homeWidgetsURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    .appendingPathComponent("../VerbatimWidgets/HomeWidgets.swift").standardizedFileURL
+let homeWidgets = (try? String(contentsOf: homeWidgetsURL, encoding: .utf8)) ?? ""
+check("Recent recordings and This week open their place outside a row (SF-25)",
+      homeWidgets.contains(".widgetURL(WidgetLink.library.url)") && homeWidgets.contains(".widgetURL(WidgetLink.week.url)"), homeWidgetsURL.path)
 let keyed = WidgetLink.dictate.url(key: "abc123")
 check("a capture link carries the key and still parses", WidgetLink(url: keyed) == .dictate && WidgetLink.key(in: keyed) == "abc123")
 check("a link without a key has none", WidgetLink.key(in: WidgetLink.dictate.url) == nil && WidgetLink.key(in: WidgetLink.dictate.url(key: nil)) == nil)

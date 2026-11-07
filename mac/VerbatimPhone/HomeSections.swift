@@ -175,9 +175,14 @@ private struct HomeDictationRow: View {
         HStack(alignment: .center, spacing: 6) {
             Button { app.open(transcript.id) } label: {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(HomeDictationText.preview(transcript))
-                        .refinedFont(.body).foregroundStyle(transcript.status == .failed ? Refined.accentText : Refined.ink)
-                        .lineLimit(large ? 2 : 1).multilineTextAlignment(.leading)
+                    if transcript.status == .failed {
+                        // A failure in danger with its glyph, never the accent (IP-10).
+                        RefinedFailure(text: HomeDictationText.preview(transcript), role: .body, lines: large ? 2 : 1)
+                    } else {
+                        Text(HomeDictationText.preview(transcript))
+                            .refinedFont(.body).foregroundStyle(Refined.ink)
+                            .lineLimit(large ? 2 : 1).multilineTextAlignment(.leading)
+                    }
                     if large {
                         HStack(spacing: 0) {
                             Text(ago).foregroundStyle(Refined.mute)
@@ -221,7 +226,7 @@ private struct HomeDictationRow: View {
             .frame(width: 36, height: 36)
             .frame(width: CGFloat(RefinedRules.minTapTarget), height: CGFloat(RefinedRules.minTapTarget))
             .contentShape(Rectangle())
-            .animation(limitMotion ? Motion.fade : .easeOut(duration: 0.18), value: copied)
+            .animation(limitMotion ? Motion.fade : Motion.touch, value: copied)
         }
         .buttonStyle(RefinedPress())
         .sensoryFeedback(trigger: copies) { _, _ in Haptics.feedback(.copied) }
@@ -279,9 +284,9 @@ struct HomeThoughtsSection: View {
                     IconGlyph(art: .iconThought, size: 20, color: Refined.ink)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(HomeThoughts.countLine(page.count)).refinedFont(.rowTitle, weight: .semibold)
-                            .foregroundStyle(Refined.ink).lineLimit(1)
+                            .foregroundStyle(Refined.ink).rowLines()
                         Text(page.last.map(words) ?? "Tap New thought to start today's page.")
-                            .refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+                            .refinedFont(.meta).foregroundStyle(Refined.mute).rowLines()
                     }
                     Spacer(minLength: 0)
                 }

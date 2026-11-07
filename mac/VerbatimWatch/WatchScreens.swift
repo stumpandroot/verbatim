@@ -47,7 +47,7 @@ struct WatchHome: View {
                             IconGlyph(art: .capture, size: 22, color: WatchColor.record)
                         }
                         .frame(width: 42, height: 42)
-                        Text("Record").font(.system(size: 20, weight: .semibold)).foregroundStyle(WatchColor.onRecord)
+                        Text("Record").scaledFont(20, weight: .semibold).foregroundStyle(WatchColor.onRecord)
                         Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 14)
@@ -61,7 +61,7 @@ struct WatchHome: View {
                 Button { recorder.start(.thought) } label: {
                     HStack(spacing: 10) {
                         IconGlyph(art: .iconThought, size: 22, color: WatchColor.text)
-                        Text("New thought").font(.system(size: 16, weight: .semibold)).foregroundStyle(WatchColor.text)
+                        Text("New thought").scaledFont(16, weight: .semibold).foregroundStyle(WatchColor.text)
                         Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 14)
@@ -73,10 +73,10 @@ struct WatchHome: View {
                 .accessibilityLabel("New thought")
 
                 Text(WatchRules.todayLine(link.thoughtsToday))
-                    .font(.system(size: 12)).foregroundStyle(WatchColor.dim).monospacedDigit()
+                    .scaledFont(12).foregroundStyle(WatchColor.dim).monospacedDigit()
                     .padding(.top, 4)
                 if let waiting = WatchRules.waitingLine(link.waiting) {
-                    Text(waiting).font(.system(size: 12)).foregroundStyle(WatchColor.dim).multilineTextAlignment(.center)
+                    Text(waiting).scaledFont(12).foregroundStyle(WatchColor.dim).multilineTextAlignment(.center)
                 }
             }
             .padding(.horizontal, 2)
@@ -99,12 +99,12 @@ struct WatchRecording: View {
                 Circle().fill(WatchColor.record).frame(width: 8, height: 8)
                 Text(recorder.kind == .thought ? "New thought" : "Recording")
             }
-            .font(.system(size: 13)).foregroundStyle(WatchColor.dim)
+            .scaledFont(13).foregroundStyle(WatchColor.dim)
             .accessibilityElement(children: .combine)
 
             TimelineView(.periodic(from: recorder.startedAt, by: 1)) { _ in
                 Text(WatchRules.clock(recorder.elapsed))
-                    .font(Refined.mono(40, weight: .medium)).foregroundStyle(WatchColor.text)
+                    .scaledFont(40, weight: .medium).monospacedDigit().foregroundStyle(WatchColor.text)
                     .minimumScaleFactor(0.6).lineLimit(1)
                     .accessibilityLabel("Recorded \(WatchRules.clock(recorder.elapsed))")
             }
@@ -126,7 +126,7 @@ struct WatchRecording: View {
                     // Double-tap your fingers to mark, on a watch that supports it.
                     .handGestureShortcut(.primaryAction)
                     .accessibilityLabel("Mark a moment")
-                    Text("Mark").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(WatchColor.dim).accessibilityHidden(true)
+                    Text("Mark").scaledFont(12, weight: .semibold).foregroundStyle(WatchColor.dim).accessibilityHidden(true)
                 }
                 Spacer()
                 VStack(spacing: 4) {
@@ -138,19 +138,21 @@ struct WatchRecording: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Stop and send to iPhone")
-                    Text("Stop").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(WatchColor.dim).accessibilityHidden(true)
+                    Text("Stop").scaledFont(12, weight: .semibold).foregroundStyle(WatchColor.dim).accessibilityHidden(true)
                 }
             }
             .padding(.horizontal, 6)
         }
         .padding(.top, 4)
+        // Its labels grow with Dynamic Type (SF-11) up to the largest size that still fits beside the 58 pt buttons.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .overlay(alignment: .top) {
             if let at = recorder.confirmed {
                 HStack(spacing: 7) {
                     IconGlyph(art: .iconMarked, size: 16, color: WatchColor.onToast)
-                    Text("Marked \(Text(WatchRules.clock(at)).font(Refined.mono(15, weight: .medium)))")
+                    Text("Marked \(Text(WatchRules.clock(at)).monospacedDigit().fontWeight(.medium))")
                 }
-                .font(.system(size: 15, weight: .semibold)).foregroundStyle(WatchColor.onToast)
+                .scaledFont(15, weight: .semibold).foregroundStyle(WatchColor.onToast)
                 .frame(maxWidth: .infinity, minHeight: 40)
                 .background(WatchColor.toast, in: Capsule())
                 .padding(.horizontal, 4)
@@ -220,17 +222,17 @@ struct WatchSent: View {
                     .frame(width: 54, height: 54)
                     .accessibilityHidden(true)
                     .task { await celebrate() }
-                Text(WatchRules.deliveryTitle(delivery)).font(.system(size: 17, weight: .semibold)).foregroundStyle(WatchColor.text).padding(.top, 10)
+                Text(WatchRules.deliveryTitle(delivery)).scaledFont(17, weight: .semibold).foregroundStyle(WatchColor.text).padding(.top, 10)
                     .accessibilityAddTraits(.updatesFrequently)
                 if let status = WatchRules.deliveryStatus(delivery) {
-                    Text(status).font(.system(size: 13, weight: .medium)).foregroundStyle(WatchColor.text).padding(.top, 3)
+                    Text(status).scaledFont(13, weight: .medium).foregroundStyle(WatchColor.text).padding(.top, 3)
                 }
                 Text(WatchRules.sentDetail(transfer.kind, reachable: link.reachable || delivery == .sent))
-                    .font(.system(size: 13)).foregroundStyle(WatchColor.dim).multilineTextAlignment(.center).padding(.top, 3)
+                    .scaledFont(13).foregroundStyle(WatchColor.dim).multilineTextAlignment(.center).padding(.top, 3)
                 if let note {
-                    Text(note).font(.system(size: 13)).foregroundStyle(WatchColor.dim).multilineTextAlignment(.center).padding(.top, 6)
+                    Text(note).scaledFont(13).foregroundStyle(WatchColor.dim).multilineTextAlignment(.center).padding(.top, 6)
                 }
-                Text(WatchRules.sentLine(transfer)).font(Refined.mono(12)).foregroundStyle(WatchColor.dim).padding(.top, 10)
+                Text(WatchRules.sentLine(transfer)).scaledFont(12).monospacedDigit().foregroundStyle(WatchColor.dim).padding(.top, 10)
                 Button("Done", action: done).padding(.top, 12)
             }
             .frame(maxWidth: .infinity)
@@ -288,7 +290,7 @@ struct WatchProblem: View {
         ScrollView {
             VStack(spacing: 12) {
                 IconGlyph(art: .iconAttention, size: 28, color: WatchColor.text)
-                Text(message).font(.system(size: 15)).foregroundStyle(WatchColor.text).multilineTextAlignment(.center)
+                Text(message).scaledFont(15).foregroundStyle(WatchColor.text).multilineTextAlignment(.center)
                 Button("OK", action: done)
             }
             .frame(maxWidth: .infinity)

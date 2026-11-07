@@ -105,6 +105,8 @@ struct HapticPolicy {
             case .recordStart: return Self.start
             case .recordStop: return Self.stop
             case .copied, .picked: return .selection
+            // Couldn't start, didn't finish, no words heard, the words didn't go in (SF-07).
+            case .failed: return .error
             case .typingKey: return typingKeys ? Self.typingTap : nil
             default: return nil
             }

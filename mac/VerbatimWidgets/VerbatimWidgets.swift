@@ -76,7 +76,7 @@ struct SessionLiveActivity: Widget {
                     } else if listening {
                         HStack(spacing: 7) {
                             LevelBars(level: s.level, color: Refined.persimmon, count: 5).frame(width: 22, height: 18)
-                            Text(s.warming ? Ribbon.gettingReadyTitle : "Listening").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                            Text(s.warming ? Ribbon.gettingReadyTitle : "Listening").scaledFont(14, weight: .semibold).foregroundStyle(.white)
                                 .lineLimit(1).fixedSize()
                         }
                         .padding(.leading, 4)
@@ -94,7 +94,7 @@ struct SessionLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.center) {
                     if !listening && !stale {
                         Text(Ribbon.headline(s.shown, words: s.words, gettingReady: s.warming))
-                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                            .scaledFont(15, weight: .semibold).foregroundStyle(.white).lineLimit(1)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
@@ -103,7 +103,7 @@ struct SessionLiveActivity: Widget {
                     } else if listening {
                         VStack(alignment: .leading, spacing: 10) {
                             if s.warming {
-                                Text(Ribbon.gettingReadyDetail).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                                Text(Ribbon.gettingReadyDetail).scaledFont(13).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
                             } else if let line = s.liveWords, !line.isEmpty { IslandWords(line: line) }
                             HStack(spacing: 8) {
                                 TargetLabel(target: s.target)
@@ -118,7 +118,7 @@ struct SessionLiveActivity: Widget {
                     } else {
                         VStack(spacing: 10) {
                             Text(Ribbon.detail(s.shown, takes: s.takes, message: s.message))
-                                .font(.system(size: 13)).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
+                                .scaledFont(13).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             RibbonButtons(phase: s.shown, onDark: true)
                         }
@@ -212,17 +212,17 @@ private struct RibbonLockScreen: View {
             HStack(spacing: 8) {
                 PhaseGlyph(phase: state.shown, onDark: skin.dark).frame(width: 18, height: 18)
                 Text(Ribbon.headline(state.shown, words: state.words, gettingReady: state.warming))
-                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
+                    .scaledFont(15, weight: .semibold).foregroundStyle(ink).lineLimit(1)
                 Spacer(minLength: 8)
                 trailing
             }
             if state.shown == .listening {
-                LevelBars(level: state.level, color: Refined.persimmonFixed, count: 34).frame(height: 22)
+                LevelBars(level: state.level, color: skin.mark, count: 34).frame(height: 22)
                 Text(state.warming ? Ribbon.gettingReadyLine : Ribbon.lockLine(target: state.target, take: state.takes))
-                    .font(.system(size: 13)).foregroundStyle(skin.dim).lineLimit(1).minimumScaleFactor(0.85)
+                    .scaledFont(13).foregroundStyle(skin.dim).lineLimit(1).minimumScaleFactor(0.85)
             } else {
                 Text(Ribbon.detail(state.shown, takes: state.takes, message: state.message))
-                    .font(.system(size: 13)).foregroundStyle(skin.dim).lineLimit(2)
+                    .scaledFont(13).foregroundStyle(skin.dim).lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
             RibbonButtons(phase: state.shown, onDark: skin.dark)
@@ -234,7 +234,7 @@ private struct RibbonLockScreen: View {
         if state.shown == .listening, let start = state.takeStartedAt {
             TakeTimer(start: start).font(Refined.mono(15, weight: .medium)).foregroundStyle(ink).frame(width: 60, alignment: .trailing)
         } else if state.shown == .ready, let started = state.sessionStartedAt {
-            Text(started, style: .relative).font(.system(size: 13)).monospacedDigit().foregroundStyle(skin.mute)
+            Text(started, style: .relative).scaledFont(13).monospacedDigit().foregroundStyle(skin.mute)
                 .multilineTextAlignment(.trailing).frame(maxWidth: 110, alignment: .trailing)
         }
     }
@@ -249,7 +249,7 @@ private struct IslandWords: View {
         TailWords(text: line, lines: 2, lineHeight: IslandWordsMetrics.lineHeight) { tail in
             let parts = Ribbon.splitWords(tail)
             Text("\(Text(parts.older).foregroundStyle(Color.white.opacity(0.5)))\(Text(parts.newest).foregroundStyle(Color.white))")
-                .font(Refined.serif(16))
+                .scaledFont(16, design: .serif)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         // Your words: redacted wherever the system hides private content, as the thought's are (security review IPH-18).
@@ -274,13 +274,14 @@ private struct TargetLabel: View {
         HStack(spacing: 6) {
             Image(systemName: "keyboard").font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.7))
                 .accessibilityHidden(true)
-            Text(Ribbon.intoLine(target)).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75))
+            Text(Ribbon.intoLine(target)).scaledFont(13).foregroundStyle(.white.opacity(0.75))
                 .lineLimit(1).minimumScaleFactor(0.8)
         }
     }
 }
 
-/// While Verbose writes the words: a still arc (a Live Activity doesn't animate between updates).
+/// While Verbose writes the words: a still arc. A Live Activity can't run an animation of its own (the system only
+/// animates the change between two of the app's updates), so it doesn't spin.
 private struct WritingSpinner: View {
     var body: some View {
         ZStack {
@@ -290,7 +291,7 @@ private struct WritingSpinner: View {
                 .rotationEffect(.degrees(-90))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Writing your words")
+        .accessibilityLabel("Writing it down")
     }
 }
 
@@ -310,7 +311,7 @@ private struct PhaseGlyph: View {
     var body: some View {
         switch phase {
         case .listening:
-            BarsMark(color: onDark ? Refined.persimmon : Refined.persimmonFixed).accessibilityLabel("Listening")
+            BarsMark(color: onDark ? Refined.persimmon : Refined.accentTextOnPaper).accessibilityLabel("Listening")   // 5.6:1 on paper (SF-27)
         case .transcribing:
             BrandGlyph(art: .iconTranscribing, color: onDark ? .white : Refined.inkFixed).accessibilityLabel("Writing")
         case .copied, .inserted:
@@ -326,7 +327,8 @@ private struct PhaseGlyph: View {
     }
 }
 
-/// The level, about once a second while listening: fixed bar shapes scaled by the real microphone level.
+/// The level, about once a second while listening: fixed bar shapes scaled by the real microphone level, or the
+/// resting shape under Limit animation or Reduce Motion (the app sends a still level then).
 private struct LevelBars: View {
     var level: Double
     var color: Color
@@ -343,8 +345,11 @@ private struct LevelBars: View {
                     .scaleEffect(y: max(0.15, base * (0.2 + 0.8 * min(1, max(0, level)))), anchor: .center)
             }
         }
+        // The system animates a change between two updates; under Limit animation or Reduce Motion the app sends one
+        // still level (`ActivityLevel`, SF-03), so the bars hold still.
+        .contentTransition(.identity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Microphone level")
+        .accessibilityLabel("Your voice")
     }
 }
 
@@ -402,7 +407,7 @@ private struct RibbonButton<I: AppIntent>: View {
     var body: some View {
         Button(intent: intent) {
             Text(title)
-                .font(.system(size: 14, weight: .semibold))
+                .scaledFont(14, weight: .semibold)
                 .foregroundStyle(primary || !onDark ? Refined.inkFixed : Color.white)
                 .lineLimit(1)
                 .frame(maxWidth: compact ? nil : .infinity)
@@ -411,7 +416,7 @@ private struct RibbonButton<I: AppIntent>: View {
                 .padding(.vertical, 8)
                 .background(primary ? Refined.persimmonFixed : (onDark ? Color.white.opacity(0.12) : Refined.inkFixed.opacity(0.08)),
                             in: Capsule())
-                .contentShape(Capsule())
+                .activityTarget(height: 34)
         }
         .buttonStyle(.plain)
     }

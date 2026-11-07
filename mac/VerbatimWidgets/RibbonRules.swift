@@ -70,7 +70,8 @@ enum Ribbon {
         switch phase {
         case .ready: return "Verbose session on"
         case .listening: return "Listening"
-        case .transcribing: return "Writing your words…"
+        // The keyboard's words for the same state (SF-29).
+        case .transcribing: return "Writing it down"
         case .copied: return "Copied · " + wordsLabel(words)
         case .inserted: return "Inserted · " + wordsLabel(words)
         case .failed: return "Didn't finish"

@@ -23,7 +23,6 @@ struct PhoneAudioDetail: View {
     @State private var nameDraft = ""
     @State private var addingNote = false
     @State private var noteDraft = ""
-    @State private var confirmDelete = false
     /// Live progress while it transcribes (StageClock), so a tick redraws this screen's status only.
     @ObservedObject private var stages = StageClock.shared
 
@@ -69,10 +68,6 @@ struct PhoneAudioDetail: View {
                 noteDraft = ""
             }
         }
-        .confirmationDialog("Move this recording to Recently Deleted?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Move to Recently Deleted", role: .destructive) { app.delete([id]); dismiss() }
-            Button("Cancel", role: .cancel) {}
-        } message: { Text("You can restore it for 30 days.") }
         // Reading: with nothing recording, Record's accessory turns off with the tab bar (RecordAccessory.swift).
         .onAppear { app.readingScreens.insert(readingToken) }
         .onDisappear { app.readingScreens.remove(readingToken) }
@@ -112,7 +107,8 @@ struct PhoneAudioDetail: View {
                     Divider()
                     Button { RenameCenter.shared.begin(t) } label: { Label("Rename", systemImage: "pencil") }   // brand: system surface (menu)
                     Button { addingNote = true } label: { Label("Add a note", systemImage: "note.text") }   // brand: system surface (menu)
-                    Button(role: .destructive) { confirmDelete = true } label: { Label("Delete", systemImage: "trash") }
+                    // Delete goes at once, with Undo in the toast (IP-19).
+                    Button(role: .destructive) { app.delete([id]); dismiss() } label: { Label("Delete", systemImage: "trash") }
                 } label: { Image(systemName: "ellipsis") }
                 .accessibilityLabel("More")
                 .accessibilityIdentifier("audio.more")
@@ -179,7 +175,8 @@ struct PhoneAudioDetail: View {
                 }
                 .padding(.top, 6)
                 if t.status == .failed, let e = t.error {
-                    Text(e).refinedFont(.meta).foregroundStyle(Refined.accentText).padding(.top, 4)
+                    // A failure in danger with its glyph, never the accent (IP-10).
+                    RefinedFailure(text: e).padding(.top, 4)
                 }
 
                 PhoneAudioPlayer(transcript: t, player: app.player, clock: app.player.clock)

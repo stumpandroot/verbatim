@@ -94,7 +94,7 @@ struct AskScreen: View {
                     if let r = center.result, center.phase == .done {
                         Button { UIPasteboard.general.string = r.copyText; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", systemImage: "doc.on.doc") }   // brand: system surface (menu)
                         if recipesShown {
-                            Button { editing = RecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as Recipe", systemImage: "bookmark") }   // brand: system surface (menu)
+                            Button { editing = RecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as recipe", systemImage: "bookmark") }   // brand: system surface (menu)
                         }
                     }
                     if recipesShown {
@@ -308,7 +308,7 @@ struct PhoneAskCitations: View {
     private func row(_ s: AskSource) -> some View {
         let parts = s.title.components(separatedBy: " · ")
         return HStack(spacing: 12) {
-            Text("\(s.number)").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Refined.accentText)
+            Text("\(s.number)").scaledFont(13, weight: .semibold).monospacedDigit().foregroundStyle(Refined.accentText)
                 .frame(width: 22, height: 22).background(Refined.persimmonTint, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
                 Text(parts.first ?? s.title).refinedFont(.rowTitle).foregroundStyle(Refined.ink).lineLimit(1)

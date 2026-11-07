@@ -94,6 +94,14 @@ enum WatchChecks {
         check("watch: the iPhone's Haptics switch travels in the context, on when an older iPhone doesn't say",
               ctxBack?.haptics == true && WatchContext(dictionary: quiet.dictionary())?.haptics == false
               && quiet.encoded().flatMap(WatchContext.decode)?.haptics == false && WatchContext(dictionary: older)?.haptics == true)
+        // Limit animation travels the same way, off when an older iPhone doesn't say (SF-12).
+        var still = ctx
+        still.limitMotion = true
+        var olderMotion = dict
+        olderMotion.removeValue(forKey: WatchContext.Key.limitMotion)
+        check("watch: the iPhone's Limit animation travels in the context, off when an older iPhone doesn't say",
+              ctxBack?.limitMotion == false && WatchContext(dictionary: still.dictionary())?.limitMotion == true
+              && still.encoded().flatMap(WatchContext.decode)?.limitMotion == true && WatchContext(dictionary: olderMotion)?.limitMotion == false)
         let now = started.addingTimeInterval(600)
         check("watch: today's count is the iPhone's plus unsent thoughts from today's page",
               WatchRules.thoughtsToday(context: ctx, unsent: [now, started.addingTimeInterval(-90_000)], now: now) == 7)

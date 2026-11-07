@@ -128,6 +128,7 @@ struct StartSessionWidget: Widget {
         StaticConfiguration(kind: Self.kind, provider: StartSessionProvider()) { _ in
             StartSessionAccessoryView()
                 .widgetURL(URL(string: "verbatim://session?start=1&from=widget"))
+                .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
                 .containerBackground(for: .widget) { Color.clear }
         }
         .configurationDisplayName("Start dictation session")
@@ -164,8 +165,8 @@ private struct StartSessionAccessoryView: View {
             HStack(spacing: 8) {
                 BarsMark(color: .white).frame(width: 26, height: 26)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Verbose").font(.system(size: 15, weight: .semibold)).widgetAccentable()
-                    Text("Start dictation session").font(.system(size: 13)).lineLimit(2)
+                    Text("Verbose").scaledFont(15, weight: .semibold).widgetAccentable()
+                    Text("Start dictation session").scaledFont(13).lineLimit(2)
                 }
                 Spacer(minLength: 0)
             }

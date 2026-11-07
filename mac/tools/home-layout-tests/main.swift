@@ -405,6 +405,12 @@ check("record chrome: reading hides the tab bar with nothing recording, and befo
       RC.readingHidesTabBar(recording: false, systemAccessory: true) && RC.readingHidesTabBar(recording: false, systemAccessory: false)
       && RC.readingHidesTabBar(recording: true, systemAccessory: false))
 
+check("today's Thoughts page: one capture control, Record in the tab bar on the Thoughts tab (IP-18)",
+      !RC.floatingThoughtShown(tab: .thoughts, chromeHidden: false))
+check("today's Thoughts page: its New thought button stays where Record starts something else, or isn't there",
+      RC.floatingThoughtShown(tab: .library, chromeHidden: false) && RC.floatingThoughtShown(tab: .home, chromeHidden: false)
+      && RC.floatingThoughtShown(tab: .thoughts, chromeHidden: true))
+
 // MARK: What a tap on Record starts on each tab (TabRecordDefault, PhoneTabBar.swift)
 
 check("record tap: a thought on Thoughts and a journal entry on Journal, since you're there",
