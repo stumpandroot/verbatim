@@ -85,7 +85,7 @@ final class KeyboardModel: ObservableObject {
     /// Your last few dictations (the app writes them to the App Group), and whether the top strip shows them.
     @Published private(set) var recent: [KeyboardBridge.Recent] = []
     @Published private(set) var showingRecent = false
-    /// A short confirmation under the card ("Copied."), cleared after a moment.
+    /// A short confirmation under the card ("✓ Copied"), cleared after a moment.
     @Published private(set) var info: String? = nil
     /// What a spoken correction changed in the words just inserted ("Removed “meet at 2”"), with Use as spoken
     /// and Turn off. Cleared when the inserted state ends.
@@ -590,7 +590,7 @@ final class KeyboardModel: ObservableObject {
         }
         UIPasteboard.general.string = r.text
         haptic(.copied)
-        flashInfo("Copied.")
+        flashInfo("\u{2713} Copied")   // one confirmation everywhere (DESIGN.md §8, SF-29)
     }
 
     func flashInfo(_ text: String) {

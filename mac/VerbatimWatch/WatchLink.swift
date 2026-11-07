@@ -225,6 +225,8 @@ final class WatchLink: NSObject, ObservableObject, WCSessionDelegate {
     private func apply(_ dictionary: [String: Any]) {
         guard let c = WatchContext(dictionary: dictionary) else { return }
         if let data = c.encoded() { WatchStore.shared.set(data, forKey: WatchRules.contextKey) }
+        // The iPhone's Limit animation, where `LimitMotionRoot` reads it on the watch (SF-12).
+        if UserDefaults.standard.bool(forKey: MotionPreference.key) != c.limitMotion { UserDefaults.standard.set(c.limitMotion, forKey: MotionPreference.key) }
         context = c
         WidgetCenter.shared.reloadAllTimelines()
     }

@@ -175,6 +175,31 @@ check("keyboard: it reads Limit animation from the App Group only with Full Acce
       && !kbView.contains("@Environment(\\.accessibilityReduceMotion) private var reduceMotion") && bars.contains("@Environment(\\.limitMotion)"))
 check("keyboard: MotionRules is in the keyboard's target", read("project.yml").contains("      - Verbatim/Model/MotionRules.swift"))
 
+// Limit animation reaches the watch and the Live Activity (SF-12, SF-03).
+check("watch: the iPhone sends Limit animation in the watch's context, and the watch stores it where LimitMotionRoot reads it",
+      read("VerbatimPhone/PhoneWatch.swift").contains("limitMotion: UserDefaults.standard.bool(forKey: MotionPreference.key)")
+      && read("VerbatimWatch/WatchLink.swift").contains("UserDefaults.standard.set(c.limitMotion, forKey: MotionPreference.key)")
+      && phone.contains("PhoneWatchLink.shared.publish(store)"))
+let presence = read("VerbatimPhone/RecordingPresence.swift"), session = read("VerbatimPhone/KeyboardSession.swift")
+check("live activity: the voice bars get one still level under Limit animation or Reduce Motion (ActivityLevel)",
+      presence.contains("ActivityLevel.keepsStill(systemReduceMotion: UIAccessibility.isReduceMotionEnabled")
+      && presence.components(separatedBy: "ActivityLevel.shown(").count == 3
+      && session.contains("ActivityLevel.shown(Double(capture.level), still: Self.activityStill)") && session.contains("if !Self.activityStill,"))
+let ribbonActivity = read("VerbatimWidgets/VerbatimWidgets.swift")
+check("live activity: the bars ask for no content transition, and the comment no longer says updates don't animate",
+      ribbonActivity.contains(".contentTransition(.identity)") && read("VerbatimWidgets/RecordingLiveActivity.swift").contains(".contentTransition(.identity)")
+      && !ribbonActivity.contains("a Live Activity doesn't animate between updates"))
+
+// Keyboard-initiated changes don't animate (GPT-11), and onboarding fades under Limit animation (IP-22).
+check("keys: a segmented control's card moves at once for a key press",
+      read("Verbatim/Views/RefinedKit.swift").contains("if limitMotion || Self.keyPressNow { selection = value }"))
+check("keys: ⌃⌥P changes the thought bubble at once; the return to idle still animates",
+      read("Verbatim/App/Dictation.swift").contains("ThoughtCapture.shared.toggle(fromKey: true)")
+      && read("Verbatim/Flow/ThoughtBubble.swift").contains(".animation(capture.keyDriven ? nil :")
+      && read("Verbatim/Flow/Thoughts.swift").contains("self?.keyDriven = false; self?.phase = .idle"))
+check("onboarding: the step's dashes and labels fade under Limit animation (iPhone)",
+      read("VerbatimPhone/PhoneOnboarding.swift").contains(".animation(limitMotion ? Motion.fade : Motion.settle, value: step)"))
+
 // The springs Tim kept (November 7, 2026).
 check("kept: page and glide springs unchanged",
       tokens.contains("static let glide = Animation.spring(duration: 0.34, bounce: 0.22)") && tokens.contains("static let page = Animation.spring(duration: 0.44, bounce: 0.16)"))

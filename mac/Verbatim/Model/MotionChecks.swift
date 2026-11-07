@@ -85,6 +85,15 @@ enum MotionChecks {
         for i in 0..<160 { let p = L.progress(at: Double(i) / 100); if p < last { rising = false }; last = p }
         check("motion: the swipe hint only moves forward within a pass", rising)
 
+        // The Live Activity's bars keep still with Limit animation or Reduce Motion.
+        let A = ActivityLevel.self
+        check("motion: the Live Activity gets the microphone's level, clamped, unless the bars keep still",
+              A.shown(0.8, still: false) == 0.8 && A.shown(3, still: false) == 1 && A.shown(-1, still: false) == 0 && A.shown(.nan, still: false) == 0)
+        check("motion: with Limit animation or Reduce Motion the Live Activity gets one resting level",
+              A.shown(0.8, still: true) == A.resting && A.shown(0.1, still: true) == A.resting
+              && A.keepsStill(systemReduceMotion: true, limitAnimation: false) && A.keepsStill(systemReduceMotion: false, limitAnimation: true)
+              && !A.keepsStill(systemReduceMotion: false, limitAnimation: false))
+
         // Limit animation's copy in the App Group.
         let suite = "motion-checks-\(UUID().uuidString)"
         if let group = UserDefaults(suiteName: suite) {

@@ -214,7 +214,8 @@ struct ThoughtBubbleView: View {
         }
         .coordinateSpace(name: Self.space)
         .onPreferenceChange(SurfaceFrameKey.self) { f in if layout.contentFrame != f { layout.contentFrame = f } }
-        .animation(limitMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.22), value: stateKey)
+        // A start or stop from ⌃⌥P changes at once (GPT-11); a click and the rest animate as before.
+        .animation(capture.keyDriven ? nil : (limitMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.22)), value: stateKey)
     }
 
     /// A voice note records (and no thought does): the disc stops it and the card shows it.

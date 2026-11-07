@@ -1051,10 +1051,10 @@ private struct RecentDictationsView: View {
         }
     }
 
-    /// "2 min ago", or "Copied" in the accent for two seconds after a copy.
+    /// "2 min ago", or "✓ Copied" in the accent for two seconds after a copy.
     @ViewBuilder private func status(_ row: WidgetSnapshot.Dictation, copied: Bool, _ skin: Skin) -> some View {
         if copied {
-            Text("Copied").foregroundStyle(skin.full ? Refined.accentText : .primary)
+            Text("\u{2713} Copied").foregroundStyle(skin.full ? Refined.accentText : .primary)
         } else {
             Text(WidgetSnapshot.ago(row.date, now: entry.date)).foregroundStyle(skin.meta)
         }

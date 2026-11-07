@@ -145,7 +145,7 @@ final class PhoneWatchLink: NSObject, WCSessionDelegate {
         let hour = DayPages.storedHour()
         let page = DayPages.pageInterval(DayPages.today(now: now, hour: hour), hour: hour)
         return WatchImport.context(today: store.todaysThoughts(now: now), pageEnds: page.end, live: store.live, now: now,
-                                   haptics: Haptics.enabled)
+                                   haptics: Haptics.enabled, limitMotion: UserDefaults.standard.bool(forKey: MotionPreference.key))
     }
 
     @MainActor func publish(_ store: Store) {

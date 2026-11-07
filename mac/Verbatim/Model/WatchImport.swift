@@ -38,14 +38,15 @@ enum WatchImport {
 
     /// What the iPhone tells the watch: today's thoughts and when their page ends, and the newest recording that isn't
     /// a dictation (for the Smart Stack).
-    static func context(today: [Transcript], pageEnds: Date, live: [Transcript], now: Date = Date(), haptics: Bool = true) -> WatchContext {
+    static func context(today: [Transcript], pageEnds: Date, live: [Transcript], now: Date = Date(), haptics: Bool = true,
+                        limitMotion: Bool = false) -> WatchContext {
         let last = live.filter { !$0.isDictation && $0.deletedAt == nil }.max { $0.createdAt < $1.createdAt }
         let kind: String? = last.map { t in
             if t.kind == .idea { return "Thought" }
             return t.kind?.label ?? "Voice memo"
         }
         return WatchContext(thoughtsToday: today.count, pageEnds: pageEnds, lastTitle: last?.title, lastKind: kind,
-                            lastDuration: last?.duration, lastAt: last?.createdAt, sentAt: now, haptics: haptics)
+                            lastDuration: last?.duration, lastAt: last?.createdAt, sentAt: now, haptics: haptics, limitMotion: limitMotion)
     }
 
     // MARK: Imported once

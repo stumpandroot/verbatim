@@ -179,6 +179,8 @@ Home is the refined look's (§13; approved mockup "Verbose Refined Look", Main, 
 - Icons arrive fully drawn and draw on again on hover. Icon draw-ons never loop.
 - Limit Motion (and the system's Reduce Motion) stills all of it: no tilt, lift, or scale, a still meter, still diagrams, icons fully drawn, and crossfades instead of slides.
 - Limit animation reaches the iPhone's keyboard: the app copies it into the App Group at launch and whenever it changes (`MotionMirror`, as the Haptics switch is shared), and the keyboard reads it on each appearance, with Allow Full Access only, and stills its voice bars when it or the system's Reduce Motion is on (`KeyboardView` sets `limitMotion` for everything below it).
+- Limit animation reaches the watch and the Live Activities too. The iPhone sends it in the watch's context (`WatchContext.limitMotion`, sent again whenever it changes), and the watch stores it under `MotionPreference.key`, where `LimitMotionRoot` reads it, so the Sent ring and check still. The system animates every Live Activity update, so under Limit animation or Reduce Motion the app sends one resting level for the voice bars instead of the microphone's (`ActivityLevel`), and the session stops its once-a-second level updates; the bars also ask for no content transition (`.contentTransition(.identity)`).
+- A start or stop from the keyboard changes the control at once: a segmented control's card moves without its glide when a key activates it, and ⌃⌥P switches the thought bubble between New thought, Recording, and Saved without animating (`ThoughtCapture.keyDriven`); the bubble's return to idle after Saved still animates. Onboarding's dashes and button labels fade with the step under Limit animation.
 
 ## 8. Words
 

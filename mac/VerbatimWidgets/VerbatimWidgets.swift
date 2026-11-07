@@ -254,7 +254,8 @@ private struct TargetLabel: View {
     }
 }
 
-/// While Verbose writes the words: a still arc (a Live Activity doesn't animate between updates).
+/// While Verbose writes the words: a still arc. A Live Activity can't run an animation of its own (the system only
+/// animates the change between two of the app's updates), so it doesn't spin.
 private struct WritingSpinner: View {
     var body: some View {
         ZStack {
@@ -264,7 +265,7 @@ private struct WritingSpinner: View {
                 .rotationEffect(.degrees(-90))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Writing your words")
+        .accessibilityLabel("Writing it down")
     }
 }
 
@@ -300,7 +301,8 @@ private struct PhaseGlyph: View {
     }
 }
 
-/// The level, about once a second while listening: fixed bar shapes scaled by the real microphone level.
+/// The level, about once a second while listening: fixed bar shapes scaled by the real microphone level, or the
+/// resting shape under Limit animation or Reduce Motion (the app sends a still level then).
 private struct LevelBars: View {
     var level: Double
     var color: Color
@@ -317,8 +319,11 @@ private struct LevelBars: View {
                     .scaleEffect(y: max(0.15, base * (0.2 + 0.8 * min(1, max(0, level)))), anchor: .center)
             }
         }
+        // The system animates a change between two updates; under Limit animation or Reduce Motion the app sends one
+        // still level (`ActivityLevel`, SF-03), so the bars hold still.
+        .contentTransition(.identity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Microphone level")
+        .accessibilityLabel("Your voice")
     }
 }
 

@@ -1,6 +1,8 @@
 import SwiftUI
 #if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
 #endif
 
 // The refined look's kit (DESIGN.md §13), shared by the Mac and iPhone apps: the content layer that Verbose draws
@@ -829,6 +831,15 @@ struct RefinedSegmented<Value: Hashable>: View {
         self.label = label; self.options = options; _selection = selection
     }
 
+    /// Whether the event being handled is a key press (the Mac; iPhone segments are touched).
+    @MainActor private static var keyPressNow: Bool {
+        #if os(macOS)
+        return NSApp.currentEvent?.type == .keyDown
+        #else
+        return false
+        #endif
+    }
+
     var body: some View {
         Group {
             if mac {
@@ -867,8 +878,9 @@ struct RefinedSegmented<Value: Hashable>: View {
         let shape = RoundedRectangle(cornerRadius: mac ? 6 : 7, style: .continuous)
         return Button {
             guard selection != value else { return }
-            // The card slides to the new segment with a slight bounce; with motion limited it moves at once.
-            if limitMotion { selection = value } else { withAnimation(Motion.glide) { selection = value } }
+            // The card slides to the new segment with a slight bounce; with motion limited, or from the keyboard (Space
+            // or Return on a focused segment), it moves at once (DESIGN.md §7; GPT-11).
+            if limitMotion || Self.keyPressNow { selection = value } else { withAnimation(Motion.glide) { selection = value } }
         } label: {
             Text(title).refinedFont(mac ? .meta : .hint, weight: .semibold).lineLimit(1)
                 .foregroundStyle(on ? Refined.ink : Refined.dim)

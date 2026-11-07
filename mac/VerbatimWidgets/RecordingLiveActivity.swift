@@ -415,6 +415,8 @@ private struct ThoughtVoiceBars: View {
                     .scaleEffect(y: max(0.15, base * (0.2 + 0.8 * min(1, max(0, level)))), anchor: .center)
             }
         }
+        // Still under Limit animation or Reduce Motion: the app sends one level then (`ActivityLevel`, SF-03).
+        .contentTransition(.identity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Your voice")
     }

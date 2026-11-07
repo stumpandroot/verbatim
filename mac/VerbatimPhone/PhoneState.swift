@@ -276,9 +276,12 @@ final class PhoneState {
         return "\(chosen) seems to be muted. Recording continues on the iPhone microphone."
     }
 
-    /// Copies Settings › Limit animation into the App Group, where the keyboard reads it (MotionMirror).
+    /// Copies Settings › Limit animation into the App Group, where the keyboard reads it (MotionMirror), and on a
+    /// change sends the watch its context again, which carries it (`WatchContext.limitMotion`, SF-12).
     func mirrorLimitMotion() {
-        MotionMirror.mirror(UserDefaults.standard.bool(forKey: MotionPreference.key), into: KeyboardBridge.defaults)
+        if MotionMirror.mirror(UserDefaults.standard.bool(forKey: MotionPreference.key), into: KeyboardBridge.defaults) {
+            PhoneWatchLink.shared.publish(store)
+        }
     }
 
     /// Shows a toast above the tab bar. A message alone stays by its length (3 to 10 s); one with an action (Undo)

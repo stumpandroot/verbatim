@@ -79,17 +79,20 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
         let reason = app.recorder.isPaused ? VerbatimRecordingAttributes.shortReason(app.autoPauseReason) : nil
         // Moments marked so far, and "Marked 4:12" for two seconds after each (Model/Marks.swift).
         let marks = app.recordingMoments
+        // The system animates every update, so with Limit animation or Reduce Motion the bars get one still level (SF-03).
+        let still = ActivityLevel.keepsStill(systemReduceMotion: UIAccessibility.isReduceMotionEnabled,
+                                             limitAnimation: UserDefaults.standard.bool(forKey: MotionPreference.key))
         if app.recordingThought {
             // Words travel in the content state (4 KB at most), so only their end, and only when asked for.
             let words = ThoughtRules.islandWords() ? Ribbon.islandWords(app.recordingWords.shown.text) : nil
             return VerbatimRecordingAttributes.ContentState.thought(elapsed: lastElapsed, isPaused: app.recorder.isPaused, pausedReason: reason,
-                                                                    level: Double(app.recorder.live.level), words: words)
+                                                                    level: ActivityLevel.shown(Double(app.recorder.live.level), still: still), words: words)
                 .marked(count: marks.count, lastAt: app.lastMark?.at ?? marks.last?.at, just: app.lastMark != nil)
         }
         // A voice note's Lock Screen draws your voice too (mockup "Library features", section 3a): the level, every
         // two seconds.
         var state = VerbatimRecordingAttributes.ContentState.make(elapsed: lastElapsed, isPaused: app.recorder.isPaused, pausedReason: reason)
-        state.level = app.recorder.isPaused ? 0 : min(1, max(0, Double(app.recorder.live.level)))
+        state.level = app.recorder.isPaused ? 0 : ActivityLevel.shown(Double(app.recorder.live.level), still: still)
         return state.marked(count: marks.count, lastAt: app.lastMark?.at ?? marks.last?.at, just: app.lastMark != nil)
     }
 

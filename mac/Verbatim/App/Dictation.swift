@@ -497,7 +497,7 @@ final class DictationController: ObservableObject {
             else if keyDown { released(at: ts) }
         case .pasteLast: if down { pasteLast() }
         case .copyLast: if down { copyLast() }
-        case .thoughtPad: if down { ThoughtCapture.shared.toggle() }
+        case .thoughtPad: if down { ThoughtCapture.shared.toggle(fromKey: true) }
         case .escape: if down { if isListening { cancel() } else if writingSession != nil { cancelWriting() } }
         }
     }

@@ -236,7 +236,7 @@ struct KeyboardView: View {
         .padding(.horizontal, KB.barInset).padding(.bottom, 10)
     }
 
-    /// A failure, a short confirmation ("Copied."), or Paused for a call, above Tap to talk.
+    /// A failure, a short confirmation ("✓ Copied"), or Paused for a call, above Tap to talk.
     @ViewBuilder private var statusLine: some View {
         if let n = model.notice {
             Text(n).scaledFont(12.5).foregroundStyle(KB.deep)

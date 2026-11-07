@@ -14,6 +14,7 @@ struct PhoneOnboarding: View {
     /// The keyboard step's Open Settings was tapped, so its button reads Continue.
     @State private var openedSettings = false
     @Environment(\.openURL) private var openURL
+    @Environment(\.limitMotion) private var limitMotion
     private let total = 5
 
     init(startStep: Int = 0) { _step = State(initialValue: startStep) }
@@ -47,7 +48,8 @@ struct PhoneOnboarding: View {
         }
         .padding(.horizontal, 24)
         .background(Refined.paper.ignoresSafeArea())
-        .animation(Motion.settle, value: step)
+        // The dashes and the buttons' labels settle with the step; under Limit animation they fade (IP-22).
+        .animation(limitMotion ? Motion.fade : Motion.settle, value: step)
         .interactiveDismissDisabled()
     }
 

@@ -160,14 +160,33 @@ enum MotionMirror {
     /// Limit animation as the App Group has it. Off when it was never copied.
     static func limited(in group: UserDefaults?) -> Bool { group?.bool(forKey: key) ?? false }
 
-    /// Copies the setting into the App Group. Writes only a change, so it's cheap to call on every launch.
-    static func mirror(_ on: Bool, into group: UserDefaults?) {
-        guard let group, group.object(forKey: key) as? Bool != on else { return }
+    /// Copies the setting into the App Group. Writes only a change, so it's cheap to call on every launch, and says
+    /// whether it wrote one (the iPhone then sends the watch its context again, `WatchContext.limitMotion`).
+    @discardableResult
+    static func mirror(_ on: Bool, into group: UserDefaults?) -> Bool {
+        guard let group, group.object(forKey: key) as? Bool != on else { return false }
         group.set(on, forKey: key)
+        return true
     }
 
     /// Whether the keyboard keeps still: the system's Reduce Motion, or Limit animation (Full Access only).
     static func keyboardStill(systemReduceMotion: Bool, fullAccess: Bool, group: UserDefaults?) -> Bool {
         systemReduceMotion || (fullAccess && limited(in: group))
+    }
+}
+
+/// The Live Activity's voice bars (iPhone, DESIGN.md §7): the system animates every content update, so under Limit
+/// animation or the system's Reduce Motion the app sends one still level instead of the microphone's, and the bars
+/// hold their resting shape (SF-03). The Live Activity can't read either setting itself.
+enum ActivityLevel {
+    /// The level the bars rest at when they keep still.
+    static let resting: Double = 0.5
+
+    static func keepsStill(systemReduceMotion: Bool, limitAnimation: Bool) -> Bool { systemReduceMotion || limitAnimation }
+
+    /// The level to send: the microphone's, clamped to 0...1, or the resting level when the bars keep still.
+    static func shown(_ level: Double, still: Bool) -> Double {
+        if still { return resting }
+        return level.isFinite ? min(1, max(0, level)) : 0
     }
 }

@@ -112,17 +112,21 @@ struct WatchContext: Equatable {
     /// The iPhone's Settings › Haptics: the watch's start, mark, stop, and failure taps follow it. On when a context
     /// from an older iPhone build doesn't say.
     var haptics = true
+    /// The iPhone's Settings › Limit animation: the watch stores it under `MotionPreference.key`, so the Sent ring and
+    /// check burst still with it as they do with the system's Reduce Motion (SF-12). Off when an older iPhone doesn't say.
+    var limitMotion = false
 
     enum Key {
         static let thoughtsToday = "thoughtsToday", pageEnds = "pageEnds", lastTitle = "lastTitle", lastKind = "lastKind"
-        static let lastDuration = "lastDuration", lastAt = "lastAt", sentAt = "sentAt", haptics = "haptics"
+        static let lastDuration = "lastDuration", lastAt = "lastAt", sentAt = "sentAt", haptics = "haptics", limitMotion = "limitMotion"
     }
 
     /// The longest title sent: the Smart Stack shows two lines at most.
     static let titleLimit = 60
 
     func dictionary() -> [String: Any] {
-        var d: [String: Any] = [Key.thoughtsToday: thoughtsToday, Key.pageEnds: pageEnds, Key.sentAt: sentAt, Key.haptics: haptics]
+        var d: [String: Any] = [Key.thoughtsToday: thoughtsToday, Key.pageEnds: pageEnds, Key.sentAt: sentAt, Key.haptics: haptics,
+                                Key.limitMotion: limitMotion]
         if let lastTitle { d[Key.lastTitle] = String(lastTitle.prefix(Self.titleLimit)) }
         if let lastKind { d[Key.lastKind] = lastKind }
         if let lastDuration { d[Key.lastDuration] = lastDuration }
@@ -131,9 +135,10 @@ struct WatchContext: Equatable {
     }
 
     init(thoughtsToday: Int, pageEnds: Date, lastTitle: String? = nil, lastKind: String? = nil, lastDuration: Double? = nil,
-         lastAt: Date? = nil, sentAt: Date = Date(), haptics: Bool = true) {
+         lastAt: Date? = nil, sentAt: Date = Date(), haptics: Bool = true, limitMotion: Bool = false) {
         self.thoughtsToday = thoughtsToday; self.pageEnds = pageEnds; self.lastTitle = lastTitle; self.lastKind = lastKind
         self.lastDuration = lastDuration; self.lastAt = lastAt; self.sentAt = sentAt; self.haptics = haptics
+        self.limitMotion = limitMotion
     }
 
     /// Nil when the dictionary isn't one (an empty context, or one from a build that sent something else).
@@ -148,6 +153,7 @@ struct WatchContext: Equatable {
         lastAt = d[Key.lastAt] as? Date
         sentAt = (d[Key.sentAt] as? Date) ?? Date()
         haptics = (d[Key.haptics] as? Bool) ?? (d[Key.haptics] as? NSNumber)?.boolValue ?? true
+        limitMotion = (d[Key.limitMotion] as? Bool) ?? (d[Key.limitMotion] as? NSNumber)?.boolValue ?? false
     }
 
     /// Kept as a property list in the App Group, where the complication reads it.

@@ -112,7 +112,16 @@ final class ThoughtCapture: ObservableObject {
 
     /// Starts a thought, or stops the one recording. `source`: a click on the bubble's disc fills the saved check once
     /// (RecordingFinish, DESIGN.md §7, Celebrations); the hotkey and everything else show it as it always was.
-    func toggle(source: StopSource = .elsewhere) { if isRecording { stop(source: source) } else { start() } }
+    /// `fromKey`: ⌃⌥P asked, so the bubble changes at once instead of animating (DESIGN.md §7: keyboard actions never
+    /// animate; GPT-11).
+    func toggle(source: StopSource = .elsewhere, fromKey: Bool = false) {
+        keyDriven = fromKey
+        if isRecording { stop(source: source) } else { start() }
+    }
+
+    /// The last start or stop came from the keyboard: the bubble's phase change (recording, then saved) shows at once.
+    /// The return to idle after Saved isn't a key press, so it clears this first and animates as before.
+    @Published private(set) var keyDriven = false
 
     /// The saved check fills once (a click on the bubble stopped it); read by the bubble when it shows Saved.
     @Published private(set) var checkFills = false
@@ -240,7 +249,7 @@ final class ThoughtCapture: ObservableObject {
     private func showSaved(_ date: Date) {
         phase = .saved(date)
         self.startedAt = nil
-        let w = DispatchWorkItem { [weak self] in if case .saved = self?.phase { self?.phase = .idle } }
+        let w = DispatchWorkItem { [weak self] in if case .saved = self?.phase { self?.keyDriven = false; self?.phase = .idle } }
         savedTimer = w
         DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: w)
     }
