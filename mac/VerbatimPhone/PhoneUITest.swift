@@ -1565,6 +1565,14 @@ enum PhoneUITest {
         } ?? false)
         check("Recent recordings leaves dictations out while it shows", !HomeScreen.recentItems(app.store, layout: store.layout).contains(where: \.isDictation))
         check("a dictation's meta in Recent says where it went", shown.first.map { HomeScreen.recentMeta($0, now: Date()).hasPrefix("Dictation · ") } ?? false)
+        // Some seeded recordings are dated later today (9:00 AM) than the simulator's clock, so a dictation from a few
+        // minutes ago wouldn't make Recent's three: the newest dictation is moved to just after the newest item for the
+        // shot, and back after it.
+        let newestDictation = app.store.live.filter(\.isDictation).max { $0.createdAt < $1.createdAt }
+        let wasAt = newestDictation?.createdAt
+        if let d = newestDictation, let top = app.store.live.map(\.createdAt).max() {
+            app.store.update(d.id) { $0.createdAt = top.addingTimeInterval(60) }
+        }
         store.update { $0.setVisible(.dictations, false) }
         try? await Task.sleep(nanoseconds: 900_000_000)
         NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-recent")
@@ -1573,6 +1581,8 @@ enum PhoneUITest {
         check("hidden, it leaves Home", HomeProbe.sections[.dictations] == nil)
         check("hidden, Recent recordings lists dictations among the recordings, newest first", recent.contains(where: \.isDictation)
               && zip(recent, recent.dropFirst()).allSatisfy { $0.createdAt >= $1.createdAt })
+        check("hidden, the newest dictation is in Recent's three", recent.prefix(3).contains { $0.id == newestDictation?.id })
+        if let d = newestDictation, let wasAt { app.store.update(d.id) { $0.createdAt = wasAt } }
         store.reset()
         try? await Task.sleep(nanoseconds: 700_000_000)
         check("Reset shows it again", store.layout.isVisible(.dictations))
