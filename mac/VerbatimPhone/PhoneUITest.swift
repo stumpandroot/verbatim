@@ -466,9 +466,55 @@ enum PhoneUITest {
             }
             onboardingStep = 0
             app.appearance = "system"
+            // Motion (DESIGN.md §7): Undo toasts, Delete's Undo, and Limit animation in the keyboard. Last, so its
+            // toasts stay out of the screenshots.
+            await motionChecks(app)
             write("done")
             Log.note("UITEST phone tour done")
         }
+    }
+
+    // MARK: Motion
+
+    /// Motion's rules (MotionChecks), then on this iPhone: Delete offers Undo, the toast is still there after 6 s (a
+    /// message alone has gone by then), Undo restores the transcript, and Limit animation reaches the App Group, where
+    /// the keyboard reads it.
+    private static func motionChecks(_ app: PhoneState) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") motion: \(name)") }
+        MotionChecks.run(check)
+
+        var t = Transcript(title: "Self-test undo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 8, audioFileName: nil, model: "")
+        t.segments = [Segment(start: 0, end: 8, text: "A seeded line for Delete's Undo.")]
+        app.store.add(t)
+        let id = t.id
+        app.delete([id])
+        let toast = app.toast
+        check("Delete moves the transcript to Recently Deleted and offers Undo",
+              app.store.transcript(id)?.deletedAt != nil && toast?.action == ToastUndo.title && toast?.message == "Moved to Recently Deleted")
+        try? await Task.sleep(nanoseconds: 6_000_000_000)
+        check("a toast with Undo is still showing after 6 s", app.toast != nil && app.toast?.id == toast?.id)
+        app.runToastAction()
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        check("Undo restores the transcript and closes the toast", app.store.transcript(id)?.deletedAt == nil && app.toast == nil)
+        if let x = app.store.transcript(id) { app.store.delete(x) }
+
+        app.say("Self-test message")
+        let plain = app.toast?.id
+        try? await Task.sleep(nanoseconds: 3_600_000_000)
+        check("a message alone still goes after 3 s", plain != nil && app.toast?.id != plain)
+
+        let d = UserDefaults.standard
+        let stored = d.object(forKey: MotionPreference.key)
+        d.set(true, forKey: MotionPreference.key)
+        app.mirrorLimitMotion()
+        let on = MotionMirror.limited(in: KeyboardBridge.defaults)
+        d.set(false, forKey: MotionPreference.key)
+        app.mirrorLimitMotion()
+        let off = !MotionMirror.limited(in: KeyboardBridge.defaults)
+        if let stored { d.set(stored, forKey: MotionPreference.key) } else { d.removeObject(forKey: MotionPreference.key) }
+        app.mirrorLimitMotion()
+        check("the keyboard bridge carries Limit animation, on and off", on && off)
+        check("the App Group's copy follows the setting", MotionMirror.limited(in: KeyboardBridge.defaults) == d.bool(forKey: MotionPreference.key))
     }
 
     // MARK: Record as

@@ -156,6 +156,8 @@ enum UITest {
             // The build 228 review's Mac fixes (Thoughts, Settings and You, surfaces, the kit).
             await reviewFixesMacB(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
+            // Motion (DESIGN.md §7): Undo toasts and ⌘Z, and navigation from the keyboard.
+            await motionSteps(app: app, window: window)
             logicChecks()
             // Dictation polish: timing, pause hints, paste decisions, and cleanup's time limit.
             await DictationPolishChecks.run { name, ok in
@@ -3338,6 +3340,56 @@ extension UITest {
     }
 
     /// View › `title`, validated as the menu bar would before it opens.
+    /// Motion's rules (MotionChecks), then in the window: Delete's Undo toast is still there after 6 s and ⌘Z runs it,
+    /// a message alone still goes after 4.5 s, and a navigation from the keyboard shows the screen at once while a click
+    /// still slides it in.
+    static func motionSteps(app: AppState, window: NSWindow) async {
+        MotionChecks.run { check($0, $1) }
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+
+        var t = Transcript(title: "Self-test undo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 8, audioFileName: nil, model: "Test")
+        t.segments = [Segment(start: 0, end: 8, text: "A seeded line for Delete's Undo.", speaker: "S1")]
+        t.original = t.segments
+        app.store.add(t)
+        let id = t.id
+        app.delete([id])
+        let toast = app.toast
+        check("motion: Delete offers Undo", toast?.action == ToastUndo.title && app.store.transcript(id)?.deletedAt != nil)
+        try? await Task.sleep(nanoseconds: 6_000_000_000)
+        check("motion: a toast with Undo is still showing after 6 s", app.toast != nil && app.toast?.id == toast?.id)
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(nil)
+        let z = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
+                                 windowNumber: window.windowNumber, context: nil, characters: "z", charactersIgnoringModifiers: "z",
+                                 isARepeat: false, keyCode: 6)
+        let used = z.map { ToastUndoKey.shared.handle($0) } ?? false
+        check("motion: ⌘Z runs the toast's Undo and restores the transcript", used && app.toast == nil && app.store.transcript(id)?.deletedAt == nil)
+        if let x = app.store.transcript(id) { app.store.delete(x) }
+
+        app.toast = Toast("Self-test message")
+        let plain = app.toast?.id
+        try? await Task.sleep(nanoseconds: 5_100_000_000)
+        check("motion: a message alone still goes after 4.5 s", plain != nil && app.toast?.id != plain)
+        let shift = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: ProcessInfo.processInfo.systemUptime,
+                                     windowNumber: window.windowNumber, context: nil, characters: "Z", charactersIgnoringModifiers: "z",
+                                     isARepeat: false, keyCode: 6)
+        var ran = false
+        app.toast = Toast("Self-test redo", action: ToastUndo.title) { ran = true }
+        let redoLeft = shift.map { !ToastUndoKey.shared.handle($0) } ?? false
+        check("motion: ⇧⌘Z leaves the toast alone", redoLeft && !ran && app.toast != nil)
+        app.toast = nil
+
+        // Navigation: from the keyboard at once, from a click with the slide.
+        app.fromKeyboard { app.go(.library) }
+        let byKey = app.nav.keyboard && !app.navFromKeyboard
+            && NavEntrance.of(launch: false, keyboard: app.nav.keyboard, limited: false) == .still
+        check("motion: a navigation from the keyboard shows the screen without the slide", byKey && app.screen == .library)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        await step("motion: a click still slides the screen in", window, target: "side-home",
+                   check: { app.screen == .home && !app.nav.keyboard })
+    }
+
     private static func viewMenuItem(_ title: String) -> NSMenuItem? {
         guard let menu = NSApp.mainMenu?.items.first(where: { $0.submenu?.title == "View" })?.submenu else { return nil }
         menu.update()
