@@ -441,6 +441,27 @@ struct ThoughtMicDisc: View {
     }
 }
 
+/// A thought's time in its column: one line, never broken ("6:05 P" over "M", MAC-06), and the column as wide as the
+/// widest time at the current font ("12:59 AM" or "12:59 PM", or "12:59" in 24-hour time), so the words line up.
+struct ThoughtTime: View {
+    var date: Date
+    private static var widest: [String] {
+        let cal = Calendar.current
+        let day = cal.startOfDay(for: Date())
+        return [0, 12].compactMap { h in cal.date(bySettingHour: h, minute: 59, second: 0, of: day) }.map { Thoughts.time($0, systemFormat: true) }
+    }
+    var body: some View {
+        ZStack(alignment: .leading) {
+            ForEach(Self.widest, id: \.self) { Text($0).hidden() }
+            Text(Thoughts.time(date, systemFormat: true)).foregroundStyle(Refined.mute)
+        }
+        .refinedFont(.meta).monospacedDigit()
+        .lineLimit(1).fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Thoughts.time(date, systemFormat: true))
+    }
+}
+
 /// The icon's wave following the mic.
 struct ThoughtMicLevel: View {
     @ObservedObject var live: LiveMeter
@@ -478,8 +499,7 @@ struct ThoughtCard: View {
         let t = transcript
         let editing = state.editing == t.id
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(Thoughts.time(t.createdAt, systemFormat: true)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
-                .frame(width: 42, alignment: .leading)
+            ThoughtTime(date: t.createdAt)
             ThoughtWords(transcript: t, editing: editing, state: state, controller: controller)
         }
         .padding(.horizontal, 12).padding(.vertical, 10)

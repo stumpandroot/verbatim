@@ -93,7 +93,8 @@ check("keys: the Ribbon's listening contents fade in over 0.1 s, with no delay a
 check("surfaces: the Ribbon and the notch morph on one token, Motion.surfaceMorph (MAC-33)",
       !ribbon.contains("0.38 s, a little bounce") && ribbon.contains("Motion.surfaceMorph") && read("Verbatim/Flow/Notch.swift").contains("Motion.surfaceMorph")
       && !read("Verbatim/Flow/Notch.swift").contains(".timingCurve(0.2, 0.8, 0.2, 1, duration: 0.24)")
-      && read("Verbatim/Views/Tokens.swift").contains("static let surfaceMorph = Animation.smooth(duration: SurfaceMotion.morphDuration)"))
+      && read("Verbatim/Views/Tokens.swift").contains("static let surfaceMorph = Animation.smooth(duration: \(SurfaceMotion.morphDuration))")
+      && read("Verbatim/Views/Tokens.swift").contains("static let surfaceStillFade = AnyTransition.opacity.animation(.easeOut(duration: \(SurfaceMotion.stillFade)))"))
 check("surfaces: held still, the shape changes at once and the contents crossfade (GPT-09)",
       ribbon.contains("private var morph: Animation? { SurfaceMotion.morphs(still: reduceMotion) ? Motion.surfaceMorph : nil }")
       && ribbon.contains("private var liveMorph: Animation? { SurfaceMotion.morphs(still: reduceMotion) ? Motion.surfaceMorph : nil }")

@@ -5,7 +5,7 @@ import AppKit
 // lines, as the iPhone's Find does. Matches are in butter (`ReadingHighlight`), the current one is the selected line
 // and scrolls into view, ⌘G and ⇧⌘G (or Return in the field, or the bar's arrows) step through them and wrap,
 // and Esc or Done closes. Elsewhere ⌘F opens Search or ask, and ⌘K opens that panel on every screen
-// (App/AppCommands.swift). The rules are `PageFind` (Model/MacCommandRules.swift).
+// (App/AppCommands.swift). The rules are `PageFind` (App/MacCommandRules.swift).
 
 /// The find bar's state for the transcript on screen. One per app, as the window is.
 @MainActor

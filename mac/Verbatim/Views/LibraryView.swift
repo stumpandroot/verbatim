@@ -401,7 +401,7 @@ struct LibraryView: View {
     /// The column titles: a click sorts by that column, and again turns the order around.
     private func header(_ columns: LibraryColumns) -> some View {
         HStack(spacing: LibraryColumns.gap) {
-            ForEach(LibraryTableSort.allCases, id: \.self) { c in
+            ForEach(LibraryTableSort.allCases.filter { columns.shows($0) }, id: \.self) { c in
                 Button {
                     if c == column { setSort(c, descending: !descending) } else { setSort(c, descending: c.startsDescending) }
                 } label: {
@@ -583,19 +583,28 @@ struct LibraryView: View {
     }
 }
 
-/// The table's column widths for a card `width` points wide: the mockup's shares of 3, 1.2, 1.6, and 1 for Name, Kind,
-/// People or source, and Date, and 60 pt for Length.
+/// The table's column widths for a card `width` points wide (`LibraryColumnPlan`, App/MacCommandRules.swift): Name,
+/// Kind at a fixed width so its chip always reads in full, People or source, Date, and 60 pt for Length. As the card
+/// narrows, People goes first and then Date (MAC-05); a hidden column has width 0 and isn't drawn.
 struct LibraryColumns {
-    static let length: CGFloat = 60
-    static let gap: CGFloat = 12
-    static let inset: CGFloat = 16
+    static let length = LibraryColumnPlan.length
+    static let gap = LibraryColumnPlan.gap
+    static let inset = LibraryColumnPlan.inset
     var name: CGFloat, kind: CGFloat, people: CGFloat, date: CGFloat
 
     init(width: CGFloat) {
-        let free = max(300, width - 2 * Self.inset - Self.length - 4 * Self.gap)
-        let unit = free / 6.8
-        name = (unit * 3).rounded(.down); kind = (unit * 1.2).rounded(.down)
-        people = (unit * 1.6).rounded(.down); date = (unit * 1).rounded(.down)
+        let plan = LibraryColumnPlan(width: width)
+        name = plan.name; kind = LibraryColumnPlan.kind
+        people = plan.people ?? 0; date = plan.date ?? 0
+    }
+
+    /// Whether the column has room at this width.
+    func shows(_ c: LibraryTableSort) -> Bool {
+        switch c {
+        case .people: return people > 0
+        case .date: return date > 0
+        default: return true
+        }
     }
 
     func width(_ c: LibraryTableSort) -> CGFloat {
@@ -651,10 +660,14 @@ private struct LibraryTableRow: View {
             .frame(width: columns.name, alignment: .leading)
             KindChip(kind: t.refinedKind)
                 .frame(width: columns.kind, alignment: .leading)
-            peopleCell(t)
-                .frame(width: columns.people, alignment: .leading)
-            Text(RefinedRules.shortDay(t.createdAt)).refinedFont(.rowTitle).foregroundStyle(Refined.dim).lineLimit(1)
-                .frame(width: columns.date, alignment: .leading)
+            if columns.shows(.people) {
+                peopleCell(t)
+                    .frame(width: columns.people, alignment: .leading)
+            }
+            if columns.shows(.date) {
+                Text(RefinedRules.shortDay(t.createdAt)).refinedFont(.rowTitle).foregroundStyle(Refined.dim).lineLimit(1)
+                    .frame(width: columns.date, alignment: .leading)
+            }
             Text(length(t) ?? "").refinedFont(.rowTitle).monospacedDigit().foregroundStyle(Refined.dim).lineLimit(1)
                 .frame(width: LibraryColumns.length, alignment: .trailing)
         }

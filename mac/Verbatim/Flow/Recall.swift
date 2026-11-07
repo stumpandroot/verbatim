@@ -6,7 +6,7 @@ import Carbon.HIToolbox
 // Getting a dictation back when its paste failed or landed in the wrong place:
 // - Recent dictations: ⌥⌘V (Settings › Dictation) opens a small paper panel with your last 10 dictations. The search
 //   field always takes what you type, digits too. ⌘ with a number or a click copies one; ⇧⌘ with a number, Return, or the
-//   selected row's Paste button pastes it where your cursor is (`RecallKeys`, Model/MacCommandRules.swift).
+//   selected row's Paste button pastes it where your cursor is (`RecallKeys`, App/MacCommandRules.swift).
 // - The menu bar item lists the same dictations; a click copies one.
 // - A dictation that didn't land (no text field, or the app never read the paste) stays in the Ribbon with Copy and
 //   Paste again, and on the clipboard.
@@ -126,7 +126,7 @@ enum Recall {
     /// What a key does in the panel (`RecallKeys`): plain digits always type into search; ⌘ with a number copies that
     /// row and ⇧⌘ pastes it. Return pastes the selection, as its Paste pill says. Anything else goes to the search field.
     static func keyAction(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> KeyAction? {
-        var mods: KeyMods = []
+        var mods: RecallMods = []
         if modifiers.contains(.command) { mods.insert(.command) }
         if modifiers.contains(.option) { mods.insert(.option) }
         if modifiers.contains(.control) { mods.insert(.control) }

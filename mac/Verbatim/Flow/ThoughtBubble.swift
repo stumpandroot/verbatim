@@ -266,13 +266,13 @@ struct ThoughtBubbleView: View {
         } else if let c = marks.confirmation, capture.isRecording || voiceNote {
             BubbleMarkedCard(confirmation: c).surfaceFrame(in: Self.space).uiTarget("thought-bubble-marked")
         } else if voiceNote {
-            BubbleRecordingCard(title: "Recording · Voice note", live: main.live, words: mainWords, stopHint: "Click the disc to stop", onMark: owner.markClicked)
+            BubbleRecordingCard(title: "Recording · Voice note", live: main.live, words: mainWords, stopKeys: nil, onMark: owner.markClicked)
                 .surfaceFrame(in: Self.space)
                 .uiTarget("thought-bubble-voice-note")
         } else {
             switch capture.phase {
             case .recording:
-                BubbleRecordingCard(title: "New thought", live: capture.recorder.live, words: capture.words, stopHint: nil, onMark: owner.markClicked)
+                BubbleRecordingCard(title: "New thought", live: capture.recorder.live, words: capture.words, stopKeys: Thoughts.hotkey, onMark: owner.markClicked)
                     .surfaceFrame(in: Self.space)
             case .saved(let at):
                 BubbleCard {
@@ -316,6 +316,7 @@ private struct BubbleKeycap: View {
     var color: Color = Refined.ink
     var body: some View {
         Text(keys).font(.system(size: 12, weight: .medium)).monospacedDigit().foregroundStyle(color)
+            .lineLimit(1).fixedSize()
             .padding(.horizontal, 5).padding(.vertical, 1)
             .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(color.opacity(0.6), lineWidth: 1))
             .accessibilityLabel(Keycap.spoken(keys))
@@ -324,15 +325,19 @@ private struct BubbleKeycap: View {
 
 /// While a thought or a voice note records: the kit's compact recording card (`RecordingCard`) with "New thought" or
 /// "Recording · Voice note", the clock, the waveform, your words in the serif (words still being heard in italic, in
-/// the card's full ink), and Mark with its hotkey beside how to stop.
+/// the card's full ink), and Mark with its hotkey beside how to stop. The card is as wide as its content (MAC-16): the
+/// keycaps and the stop line never clip or wrap, and both versions say "Click the disc to stop" (a thought adds its
+/// hotkey).
 private struct BubbleRecordingCard: View {
     var title: String
     let live: LiveMeter
     @ObservedObject var words: RecordingWords
-    /// "Click the disc to stop" (a voice note); nil for a thought, which also stops with ⌃⌥P.
-    var stopHint: String?
+    /// The keys that also stop it: ⌃⌥P for a thought; nil for a voice note.
+    var stopKeys: String?
     var onMark: () -> Void
     @CurrentPalette private var palette: AppPalette
+    /// One phrasing for a voice note and a thought.
+    static let stopHint = "Click the disc to stop"
 
     var body: some View {
         let ink = Refined.onFill(.persimmon, palette)
@@ -353,16 +358,13 @@ private struct BubbleRecordingCard: View {
         } controls: {
             BubbleMarkPill(ink: ink, wash: Refined.readyChip(palette), action: onMark)
             Spacer(minLength: 12)
-            if let stopHint {
-                Text(stopHint).refinedFont(.meta)
-            } else {
-                HStack(spacing: 6) {
-                    Text("Click to stop \u{00B7}").refinedFont(.meta)
-                    BubbleKeycap(keys: Thoughts.hotkey, color: ink)
-                }
+            HStack(spacing: 6) {
+                Text(Self.stopHint + (stopKeys == nil ? "" : " \u{00B7}")).refinedFont(.meta).lineLimit(1).fixedSize()
+                if let stopKeys { BubbleKeycap(keys: stopKeys, color: ink) }
             }
+            .fixedSize()
         }
-        .frame(width: 278)
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 
@@ -376,9 +378,10 @@ private struct BubbleMarkPill: View {
         let keys = MarkHotkeyStore.current().title
         HStack(spacing: 6) {
             IconGlyph(art: .iconMark, size: 13, color: ink)
-            Text("Mark").refinedFont(.meta, weight: .semibold).foregroundStyle(ink)
+            Text("Mark").refinedFont(.meta, weight: .semibold).foregroundStyle(ink).lineLimit(1).fixedSize()
             BubbleKeycap(keys: keys, color: ink)
         }
+        .fixedSize()
         .padding(.leading, 9).padding(.trailing, 6)
         .frame(height: 28)
         .background(Capsule().fill(wash))

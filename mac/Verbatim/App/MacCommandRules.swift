@@ -9,12 +9,12 @@ import Foundation
 // MARK: - Recent dictations keys
 
 /// The modifier keys Recent dictations looks at, without AppKit (the panel maps `NSEvent.ModifierFlags` to these).
-struct KeyMods: OptionSet, Equatable {
+struct RecallMods: OptionSet, Equatable {
     let rawValue: Int
-    static let command = KeyMods(rawValue: 1)
-    static let option = KeyMods(rawValue: 2)
-    static let control = KeyMods(rawValue: 4)
-    static let shift = KeyMods(rawValue: 8)
+    static let command = RecallMods(rawValue: 1)
+    static let option = RecallMods(rawValue: 2)
+    static let control = RecallMods(rawValue: 4)
+    static let shift = RecallMods(rawValue: 8)
 }
 
 /// What a key does in Recent dictations (GPT-12): the search field always takes plain digits, so typing "2026"
@@ -43,7 +43,7 @@ enum RecallKeys {
         return row.firstIndex(of: code) ?? pad.firstIndex(of: code)
     }
 
-    static func action(keyCode: UInt16, mods: KeyMods) -> Action? {
+    static func action(keyCode: UInt16, mods: RecallMods) -> Action? {
         let shift = mods.contains(.shift)
         let rest = mods.subtracting(.shift)
         switch keyCode {

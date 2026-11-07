@@ -1141,14 +1141,20 @@ enum UITest {
               missing.isEmpty)
         // The preview lives in the inspector, which is remembered per Mac and may be closed when this pass starts:
         // open it, let it lay out, then click its Open Transcript.
+        // The self-test window is narrower than the inspector's room (MAC-05: it closes on its own below about 560 pt
+        // of content), so it's shown the way the toolbar's button does without room.
         let inspectorWas = nav.inspector
-        nav.inspector = true
+        check("\(tag): in a \(Int(window.frame.width)) pt window the inspector closes on its own, and the button can still show it",
+              nav.inspectorHasRoom == InspectorFit.shows(chosen: true, detailWidth: nav.detailWidth, inspectorWidth: WindowNav.inspectorRoomWidth))
+        nav.inspector = false
+        nav.toggleInspector()
         try? await Task.sleep(nanoseconds: 700_000_000)
         await step("\(tag): Open Transcript in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
         try? await Task.sleep(nanoseconds: 500_000_000)
         let missingOnTranscript = chromeIDs.filter { id in (windowFrames[id]?() ?? frames[id]) == nil }
         Log.note("UITEST chrome on a transcript with the inspector open: missing \(missingOnTranscript.isEmpty ? "nothing" : missingOnTranscript.joined(separator: ", "))")
         nav.inspector = inspectorWas
+        nav.inspectorForced = false
         app.go(.library)
         try? await Task.sleep(nanoseconds: 500_000_000)
         let fresh = UserDefaults(suiteName: "co.stumpandroot.verbatim.uitest.table") ?? .standard
@@ -1163,7 +1169,8 @@ enum UITest {
         // (build 239): checked on the Library with the inspector open. The click steps still close the inspector first.
         let hadInspector = nav.inspector
         app.go(.library)
-        nav.inspector = true
+        nav.inspector = false
+        nav.toggleInspector()
         try? await Task.sleep(nanoseconds: 900_000_000)
         let content = window.contentView?.bounds ?? .zero
         let recordFrame = windowFrames["tb-record"]?()
@@ -1215,6 +1222,7 @@ enum UITest {
         }
         check("\(tag): a blank name makes no project", app.createProject("  ", adding: []) == nil)
         nav.inspector = hadInspector
+        nav.inspectorForced = false
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)
     }

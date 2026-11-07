@@ -57,54 +57,94 @@ struct DocumentView: View {
 
     /// Proofread as a refined chip, Clean up and Tone as menu faces, and Accept all, Undo, and Reset as refined
     /// actions at the end (DESIGN.md §13). Sits on the page: no box, no hairline. No control
-    /// sits under a parent gesture (macOS 26).
+    /// sits under a parent gesture (macOS 26). At the Mac's smallest window with the inspector open, nothing is cut to
+    /// "Pı" or "U" (MAC-04): the full row when it fits, then Accept all, Undo, and Reset on a second line, then those
+    /// three in a labeled More menu. Every control keeps its natural width.
     private func toolbar(_ currentLints: [Harper.Lint]) -> some View {
         let canUndo = !transcript.documentHistory.isEmpty
-        return HStack(spacing: 8) {
-            ProofreadChip(on: proofread, count: proofread && !currentLints.isEmpty ? currentLints.count : nil) { proofread.toggle() }
-                .help("Underline spelling and grammar (Harper, offline)")
-
-            Menu {
-                ForEach(Polish.Level.allCases) { l in
-                    Button { run(level: l, tone: tone) } label: { HStack { Text(l.rawValue); Text("· " + l.note) } }
-                }
-            } label: {
-                RefinedMenuLabel(title: level == .none ? "Clean up" : "Clean up · \(level.rawValue)")
+        let canAccept = proofread && !currentLints.isEmpty
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                leadingControls(currentLints)
+                Spacer(minLength: 8)
+                actions(canAccept: canAccept, canUndo: canUndo)
             }
-            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-            .help("Rewrite the corrected lines with Apple's on-device model. Your Original stays as it is.")
-            .accessibilityLabel("Clean up").accessibilityValue(level.rawValue)
-
-            Menu {
-                ForEach(Polish.Tone.allCases) { t in Button(t.rawValue) { run(level: level == .none ? .light : level, tone: t) } }
-            } label: {
-                RefinedMenuLabel(title: tone == .spoken ? "Tone" : "Tone · \(tone.rawValue)")
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) { leadingControls(currentLints) }
+                HStack(spacing: 8) { actions(canAccept: canAccept, canUndo: canUndo) }
             }
-            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-            .accessibilityLabel("Tone").accessibilityValue(tone.rawValue)
-
-            if let w = working {
-                ProgressView(value: w).progressViewStyle(.linear).frame(width: 90).controlSize(.small).tint(Refined.accentText)
-                    .accessibilityLabel("Cleaning up")
-            }
-            Spacer(minLength: 8)
-            if proofread, !currentLints.isEmpty {
-                Button("Accept all") { acceptAll() }
-                    .buttonStyle(RefinedActionStyle(kind: .strong))
-                    .accessibilityHint("Applies every spelling and grammar fix.")
-            }
-            Button("Undo") { undo() }
-                .buttonStyle(RefinedActionStyle(kind: .quiet))
-                .disabled(!canUndo)
-                .accessibilityHint("Brings back the Cleaned text before the last change.")
-                .help("Undo the last Clean up, Tone, or fix (⌘Z)")
-            if transcript.document != nil {
-                Button("Reset") { reset() }
-                    .buttonStyle(RefinedActionStyle(kind: .quiet))
-                    .help("Back to the corrected lines from Original")
+            HStack(spacing: 8) {
+                leadingControls(currentLints)
+                Spacer(minLength: 8)
+                moreMenu(canAccept: canAccept, canUndo: canUndo)
             }
         }
-        .frame(maxWidth: 720)
+        .frame(maxWidth: 720, alignment: .leading)
+    }
+
+    /// Proofread, Clean up, Tone, and the progress while one runs.
+    @ViewBuilder private func leadingControls(_ currentLints: [Harper.Lint]) -> some View {
+        ProofreadChip(on: proofread, count: proofread && !currentLints.isEmpty ? currentLints.count : nil) { proofread.toggle() }
+            .fixedSize()
+            .help("Underline spelling and grammar (Harper, offline)")
+
+        Menu {
+            ForEach(Polish.Level.allCases) { l in
+                Button { run(level: l, tone: tone) } label: { HStack { Text(l.rawValue); Text("· " + l.note) } }
+            }
+        } label: {
+            RefinedMenuLabel(title: level == .none ? "Clean up" : "Clean up · \(level.rawValue)")
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help("Rewrite the corrected lines with Apple's on-device model. Your Original stays as it is.")
+        .accessibilityLabel("Clean up").accessibilityValue(level.rawValue)
+
+        Menu {
+            ForEach(Polish.Tone.allCases) { t in Button(t.rawValue) { run(level: level == .none ? .light : level, tone: t) } }
+        } label: {
+            RefinedMenuLabel(title: tone == .spoken ? "Tone" : "Tone · \(tone.rawValue)")
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .accessibilityLabel("Tone").accessibilityValue(tone.rawValue)
+
+        if let w = working {
+            ProgressView(value: w).progressViewStyle(.linear).frame(width: 90).controlSize(.small).tint(Refined.accentText)
+                .accessibilityLabel("Cleaning up")
+        }
+    }
+
+    /// Accept all (while there are suggestions), Undo, and Reset (once the text differs from the corrected lines).
+    @ViewBuilder private func actions(canAccept: Bool, canUndo: Bool) -> some View {
+        if canAccept {
+            Button("Accept all") { acceptAll() }
+                .buttonStyle(RefinedActionStyle(kind: .strong)).fixedSize()
+                .accessibilityHint("Applies every spelling and grammar fix.")
+        }
+        Button("Undo") { undo() }
+            .buttonStyle(RefinedActionStyle(kind: .quiet)).fixedSize()
+            .disabled(!canUndo)
+            .accessibilityHint("Brings back the Cleaned text before the last change.")
+            .help("Undo the last Clean up, Tone, or fix (⌘Z)")
+        if transcript.document != nil {
+            Button("Reset") { reset() }
+                .buttonStyle(RefinedActionStyle(kind: .quiet)).fixedSize()
+                .help("Back to the corrected lines from Original")
+        }
+    }
+
+    /// The narrowest fit: the same three actions in a menu named More.
+    private func moreMenu(canAccept: Bool, canUndo: Bool) -> some View {
+        Menu {
+            if canAccept { Button("Accept all") { acceptAll() } }
+            Button("Undo") { undo() }.disabled(!canUndo)
+            if transcript.document != nil { Button("Reset") { reset() } }
+        } label: {
+            RefinedMenuLabel(title: "More")
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help("Accept all, Undo, and Reset")
+        .accessibilityLabel("More actions")
+        .uiTarget("cleaned-more")
     }
 
     // MARK: Actions

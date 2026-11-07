@@ -101,6 +101,8 @@ struct EditHomeView: View {
                 Button("Choose tiles") { picking.wrappedValue = true }
                     .buttonStyle(RefinedActionStyle(kind: .quiet))
                     .controlSize(.small)
+                    // Its whole name, never "C…" (MAC-28).
+                    .fixedSize()
                     .popover(isPresented: picking, arrowEdge: .leading) { HomeTilePickerMac() }
                     .help(layout.tiles.map(\.title).joined(separator: ", "))
                     .accessibilityValue(layout.tiles.map(\.title).joined(separator: ", "))

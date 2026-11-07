@@ -19,24 +19,26 @@ private struct HomeEditFrame: ViewModifier {
     var item: HomeLayout.Item
     var editing: Bool
 
+    /// The section's tag sits above its outline, never over the section's first letters (MAC-28).
     func body(content: Content) -> some View {
-        content
-            .allowsHitTesting(!editing)
-            .overlay {
-                if editing {
-                    RoundedRectangle(cornerRadius: RefinedPlatform.radius(.record) + 4, style: .continuous)
-                        .strokeBorder(Refined.ink, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-                        .padding(-6)
-                        .allowsHitTesting(false)
+        VStack(alignment: .leading, spacing: 12) {
+            if editing { badge.padding(.leading, 8).allowsHitTesting(false) }
+            content
+                .allowsHitTesting(!editing)
+                .overlay {
+                    if editing {
+                        RoundedRectangle(cornerRadius: RefinedPlatform.radius(.record) + 4, style: .continuous)
+                            .strokeBorder(Refined.ink, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                            .padding(-6)
+                            .allowsHitTesting(false)
+                    }
                 }
-            }
-            .overlay(alignment: .topLeading) {
-                if editing { badge.offset(x: 14, y: -16).allowsHitTesting(false) }
-            }
+        }
     }
 
     private var badge: some View {
         Text("\(item.section.title) · \(item.size.title)").refinedFont(.chip, weight: .semibold)
+            .lineLimit(1).fixedSize()
             .foregroundStyle(Refined.paper)
             .padding(.horizontal, 10).frame(height: 24)
             .background(Capsule().fill(Refined.ink))
@@ -125,8 +127,7 @@ struct HomeThoughtsMac: View {
                     ForEach(Array(shown.enumerated()), id: \.element.id) { i, t in
                         if i > 0 { PaperDivider(leading: 16, trailing: 16) }
                         HStack(alignment: .firstTextBaseline, spacing: 14) {
-                            Text(Thoughts.time(t.createdAt, systemFormat: true)).refinedFont(.meta).monospacedDigit()
-                                .foregroundStyle(Refined.mute).frame(width: 64, alignment: .leading)
+                            ThoughtTime(date: t.createdAt)
                             Text(words(t)).refinedFont(.body).foregroundStyle(t.status == .ready ? Refined.ink : Refined.dim).lineLimit(2)
                             Spacer(minLength: 0)
                         }

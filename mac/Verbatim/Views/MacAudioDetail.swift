@@ -28,7 +28,7 @@ struct MacAudioDetail: View {
                     VStack(alignment: .leading, spacing: 22) {
                         header(t)
                         MacAudioPlayer(transcript: t, player: app.player, clock: app.player.clock)
-                        if !nav.inspector { MacAudioMoments(transcript: t) }
+                        if !nav.inspectorVisible { MacAudioMoments(transcript: t) }
                         notes(t)
                         actions(t)
                         Text(AudioOnlyCopy.transcribeFooter).refinedFont(.meta).foregroundStyle(Refined.mute)

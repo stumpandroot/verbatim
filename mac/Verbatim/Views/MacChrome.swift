@@ -38,7 +38,25 @@ final class WindowNav: ObservableObject {
     @Published private(set) var detailWidth: CGFloat = 1000
     func setDetailWidth(_ w: CGFloat) {
         let stepped = (w / 40).rounded(.down) * 40
+        let hadRoom = inspectorHasRoom
         if stepped != detailWidth { detailWidth = stepped }
+        // Crossing the line either way hands the inspector back to the width rule.
+        if inspectorHasRoom != hadRoom, inspectorForced { inspectorForced = false }
+    }
+    /// The inspector's width for the room check: between its least (280) and ideal (340) widths.
+    static let inspectorRoomWidth: CGFloat = 320
+    /// Whether the content beside an open inspector keeps its least width (`InspectorFit`, MAC-05): below it, the
+    /// inspector closes on its own, as a split view collapses its sidebar, and comes back when there's room.
+    var inspectorHasRoom: Bool { InspectorFit.shows(chosen: true, detailWidth: detailWidth, inspectorWidth: Self.inspectorRoomWidth) }
+    /// The toolbar's inspector button asked for it while there was no room: it shows anyway, until the width crosses
+    /// the line again.
+    @Published var inspectorForced = false
+    /// The inspector shows: you want it open, and it has room or you asked for it anyway.
+    var inspectorVisible: Bool { inspector && (inspectorHasRoom || inspectorForced) }
+    /// The toolbar's inspector button: shows it (even without room) or hides it.
+    func toggleInspector() {
+        if inspectorVisible { inspector = false; inspectorForced = false }
+        else { inspector = true; inspectorForced = !inspectorHasRoom }
     }
     /// The passage selected in the open transcript (a note added in the inspector links to it).
     @Published var selectedSegment: UUID?
@@ -170,8 +188,9 @@ struct MacWindow<Detail: View>: View {
 
     /// Open on the Library and transcripts while the person wants it; the binding survives every screen change.
     private var inspectorShown: Binding<Bool> {
-        Binding(get: { nav.inspector && app.screen.hasInspector }, set: { open in
-            if app.screen.hasInspector { nav.inspector = open }
+        Binding(get: { nav.inspectorVisible && app.screen.hasInspector }, set: { open in
+            guard app.screen.hasInspector, open != nav.inspectorVisible else { return }
+            if open { nav.toggleInspector() } else { nav.inspector = false; nav.inspectorForced = false }
         })
     }
 }
@@ -231,8 +250,8 @@ struct MacToolbar: ToolbarContent {
 private struct ToolbarInspectorButton: View {
     @ObservedObject var nav: WindowNav
     var body: some View {
-        Button { nav.inspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.right") }   // brand: system surface
-            .help(nav.inspector ? "Hide the inspector" : "Show the inspector")
+        Button { nav.toggleInspector() } label: { Label("Inspector", systemImage: "sidebar.right") }   // brand: system surface
+            .help(nav.inspectorVisible ? "Hide the inspector" : "Show the inspector")
     }
 }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-// The Mac's command and small-window rules (Verbatim/Model/MacCommandRules.swift), then the sources that use them.
+// The Mac's command and small-window rules (Verbatim/App/MacCommandRules.swift), then the sources that use them.
 // Reads the Swift sources from the mac/ folder given as the first argument. Not part of any app target; run
 // mac/tools/test-mac-commands.sh.
 var passed = 0, failed = 0
