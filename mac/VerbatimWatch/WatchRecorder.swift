@@ -17,8 +17,9 @@ final class WatchRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
     enum Phase: Equatable {
         case idle
         case recording
-        /// Saved and on its way to the iPhone; `note` says why it stopped when you didn't stop it.
-        case sent(WatchTransfer, reachable: Bool, note: String?)
+        /// Saved on the watch and on its way to the iPhone (the screen follows `WatchLink` to Sent to iPhone); `note`
+        /// says why it stopped when you didn't stop it.
+        case saved(WatchTransfer, note: String?)
         case problem(String)
     }
 
@@ -183,7 +184,7 @@ final class WatchRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         meter = nil
         r.stop()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        // After the microphone has stopped, with the screen changing to Sent (or back to Record when too short).
+        // After the microphone has stopped, with the screen changing to Saved on Watch (or back to Record when too short).
         play(.recordStop)
         let url = WatchStore.recordingURL(id)
         guard duration >= 0.5 else {
@@ -194,7 +195,7 @@ final class WatchRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         let t = currentTransfer(duration: duration)
         link.enqueue(file: url, transfer: t)
         confirmed = nil
-        phase = .sent(t, reachable: link.reachable, note: note)
+        phase = .saved(t, note: note)
         watchLog.notice("saved \(Int(duration)) s with \(t.marks.count) marks")
     }
 

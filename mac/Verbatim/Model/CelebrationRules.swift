@@ -288,7 +288,7 @@ enum RecordingFinish {
     }
 }
 
-/// The Apple Watch's Sent to iPhone: the ring trims and the check pops when you stopped it yourself; held still with
+/// The Apple Watch's Saved on Watch: the ring trims and the check pops when you stopped it yourself; held still with
 /// the wrist down (`isLuminanceReduced`), and a crossfade under Reduce Motion.
 enum WatchSentMotion: String, Sendable {
     case burst, fade, still
