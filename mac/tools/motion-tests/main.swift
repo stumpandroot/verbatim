@@ -63,19 +63,34 @@ check("loops: the keyboard session's swipe hint is a LoopTimeline drawn from Swi
 
 // Toasts.
 let phoneApp = read("VerbatimPhone/PhoneApp.swift")
-check("toasts: the iPhone toast only fades under Limit animation",
-      phoneApp.contains(".transition(limitMotion ? .opacity : .move(edge: .top).combined(with: .opacity))")
+check("toasts: the iPhone toast rises from the bottom and only fades under Limit animation",
+      phoneApp.contains(".transition(limitMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))")
       && phoneApp.contains(".animation(limitMotion ? Motion.fade : Motion.settle, value: app.toast)"))
 check("toasts: a finger on the iPhone toast holds it", phoneApp.contains("app.holdToast(true)") && phoneApp.contains("app.holdToast(false)"))
+check("toasts: the iPhone toast sits at the bottom of the tab, above the tab bar and its accessory, clear of Back and More (IP-02)",
+      phoneApp.contains(".overlay(alignment: .bottom) { if t == app.tab { PhoneToastView() } }\n            .miniRecorderInset(t)")
+      && !phoneApp.contains(".overlay(alignment: .top) { PhoneToastView() }")
+      && read("VerbatimPhone/TranscriptScreen.swift").contains("app.toastClearance = $0"))
+check("toasts: the iPhone toast's action has a 44 pt target, and VoiceOver gets it as a named action and Magic Tap (IP-01, IP-11)",
+      phoneApp.contains("minHeight: CGFloat(RefinedRules.minTapTarget)") && phoneApp.contains(".accessibilityAction(named: Text(action), run)")
+      && phoneApp.contains(".accessibilityAction(.magicTap, run)") && phoneApp.contains(".accessibilityAction(.escape, dismiss)")
+      && !phoneApp.contains(".updatesFrequently"))
 let phone = read("VerbatimPhone/PhoneState.swift")
-check("toasts: the iPhone times its toasts with ToastTiming (3 s alone)",
-      phone.contains("ToastTiming.remaining(") && phone.contains("plain: ToastTiming.phonePlain") && !phone.contains("3_000_000_000); if self.toast"))
+check("toasts: the iPhone times its toasts by length with ToastTiming, keeps action toasts for VoiceOver, and announces each one",
+      phone.contains("ToastTiming.remaining(") && phone.contains("plain: ToastTiming.plain(for: t.message, floor: ToastTiming.phonePlain)")
+      && phone.contains("voiceOver: UIAccessibility.isVoiceOverRunning")
+      && phone.contains("UIAccessibility.post(notification: .announcement, argument: ToastSpeech.announcement(message: s, action: action))")
+      && !phone.contains("3_000_000_000); if self.toast"))
 let delete = block(phone, from: "    func delete(_ ids: [UUID])")
 check("toasts: Delete on iPhone offers Undo, which restores through the Store",
       delete.contains("action: ToastUndo.title") && delete.contains("store.restore($0)"), delete)
 let macToast = read("Verbatim/App/Toast.swift")
-check("toasts: the Mac times its toasts with ToastTiming (4.5 s alone) and holds one under the pointer",
-      macToast.contains("plain: ToastTiming.macPlain") && macToast.contains(".onHover") && !macToast.contains("4_500_000_000"))
+check("toasts: the Mac times its toasts by length with ToastTiming and holds any one under the pointer",
+      macToast.contains("plain: ToastTiming.plain(for: t.message, floor: ToastTiming.macPlain)") && macToast.contains(".onHover { over in hold.set(over, for: t.id) }")
+      && !macToast.contains("4_500_000_000"))
+check("toasts: the Mac announces every toast and its action, and keeps an action toast for VoiceOver (MAC-07)",
+      macToast.contains("HomeAnnounce.say(ToastSpeech.announcement(message: t.message, action: t.action))")
+      && macToast.contains("voiceOver: NSWorkspace.shared.isVoiceOverEnabled") && macToast.contains(".accessibilityAction(named: Text(action), run)"))
 check("toasts: ⌘Z on the Mac runs the toast's Undo through ToastUndo, never while editing text",
       macToast.contains("ToastUndo.commandZRuns(") && macToast.contains("firstResponder is NSText")
       && read("Verbatim/Views/ContentView.swift").contains("ToastUndoKey.shared.install(app)"))

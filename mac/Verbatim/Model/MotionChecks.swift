@@ -5,11 +5,26 @@ import Foundation
 enum MotionChecks {
     static func run(_ check: (String, Bool) -> Void) {
         let T = ToastTiming.self
-        // A message alone keeps its old time, held or not.
-        check("motion: a message alone stays 4.5 s on the Mac and 3 s on iPhone",
-              T.remaining(elapsed: 0, hasAction: false, plain: T.macPlain, held: false, sinceRelease: nil) == 4.5
+        // A message alone stays by its length: its floor for a short one, longer for a long one, never past 10 s.
+        check("motion: a short message stays 4.5 s on the Mac and 3 s on iPhone",
+              T.plain(for: "Copied", floor: T.macPlain) == 4.5 && T.plain(for: "Copied", floor: T.phonePlain) == 3
               && T.remaining(elapsed: 0, hasAction: false, plain: T.phonePlain, held: false, sinceRelease: nil) == 3
-              && T.remaining(elapsed: 3.2, hasAction: false, plain: T.phonePlain, held: true, sinceRelease: nil) == 0)
+              && T.remaining(elapsed: 3.2, hasAction: false, plain: T.phonePlain, held: false, sinceRelease: nil) == 0)
+        let sixteen = Array(repeating: "word", count: 16).joined(separator: " ")
+        let fifty = Array(repeating: "word", count: 50).joined(separator: " ")
+        check("motion: a long message stays longer (1.5 s plus 0.25 s a word), at most 10 s",
+              T.words(in: "  Saved.  Transcribing\nnow. ") == 3 && T.plain(for: sixteen, floor: T.phonePlain) == 5.5
+              && T.plain(for: sixteen, floor: T.macPlain) == 5.5 && T.plain(for: fifty, floor: T.phonePlain) == 10)
+        check("motion: a finger or the pointer on any toast keeps it, a message alone too",
+              T.remaining(elapsed: 30, hasAction: false, plain: T.phonePlain, held: true, sinceRelease: nil) == nil
+              && T.remaining(elapsed: 4, hasAction: false, plain: T.phonePlain, held: false, sinceRelease: 1) == 2)
+        check("motion: with VoiceOver on, a toast with an action stays until it's dismissed; a message alone still goes",
+              T.remaining(elapsed: 600, hasAction: true, plain: T.phonePlain, held: false, sinceRelease: nil, voiceOver: true) == nil
+              && T.remaining(elapsed: 3, hasAction: false, plain: T.phonePlain, held: false, sinceRelease: nil, voiceOver: true) == 0)
+        check("motion: VoiceOver hears every toast, and its action",
+              ToastSpeech.announcement(message: "Copied", action: nil) == "Copied"
+              && ToastSpeech.announcement(message: "Moved to Recently Deleted", action: "Undo") == "Moved to Recently Deleted. Undo available."
+              && ToastSpeech.announcement(message: "Saved. Transcribing now.", action: "Open") == "Saved. Transcribing now. Open available.")
         // A toast with an action: at least 8 s, still there at 6 s, gone at 8 s.
         check("motion: a toast with an action stays at least 8 s",
               T.minimum(hasAction: true, plain: T.macPlain) == 8 && T.minimum(hasAction: true, plain: T.phonePlain) == 8

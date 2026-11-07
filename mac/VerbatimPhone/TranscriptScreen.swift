@@ -176,7 +176,9 @@ struct TranscriptScreen: View {
                             PhonePlayerBar(transcript: t, player: app.player, clock: app.player.clock, downloading: downloading, follow: $follow)
                                 .padding(.horizontal, 16).padding(.bottom, 8)
                                 .background(alignment: .bottom) { PlayerFade(height: dockHeight + 40) }
-                                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { dockHeight = $0 }
+                                // The toast rises above the player (PhoneToastView).
+                                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { dockHeight = $0; app.toastClearance = $0 }
+                                .onDisappear { app.toastClearance = 0 }
                         }
                     }
                     .coordinateSpace(.named(TranscriptScrubber.frameSpace))

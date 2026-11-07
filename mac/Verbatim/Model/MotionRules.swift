@@ -6,34 +6,62 @@ import Foundation
 // (mac/tools/test-motion.sh) and both self-tests check them (MotionChecks.swift). The views read them; nothing here
 // draws.
 
-/// How long a toast stays (DESIGN.md §7, Toasts). A message alone keeps the time it always had (4.5 s on the Mac, 3 s
-/// on iPhone). A toast with an action (Undo, Open, Review) stays at least 8 s, never goes while the pointer is on it
-/// (Mac) or a finger is on it (iPhone), and stays a moment more after you let go, so a timer never takes the action
-/// out from under you.
+/// How long a toast stays (DESIGN.md §7, Toasts). A message alone stays by its length: at least its floor (4.5 s on
+/// the Mac, 3 s on iPhone), 1.5 s plus a quarter second a word above that, and never more than 10 s. A toast with an
+/// action (Undo, Open, Review) stays at least 8 s, and stays a moment more after you let go. Any toast stays while the
+/// pointer (Mac) or a finger (iPhone) is on it, so a timer never takes a message or its action out from under you.
+/// While VoiceOver runs, a toast with an action stays until it's dismissed or replaced.
 enum ToastTiming {
-    /// A message alone on the Mac.
+    /// The least a message alone shows on the Mac.
     static let macPlain: TimeInterval = 4.5
-    /// A message alone on iPhone.
+    /// The least a message alone shows on iPhone.
     static let phonePlain: TimeInterval = 3
     /// The least time a toast with an action shows.
     static let withAction: TimeInterval = 8
-    /// How long a toast with an action stays after the pointer or the finger leaves it.
+    /// How long a toast stays after the pointer or the finger leaves it.
     static let afterRelease: TimeInterval = 3
+    /// The longest a message alone shows.
+    static let plainCap: TimeInterval = 10
+    /// The reading time for a message alone: a base, plus this much a word.
+    static let readBase: TimeInterval = 1.5
+    static let perWord: TimeInterval = 0.25
+
+    /// The words in `message`, for its reading time.
+    static func words(in message: String) -> Int {
+        message.split(whereSeparator: { $0.isWhitespace }).count
+    }
+
+    /// How long a message alone shows: `max(floor, 1.5 + 0.25 × words)`, at most 10 s.
+    static func plain(for message: String, floor: TimeInterval) -> TimeInterval {
+        min(plainCap, max(floor, readBase + perWord * Double(words(in: message))))
+    }
 
     /// The least time this toast shows.
     static func minimum(hasAction: Bool, plain: TimeInterval) -> TimeInterval {
         hasAction ? max(withAction, plain) : plain
     }
 
-    /// How long from now until the toast goes: 0 when it should go now, nil while it's held (it waits for the hold to
-    /// end and asks again then). `elapsed` is the time since it appeared, `sinceRelease` the time since the last hold
-    /// ended (nil if it was never held). A message alone ignores holds.
-    static func remaining(elapsed: TimeInterval, hasAction: Bool, plain: TimeInterval, held: Bool, sinceRelease: TimeInterval?) -> TimeInterval? {
-        guard hasAction else { return max(0, plain - elapsed) }
+    /// How long from now until the toast goes: 0 when it should go now, nil while it's held or, with an action, while
+    /// VoiceOver runs (it waits and asks again). `elapsed` is the time since it appeared, `sinceRelease` the time since
+    /// the last hold ended (nil if it was never held).
+    static func remaining(elapsed: TimeInterval, hasAction: Bool, plain: TimeInterval, held: Bool, sinceRelease: TimeInterval?,
+                          voiceOver: Bool = false) -> TimeInterval? {
         if held { return nil }
-        var left = minimum(hasAction: true, plain: plain) - elapsed
+        if hasAction && voiceOver { return nil }
+        var left = minimum(hasAction: hasAction, plain: plain) - elapsed
         if let sinceRelease { left = max(left, afterRelease - sinceRelease) }
         return max(0, left)
+    }
+}
+
+/// What VoiceOver says when a toast appears (WCAG 4.1.3, DESIGN.md §7): its message, and its action when it has one
+/// ("Moved to Recently Deleted. Undo available.").
+enum ToastSpeech {
+    static func announcement(message: String, action: String?) -> String {
+        let m = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let action, !action.isEmpty else { return m }
+        let end = m.last.map { ".!?".contains($0) } ?? true
+        return m + (end ? " " : ". ") + "\(action) available."
     }
 }
 

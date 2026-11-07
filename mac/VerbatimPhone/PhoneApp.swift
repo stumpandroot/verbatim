@@ -86,6 +86,9 @@ struct PhoneRoot: View {
     private func tabRoot(_ t: PhoneState.Tab) -> some View {
         NavigationStack(path: app.pathBinding(t)) { rootScreen(t).phoneRoutes() }
             .tint(Refined.accentText)
+            // The toast at the bottom, inside the tab's safe area, so it sits above the tab bar, Record's accessory,
+            // and the bar before iOS 26 (applied before `miniRecorderInset` for that), clear of Back and More (IP-02).
+            .overlay(alignment: .bottom) { if t == app.tab { PhoneToastView() } }
             .miniRecorderInset(t)
             .modifier(TabEntrance(tab: t, selected: app.tab, tabs: tabBar.bar.tabs))
     }
@@ -221,13 +224,12 @@ struct PhoneRoot: View {
             app.importPhotos(picks)
             photoPicks = []
         }
-        .overlay(alignment: .top) { PhoneToastView() }
         // Settings › Appearance: read here rather than in the App struct, which doesn't observe PhoneState.
         .preferredColorScheme(app.colorScheme)
     }
 }
 
-/// A toast at the top of the screen (`PhoneState.say`): a message, and an action when it has one (Undo after Delete).
+/// A toast above the tab bar (`PhoneState.say`): a message, and an action when it has one (Undo after Delete).
 struct PhoneToast: Identifiable, Equatable {
     let id = UUID()
     let message: String
@@ -244,8 +246,10 @@ struct PhoneToast: Identifiable, Equatable {
     static func == (a: PhoneToast, b: PhoneToast) -> Bool { a.id == b.id }
 }
 
-/// The toast: it slides down from the top and fades in, and fades out; under Limit animation it only fades (DESIGN.md
-/// §7). One with an action shows it as a button and stays while a finger is on it.
+/// The toast: it rises from the bottom, above the tab bar or the player, and fades in, and fades out; under Limit
+/// animation it only fades (DESIGN.md §7). One with an action shows it as a button with a 44 pt target. A finger on
+/// any toast keeps it. VoiceOver reads it as one element, with its action as a named action and Magic Tap, and the
+/// escape gesture dismisses it (IP-01, IP-11).
 private struct PhoneToastView: View {
     @Environment(PhoneState.self) var app
     @Environment(\.limitMotion) private var limitMotion
@@ -261,17 +265,20 @@ private struct PhoneToastView: View {
                         Text(t.message).refinedFont(.hint, weight: .medium).foregroundStyle(ink)
                         if let a = t.action {
                             Button { app.runToastAction() } label: {
+                                // The capsule you see stays 30 pt; the target around it is 44 pt.
                                 Text(a).refinedFont(.hint, weight: .semibold).foregroundStyle(ink)
                                     .lineLimit(1).fixedSize()
                                     .padding(.horizontal, 12).frame(minHeight: 30)
                                     .overlay(Capsule().strokeBorder(ink, lineWidth: 1.5))
-                                    .contentShape(Capsule())
+                                    .frame(minWidth: CGFloat(RefinedRules.minTapTarget), minHeight: CGFloat(RefinedRules.minTapTarget))
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.leading, 16).padding(.trailing, t.action == nil ? 16 : 6).padding(.vertical, t.action == nil ? 10 : 6)
-                    // The fill behind the words, so they stay on top of it.
+                    .padding(.leading, 16).padding(.trailing, t.action == nil ? 16 : 0).padding(.vertical, t.action == nil ? 10 : 0)
+                    // The fill behind the words, so they stay on top of it. The capsule keeps its height: the
+                    // action's 44 pt target overhangs it.
                     .background {
                         ZStack(alignment: .leading) {
                             Capsule().fill(Refined.ink)
@@ -281,6 +288,7 @@ private struct PhoneToastView: View {
                                     .clipShape(Capsule())
                             }
                         }
+                        .padding(.vertical, t.action == nil ? 0 : 6)
                         .allowsHitTesting(false)
                     }
                     .scaleEffect(burst.active ? burst.scale : 1)
@@ -290,13 +298,34 @@ private struct PhoneToastView: View {
                 .simultaneousGesture(DragGesture(minimumDistance: 0)
                     .onChanged { _ in if !app.toastHold.isHeld(t.id) { app.holdToast(true) } }
                     .onEnded { _ in app.holdToast(false) })
-                .padding(.top, 8)
-                .transition(limitMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
-                .accessibilityElement(children: .contain)
-                .accessibilityAddTraits(.updatesFrequently)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8 + app.toastClearance)
+                .transition(limitMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                .accessibilityElement(children: .combine)
+                .modifier(ToastActions(action: t.action, run: { app.runToastAction() }, dismiss: { app.dismissToast() }))
+                .accessibilityIdentifier("toast")
             }
         }
         .animation(limitMotion ? Motion.fade : Motion.settle, value: app.toast)
+    }
+}
+
+/// The toast's action as VoiceOver's named action and Magic Tap, and the escape gesture (or Dismiss) to close it.
+private struct ToastActions: ViewModifier {
+    var action: String?
+    var run: () -> Void
+    var dismiss: () -> Void
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if let action {
+            content
+                .accessibilityAction(named: Text(action), run)
+                .accessibilityAction(.magicTap, run)
+                .accessibilityAction(named: Text("Dismiss"), dismiss)
+                .accessibilityAction(.escape, dismiss)
+        } else {
+            content.accessibilityAction(.escape, dismiss)
+        }
     }
 }
 

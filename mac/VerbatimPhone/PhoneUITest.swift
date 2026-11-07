@@ -609,8 +609,8 @@ enum PhoneUITest {
     // MARK: Motion
 
     /// Motion's rules (MotionChecks), then on this iPhone: Delete offers Undo, the toast is still there after 6 s (a
-    /// message alone has gone by then), Undo restores the transcript, and Limit animation reaches the App Group, where
-    /// the keyboard reads it.
+    /// short message alone has gone by then, a long one stays longer), Undo restores the transcript, and Limit
+    /// animation reaches the App Group, where the keyboard reads it.
     private static func motionChecks(_ app: PhoneState) async {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") motion: \(name)") }
         MotionChecks.run(check)
@@ -633,7 +633,14 @@ enum PhoneUITest {
         app.say("Self-test message")
         let plain = app.toast?.id
         try? await Task.sleep(nanoseconds: 3_600_000_000)
-        check("a message alone still goes after 3 s", plain != nil && app.toast?.id != plain)
+        check("a short message alone still goes after 3 s", plain != nil && app.toast?.id != plain)
+        // A long message stays by its length (16 words: 5.5 s), and Dismiss closes it.
+        app.say("This self-test message has sixteen words so it stays on screen longer than a short one does")
+        let long = app.toast?.id
+        try? await Task.sleep(nanoseconds: 3_600_000_000)
+        check("a long message alone is still showing after 3.5 s", long != nil && app.toast?.id == long)
+        app.dismissToast()
+        check("Dismiss closes the toast", app.toast == nil)
 
         let d = UserDefaults.standard
         let stored = d.object(forKey: MotionPreference.key)

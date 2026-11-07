@@ -31,10 +31,13 @@ final class PhoneState {
     /// Settings › Personalization and preferences › Tab bar: which tabs follow Home, on this iPhone.
     let tabBarStore = PhoneTabBarStore.shared
     var tabBar: PhoneTabBar { tabBarStore.bar }
-    /// The toast at the top of the screen (`say`), with its action when it has one (Undo after Delete).
+    /// The toast above the tab bar or the player (`say`), with its action when it has one (Undo after Delete).
     var toast: PhoneToast? = nil
     /// Whether a finger is on the toast, and when it last lifted (ToastTiming). Plain storage: nothing redraws for it.
     @ObservationIgnored private(set) var toastHold = ToastHold()
+    /// How far above the tab's bottom edge the toast sits: the transcript's player bar while one shows (it floats in
+    /// the transcript's own space, not the safe area), else 0.
+    var toastClearance: CGFloat = 0
     var showRecorder = false
     /// The screenshot tour's stand-in for a running recording (no microphone in the simulator). UI test mode only.
     var previewRecording = false { didSet { previewRecordingValues.send(previewRecording) } }
@@ -278,41 +281,52 @@ final class PhoneState {
         MotionMirror.mirror(UserDefaults.standard.bool(forKey: MotionPreference.key), into: KeyboardBridge.defaults)
     }
 
-    /// Shows a toast. A message alone goes after 3 s; one with an action (Undo) stays at least 8 s, and while a finger
-    /// is on it (ToastTiming, DESIGN.md §7). `celebration`: a finished transcript's fill sweeps it (DESIGN.md §7,
-    /// Celebrations).
+    /// Shows a toast above the tab bar. A message alone stays by its length (3 to 10 s); one with an action (Undo)
+    /// stays at least 8 s; any toast stays while a finger is on it (ToastTiming, DESIGN.md §7). VoiceOver hears every
+    /// toast and its action (ToastSpeech), and while it runs a toast with an action stays until it's dismissed.
+    /// `celebration`: a finished transcript's fill sweeps it (DESIGN.md §7, Celebrations).
     func say(_ s: String, action: String? = nil, celebration: CelebrationTicket? = nil, onAction: (() -> Void)? = nil) {
         var t = PhoneToast(s, action: action, onAction: onAction)
         t.celebration = celebration
         toast = t
+        UIAccessibility.post(notification: .announcement, argument: ToastSpeech.announcement(message: s, action: action))
         endToastWhenDue(t.id)
     }
 
-    /// A finger came down on the toast (true) or lifted (false). A toast with an action stays while it's held, and a
-    /// moment after (ToastTiming).
+    /// A finger came down on the toast (true) or lifted (false). Any toast stays while it's held, and a moment after
+    /// (ToastTiming).
     func holdToast(_ on: Bool) {
         guard let t = toast else { return }
         toastHold.set(on, for: t.id)
         if !on { endToastWhenDue(t.id) }
     }
 
-    /// The toast's action (its button): runs it once and closes the toast.
+    /// The toast's action (its button, or VoiceOver's named action or Magic Tap): runs it once and closes the toast.
     func runToastAction() {
         guard let t = toast else { return }
         toast = nil
         t.onAction?()
     }
 
+    /// Closes the toast without its action (VoiceOver's escape gesture, or Dismiss in its actions).
+    func dismissToast() { toast = nil }
+
     /// Closes toast `id` when its time is up, asking ToastTiming again after each wait (a hold may have started or
-    /// ended meanwhile). A held toast waits for the finger to lift, which asks again.
+    /// ended meanwhile). A held toast waits for the finger to lift, which asks again; one kept for VoiceOver asks again
+    /// each second, so it goes on time once VoiceOver is off.
     private func endToastWhenDue(_ id: UUID) {
         guard let t = toast, t.id == id else { return }
         let now = Date()
-        guard let wait = ToastTiming.remaining(elapsed: now.timeIntervalSince(t.shownAt), hasAction: t.action != nil, plain: ToastTiming.phonePlain,
-                                               held: toastHold.isHeld(id), sinceRelease: toastHold.sinceRelease(id, now: now)) else { return }
-        if wait <= 0 { toast = nil; return }
+        let held = toastHold.isHeld(id)
+        let wait = ToastTiming.remaining(elapsed: now.timeIntervalSince(t.shownAt), hasAction: t.action != nil,
+                                         plain: ToastTiming.plain(for: t.message, floor: ToastTiming.phonePlain),
+                                         held: held, sinceRelease: toastHold.sinceRelease(id, now: now),
+                                         voiceOver: UIAccessibility.isVoiceOverRunning)
+        if wait == nil && held { return }
+        if let wait, wait <= 0 { toast = nil; return }
+        let sleep = wait ?? 1
         Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+            try? await Task.sleep(nanoseconds: UInt64(sleep * 1_000_000_000))
             self?.endToastWhenDue(id)
         }
     }
