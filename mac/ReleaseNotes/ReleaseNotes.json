@@ -1,6 +1,88 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Moments that celebrate, and motion that waits",
+      "items": [
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Transcripts finish with a moment",
+          "icon": "notes",
+          "text": "A recording's transcript fills its card, Library row, or toast and says Ready.",
+          "detail": "It shows in one place, with the haptic and sound timed to it. Dictations and thoughts stay quiet. Limit animation makes it a short fade."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Saved, as Stop's ring fills",
+          "icon": "mic",
+          "text": "Stop's ring fills while a recording saves, then Home's Record card reads Saved.",
+          "detail": "A success haptic lands as the ring fills. Discard and stops from the Lock Screen or Dynamic Island stay quiet."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Word milestones",
+          "icon": "words",
+          "text": "Your first dictation, 10,000 words, and 100,000 words light up This week on Home.",
+          "detail": "It shows the next time Home appears, never while you dictate. Totals count this device only."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Pale while transcribing",
+          "icon": "library",
+          "text": "A recording's Library badge stays pale while it transcribes and fills in when it's ready."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Undo that waits for you",
+          "icon": "accessibility",
+          "text": "Toasts with Undo stay at least 8 seconds, and while your pointer or finger is on them.",
+          "detail": "Deleting on iPhone now offers Undo too. On the Mac, ⌘Z runs a toast's Undo, unless you're typing in a text field."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Shortcuts feel instant",
+          "icon": "time",
+          "text": "Back, Forward, Return, and Recent dictations show at once, with no slide.",
+          "detail": "⌘[ and ⌘], Return or Space on a row, the sidebar's arrow keys, and ⌥⌘V skip the motion. Clicks still slide. The Ribbon shows listening the moment you press the key."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Limit animation, everywhere",
+          "icon": "accessibility",
+          "text": "Limit animation now reaches the keyboard, toasts, and Follow playback.",
+          "detail": "The keyboard's voice bars stay still, toasts fade instead of sliding, and Follow playback jumps to the line."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Counts that change in place",
+          "icon": "words",
+          "text": "This week's words, the Library count, and your moments count up in place.",
+          "detail": "Back in the welcome tour also slides the other way now."
+        }
+      ]
+    },
+    {
       "build": "302",
       "date": "2026-11-07",
       "version": "1.0 beta",
