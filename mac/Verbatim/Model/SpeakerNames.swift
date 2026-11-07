@@ -189,12 +189,13 @@ enum SpeakerNames {
     /// New suggestions over saved ones: used and dismissed ones stay (a dismissed name is never suggested again for
     /// that speaker); pending ones are replaced. nil when there's nothing to keep.
     static func merge(existing: [SpeakerSuggestion]?, new: [SpeakerSuggestion]) -> [SpeakerSuggestion]? {
-        // A calendar call's attendees stay too: they came from the invite, not from this run.
-        var kept = (existing ?? []).filter { $0.state != .pending || $0.fromCalendar }
+        // A calendar call's attendees and the name the call window showed stay too: they came from the call, not from
+        // this run.
+        var kept = (existing ?? []).filter { $0.state != .pending || $0.fromCall }
         // This run backing an invitee ("Hey, Dana" on your side): its reasons join the invite's, so the suggestion
         // shows even when several people were invited (Transcript.visibleSpeakerSuggestions).
         for n in new {
-            guard let i = kept.firstIndex(where: { $0.id == n.id && $0.fromCalendar && $0.state == .pending }) else { continue }
+            guard let i = kept.firstIndex(where: { $0.id == n.id && $0.fromCall && $0.state == .pending }) else { continue }
             for r in n.reasons where !kept[i].reasons.contains(r) { kept[i].reasons.insert(r, at: max(0, kept[i].reasons.count - 1)) }
             for s in n.sources where !kept[i].sources.contains(s) { kept[i].sources.append(s) }
         }
