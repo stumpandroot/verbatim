@@ -193,7 +193,7 @@ private struct RibbonLockScreen: View {
                 trailing
             }
             if state.shown == .listening {
-                LevelBars(level: state.level, color: Refined.persimmonFixed, count: 34).frame(height: 22)
+                LevelBars(level: state.level, color: skin.mark, count: 34).frame(height: 22)
                 Text(state.warming ? Ribbon.gettingReadyLine : Ribbon.lockLine(target: state.target, take: state.takes))
                     .font(.system(size: 13)).foregroundStyle(skin.dim).lineLimit(1).minimumScaleFactor(0.85)
             } else {
@@ -284,7 +284,7 @@ private struct PhaseGlyph: View {
     var body: some View {
         switch phase {
         case .listening:
-            BarsMark(color: onDark ? Refined.persimmon : Refined.persimmonFixed).accessibilityLabel("Listening")
+            BarsMark(color: onDark ? Refined.persimmon : Refined.accentTextOnPaper).accessibilityLabel("Listening")   // 5.6:1 on paper (SF-27)
         case .transcribing:
             BrandGlyph(art: .iconTranscribing, color: onDark ? .white : Refined.inkFixed).accessibilityLabel("Writing")
         case .copied, .inserted:

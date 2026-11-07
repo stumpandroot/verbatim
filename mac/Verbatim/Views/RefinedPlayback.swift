@@ -191,6 +191,8 @@ struct GlassPlayerBar<Options: View>: View {
 
     private var mac: Bool { RefinedPlatform.mac }
     private var fraction: Double { duration > 0 ? min(1, max(0, elapsed / duration)) : 0 }
+    /// Under Increase Contrast the part not played yet takes `faint` (3:1 on the card) instead of the quiet rest tone.
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         HStack(spacing: 10) {
@@ -254,18 +256,24 @@ struct GlassPlayerBar<Options: View>: View {
         }
     }
 
+    /// The waveform or rail, with an ink playhead at the position (GPT-20): ink holds 3:1 or more on glass, the
+    /// near-opaque card, and the solid card, so the position reads whatever the waveform's tones do. On iPhone the
+    /// drawing stays 26 pt tall inside a 44 pt band that takes the drag.
     private var scrubber: some View {
         GeometryReader { geo in
             Canvas { ctx, size in
                 if levels.isEmpty || mac { drawRail(ctx, size) } else { drawWave(ctx, size) }
+                drawPlayhead(ctx, size)
             }
+            .frame(height: mac ? 20 : 26)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0).onChanged { g in
                 guard geo.size.width > 0, duration > 0 else { return }
                 onSeek(min(1, max(0, g.location.x / geo.size.width)) * duration)
             })
         }
-        .frame(height: mac ? 20 : 26)
+        .frame(height: mac ? 20 : CGFloat(RefinedRules.minTapTarget))
         .frame(maxWidth: .infinity)
         .accessibilityElement()
         .accessibilityLabel("Position")
@@ -281,7 +289,8 @@ struct GlassPlayerBar<Options: View>: View {
 
     private func drawRail(_ ctx: GraphicsContext, _ size: CGSize) {
         let h: CGFloat = 4, y = (size.height - h) / 2
-        ctx.fill(Path(roundedRect: CGRect(x: 0, y: y, width: size.width, height: h), cornerRadius: h / 2), with: .color(Refined.rail))
+        ctx.fill(Path(roundedRect: CGRect(x: 0, y: y, width: size.width, height: h), cornerRadius: h / 2),
+                 with: .color(contrast == .increased ? Refined.faint : Refined.rail))
         ctx.fill(Path(roundedRect: CGRect(x: 0, y: y, width: size.width * fraction, height: h), cornerRadius: h / 2), with: .color(Refined.played))
         drawMoments(ctx, size, top: y - 3, height: h + 6)
     }
@@ -294,9 +303,17 @@ struct GlassPlayerBar<Options: View>: View {
             let level = CGFloat(levels[min(levels.count - 1, Int(at * Double(levels.count - 1)))])
             let h = max(3, size.height * min(1, max(0.12, level)))
             let rect = CGRect(x: CGFloat(i) * (bar + gap), y: (size.height - h) / 2, width: bar, height: h)
-            ctx.fill(Path(roundedRect: rect, cornerRadius: 1.5), with: .color(at <= fraction ? Refined.played : Refined.waveRest))
+            ctx.fill(Path(roundedRect: rect, cornerRadius: 1.5),
+                     with: .color(at <= fraction ? Refined.played : (contrast == .increased ? Refined.faint : Refined.waveRest)))
         }
         drawMoments(ctx, size, top: 0, height: size.height)
+    }
+
+    /// The position: a 2 pt ink line the waveform's full height (the rail's plus 8 pt on the Mac).
+    private func drawPlayhead(_ ctx: GraphicsContext, _ size: CGSize) {
+        guard duration > 0 else { return }
+        let x = min(size.width - 1, max(1, size.width * fraction))
+        ctx.fill(Path(roundedRect: CGRect(x: x - 1, y: 0, width: 2, height: size.height), cornerRadius: 1), with: .color(Refined.ink))
     }
 
     /// The moments as thin accent ticks across the rail or the waveform.

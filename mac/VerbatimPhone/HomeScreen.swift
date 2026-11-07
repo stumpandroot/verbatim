@@ -518,8 +518,11 @@ struct LinkSheet: View {
                     Text(HomeScreen.linkSheetNote)
                         .refinedFont(.meta).foregroundStyle(Refined.dim)
                         .fixedSize(horizontal: false, vertical: true)
+                    // The native Paste (no pasteboard prompt), tinted with the fixed fill so its white label reads in
+                    // dark too: the dark accent text rendered a 3.1:1 salmon fill (IP-13).
                     PasteButton(payloadType: String.self) { strings in link = strings.first ?? link }
                         .buttonBorderShape(.capsule).labelStyle(.titleAndIcon)
+                        .tint(Refined.accentFillFixed)
                 }
                 .padding(20)
             }

@@ -142,7 +142,7 @@ struct WordsMonthView: View {
         let line = WordsCalendar.equivalent(m.words).map { "\(m.words == 1 ? "word" : "words") dictated, \($0)" } ?? (m.words == 1 ? "word dictated" : "words dictated")
         return HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(m.words.formatted()).font(.system(size: 44, weight: .bold)).monospacedDigit().foregroundStyle(Refined.ink)
+                Text(m.words.formatted()).scaledFont(44, weight: .bold).monospacedDigit().foregroundStyle(Refined.ink)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 Text(line).refinedFont(.hint).foregroundStyle(Refined.dim)
             }
@@ -267,12 +267,17 @@ struct WordsDayCell: View {
         Button(action: open) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top) {
-                    Text("\(n)").font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                    Text("\(n)").scaledFont(12, weight: .semibold).monospacedDigit()
                     Spacer(minLength: 0)
                     if !day.recordings.isEmpty { Circle().fill(ink).frame(width: 6, height: 6).padding(.top, 2) }
                 }
                 Spacer(minLength: 0)
-                Text(WordsCalendar.short(day.words)).font(.system(size: 10)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
+                // The count at the data minimum (12 pt, scaling); a square too small for it drops it, and the day's
+                // label still says it (IP-14).
+                ViewThatFits {
+                    Text(WordsCalendar.short(day.words)).refinedFont(.caption).monospacedDigit().lineLimit(1)
+                    Color.clear.frame(width: 1, height: 1)
+                }
             }
             .foregroundStyle(day.isFuture ? Refined.faint : ink)
             .padding(.horizontal, 6).padding(.vertical, 5)
@@ -342,7 +347,7 @@ struct WordsYearView: View {
                 }
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(y.words.formatted()).font(.system(size: 44, weight: .bold)).monospacedDigit().foregroundStyle(Refined.ink)
+                Text(y.words.formatted()).scaledFont(44, weight: .bold).monospacedDigit().foregroundStyle(Refined.ink)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 Text((y.words == 1 ? "word this year" : "words this year") + (WordsCalendar.equivalent(y.words).map { ", \($0)" } ?? ""))
                     .refinedFont(.hint).foregroundStyle(Refined.dim)
@@ -431,7 +436,8 @@ struct WordsMiniMonth: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(Formats.pattern("MMM").string(from: month.start)).refinedFont(.caption, weight: .semibold).foregroundStyle(Refined.ink)
                 Spacer(minLength: 2)
-                Text(month.words == 0 ? "" : WordsCalendar.short(month.words)).font(.system(size: 10)).monospacedDigit().foregroundStyle(Refined.mute)
+                Text(month.words == 0 ? "" : WordsCalendar.short(month.words)).refinedFont(.caption).monospacedDigit().foregroundStyle(Refined.mute)
+                    .lineLimit(1)
             }
             LazyVGrid(columns: columns, spacing: 2) {
                 ForEach(0..<month.leading, id: \.self) { _ in Color.clear.aspectRatio(1, contentMode: .fit) }

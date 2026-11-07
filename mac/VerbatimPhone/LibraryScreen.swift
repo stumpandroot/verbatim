@@ -442,12 +442,12 @@ struct LibraryScreen: View {
                 IconSquare(art: .iconDictations, hue: .butter)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("Dictations").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                        Text("Dictations").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).rowLines()
                         if count > 0 { Text("\(count)").refinedFont(.hint).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1) }
                         Spacer(minLength: 8)
                         if let ago { Text(ago).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).lineLimit(1) }
                     }
-                    Text(line).refinedFont(.hint).foregroundStyle(newest == nil ? Refined.dim : Refined.mute).lineLimit(1)
+                    Text(line).refinedFont(.hint).foregroundStyle(newest == nil ? Refined.dim : Refined.mute).rowLines()
                 }
                 Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.faint)
                     .accessibilityHidden(true)
@@ -556,7 +556,7 @@ struct LibraryScreen: View {
             }
             .swipeActions(edge: .leading) {
                 Button { CelebrationCenter.shared.swiped(); app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: t.pinned ? "pin.slash" : "pin") }   // brand: system surface (swipe action)
-                    .tint(Refined.accentText)
+                    .tint(Refined.accentFillFixed)   // white on it in dark too (IP-03)
             }
     }
 
@@ -833,7 +833,7 @@ struct PhonePassageCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Text(transcript.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                Text(transcript.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).rowLines()
                 Spacer(minLength: 6)
                 Text(count == 1 ? "1 match" : "\(count) matches").refinedFont(.meta).foregroundStyle(Refined.mute)
             }

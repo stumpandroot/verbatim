@@ -222,7 +222,7 @@ struct YouScreen: View {
                     IconSquare(art: .iconTimeSaved, hue: .sage)
                     VStack(alignment: .leading, spacing: 0) {
                         Text("Saved by talking, all time").refinedFont(.meta).foregroundStyle(Refined.mute)
-                        Text(all).font(.system(size: 30, weight: .bold)).monospacedDigit().foregroundStyle(Refined.sageText)
+                        Text(all).scaledFont(30, weight: .bold).monospacedDigit().foregroundStyle(Refined.sageText)
                             .lineLimit(1).minimumScaleFactor(0.6)
                     }
                 }

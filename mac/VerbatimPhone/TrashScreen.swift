@@ -32,7 +32,7 @@ struct TrashScreen: View {
                     .accessibilityElement(children: .combine)
                     .swipeActions(edge: .leading) {
                         Button { app.restore(t.id) } label: { Label("Restore", systemImage: "arrow.uturn.backward") }   // brand: system surface (swipe action)
-                            .tint(Refined.sageText)
+                            .tint(Refined.sageFillFixed)   // white on it in dark too (IP-03)
                     }
                     .swipeActions(edge: .trailing) { Button(role: .destructive) { app.purge(t.id) } label: { Label("Delete now", systemImage: "trash") } }
                 }

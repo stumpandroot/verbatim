@@ -74,7 +74,7 @@ struct DictationsListScreen: View {
                         }
                         .swipeActions(edge: .leading) {
                             Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: t.pinned ? "pin.slash" : "pin") }   // brand: system surface (swipe action)
-                                .tint(Refined.accentText)
+                                .tint(Refined.accentFillFixed)   // white on it in dark too (IP-03)
                         }
                 }
             }
@@ -145,7 +145,7 @@ struct PhoneDictationRow: View {
     var body: some View {
         Button { copy() } label: {
             HStack(alignment: .top, spacing: 12) {
-                Text(Self.initial(app)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.ink)
+                Text(Self.initial(app)).scaledFont(13, weight: .semibold).foregroundStyle(Refined.ink)
                     .frame(width: 22, height: 22)
                     .background(Refined.neutralSquare, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .accessibilityHidden(true)

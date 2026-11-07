@@ -272,7 +272,7 @@ struct HomeTilePicker: View {
     @ViewBuilder private func slot(_ i: Int) -> some View {
         let shape = RoundedRectangle(cornerRadius: RefinedPlatform.radius(.tile), style: .continuous)
         VStack(spacing: 6) {
-            Text("\(i + 1)").font(.system(size: 11, weight: .semibold)).foregroundStyle(Refined.mute)
+            Text("\(i + 1)").scaledFont(11, weight: .semibold).foregroundStyle(Refined.mute)
             if i < picks.count {
                 let t = picks[i]
                 tileFace(t, slot: i, compact: true)
@@ -332,7 +332,7 @@ struct HomeTilePicker: View {
 
     @ViewBuilder private func badge(_ n: Int?) -> some View {
         if let n {
-            Text("\(n + 1)").font(.system(size: 12, weight: .bold))
+            Text("\(n + 1)").scaledFont(12, weight: .bold)
                 .foregroundStyle(Refined.paper)
                 .frame(width: 22, height: 22)
                 .background(Circle().fill(Refined.accentText))

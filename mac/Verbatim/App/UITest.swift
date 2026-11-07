@@ -1751,6 +1751,11 @@ enum UITest {
               && VoiceEnrollment.clock(75) == "1:15" && VoiceEnrollment.clock(.nan) == "0:00")
         let split = VoicePassageCard.split(["The", "morning", "—", "light"], wordsRead: 2)
         check("voice: the passage card darkens read words with their punctuation", split.read == "The morning —" && split.rest == "light")
+        let phrase = VoicePassageCard.phrase("light comes in, slow and gold over the hills")
+        let longPhrase = VoicePassageCard.phrase("one two three four five six seven")
+        check("voice: the next phrase to read ends at a comma or after five words, and the rest stays readable",
+              phrase.now == "light comes in," && phrase.later == "slow and gold over the hills"
+              && longPhrase.now == "one two three four five" && longPhrase.later == "six seven" && VoicePassageCard.phrase("").now.isEmpty)
         var guardOK = false
         if case .failure(.noSpeech) = VoiceProfile.prepareSamples([]), case .failure(.silent) = VoiceProfile.prepareSamples([Float](repeating: 0, count: 32_000)),
            case .success(let short) = VoiceProfile.prepareSamples([Float.nan, 0.1, -0.2]), case .success(let long) = VoiceProfile.prepareSamples([Float](repeating: 0.1, count: 32_000)) {

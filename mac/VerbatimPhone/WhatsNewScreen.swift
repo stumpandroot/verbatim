@@ -81,7 +81,7 @@ struct WhatsNewScreen: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.mute)
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.mute)   // type: fixed (a glyph)
                     .rotationEffect(.degrees(open ? 90 : 0))
                     .frame(width: 14)
                 Text(version.heading).refinedFont(.sectionTitle).foregroundStyle(Refined.ink)
@@ -173,9 +173,9 @@ struct WhatsNewScreen: View {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
                     .rotationEffect(.degrees(open ? 90 : 0))
-                Text(title).font(.system(size: itemSize - 1, weight: .semibold))
+                Text(title).font(.system(size: itemSize - 1, weight: .semibold))   // type: scaled (@ScaledMetric)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("\(count)").font(.system(size: itemSize - 1)).monospacedDigit()
+                Text("\(count)").font(.system(size: itemSize - 1)).monospacedDigit()   // type: scaled (@ScaledMetric)
                 Spacer(minLength: 0)
             }
             .foregroundStyle(Refined.accentText)
@@ -211,7 +211,7 @@ struct WhatsNewScreen: View {
                 HStack(alignment: .top, spacing: 8) {
                     WhatsNewItemRow(item: item, hue: hue, square: square, showDetail: open)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: max(11, itemSize - 4), weight: .semibold))
+                        .font(.system(size: max(11, itemSize - 4), weight: .semibold))   // type: fixed (a glyph)
                         .foregroundStyle(Refined.accentText)
                         .rotationEffect(.degrees(open ? 90 : 0))
                         .padding(.top, small ? 7 : 11)

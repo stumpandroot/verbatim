@@ -531,7 +531,7 @@ private struct PhoneMonthCalendar: View {
         let cell = VStack(spacing: 2) {
             Text("\(Calendar.current.component(.day, from: d))")
                 .refinedFont(.rowTitle, weight: isToday ? .semibold : .regular).monospacedDigit()
-                .foregroundStyle(isToday ? Refined.accentText : (inMonth ? Refined.ink : Refined.faint))
+                .foregroundStyle(isToday ? Refined.accentText : (inMonth ? Refined.ink : Refined.mute))   // the next month's dates are tappable: mute (5:1), never faint (GPT-19)
             // Ink, not the kind's fill: a butter dot on the card was about 1.4:1 (critique; DESIGN.md §14.6).
             Circle().fill(Refined.ink).frame(width: 6, height: 6).opacity(has && inMonth ? 1 : 0)
         }

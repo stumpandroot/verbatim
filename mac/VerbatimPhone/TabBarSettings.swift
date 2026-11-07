@@ -134,7 +134,7 @@ struct TabBarSettingsScreen: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: picked ? "checkmark.circle.fill" : "plus.circle")
-                    .font(.system(size: 22))
+                    .font(.system(size: 22))   // type: fixed (a glyph)
                     .foregroundStyle(picked ? Refined.accentText : Refined.faint)
                     .frame(width: 28, height: 28)
                 PhoneTabGlyph(tab: t, size: 22).foregroundStyle(Refined.ink).frame(width: 28)
@@ -188,8 +188,8 @@ struct TabBarPreview: View {
             HStack(spacing: 10) {
                 AccessoryRecordDisc(size: 22)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Record").font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.ink)
-                    Text("Voice note").font(.system(size: 11)).foregroundStyle(Refined.dim)
+                    Text("Record").font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.ink)   // type: fixed (a scale drawing of the bar)
+                    Text("Voice note").font(.system(size: 12)).foregroundStyle(Refined.dim)   // type: fixed (a scale drawing of the bar)
                 }
                 Spacer(minLength: 0)
             }
@@ -210,7 +210,7 @@ struct TabBarPreview: View {
                 let on = t == .home
                 VStack(spacing: 3) {
                     PhoneTabGlyph(tab: t, size: 22)
-                    Text(t.title).font(.system(size: 10, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(t.title).font(.system(size: 10, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)   // type: fixed (a scale drawing of the bar, as the system draws it)
                 }
                 .foregroundStyle(on ? Refined.accentText : Refined.dim)
                 .frame(maxWidth: .infinity)

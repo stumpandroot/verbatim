@@ -166,7 +166,7 @@ struct WordsStat: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label).refinedFont(.meta).foregroundStyle(Refined.mute)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(value).font(.system(size: 24, weight: .bold)).monospacedDigit().foregroundStyle(Refined.ink)
+                Text(value).scaledFont(24, weight: .bold).monospacedDigit().foregroundStyle(Refined.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 if let unit { Text(unit).refinedFont(.hint).foregroundStyle(Refined.dim) }
             }
@@ -199,7 +199,7 @@ struct WordsSpines: View {
                     else { shape.stroke(Refined.faint, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])) }
                     if labels {
                         Text(WordsCalendar.shelf[i].name)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 10, weight: .semibold))   // type: fixed (a book's spine in the drawing; the card's text names it)
                             .foregroundStyle(have ? Refined.onFill : Refined.mute)
                             .fixedSize()
                             .rotationEffect(.degrees(-90))
@@ -297,7 +297,7 @@ struct WordsFunCards: View {
         return WordsCard {
             Text("Your pace, week by week").refinedFont(.meta).foregroundStyle(Refined.mute)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(last) wpm").font(.system(size: 24, weight: .bold)).monospacedDigit().foregroundStyle(Refined.ink)
+                Text("\(last) wpm").scaledFont(24, weight: .bold).monospacedDigit().foregroundStyle(Refined.ink)
                 Text(change).refinedFont(.meta).foregroundStyle(Refined.sageText)
             }
             WordsPaceLine(values: paces).frame(height: 56)
@@ -311,7 +311,7 @@ struct WordsFunCards: View {
         let place = e.place.map { " into \($0)" } ?? ""
         return WordsCard {
             Text("Longest").refinedFont(.meta).foregroundStyle(Refined.mute)
-            Text(WordsText.clock(e.seconds)).font(.system(size: 22, weight: .bold)).monospacedDigit().foregroundStyle(Refined.ink)
+            Text(WordsText.clock(e.seconds)).scaledFont(22, weight: .bold).monospacedDigit().foregroundStyle(Refined.ink)
             Text("\(WordsText.words(e.words))\(place), \(Formats.pattern("EEEE, MMM d").string(from: e.date))")
                 .refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
         }
@@ -324,7 +324,7 @@ struct WordsFunCards: View {
         let top = Double(max(1, t.bins.max() ?? 1))
         return WordsCard {
             Text(text.title).refinedFont(.meta).foregroundStyle(Refined.mute)
-            Text("\(Int((t.leaderShare * 100).rounded()))%").font(.system(size: 22, weight: .bold)).monospacedDigit().foregroundStyle(Refined.ink)
+            Text("\(Int((t.leaderShare * 100).rounded()))%").scaledFont(22, weight: .bold).monospacedDigit().foregroundStyle(Refined.ink)
             Text(text.line.replacingOccurrences(of: "\(Int((t.leaderShare * 100).rounded()))% ", with: ""))
                 .refinedFont(.meta).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .bottom, spacing: 2) {

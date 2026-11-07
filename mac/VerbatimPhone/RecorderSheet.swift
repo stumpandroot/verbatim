@@ -427,7 +427,7 @@ struct RecorderLiveWords: View {
                 (Text(parts.older).foregroundStyle(Refined.mute)
                     + Text(parts.older.isEmpty || parts.newest.isEmpty ? "" : " ")
                     + Text(parts.newest).foregroundStyle(Refined.ink))
-                    .font(.system(size: size, design: .serif))
+                    .font(.system(size: size, design: .serif))   // type: scaled (@ScaledMetric)
                     .lineSpacing(spacing)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -43,7 +43,7 @@ struct PhoneExportSheet: View {
                 .refinedSwitchTint()
                 Section {
                     Text(preview.isEmpty ? "Nothing to export yet." : preview)
-                        .font(.system(size: 12)).foregroundStyle(Refined.ink).lineSpacing(3)
+                        .scaledFont(12).foregroundStyle(Refined.ink).lineSpacing(3)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityLabel("Preview")

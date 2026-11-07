@@ -26,7 +26,7 @@ struct ActionButtonScreen: View {
         SettingsPageScaffold(title: "Action button") {
             VStack(alignment: .leading, spacing: 10) {
                 Text(Self.lede)
-                    .font(.system(size: 15)).foregroundStyle(Refined.dim)
+                    .scaledFont(15).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 6)
 
@@ -47,7 +47,7 @@ struct ActionButtonScreen: View {
 
                 VStack(spacing: 0) {
                     HStack(spacing: 10) {
-                        Text("After a take").font(.system(size: 16)).foregroundStyle(Refined.ink)
+                        Text("After a take").scaledFont(16).foregroundStyle(Refined.ink)
                         Spacer(minLength: 8)
                         SettingsValue("Insert or copy")
                     }
@@ -62,7 +62,7 @@ struct ActionButtonScreen: View {
                 .padding(.top, 6)
 
                 Text("While a session is on, the orange microphone dot shows at the top of the screen. Audio is saved only while you dictate.")
-                    .font(.system(size: 13)).foregroundStyle(Refined.dim)
+                    .scaledFont(13).foregroundStyle(Refined.dim)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 4)
             }
@@ -95,18 +95,18 @@ struct ActionButtonSetupCard: View {
             HStack(spacing: 12) {
                 IconSquare(art: .iconActionButton, hue: .neutral)
                     .accessibilityHidden(true)
-                Text("Set up the Action button").font(.system(size: 21, design: .serif))
+                Text("Set up the Action button").scaledFont(21, design: .serif)
                     .foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
             }
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(ActionButtonScreen.steps.enumerated()), id: \.offset) { i, step in
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text("\(i + 1)").font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                        Text("\(i + 1)").scaledFont(12, weight: .semibold).monospacedDigit()
                             .foregroundStyle(Refined.ink)
                             .frame(width: 22, height: 22)
                             .overlay(Circle().strokeBorder(Refined.ink, lineWidth: 1.2))
-                        Text(step).font(.system(size: 16)).foregroundStyle(Refined.ink)
+                        Text(step).scaledFont(16).foregroundStyle(Refined.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .accessibilityElement(children: .combine)
@@ -129,7 +129,7 @@ private struct IdleTimeoutRow: View {
     @ObservedObject var session: KeyboardSession
     var body: some View {
         HStack(spacing: 10) {
-            Text("End the session after").font(.system(size: 16)).foregroundStyle(Refined.ink)
+            Text("End the session after").scaledFont(16).foregroundStyle(Refined.ink)
             Spacer(minLength: 8)
             Picker("End the session after", selection: $session.timeoutSeconds) {
                 ForEach(KeyboardSession.timeoutChoices, id: \.seconds) { c in
@@ -158,8 +158,8 @@ private struct ActionChoiceRow: View {
                     .frame(width: 30, height: 30)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(choice.title).font(.system(size: 17)).foregroundStyle(Refined.ink)
-                    Text(choice.detail).font(.system(size: 13)).foregroundStyle(Refined.mute)
+                    Text(choice.title).scaledFont(17).foregroundStyle(Refined.ink)
+                    Text(choice.detail).scaledFont(13).foregroundStyle(Refined.mute)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .multilineTextAlignment(.leading)

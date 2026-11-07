@@ -279,9 +279,9 @@ struct HomeThoughtsSection: View {
                     IconGlyph(art: .iconThought, size: 20, color: Refined.ink)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(HomeThoughts.countLine(page.count)).refinedFont(.rowTitle, weight: .semibold)
-                            .foregroundStyle(Refined.ink).lineLimit(1)
+                            .foregroundStyle(Refined.ink).rowLines()
                         Text(page.last.map(words) ?? "Tap New thought to start today's page.")
-                            .refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+                            .refinedFont(.meta).foregroundStyle(Refined.mute).rowLines()
                     }
                     Spacer(minLength: 0)
                 }

@@ -253,7 +253,7 @@ private struct MiniRecorderDetail: View {
         } else {
             // Whole words only, never cut mid-word at the start (TailWords, review P-23).
             TailWords(text: line, lines: 1, lineHeight: UIFont.systemFont(ofSize: size).lineHeight) { tail in
-                Text(tail).font(.system(size: size)).foregroundStyle(Refined.mute)
+                Text(tail).font(.system(size: size)).foregroundStyle(Refined.mute)   // type: scaled (@ScaledMetric)
             }
         }
     }

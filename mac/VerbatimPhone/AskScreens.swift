@@ -308,7 +308,7 @@ struct PhoneAskCitations: View {
     private func row(_ s: AskSource) -> some View {
         let parts = s.title.components(separatedBy: " · ")
         return HStack(spacing: 12) {
-            Text("\(s.number)").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Refined.accentText)
+            Text("\(s.number)").scaledFont(13, weight: .semibold).monospacedDigit().foregroundStyle(Refined.accentText)
                 .frame(width: 22, height: 22).background(Refined.persimmonTint, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
                 Text(parts.first ?? s.title).refinedFont(.rowTitle).foregroundStyle(Refined.ink).lineLimit(1)

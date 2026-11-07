@@ -466,7 +466,7 @@ struct RecordTrayLayer: View {
             Spacer(minLength: 8)
             Button { tray.close() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))   // type: fixed (a glyph)
                     .foregroundStyle(Refined.ink)
                     .frame(width: 30, height: 30)
                     .background(Refined.neutral, in: Circle())

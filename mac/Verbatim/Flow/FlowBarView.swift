@@ -213,16 +213,24 @@ struct FlowBarView: View {
                     RibbonMeter(edge: model.edge, levels: liveLevels, thickness: 5, length: 24)
                 } rest: {
                     VStack(spacing: 3) {
-                        Button(action: controller.stop) {
-                            ZStack { Circle().fill(RibbonInk.persimmon); RoundedRectangle(cornerRadius: 1.5).fill(RibbonInk.paper).frame(width: 7, height: 7) }
-                                .frame(width: 22, height: 22)
+                        // Stop: an ink square on persimmon (4.45:1; paper measured 2.41:1), as the notch's Stop draws it,
+                        // through the panel-safe control (DESIGN.md §12; MAC-02, GPT-18).
+                        RibbonControl(id: "ribbon-stop", label: "Stop and paste", help: "Stop and paste", action: controller.stop) { pressed in
+                            ZStack {
+                                Circle().fill(RibbonInk.persimmon)
+                                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.inkFixed).frame(width: 9, height: 9)
+                            }
+                            .frame(width: 26, height: 26)
+                            .opacity(pressed ? 0.85 : 1)
                         }
-                        .buttonStyle(.plain).help("Stop and paste")
                         Text(elapsed).font(.system(size: 11, design: .monospaced)).foregroundStyle(RibbonInk.muted).monospacedDigit()
                     }
                     if model.handsFree {
-                        Button(action: controller.cancel) { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(RibbonInk.muted).frame(width: 22, height: 22).background(RibbonInk.raised, in: Circle()) }
-                            .buttonStyle(.plain).help("Cancel (Esc)")
+                        RibbonControl(id: "ribbon-cancel", label: "Cancel dictation", help: "Cancel (Esc)", action: controller.cancel) { pressed in
+                            Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(RibbonInk.muted)
+                                .frame(width: 22, height: 22).background(RibbonInk.raised, in: Circle())
+                                .opacity(pressed ? 0.8 : 1)
+                        }
                     }
                 }
                 if let a = model.alert {

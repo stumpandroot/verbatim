@@ -245,6 +245,8 @@ Verbose has one look on the Mac, iPhone, keyboard, widgets, and Apple Watch (app
 | `faint` | `#8E938A` | `#6F7A72` | `#606962`, `#A1A29A` | Chevrons; never text |
 | `accentText` | `#B23F24` | `#FF8A6B` | | Links, the selected tab and chip |
 | `sageText` | `#4F6440` | `#B9CDA3` | | The playing line's time |
+| `accentFill` | `#B23F24` | `#B23F24` | | Fills under white system labels: the Pin swipe action and the native Paste button (`accentFillFixed`) |
+| `sageFill` | `#4F6440` | `#4F6440` | | The Restore swipe action's fill under its white label (`sageFillFixed`) |
 | `danger` | `#B3261E` | `#FF8A80` | `#8C1D18`, `#FFB4AB` | A destructive row's title (Delete all data), on a neutral square |
 | `onFill` | `#26352E` | `#26352E` | | Text and glyphs on a Full fill |
 | `lift` | `#FFFDF9` | `#FFFDF9` | | Under the ready chip (`chipFull`); text on a strong action on a Full fill |
@@ -296,7 +298,7 @@ Kinds have colors again (this replaces §1's neutral kinds for refined screens),
 
 1. **Serif** (New York) for large titles (34 pt on iPhone, 32 on the Mac), a transcript's title (28, 32), section titles (22, 20), "Record" on the Record card (32, 30), and **transcript reading text**: 19 pt with a 1.45 line height on iPhone, 18 pt with 1.55 on the Mac (`ReadingText`, `readingStyle()`; the Mac's ⌘+ and ⌘− move it from 14 to 24 pt, `readingStyle(size:)`). This reverses §2.4 for refined screens.
 2. **SF Pro** for everything else: rows (16 semibold on iPhone, 13.5 on the Mac), metadata (13, 12.5), chips (13 and 12 semibold), tile names (16 and 15 semibold), and the recorder's clock (SF Pro Ultralight with hundredths). Times and counts use `.monospacedDigit()`; `Refined.mono` is SF Pro with tabular digits. SF Mono and mono eyebrows retired with the old looks; only the Mac's Ribbon and notch keep SF Mono for their timers (`SurfaceFont`, §12).
-3. Every role scales with Dynamic Type on iPhone (`refinedFont`), and tap targets are 44 pt or larger. Sentence case everywhere (§8).
+3. Every role scales with Dynamic Type on iPhone (`refinedFont`), and tap targets are 44 pt or larger. Sentence case everywhere (§8). Text that needs a size of its own uses `scaledFont(size, weight:, design:)` (`Views/Tokens.swift`), which grows from that size on the nearest text style; that includes widgets, the Live Activity's Lock Screen views, the watch, and the keyboard's notices, lists, and status lines (its key geometry stays fixed). **[checked]** `brand-check.sh` fails on `.font(.system(size:` for text in `VerbatimPhone/`; an SF Symbol's size, a scale drawing, or a size that already comes from `@ScaledMetric` is marked on its line (`// type: fixed (why)` or `// type: scaled (@ScaledMetric)`). Only the Dynamic Island's compact and minimal views keep fixed sizes, where the system caps them anyway. At accessibility sizes a row's title and meta wrap to three lines and its trailing item moves under them (`PaperRow`, `rowLines()`). Live captions multiply their Size setting by a Dynamic Type factor, and voice setup's passage grows the same way.
 
 ### Components
 
@@ -378,6 +380,9 @@ Every text pair the kit draws reaches 4.5:1 in light, dark, and both with Increa
 - The recorder's older words use `mute`, never `faint` (2.8:1). On the Mac's recording card, words still being heard are italic in the card's ink rather than lighter: any lighter ink on the fill measures under 4.5:1.
 - Quiet actions on a persimmon fill (the recording card's Mark moment and Pause) sit on the ready chip's wash: the neutral wash measures 3.95:1 under Increase Contrast.
 - Under Increase Contrast, cards take a `separator` edge (an off-white card on paper is about 1.1:1), and the player turns solid.
+- Live captions' older lines stay in full `mute` (5:1) and show their age by size and position; fading them by opacity measured 2.0 to 3.1:1. Voice setup's passage puts the words already read in ink, the next phrase in ink with an `accentText` underline, and the rest in `mute` (never `faint`).
+- White system labels (swipe actions, the native Paste button) sit on the fixed fills `accentFillFixed` and `sageFillFixed`, which keep the light values in dark: white on the dark accent text measured 2.3:1, and the Paste button's rendered fill 3.1:1.
+- The Ribbon's Stop is an ink square on persimmon (4.45:1), as the notch's is; a paper square measured 2.41:1. The keyboard's Insert pill is ink on its wash. A calendar's next-month dates, which you can tap, are `mute`. The player shows its position with an ink playhead, and its unplayed waveform or rail takes `faint` under Increase Contrast. On the light Lock Screen, the bars mark and the voice bars are `accentTextOnPaper` (5.6:1; the bright fill measured 2.4:1), bright persimmon on the dark one (`ActivitySkin.mark`).
 
 ### What retires
 

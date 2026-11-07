@@ -158,8 +158,10 @@ final class PhoneCaptions: ObservableObject {
     }
 }
 
-/// The full-screen captions view (approved mockup PhoneCaptions): a mono header, faded older lines over a large
-/// current line, Aa Size / language / Flip for them, then Stop and Save transcript.
+/// The full-screen captions view (approved mockup PhoneCaptions): a mono header, smaller older lines over a large
+/// current line, Aa Size / language / Flip for them, then Stop and Save transcript. Older lines stay in full `mute`
+/// (5:1), their age shown by size and position (IP-04). The size setting multiplies a base that grows with Dynamic
+/// Type (GPT-07).
 struct LiveCaptionsScreen: View {
     @Environment(PhoneState.self) var app
     @ObservedObject var captions: PhoneCaptions
@@ -168,7 +170,13 @@ struct LiveCaptionsScreen: View {
     @Environment(\.limitMotion) private var limitMotion
     @State private var confirmStop = false
 
+    /// Dynamic Type's factor for the captions, on the large title's curve (1 at the default size, about 1.8 at the
+    /// largest): the Size setting's points are multiplied by it.
+    @ScaledMetric(relativeTo: .largeTitle) private var typeScale: CGFloat = 1
+
     private var size: CaptionSize { CaptionSize(rawValue: sizeRaw) ?? .medium }
+    /// The current line's size: the setting's points at the person's text size.
+    private var current: CGFloat { size.phone * typeScale }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -223,24 +231,27 @@ struct LiveCaptionsScreen: View {
                 Text(captionClock(captions.elapsed)).refinedFont(.caption, weight: .medium).monospacedDigit().foregroundStyle(Refined.mute)
             }
             .accessibilityLabel("Elapsed time")
+            .accessibilityValue(RefinedRules.spokenTime(captions.elapsed))
         }
     }
 
     private var lines: some View {
         ZStack(alignment: .bottomLeading) {
             if feed.history.isEmpty && feed.current.isEmpty {
-                Text(captions.status ?? "Listening…").font(.system(size: 24, design: .serif)).foregroundStyle(Refined.mute)
+                Text(captions.status ?? "Listening…").font(Refined.serif(24 * typeScale)).foregroundStyle(Refined.mute)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                CaptionLinesView(feed: feed, size: size.phone,
-                                 older: [(size.phone * 0.71, Refined.mute), (size.phone * 0.65, Refined.mute.opacity(0.75)),
-                                         (size.phone * 0.62, Refined.mute.opacity(0.6)), (size.phone * 0.6, Refined.mute.opacity(0.5))],
+                // Every older line in full mute: a listener may still be reading it. Size and position show its age.
+                CaptionLinesView(feed: feed, size: current,
+                                 older: [(current * 0.71, Refined.mute), (current * 0.65, Refined.mute),
+                                         (current * 0.62, Refined.mute), (current * 0.6, Refined.mute)],
                                  showSpeakers: false, spacing: 14, currentLimit: 150)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         .padding(.vertical, 20)
-        .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.25), .init(color: .black, location: 1)],
+        // A short fade at the very top edge only, where a line scrolls out.
+        .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.1), .init(color: .black, location: 1)],
                              startPoint: .top, endPoint: .bottom))
         .clipped()
         .overlay(alignment: .top) {

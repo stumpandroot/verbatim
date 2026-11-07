@@ -3,8 +3,8 @@ import WidgetKit
 
 /// The Lock Screen's Live Activities (the session's and the recording's) follow the Lock Screen's appearance, not the
 /// app's (DESIGN.md §13): paper with ink in light, and the app's near-black green (`darkPaperFixed`) with paper text
-/// in dark, so a bright banner never sits on a dark Lock Screen. The persimmon Stop with ink, the persimmon voice bars,
-/// and the bars mark stay the same in both. The Dynamic Island is always black and doesn't use this.
+/// in dark, so a bright banner never sits on a dark Lock Screen. The persimmon Stop with ink stays the same in both;
+/// the voice bars and the bars mark take `mark`. The Dynamic Island is always black and doesn't use this.
 struct ActivitySkin {
     var dark: Bool
 
@@ -15,6 +15,9 @@ struct ActivitySkin {
     var dim: Color { dark ? Refined.onBlackDim : Refined.inkFixed.opacity(0.8) }
     /// Quiet data, such as how long the session has been on.
     var mute: Color { dark ? Refined.muteOnInk : Refined.muteOnPaper }
+    /// The marks that carry "listening" (the bars mark, the voice bars): the text-safe persimmon on paper (5.6:1; the
+    /// bright fill measured 2.4:1 there), the bright persimmon on the dark paper (SF-27).
+    var mark: Color { dark ? Refined.persimmonFixed : Refined.accentTextOnPaper }
     /// The outlined buttons' ring (Mark, Pause or Resume): full ink on paper, full paper on the dark paper.
     var outline: Color { dark ? Refined.onBlack : Refined.inkFixed }
 }

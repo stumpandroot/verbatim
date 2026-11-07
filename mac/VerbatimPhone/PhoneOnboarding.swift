@@ -57,7 +57,7 @@ struct PhoneOnboarding: View {
             HStack(spacing: 10) {
                 BarsMark(color: Refined.persimmon).frame(width: 19, height: 20)
                 Text("\(Text("verbose").foregroundStyle(Refined.ink))\(Text(".").foregroundStyle(Refined.accentText))")
-                    .font(.system(size: 22, design: .serif))
+                    .scaledFont(22, design: .serif)
             }
             .padding(.top, 22)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")

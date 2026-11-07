@@ -1079,6 +1079,9 @@ struct PaperRow<Trailing: View>: View {
     var celebration: BurstState? = nil
     @ViewBuilder var trailing: Trailing
     private let mac = RefinedPlatform.mac
+    /// At accessibility text sizes the title and meta wrap to three lines and the trailing item moves under them
+    /// (IP-09), so a title never shrinks to a few letters.
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         if mac {
@@ -1095,27 +1098,48 @@ struct PaperRow<Trailing: View>: View {
             .contentShape(Rectangle())
         } else {
             let burst = celebration?.active == true ? celebration : nil
+            let large = typeSize.isAccessibilitySize
+            let lines = large ? 3 : 1
+            let words = VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 5) {
+                    if pinned { IconGlyph(art: .iconPin, size: 13, color: Refined.mute).accessibilityHidden(true) }
+                    Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(lines)
+                }
+                .alignmentGuide(.rowTitle) { d in d[VerticalAlignment.center] }
+                Text(meta).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(lines)
+                    .opacity(burst?.old ?? 1)
+                    .celebrationWord(burst == nil ? nil : CelebrationWord.ready, state: burst ?? .idle, size: 14)
+            }
             HStack(spacing: 12) {
                 KindBadge(kind: kind, size: badge, fill: burst.map { $0.fill } ?? badgeFill)
                     .scaleEffect(burst?.scale ?? 1)
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 5) {
-                        if pinned { IconGlyph(art: .iconPin, size: 13, color: Refined.mute).accessibilityHidden(true) }
-                        Text(title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
+                if large {
+                    VStack(alignment: .leading, spacing: 4) {
+                        words
+                        trailing.opacity(burst?.old ?? 1)
                     }
-                    .alignmentGuide(.rowTitle) { d in d[VerticalAlignment.center] }
-                    Text(meta).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
-                        .opacity(burst?.old ?? 1)
-                        .celebrationWord(burst == nil ? nil : CelebrationWord.ready, state: burst ?? .idle, size: 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    words.frame(maxWidth: .infinity, alignment: .leading)
+                    trailing.opacity(burst?.old ?? 1)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                trailing.opacity(burst?.old ?? 1)
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: CGFloat(RefinedRules.minTapTarget), alignment: .leading)
             .contentShape(Rectangle())
         }
     }
+}
+
+/// One line at the usual text sizes, up to three at accessibility sizes (IP-09): a row's title or meta that would
+/// otherwise truncate to a few letters.
+struct RowLines: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var typeSize
+    func body(content: Content) -> some View { content.lineLimit(typeSize.isAccessibilitySize ? 3 : 1) }
+}
+
+extension View {
+    func rowLines() -> some View { modifier(RowLines()) }
 }
 
 /// A card with a header that stays at the top of the scroll view while its rows scroll under it (the Mac Library's

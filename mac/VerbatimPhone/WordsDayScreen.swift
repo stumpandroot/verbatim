@@ -26,7 +26,7 @@ struct WordsDayScreen: View {
                         .fixedSize(horizontal: false, vertical: true).accessibilityAddTraits(.isHeader)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(d.day.words.formatted()).font(.system(size: 40, weight: .bold)).monospacedDigit().foregroundStyle(Refined.ink)
+                    Text(d.day.words.formatted()).scaledFont(40, weight: .bold).monospacedDigit().foregroundStyle(Refined.ink)
                     Text((d.day.words == 1 ? "word" : "words") + (isBest ? ", your best day this month" : ""))
                         .refinedFont(.hint).foregroundStyle(Refined.dim)
                 }
@@ -190,7 +190,7 @@ struct WordsDayScreen: View {
                 ForEach(Array(d.topWords.enumerated()), id: \.offset) { i, w in
                     let size: CGFloat = w.count >= top ? 20 : w.count * 3 >= top * 2 ? 18 : 16
                     HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        Text(w.word).font(.system(size: size, weight: .semibold)).foregroundStyle(Refined.ink)
+                        Text(w.word).scaledFont(size, weight: .semibold).foregroundStyle(Refined.ink)
                         Text("\(w.count)").refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.dim)
                     }
                     .padding(.horizontal, 13).padding(.vertical, 7)

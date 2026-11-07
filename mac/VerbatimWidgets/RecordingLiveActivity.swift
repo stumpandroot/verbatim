@@ -173,14 +173,14 @@ private struct RecordingLockScreen: View {
                 .accessibilityElement(children: .combine)
             } else {
                 HStack(spacing: 8) {
-                    BarsMark(color: Refined.persimmonFixed).frame(width: 18, height: 18)
+                    BarsMark(color: skin.mark).frame(width: 18, height: 18)
                     Text(state.isPaused ? (state.pausedReason ?? "Paused") : "Recording · \(title)")
                         .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
                     Spacer(minLength: 8)
                     RecordingTimer(state: state).font(Refined.mono(15, weight: .medium)).foregroundStyle(ink)
                         .frame(width: RecordingTimer.width(15), alignment: .trailing)
                 }
-                ThoughtVoiceBars(level: state.level ?? 0.5, color: Refined.persimmonFixed, count: 34).frame(height: 22)
+                ThoughtVoiceBars(level: state.level ?? 0.5, color: skin.mark, count: 34).frame(height: 22)
                 if state.markCount > 0, let at = state.markedAt {
                     HStack(spacing: 6) {
                         Image("marked").font(.system(size: 13, weight: .medium)).accessibilityHidden(true)
@@ -326,14 +326,14 @@ private struct ThoughtLockScreen: View {
                 ThoughtSavedLine(state: state, skin: skin)
             } else {
                 HStack(spacing: 8) {
-                    BarsMark(color: Refined.persimmonFixed).frame(width: 18, height: 18)
+                    BarsMark(color: skin.mark).frame(width: 18, height: 18)
                     Text(state.isPaused ? (state.pausedReason ?? "Paused") : ThoughtRules.lockTitle)
                         .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
                     Spacer(minLength: 8)
                     RecordingTimer(state: state).font(Refined.mono(15, weight: .medium)).foregroundStyle(ink)
                         .frame(width: RecordingTimer.width(15), alignment: .trailing)
                 }
-                ThoughtVoiceBars(level: state.level ?? 0, color: Refined.persimmonFixed, count: 34).frame(height: 22)
+                ThoughtVoiceBars(level: state.level ?? 0, color: skin.mark, count: 34).frame(height: 22)
                 Text(ThoughtRules.intoLine(page ?? "Thoughts")).font(.system(size: 13)).foregroundStyle(skin.dim)
                     .lineLimit(1).minimumScaleFactor(0.85)
                 HStack(spacing: 8) {

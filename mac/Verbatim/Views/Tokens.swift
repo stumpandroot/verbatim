@@ -74,6 +74,10 @@ enum RefinedHex {
     static let accentText = Tone(0xB23F24, 0xFF8A6B)
     /// Sage for text: a playing line's time.
     static let sageText = Tone(0x4F6440, 0xB9CDA3)
+    /// Fills under white system labels, the same in light and dark (the light text tones): swipe actions (Pin, Restore)
+    /// and the native Paste button. White on them is 5.8:1 and 6.5:1; the dark text tones measure 2.3:1 and 1.7:1.
+    static let accentFill = Tone(0xB23F24, 0xB23F24)
+    static let sageFill = Tone(0x4F6440, 0x4F6440)
     /// A destructive row's title (Delete all data, Clear saved voices): red, apart from the persimmon accent, on its
     /// neutral square. Recording's system red stays on the record disc and the stop square.
     static let danger = Tone(0xB3261E, 0xFF8A80, hc: (0x8C1D18, 0xFFB4AB))
@@ -227,6 +231,9 @@ extension Refined {
     static let butterFixed = Color(hex: RefinedHex.butter.light)
     /// Accent and quiet text on the fixed paper and on the fixed dark paper.
     static let accentTextOnPaper = Color(hex: RefinedHex.accentText.light)
+    /// Fills that carry white system labels in light and dark: swipe actions and the native Paste button (IP-03, IP-13).
+    static let accentFillFixed = color(RefinedHex.accentFill)
+    static let sageFillFixed = color(RefinedHex.sageFill)
     static let accentTextOnInk = Color(hex: RefinedHex.accentText.dark)
     static let muteOnPaper = Color(hex: RefinedHex.mute.light)
     static let muteOnInk = Color(hex: RefinedHex.mute.dark)
@@ -259,6 +266,51 @@ extension Refined {
     }
     /// The tagline (DESIGN.md §4), set in the serif on About and the first onboarding screen.
     static let tagline = "Go ahead. Be verbose."
+}
+
+// MARK: - Scaled type
+
+/// SF Pro (or the serif) at a size given for the default text size, grown and shrunk with Dynamic Type on the text
+/// style nearest that size (DESIGN.md §2, §13 Type 3). For screens, widgets, Live Activities, and the watch that set a
+/// size of their own instead of a kit role (`refinedFont`). The Mac has no Dynamic Type, so it keeps the size.
+struct ScaledFont: ViewModifier {
+    let weight: Font.Weight
+    let design: Font.Design
+    @ScaledMetric private var size: CGFloat
+
+    init(_ size: CGFloat, weight: Font.Weight, design: Font.Design, relativeTo style: Font.TextStyle?) {
+        self.weight = weight
+        self.design = design
+        _size = ScaledMetric(wrappedValue: size, relativeTo: style ?? ScaledFont.style(for: size))
+    }
+
+    /// The text style whose default size is nearest at or below `size`, so a size scales the way that style does.
+    static func style(for size: CGFloat) -> Font.TextStyle {
+        switch size {
+        case 34...: return .largeTitle
+        case 28..<34: return .title
+        case 22..<28: return .title2
+        case 20..<22: return .title3
+        case 17..<20: return .body
+        case 16..<17: return .callout
+        case 15..<16: return .subheadline
+        case 13..<15: return .footnote
+        case 12..<13: return .caption
+        default: return .caption2
+        }
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight, design: design))
+    }
+}
+
+extension View {
+    /// `size` points at the default text size, scaling with Dynamic Type: `.scaledFont(15, weight: .semibold)`.
+    func scaledFont(_ size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default,
+                    relativeTo style: Font.TextStyle? = nil) -> some View {
+        modifier(ScaledFont(size, weight: weight, design: design, relativeTo: style))
+    }
 }
 
 // MARK: - Apple Watch

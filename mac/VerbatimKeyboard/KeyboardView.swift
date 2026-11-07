@@ -1085,7 +1085,8 @@ private struct ListRow: View {
                 Text(Self.oneLine(text)).font(.system(size: 14.5)).foregroundStyle(KB.ink).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Insert").font(.system(size: 13, weight: .bold)).foregroundStyle(Refined.accentText)
+            // Ink on the wash (about 9:1); the accent measured 3.3:1 there in light (SF-08).
+            Text("Insert").font(.system(size: 13, weight: .bold)).foregroundStyle(KB.ink)
                 .padding(.horizontal, 11).frame(height: 28)
                 .background(Capsule().fill(KB.wash))
         }
@@ -1093,8 +1094,11 @@ private struct ListRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: insert)
         .onLongPressGesture(minimumDuration: 0.45, perform: { copy?() })
+        // Labeled with the word the pill shows, so Voice Control's "Tap Insert" finds it; the text is its value (SF-31).
         .accessibilityElement()
-        .accessibilityLabel(String(text.prefix(200)))
+        .accessibilityLabel("Insert")
+        .accessibilityValue(String(text.prefix(200)))
+        .accessibilityInputLabels([Text("Insert"), Text(String(Self.oneLine(text).prefix(30)))])
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(hint)
         .accessibilityActions {
