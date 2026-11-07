@@ -25,6 +25,9 @@ struct LibraryView: View {
     /// Clear for a moment after a chip changes the filter, then fades in (`fadeList`).
     @State private var listShown = true
     @FocusState private var focused: Bool
+    /// Which column has the keyboard (MAC-25): the selected row shows a leading bar while the table has it, and dims
+    /// while the sidebar does.
+    @ObservedObject private var columns = ColumnFocus.shared
 
     /// How many Libraries are on screen, and their rows' order (the self-test).
     static var onScreen = 0
@@ -68,7 +71,9 @@ struct LibraryView: View {
                     .softScrollEdges(.top)
                     .focusable()
                     .focused($focused)
+                    // No blue ring around the table; the selected row's leading bar shows it has the keyboard.
                     .focusEffectDisabled()
+                    .onChange(of: focused) { _, on in columns.set(.library, on) }
                     .onKeyPress(.downArrow) { step(1, order, proxy); return .handled }
                     .onKeyPress(.upArrow) { step(-1, order, proxy); return .handled }
                     // Return and Space open from the keyboard: the transcript shows at once (DESIGN.md §7).
@@ -376,11 +381,12 @@ struct LibraryView: View {
 
     private func table(_ rows: [Transcript], order: [UUID], columns: LibraryColumns) -> some View {
         let projects = app.store.projectsByID
+        let look = SelectionLook.of(.library, focus: self.columns.focus)
         return PaperTable {
             header(columns)
         } rows: {
             ForEach(Array(rows.enumerated()), id: \.element.id) { i, t in
-                LibraryTableRow(transcript: t, columns: columns, selected: selection.contains(t.id), striped: i % 2 == 0,
+                LibraryTableRow(transcript: t, columns: columns, selected: selection.contains(t.id), look: look, striped: i % 2 == 0,
                                 people: Self.people(t, projects: projects),
                                 onClick: { clicked(t.id, order: order) },
                                 dragIDs: { selection.contains(t.id) ? order.filter { selection.contains($0) } : [t.id] })
@@ -611,6 +617,8 @@ private struct LibraryTableRow: View {
     var transcript: Transcript
     var columns: LibraryColumns
     var selected: Bool
+    /// The selection's look (MAC-25): the tint, the tint with the focus bar, or dimmed.
+    var look: SelectionLook = .tint
     var striped: Bool
     var people: String
     var onClick: () -> Void
@@ -621,7 +629,8 @@ private struct LibraryTableRow: View {
             cells(t)
                 .padding(.horizontal, LibraryColumns.inset).padding(.vertical, 8)
                 .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
-                .background(selected ? Refined.persimmonTint : (striped ? Refined.stripe : Color.clear))
+                .background(selected ? (look == .dimmed ? Refined.neutral : Refined.persimmonTint) : (striped ? Refined.stripe : Color.clear))
+                .overlay(alignment: .leading) { if selected && look == .focused { FocusBar() } }
                 .allowsHitTesting(false)
                 .overlay { hitLayer }
                 .accessibilityElement(children: .ignore)
@@ -718,7 +727,7 @@ extension View {
 // MARK: - Passages
 
 /// Search that finds the moment, not just the file: each matching line with its speaker and time, grouped by
-/// transcript in a card. Click a line to open the transcript there.
+/// transcript in a card. Click a line (or Tab to it and press Space) to open the transcript there.
 struct PassageResults: View {
     var query: String
     /// The library's filtered transcripts, worked out once by the caller.
@@ -772,16 +781,27 @@ struct PassageLine: View {
     var segment: Segment
     var query: String
     @State private var hover = false
+    /// A Button (MAC-23): Tab reaches it with Full Keyboard Access, Space or Return opens it, and VoiceOver reads it as
+    /// one button. The video link beside it is its own button, never nested inside.
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(segment.start.timecode).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.accentText).frame(width: 52, alignment: .leading)
-            VStack(alignment: .leading, spacing: 2) {
-                if transcript.speakers.count >= 2, let sp = transcript.speakerName(segment.speaker) {
-                    Text(sp).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Button(action: open) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(segment.start.timecode).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.accentText).frame(width: 52, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        if transcript.speakers.count >= 2, let sp = transcript.speakerName(segment.speaker) {
+                            Text(sp).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
+                        }
+                        Text(marked).refinedFont(.body).foregroundStyle(Refined.ink).lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Text(marked).refinedFont(.body).foregroundStyle(Refined.ink).lineLimit(3)
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 8)
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(RefinedRules.spokenTime(segment.start)), \(segment.text)")
+            .accessibilityHint("Opens \(transcript.title) at this line")
             if let info = transcript.linkInfo, info.supportsTimestamps, hover {
                 Button { if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) } } label: { IconGlyph(art: .iconPlay, size: 15, color: Refined.accentText) }
                     .buttonStyle(.plain).help("Open the video at \(segment.start.timecode)")
@@ -790,11 +810,10 @@ struct PassageLine: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 7)
         .background(hover ? Refined.stripe : .clear)
-        .contentShape(Rectangle())
         .onHover { hover = $0 }
-        .onTapGesture { app.focusSegment = segment.id; app.go(.transcript(transcript.id)) }
-        .accessibilityAddTraits(.isButton)
     }
+
+    private func open() { app.focusSegment = segment.id; app.go(.transcript(transcript.id)) }
 
     /// The query in the line, on the persimmon tint in semibold.
     private var marked: AttributedString {

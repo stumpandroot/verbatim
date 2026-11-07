@@ -109,6 +109,14 @@ check("inspector: closes when the content would be under about 560 pt", !Inspect
       && InspectorFit.minContent == 560)
 check("inspector: stays closed when you closed it", !InspectorFit.shows(chosen: false, detailWidth: 2000, inspectorWidth: 300))
 
+// MARK: Visible focus
+
+check("focus: the column with the keyboard marks its selection; the other dims (MAC-25)",
+      SelectionLook.of(.library, focus: .library) == .focused && SelectionLook.of(.sidebar, focus: .library) == .dimmed
+      && SelectionLook.of(.sidebar, focus: .sidebar) == .focused && SelectionLook.of(.library, focus: .sidebar) == .dimmed)
+check("focus: with neither focused, the tint as always", SelectionLook.of(.library, focus: nil) == .tint && SelectionLook.of(.sidebar, focus: nil) == .tint)
+check("focus: the bar is 2 pt", SelectionLook.barWidth == 2)
+
 // MARK: Sources
 
 let mac = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : ".")
@@ -158,6 +166,16 @@ check("undo: the Cleaned tab registers its history on the window's UndoManager (
       doc.contains("@Environment(\\.undoManager) private var undoManager") && doc.contains("um.registerUndo(withTarget: store)")
       && doc.contains("$0.redoDocument(snapshot)"))
 check("undo: nothing binds ⇧⌘Z to Undo, and the tooltip says ⌘Z", !doc.contains(".keyboardShortcut(\"z\"") && doc.contains("fix (⌘Z)") && !doc.contains("fix (⇧⌘Z)"))
+
+let sidebar = read("Verbatim/Views/MacSidebar.swift"), library = read("Verbatim/Views/LibraryView.swift")
+check("focus: the sidebar and the table keep the blue ring off and draw the bar instead",
+      sidebar.contains(".focusEffectDisabled()") && sidebar.contains("columns.set(.sidebar, on)") && sidebar.contains("FocusBar()")
+      && library.contains(".focusEffectDisabled()") && library.contains("columns.set(.library, on)") && library.contains("FocusBar()"))
+check("keyboard: calendar days and arrows, the pad's arrows and mic take focus and Space (GPT-14)",
+      read("Verbatim/Views/ByDayView.swift").components(separatedBy: ".keyActivation").count == 3
+      && read("Verbatim/Flow/ThoughtPad.swift").components(separatedBy: ".keyActivation").count >= 3
+      && read("Verbatim/Views/Controls.swift").contains(".focusable(enabled, interactions: .activate)"))
+check("keyboard: a search passage is a Button (MAC-23)", library.contains("Button(action: open)") && !library.contains(".onTapGesture { app.focusSegment = segment.id"))
 
 let recall = read("Verbatim/Flow/Recall.swift")
 check("recall: the panel uses RecallKeys and gates hover on a real move",

@@ -73,8 +73,26 @@ struct TapArea: ViewModifier {
     }
 }
 
+/// The keyboard and VoiceOver routes a direct-gesture control needs beside its click (GPT-14, MAC-23; WCAG 2.1.1): it
+/// takes focus as a button does (with Full Keyboard Access, Tab reaches it and the system draws its focus ring), Space
+/// or Return runs it, and VoiceOver's default action runs it. Use it with `tapArea` wherever a SwiftUI Button can't go
+/// (panels, controls under a parent gesture).
+struct KeyActivation: ViewModifier {
+    var enabled = true
+    var action: () -> Void
+    func body(content: Content) -> some View {
+        content
+            .focusable(enabled, interactions: .activate)
+            .onKeyPress(.space) { guard enabled else { return .ignored }; action(); return .handled }
+            .onKeyPress(.return) { guard enabled else { return .ignored }; action(); return .handled }
+            .accessibilityAction { if enabled { action() } }
+    }
+}
+
 extension View {
     func tapArea(_ action: @escaping () -> Void) -> some View { modifier(TapArea(action: action)) }
+    /// See `KeyActivation`.
+    func keyActivation(enabled: Bool = true, _ action: @escaping () -> Void) -> some View { modifier(KeyActivation(enabled: enabled, action: action)) }
     /// Press feedback for real Buttons (scale on isPressed through a button style).
     func pressable() -> some View { buttonStyle(PressStyle()) }
 }

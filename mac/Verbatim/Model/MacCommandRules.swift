@@ -194,3 +194,29 @@ enum InspectorFit {
         chosen && detailWidth - inspectorWidth >= minContent
     }
 }
+
+// MARK: Visible focus
+
+/// The two columns that take the arrow keys: the sidebar and the Library's table.
+enum FocusColumn: Equatable { case sidebar, library }
+
+/// How a column draws its selected row (MAC-25). The blue focus ring stays off (DESIGN.md §13); instead the column with
+/// the keyboard marks its selected row with a 2 pt `accentText` bar on the leading edge, and the other column's
+/// selection dims to `neutral`, so you can tell which column the arrows will move. With neither focused, the selection
+/// keeps the persimmon tint.
+enum SelectionLook: Equatable {
+    /// The persimmon tint, as always.
+    case tint
+    /// The tint with the leading bar: this column has the keyboard.
+    case focused
+    /// `neutral`: the other column has the keyboard.
+    case dimmed
+
+    static func of(_ column: FocusColumn, focus: FocusColumn?) -> SelectionLook {
+        guard let focus else { return .tint }
+        return focus == column ? .focused : .dimmed
+    }
+
+    /// The leading bar's width.
+    static let barWidth: CGFloat = 2
+}

@@ -45,10 +45,13 @@ struct LinkCardOverlay: View {
     /// Cancel: stop the download and remove the transcript. Called at once; the card then fades away.
     var onCancel: () -> Void
     var onRetry: () -> Void
-    /// The tile arrived (or, with motion limited, the card faded): the count goes up now.
+    /// Done or the download finishing: the count goes up now, as the tile starts its flight (it's decoration).
     var onLanded: () -> Void
     /// The card is gone; the host can let go of it.
     var onClosed: () -> Void
+    /// Opened from a key (⌘V on the Mac's Home or Library): the card is there at once with a 0.1 s fade, no scale or
+    /// lift (DESIGN.md §7, keyboard actions don't animate; `KeyMotion.recallFade`).
+    var fromKeyboard = false
 
     @Environment(\.limitMotion) private var limitMotion
     private enum Stage { case entering, shown, folded, flying, faded, leaving }
@@ -119,7 +122,7 @@ struct LinkCardOverlay: View {
 
     private var scale: CGFloat {
         switch stage {
-        case .entering: return limitMotion ? 1 : 0.94
+        case .entering: return limitMotion || fromKeyboard ? 1 : 0.94
         case .flying: return 0.3
         case .leaving: return limitMotion ? 1 : 0.96
         case .shown, .folded, .faded: return 1
@@ -136,7 +139,7 @@ struct LinkCardOverlay: View {
 
     private func offset(from center: CGPoint) -> CGSize {
         switch stage {
-        case .entering: return CGSize(width: 0, height: limitMotion ? 0 : 14)
+        case .entering: return CGSize(width: 0, height: limitMotion || fromKeyboard ? 0 : 14)
         case .leaving: return CGSize(width: 0, height: limitMotion ? 0 : 12)
         case .flying:
             guard let t = target else { return .zero }
@@ -150,7 +153,7 @@ struct LinkCardOverlay: View {
     private func enter() {
         DispatchQueue.main.asyncAfter(deadline: .now() + metrics.appearDelay) {
             guard stage == .entering else { return }
-            withAnimation(limitMotion ? Motion.fade : .smooth(duration: 0.3)) { stage = .shown }
+            withAnimation(fromKeyboard ? .easeOut(duration: KeyMotion.recallFade) : limitMotion ? Motion.fade : .smooth(duration: 0.3)) { stage = .shown }
             react(to: imp.phase)
         }
     }
@@ -173,25 +176,23 @@ struct LinkCardOverlay: View {
         }
     }
 
-    /// Done, the scrim, or the download finishing: fold into the tile, then fly it to the target.
+    /// Done, the scrim, or the download finishing: the count goes up at once (MAC-17; DESIGN.md §7, nothing waits for
+    /// the motion), then the card folds into the tile and flies to the target as decoration.
     private func finish() {
         guard !finishing, stage == .shown || stage == .entering else { return }
         finishing = true
         autoFinish?.cancel(); autoFinish = nil
+        onLanded()
         if limitMotion {
-            withAnimation(Motion.fade, completionCriteria: .logicallyComplete) { stage = .faded } completion: {
-                onLanded(); onClosed()
-            }
+            withAnimation(Motion.fade, completionCriteria: .logicallyComplete) { stage = .faded } completion: { onClosed() }
             return
         }
         withAnimation(.smooth(duration: 0.4), completionCriteria: .logicallyComplete) { stage = .folded } completion: {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
                 if target == nil {
-                    withAnimation(Motion.fade, completionCriteria: .logicallyComplete) { stage = .faded } completion: { onLanded(); onClosed() }
+                    withAnimation(Motion.fade, completionCriteria: .logicallyComplete) { stage = .faded } completion: { onClosed() }
                 } else {
-                    withAnimation(.smooth(duration: 0.45), completionCriteria: .logicallyComplete) { stage = .flying } completion: {
-                        onLanded(); onClosed()
-                    }
+                    withAnimation(.smooth(duration: 0.45), completionCriteria: .logicallyComplete) { stage = .flying } completion: { onClosed() }
                 }
             }
         }

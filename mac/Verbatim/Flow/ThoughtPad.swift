@@ -410,6 +410,8 @@ private struct DayArrow: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(back ? "Day before" : "Day after")
             .accessibilityAddTraits(.isButton)
+            // Keyboard and VoiceOver reach it too (GPT-14); off on today, as the click is.
+            .keyActivation(enabled: enabled, action)
             .help(back ? "Day before" : (enabled ? "Day after" : "This is today"))
     }
 }
@@ -434,6 +436,7 @@ struct ThoughtMicDisc: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(capture.isRecording ? "Stop the thought" : "New thought")
         .accessibilityAddTraits(.isButton)
+        .keyActivation { capture.toggle() }
         .help(capture.isRecording ? "Stop (\(Thoughts.hotkey))" : "New thought (\(Thoughts.hotkey))")
     }
 }
@@ -530,6 +533,7 @@ struct ThoughtWords: View {
                 Text("Transcribe again").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Refined.accentText)
                     .tapArea { if let app = ThoughtCapture.shared.app { app.retry(t) } }
                     .accessibilityAddTraits(.isButton)
+                    .keyActivation { if let app = ThoughtCapture.shared.app { app.retry(t) } }
             }
         case .ready:
             if editing {

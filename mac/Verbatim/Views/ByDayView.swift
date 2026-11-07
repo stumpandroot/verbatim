@@ -223,12 +223,16 @@ struct DayCalendar: View {
             else if isToday { shape.strokeBorder(Refined.separator, lineWidth: 1.5) }
         }
         .contentShape(Rectangle())
-        .tapArea { pick(d); if !inMonth { month = d } }
+        .tapArea { choose(d, inMonth: inMonth) }
         .accessibilityElement(children: .ignore)
+        // Tab (Full Keyboard Access), Space or Return, and VoiceOver's action pick the day too (GPT-14).
+        .keyActivation { choose(d, inMonth: inMonth) }
         .accessibilityLabel("\(DayPages.dateTitle(d))\(isToday ? ", today" : "")\(dot ? ", " + DayPages.count(entries, "entry", "entries") : "")")
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .uiTarget(dot && inMonth ? "byday-dot-\(Calendar.current.component(.day, from: d))" : "byday-day-\(Calendar.current.component(.day, from: d))")
     }
+
+    private func choose(_ d: Date, inMonth: Bool) { pick(d); if !inMonth { month = d } }
 
     private func arrow(back: Bool, action: @escaping () -> Void) -> some View {
         Image(systemName: back ? "chevron.left" : "chevron.right").font(.system(size: 10.5, weight: .bold))
@@ -237,8 +241,10 @@ struct DayCalendar: View {
             .background(Refined.neutral, in: Circle())
             .contentShape(Circle())
             .tapArea(action)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel(back ? "Month before" : "Month after")
             .accessibilityAddTraits(.isButton)
+            .keyActivation(action)
     }
 }
 
