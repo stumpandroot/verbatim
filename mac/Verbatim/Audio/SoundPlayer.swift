@@ -14,7 +14,7 @@ import UIKit
 /// - iPhone: system sounds made from the same files (`AudioServicesCreateSystemSoundID`). They mix with your music
 ///   instead of stopping it, never touch the recording's audio session, follow the Ring/Silent switch, and play while
 ///   recording because every recording session allows them (`RecordingRoute.allowHaptics`). They follow Settings ›
-///   Haptics, the iPhone's one switch for feedback, and play only with Verbose in front, as haptics do.
+///   Sounds (its own switch, apart from Haptics) and play only with Verbose in front, as haptics do.
 ///
 /// Two sounds never play within 150 ms of each other (`SoundSpacing`): the second is dropped.
 @MainActor
@@ -24,8 +24,8 @@ enum Sounds {
     static var enabled = true
     private static var players: [SoundMoment: AVAudioPlayer] = [:]
     #else
-    /// Settings › Personalization and preferences › Haptics.
-    static var enabled: Bool { Haptics.enabled }
+    /// Settings › Personalization and preferences › Sounds, apart from Haptics (`SoundSettings`).
+    static var enabled: Bool { SoundSettings.enabled(in: Haptics.store) }
     private static var ids: [SoundMoment: SystemSoundID] = [:]
     #endif
     private static var spacing = SoundSpacing()

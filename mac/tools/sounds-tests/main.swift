@@ -117,8 +117,17 @@ check("player: the Mac plays prepared players at volume 1, the iPhone system sou
       player.contains("p.prepareToPlay()") && player.contains("p.volume = 1") && player.contains("AudioServicesCreateSystemSoundID")
       && player.contains("AudioServicesPlaySystemSound(id)") && !player.contains("volume = 0"))
 check("player: every sound passes the 150 ms rule and the switch", player.contains("spacing.allows(at:") && player.contains("guard enabled else { return nil }"))
-check("player: the iPhone plays only in front and follows the Haptics switch",
-      player.contains("SoundRules.phonePlays(foreground: UIApplication.shared.applicationState == .active)") && player.contains("static var enabled: Bool { Haptics.enabled }"))
+check("player: the iPhone plays only in front and follows its own Sounds switch, apart from Haptics",
+      player.contains("SoundRules.phonePlays(foreground: UIApplication.shared.applicationState == .active)")
+      && player.contains("static var enabled: Bool { SoundSettings.enabled(in: Haptics.store) }") && !player.contains("{ Haptics.enabled }"))
+let settingsScreen = read("VerbatimPhone/SettingsScreen.swift")
+check("iPhone Settings: Sounds and Haptics are two rows, each searchable",
+      settingsScreen.contains("SettingsToggleRow(title: \"Sounds\"") && settingsScreen.contains("SettingsToggleRow(title: \"Haptics\"")
+      && settingsScreen.contains("@AppStorage(SoundSettings.enabledKey, store: Haptics.store)")
+      && read("VerbatimPhone/SettingsSearch.swift").contains(".init(id: \"sounds\", section: personalization, label: \"Sounds\""))
+check("iPhone: the old combined switch carries over to Sounds once, at the store", read("VerbatimPhone/Haptics.swift").contains("SoundSettings.migrate(group)"))
+check("the keyboard and the watch keep following Haptics", read("VerbatimKeyboard/KeyboardModel.swift").contains("HapticSettings.enabled(in: d)")
+      && read("VerbatimPhone/PhoneWatch.swift").contains("haptics: Haptics.enabled)") && !read("VerbatimKeyboard/KeyboardModel.swift").contains("SoundSettings"))
 check("player: both apps load every sound at launch",
       read("Verbatim/App/AppState.swift").contains("Sounds.preload()") && read("VerbatimPhone/PhoneState.swift").contains("Sounds.preload()"))
 check("player: the Mac follows Settings › General › Sounds", read("Verbatim/App/AppState.swift").contains("didSet { Sounds.enabled = sounds }"))

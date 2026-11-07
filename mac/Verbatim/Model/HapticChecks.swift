@@ -74,6 +74,28 @@ enum HapticChecks {
                   defaultsOK && !HapticSettings.enabled(in: d) && HapticSettings.typingKeys(in: d))
             d.removePersistentDomain(forName: suite)
         }
+        // Sounds and Haptics are separate switches; the old combined choice carries over once (off stays off for both).
+        let soundSuite = "haptic-checks-sounds-\(UUID().uuidString)"
+        if let d = UserDefaults(suiteName: soundSuite) {
+            let onByDefault = SoundSettings.enabled(in: d) && SoundSettings.enabled(in: nil)
+            SoundSettings.migrate(d)
+            let freshOn = SoundSettings.enabled(in: d)
+            d.removePersistentDomain(forName: soundSuite)
+            d.set(false, forKey: HapticSettings.enabledKey)
+            SoundSettings.migrate(d)
+            let carriedOff = !SoundSettings.enabled(in: d) && !HapticSettings.enabled(in: d)
+            d.set(true, forKey: HapticSettings.enabledKey)
+            let independent = !SoundSettings.enabled(in: d)
+            d.set(true, forKey: SoundSettings.enabledKey)
+            d.set(false, forKey: HapticSettings.enabledKey)
+            SoundSettings.migrate(d)
+            let soundsOnHapticsOff = SoundSettings.enabled(in: d) && !HapticSettings.enabled(in: d)
+            check("sounds: on by default, and a fresh install keeps them on", onByDefault && freshOn)
+            check("sounds: the old combined switch off carries over as Sounds off", carriedOff)
+            check("sounds: after the carry-over, Sounds and Haptics never follow each other", independent && soundsOnHapticsOff)
+            check("sounds: the switch has its own key", SoundSettings.enabledKey != HapticSettings.enabledKey)
+            d.removePersistentDomain(forName: soundSuite)
+        }
     }
 
     private static func isWatch(_ h: Haptic) -> Bool {

@@ -2500,6 +2500,18 @@ enum PhoneUITest {
         if let storedHaptics { hapticsStore.set(storedHaptics, forKey: hapticsKey) } else { hapticsStore.removeObject(forKey: hapticsKey) }
         check("haptics are on by default and the switch turns them off (P-04)", onByDefault && offWhenOff)
         check("settings search finds Haptics (P-04)", SettingsSearchIndex.search("haptics").flatMap(\.entries).contains { $0.id == "haptics" })
+        // Sounds is its own switch: turning Haptics off leaves the sounds on, and the other way round.
+        let soundsKey = SoundSettings.enabledKey
+        let storedSounds = hapticsStore.object(forKey: soundsKey), storedHapticsAgain = hapticsStore.object(forKey: hapticsKey)
+        hapticsStore.set(true, forKey: soundsKey); hapticsStore.set(false, forKey: hapticsKey)
+        let soundsStayOn = Sounds.enabled && !Haptics.enabled
+        hapticsStore.set(false, forKey: soundsKey); hapticsStore.set(true, forKey: hapticsKey)
+        let hapticsStayOn = !Sounds.enabled && Haptics.enabled
+        if let storedSounds { hapticsStore.set(storedSounds, forKey: soundsKey) } else { hapticsStore.removeObject(forKey: soundsKey) }
+        if let storedHapticsAgain { hapticsStore.set(storedHapticsAgain, forKey: hapticsKey) } else { hapticsStore.removeObject(forKey: hapticsKey) }
+        check("Sounds and Haptics are separate switches", soundsStayOn && hapticsStayOn)
+        check("settings search finds Sounds", SettingsSearchIndex.search("sounds").flatMap(\.entries).contains { $0.id == "sounds" }
+              && !SettingsSearchIndex.search("chime").flatMap(\.entries).contains { $0.id == "haptics" })
         // P-08: voice notes, everywhere you read it.
         let memo = Transcript(title: "Self-test memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 30, audioFileName: nil, model: "")
         check("the filter chip says Voice notes (P-08)", LibrarySource.voiceMemos.label == "Voice notes")
