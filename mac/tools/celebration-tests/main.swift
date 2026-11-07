@@ -114,9 +114,9 @@ check("iPhone: Transcript ready offers Open, its fill sweeps the toast only when
       phone.contains("say(\"Transcript ready\", action: \"Open\", celebration: celebration?.surface == .toast ? celebration : nil)")
       && phone.contains("if ReadyCelebration.toastShows(queueEmpty: queueEmpty, surface: celebration?.surface) {"))
 let ready = body(phone, "    private func playReady(")
-check("iPhone: the surface comes from ReadyCelebration, once per recording (ReadyOnce), with the sound's rule",
+check("iPhone: the surface comes from ReadyCelebration, once per recording (ReadyOnce), with the sound's rule; a row counts only with the Library tab showing",
       ready.contains("ReadyCelebration.surface(") && ready.contains("first: first") && ready.contains("!readyOnce.played.contains(id)")
-      && ready.contains("SoundRules.transcriptDone(isDictation:") && ready.contains("rowOnScreen: center.rowOnScreen(id)") && ready.contains("transcriptOpen: center.isOpen(id)"), ready)
+      && ready.contains("SoundRules.transcriptDone(isDictation:") && ready.contains("rowOnScreen: tab == .library && center.rowOnScreen(id)") && ready.contains("transcriptOpen: center.isOpen(id)"), ready)
 check("iPhone: a recording added to a transcript keeps its old haptic and message, with no celebration",
       body(phone, "    func appendReady(").contains("playReady(id, queueEmpty: queueEmpty)"))
 let finish = body(phone, "    private func finishRecording(")
