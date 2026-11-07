@@ -194,8 +194,8 @@ struct TranscriptView: View {
     // MARK: Header
 
     /// The title (click it to rename), the meta line with the kind's and the project's chips and the tags, and what
-    /// needs you: the title's Apple Intelligence note, the kind-change offer, suggested speakers, a recording being
-    /// added, the link's video, and the latest fixes with Undo.
+    /// needs you: the title's Apple Intelligence note, the kind-change offer, suggested speakers or "Who was this with?",
+    /// a recording being added, the link's video, and the latest fixes with Undo.
     private func header(_ t: Transcript) -> some View {
         let project = t.projectId.flatMap { p in app.store.projectsByID[p] }
         return VStack(alignment: .leading, spacing: 10) {
@@ -228,6 +228,8 @@ struct TranscriptView: View {
                                       onUse: { app.useSpeakerSuggestion(transcript: t.id, $0) },
                                       onDismiss: { app.dismissSpeakerSuggestion(transcript: t.id, $0) })
             }
+            // A finished call whose other side is still "FaceTime" or "Speaker 2" with nothing to suggest.
+            if let other = t.callPartnerToAsk { WhoWasThisRow(transcript: t, speaker: other).id(t.id) }
             if t.pendingAppend != nil { appendRow(t) }
             if let info = t.linkInfo { LinkCard(info: info, transcript: t) }
             if view == .original, !t.corrections.isEmpty { correctionChips(t) }
