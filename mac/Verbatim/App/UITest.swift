@@ -1055,6 +1055,9 @@ enum UITest {
         let other = seed(Transcript.meetingPlaceholder(app: "FaceTime", stamp: Store.stamp(Date().addingTimeInterval(-7_200))))
         app.go(.transcript(other))
         await waitForTarget("who-was-this-dismiss", seconds: 4)
+        // The page slides in for about 0.44 s: let it settle so the click lands where the button ends up (build 305's
+        // Mac self-test missed it once).
+        try? await Task.sleep(nanoseconds: 700_000_000)
         await step("who was this with: Dismiss hides it", window, target: "who-was-this-dismiss", check: {
             app.store.transcript(other)?.askWhoDismissed == true && app.store.transcript(other)?.callPartnerToAsk == nil
         })
