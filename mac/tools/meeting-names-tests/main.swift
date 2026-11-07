@@ -285,5 +285,167 @@ do {
           && !MeetingTurns.isBackchannel("the budget"))
 }
 
+// MARK: 5. Calls with no calendar event: the call window, "Who was this with?", and titles
+
+// The rules the Mac's self-test checks too.
+CallNameChecks.run { check($0, $1) }
+
+do {
+    let none: [String] = []
+    func names(_ app: String, _ title: String, _ texts: [String], selfNames: [String] = me) -> [String] {
+        CallWindowNames.read(bundleID: app, windows: [.init(title: title, texts: texts)], selfNames: selfNames).names
+    }
+    // FaceTime
+    check("window: FaceTime's window title as the name", names("com.apple.FaceTime", "Priya Shah", ["Mute", "End"]) == ["Priya Shah"])
+    check("window: a first name beside the full name is one person", names("com.apple.FaceTime", "FaceTime", ["Priya", "Priya Shah", "14:02"]) == ["Priya Shah"])
+    check("window: a description's parts", names("com.apple.FaceTime", "FaceTime", ["Priya Shah, FaceTime Video, 3:12"]) == ["Priya Shah"])
+    check("window: a contact saved as Mom is a name", names("com.apple.FaceTime", "FaceTime", ["Mom", "FaceTime Audio"]) == ["Mom"])
+    check("window: your own tile isn't the other side", names("com.apple.FaceTime", "FaceTime", ["Dana Reyes", "Priya Shah"]) == ["Priya Shah"])
+    check("window: you alone names nobody", names("com.apple.FaceTime", "FaceTime", ["Dana Reyes", "Dana"]) == none)
+    check("window: two other people name nobody", names("com.apple.FaceTime", "FaceTime", ["Priya Shah", "Omar Haddad"]) == none)
+    check("window: buttons with a name in them aren't names", names("com.apple.FaceTime", "FaceTime", ["Mute Priya", "End call"]) == none)
+    check("window: nothing but controls", names("com.apple.FaceTime", "FaceTime", ["Mute", "Camera", "Effects", "SharePlay", "End", "1:02:44"]) == none)
+    check("window: two windows naming different people name nobody",
+          CallWindowNames.read(bundleID: "com.apple.FaceTime", windows: [.init(title: "Priya Shah"), .init(title: "Omar Haddad")], selfNames: me).names == none)
+    check("window: a role marker drops", CallWindowNames.name("Priya Shah (Host)") == "Priya Shah")
+    check("window: name particles", CallWindowNames.name("Anna de la Cruz") == "Anna de la Cruz")
+    check("window: not names", [ "END", "FaceTime Video", "Share Screen", "Live Captions", "Raise Hand", "Yesterday", "Tue", "Waiting for Priya",
+                                 "priya", "Weekly Sync", "Ringing…", "3 people", "" ].allSatisfy { CallWindowNames.name($0) == nil })
+    check("window: emails and numbers", CallWindowNames.handle("Priya@Example.com") == "priya@example.com" && CallWindowNames.handle("555-0144") == "555-0144"
+          && CallWindowNames.handle("12:04") == nil && CallWindowNames.handle("2026") == nil)
+    // Zoom and the others
+    check("window: Zoom's one other person", names("us.zoom.xos", "Zoom Meeting", ["Priya Shah", "Dana Reyes", "Participants (2)", "Mute"]) == ["Priya Shah"])
+    check("window: Zoom's own window names nobody", names("us.zoom.xos", "Zoom Workplace", ["Priya Shah"]) == none)
+    check("window: Teams' text isn't read", names("com.microsoft.teams2", "Budget review | Microsoft Teams", ["Priya Shah"]) == none)
+    let teams = CallWindowNames.read(bundleID: "com.microsoft.teams2", windows: [.init(title: "Call with Priya Shah | Microsoft Teams")], selfNames: me)
+    check("window: a title in the form Call with … names that person", teams.names == ["Priya Shah"] && teams.meetingTitle == "Call with Priya Shah")
+    check("window: Call with two people names nobody", CallWindowNames.nameInTitle("Call with Priya and Omar") == nil)
+    check("window: browser text isn't read", !CallWindowNames.readsWindowText("com.google.Chrome") && CallWindowNames.readsWindowText("com.apple.FaceTime"))
+    check("titles: Meet in Safari, Edge, and Firefox", CallWindowNames.meetingTitle("Meet – Acme roadmap", app: .browser) == "Acme roadmap"
+          && CallWindowNames.meetingTitle("Meet - Acme roadmap - Microsoft Edge - Work", app: .browser) == "Acme roadmap"
+          && CallWindowNames.meetingTitle("Meet - Acme roadmap — Mozilla Firefox", app: .browser) == "Acme roadmap")
+    check("titles: a tab's unread count drops", CallWindowNames.meetingTitle("(2) Meet - Acme roadmap", app: .browser) == "Acme roadmap")
+    check("titles: Teams in a browser", CallWindowNames.meetingTitle("Budget review | Microsoft Teams - Google Chrome", app: .browser) == "Budget review")
+    check("titles: Zoom with a topic", CallWindowNames.meetingTitle("Acme roadmap - Zoom", app: .zoom) == "Acme roadmap")
+    check("titles: Webex's personal room is no title", CallWindowNames.meetingTitle("Priya Shah's Personal Room", app: .webex) == nil
+          && CallWindowNames.meetingTitle("Acme roadmap - Webex", app: .webex) == "Acme roadmap")
+    check("titles: a Slack huddle", CallWindowNames.meetingTitle("Huddle in #design | Acme | Slack", app: .slack) == "Huddle in #design"
+          && CallWindowNames.meetingTitle("general (Channel) - Acme - Slack", app: .slack) == nil)
+    check("titles: FaceTime has none", CallWindowNames.meetingTitle("Priya Shah", app: .faceTime) == nil)
+    check("titles: a link isn't a title", CallWindowNames.meetingTitle("Meet - meet.google.com/abc", app: .browser) == nil)
+
+    // Over a call
+    var tally = CallWindowNames.Tally()
+    tally.add(.init(names: ["Priya"]))
+    tally.add(.init(names: ["Priya Shah"], meetingTitle: "Acme roadmap"))
+    tally.add(.init(names: ["Priya Shah"]))
+    tally.add(.init())
+    check("tally: a first name joins the full name", tally.names == ["Priya Shah"] && tally.reads == 4)
+    check("tally: the title seen", tally.title == "Acme roadmap")
+    var two = CallWindowNames.Tally()
+    two.add(.init(names: ["Omar Haddad"])); two.add(.init(names: ["Priya Shah"])); two.add(.init(names: ["Priya Shah"]))
+    check("tally: most seen first", two.names == ["Priya Shah", "Omar Haddad"])
+    check("tally: contacts", CallWindowNames.preferContact("priya shah", matches: ["Priya Shah"]) == "Priya Shah"
+          && CallWindowNames.preferContact("Shah", matches: ["Priya Shah"]) == "Shah" && CallWindowNames.preferContact("Priya", matches: []) == "Priya")
+
+    // Suggestions and the meeting's words
+    let both = MeetingContext(title: "", attendees: ["Omar Haddad"], app: "Zoom", windowNames: ["Priya Shah"])
+    check("window names: an invitee comes first", MeetingNames.suggestions(both, selfNames: me, speakerId: "S2").map(\.name) == ["Omar Haddad"])
+    let two2 = MeetingContext(app: "FaceTime", windowNames: ["Priya Shah", "Omar Haddad"])
+    check("window names: two seen, none suggested", MeetingNames.suggestions(two2, selfNames: me, speakerId: "S2").isEmpty)
+    check("window names: yours never", MeetingNames.suggestions(MeetingContext(app: "FaceTime", windowNames: ["Dana Reyes"]), selfNames: me, speakerId: "S2").isEmpty)
+    check("window names: all system audio says call window", MeetingNames.windowReason(app: "Others") == "shown in the call window")
+    let seen = MeetingContext(app: "FaceTime", windowNames: ["Priya Shah"], windowTitle: "Acme roadmap")
+    check("window names: go to the engine's words", MeetingNames.vocabulary(seen, selfNames: me).prefix(4) == ["Priya", "Dana", "Acme", "Priya Shah"],
+          "\(MeetingNames.vocabulary(seen, selfNames: me))")
+    check("window title: the meeting title without a calendar one", seen.meetingTitle == "Acme roadmap"
+          && MeetingContext(title: "Budget", windowTitle: "Acme roadmap").meetingTitle == "Budget")
+    check("window names: a context with them isn't empty", !seen.isEmpty && MeetingContext(app: "FaceTime").isEmpty)
+    let data = try! JSONEncoder().encode(seen)
+    check("window names: kept when saved", (try? JSONDecoder().decode(MeetingContext.self, from: data)) == seen)
+    let older = try! JSONDecoder().decode(MeetingContext.self, from: Data(#"{"title":"Budget","attendees":["Omar Haddad"],"app":"Zoom"}"#.utf8))
+    check("window names: an older context still reads", older.windowNames.isEmpty && older.windowTitle == nil && older.title == "Budget")
+    let plain = String(data: try! JSONEncoder().encode(MeetingContext(title: "Budget")), encoding: .utf8)!
+    check("window names: none written when there are none", !plain.contains("windowNames") && !plain.contains("windowTitle"))
+}
+
+do {
+    // Titles
+    let ph = Transcript.meetingPlaceholder(app: "Microsoft Teams", stamp: "6 Nov 2026 at 20:33", recovered: true)
+    check("titles: a recovered placeholder in another date style", ph == "Recovered meeting · Microsoft Teams · 6 Nov 2026 at 20:33" && Transcript.isMeetingPlaceholder(ph))
+    check("titles: a date without words is still a date", Transcript.isMeetingPlaceholder("Meeting · Zoom · 2026/11/06 20:33"))
+    check("titles: not placeholders", !Transcript.isMeetingPlaceholder("Meeting · FaceTime · soon") && !Transcript.isMeetingPlaceholder("Standup · Zoom · 9:00")
+          && !Transcript.isMeetingPlaceholder("Meeting ·  · Nov 6, 2026"))
+    check("titles: appending stays conservative", [
+        Transcript.titleAddingName("Budget", name: "Priya"),                                     // one word
+        Transcript.titleAddingName("Notes for", name: "Priya"),                                  // ends in "for"
+        Transcript.titleAddingName("What changed?", name: "Priya"),                              // a question
+        Transcript.titleAddingName("Priya and the budget", name: "Priya"),                       // has the name
+        Transcript.titleAddingName("Lunch plans in Lisbon", name: "Priya"),                      // a capital: a name or place
+        Transcript.titleAddingName("A rather long title about the budget and the next quarter's hires", name: "Priya"),
+        Transcript.titleAddingName("Film schedule and sound mix", name: "you"),
+        Transcript.titleAddingName("Film schedule and sound mix", name: "555 0144"),
+    ].allSatisfy { $0 == nil })
+    check("titles: acronyms and I are fine", Transcript.titleAddingName("Q3 OKR plans", name: "Priya") == "Q3 OKR plans with Priya"
+          && Transcript.titleAddingName("What I learned this week", name: "Priya") == "What I learned this week with Priya")
+
+    var t = Transcript(title: "Meeting · FaceTime · Nov 6, 2026 at 8:33 PM", source: .app, sourceLabel: "Meeting", duration: 60, audioFileName: nil, model: "")
+    t.kind = .meeting
+    t.speakers = [Speaker(id: "S1", name: "You"), Speaker(id: "S2", name: "Priya")]
+    t.title = "Film schedule and sound mix"; t.titleByModel = true
+    t.addCallNameToTitle()
+    check("titles: a model's title takes the named person", t.title == "Film schedule and sound mix with Priya")
+    t.addCallNameToTitle()
+    check("titles: only once", t.title == "Film schedule and sound mix with Priya")
+    var group = t; group.title = "Film schedule and sound mix"
+    group.speakers.append(Speaker(id: "S3", name: "Omar"))
+    group.addCallNameToTitle()
+    check("titles: not with three speakers", group.title == "Film schedule and sound mix")
+    var memo = t; memo.kind = .note; memo.title = "Film schedule and sound mix"
+    memo.addCallNameToTitle()
+    check("titles: only a call", memo.title == "Film schedule and sound mix")
+
+    // Saved: an old call's placeholder is automatic again; Dismiss is kept.
+    func roundTrip(_ x: Transcript) -> Transcript { try! JSONDecoder().decode(Transcript.self, from: try! JSONEncoder().encode(x)) }
+    var old = Transcript(title: "Meeting · FaceTime · Nov 6, 2026 at 8:33 PM", source: .app, sourceLabel: "Meeting", duration: 60, audioFileName: nil, model: "")
+    old.kind = .meeting; old.titleIsAuto = false
+    check("saved: an old call's generated title is automatic again", roundTrip(old).titleIsAuto)
+    var cal = old; cal.title = "Weekly design sync"
+    check("saved: a calendar title stays yours", !roundTrip(cal).titleIsAuto)
+    var memo2 = old; memo2.kind = .note
+    check("saved: only for calls", !roundTrip(memo2).titleIsAuto)
+    var asked = old; asked.askWhoDismissed = true
+    check("saved: Dismiss is kept", roundTrip(asked).askWhoDismissed && !roundTrip(old).askWhoDismissed)
+    let json = String(data: try! JSONEncoder().encode(old), encoding: .utf8)!
+    check("saved: Dismiss isn't written until used", !json.contains("askWhoDismissed"))
+
+    // Who was this with? Names as you type.
+    let book = ["Priya Shah", "Omar Haddad", "Dana Reyes", "Zoë Park", "Omar Haddad", "Paul Omari"]
+    check("type: a name's start", MeetingNames.typeahead("pri", in: book) == ["Priya Shah"])
+    check("type: whole names first, then a word's start", MeetingNames.typeahead("om", in: book) == ["Omar Haddad", "Paul Omari"])
+    check("type: accents and case don't matter", MeetingNames.typeahead("ZOE", in: book) == ["Zoë Park"])
+    check("type: you never show", MeetingNames.typeahead("da", in: book, selfNames: me) == [])
+    check("type: nothing typed, nothing shown", MeetingNames.typeahead(" ", in: book).isEmpty && MeetingNames.typeahead("1", in: book).isEmpty)
+    check("type: at most four", MeetingNames.typeahead("a", in: (1...9).map { "Anna \($0)x" }.map { $0.filter(\.isLetter) }).count <= 4)
+
+    // Who was this with?
+    var call = old
+    call.status = .ready
+    call.speakers = [Speaker(id: "S1", name: "You"), Speaker(id: "S2", name: "Speaker 2")]
+    call.speakerSuggestions = nil
+    check("who: waits for the suggestion run", call.callPartnerToAsk == nil)
+    call.speakerSuggestions = []
+    check("who: Speaker 2 counts as unnamed", call.callPartnerToAsk?.id == "S2")
+    var noYou = call; noYou.speakers = [Speaker(id: "S1", name: "Speaker 1"), Speaker(id: "S2", name: "Speaker 2")]
+    check("who: not without You", noYou.callPartnerToAsk == nil)
+    var three = call; three.speakers.append(Speaker(id: "S3", name: "Speaker 3"))
+    check("who: not for a group", three.callPartnerToAsk == nil)
+    var busy = call; busy.status = .processing
+    check("who: not while transcribing", busy.callPartnerToAsk == nil)
+    var dismissedSuggestion = call
+    dismissedSuggestion.speakerSuggestions = [SpeakerSuggestion(speakerId: "S2", name: "Priya", sources: [SpeakerSuggestion.windowSource], state: .dismissed)]
+    check("who: asks once a suggestion is dismissed", dismissedSuggestion.callPartnerToAsk?.id == "S2")
+}
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

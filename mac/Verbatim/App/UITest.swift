@@ -698,6 +698,7 @@ enum UITest {
         await vocalSoundChecks()
         await videoStillChecks()
         await stillViewerSteps(app: app, window: window)
+        await whoWasThisSteps(app: app, window: window)
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
         await thoughtShots(suffix: "")
@@ -1009,6 +1010,52 @@ enum UITest {
         app.go(.home)
         try? await Task.sleep(nanoseconds: 600_000_000)
         StillFixtures.remove(from: app.store)
+    }
+
+    /// "Who was this with?" (Views/WhoWasThisRow.swift; DESIGN.md §6.10): a seeded FaceTime call whose other side is
+    /// still "FaceTime", with no calendar event and nothing suggested, shows the prompt under the header (the
+    /// screenshot, 06k-who-was-this). Naming the speaker the way the prompt does renames it and adds the name to the
+    /// generated title; a second call's Dismiss hides it. Then both go. Invented names only.
+    private static func whoWasThisSteps(app: AppState, window: NSWindow) async {
+        func seed(_ title: String) -> UUID {
+            var t = Transcript(title: title, source: .app, sourceLabel: "Meeting", duration: 96, audioFileName: nil, model: "Parakeet TDT v3")
+            t.kind = .meeting
+            t.status = .ready
+            t.createdAt = Date().addingTimeInterval(-3_600)
+            t.speakers = [Speaker(id: "S1", name: "You"), Speaker(id: "S2", name: "FaceTime")]
+            t.segments = [
+                Segment(start: 0, end: 6, text: "Hi, can you hear me okay?", speaker: "S1"),
+                Segment(start: 6.5, end: 14, text: "Loud and clear. The garden finally has tomatoes.", speaker: "S2"),
+                Segment(start: 14.5, end: 22, text: "That's great. Did the new trellis hold up in the wind?", speaker: "S1"),
+                Segment(start: 22.5, end: 34, text: "It did. We'll send pictures this weekend, and the recipe for the sauce.", speaker: "S2"),
+            ]
+            t.original = t.segments
+            t.speakerSuggestions = []
+            app.store.add(t)
+            return t.id
+        }
+        let title = Transcript.meetingPlaceholder(app: "FaceTime", stamp: Store.stamp(Date().addingTimeInterval(-3_600)))
+        let id = seed(title)
+        check("who was this with: the seeded call asks", app.store.transcript(id)?.callPartnerToAsk?.id == "S2"
+              && app.store.transcript(id)?.titleIsAuto == true)
+        app.go(.transcript(id))
+        await waitForTarget("who-was-this", seconds: 4)
+        check("who was this with: the prompt shows under the header", frames["who-was-this"] != nil)
+        await show("06k-who-was-this")
+        app.renameSpeaker(transcript: id, speaker: "S2", to: "Dana")
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        let named = app.store.transcript(id)
+        check("who was this with: a name renames the speaker and joins the title", named?.speakers.last?.name == "Dana"
+              && named?.callPartnerToAsk == nil && named?.title.hasPrefix("Meeting with Dana · FaceTime · ") == true)
+        let other = seed(Transcript.meetingPlaceholder(app: "FaceTime", stamp: Store.stamp(Date().addingTimeInterval(-7_200))))
+        app.go(.transcript(other))
+        await waitForTarget("who-was-this-dismiss", seconds: 4)
+        await step("who was this with: Dismiss hides it", window, target: "who-was-this-dismiss", check: {
+            app.store.transcript(other)?.askWhoDismissed == true && app.store.transcript(other)?.callPartnerToAsk == nil
+        })
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        for x in [id, other] { if let t = app.store.transcript(x) { app.store.delete(t) } }
     }
 
     private static func vocalSoundChecks() async {
@@ -1587,6 +1634,9 @@ enum UITest {
         markCenterChecks(check)
         // Ask your library and recipes (shared with the iPhone's self-test and mac/tools/test-ask.sh).
         AskChecks.run { check("ask: " + $0, $1) }
+        // A call with no calendar event: the call window's names and titles, "Who was this with?", and the generated
+        // title (shared with mac/tools/test-meeting-names.sh).
+        CallNameChecks.run { check("calls: " + $0, $1) }
         let restored = FlowAction.builtIn
         check("actions: the eight, Plan my day, Daily reflection, and the two transcript actions", restored.count == 12
               && TranscriptActions.builtIn.allSatisfy { spec in restored.contains { $0.id == spec.id && $0.name == spec.name && $0.instruction.contains(TranscriptActions.noAddRule) } }

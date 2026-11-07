@@ -134,20 +134,47 @@ struct MeetingContext: Codable, Equatable {
     var attendees: [String] = []
     /// "Chrome", "Zoom": the call's track before anyone names it.
     var app: String? = nil
+    /// The other person's name as the call app's window showed it while recording (CallWindowNames, read through
+    /// Accessibility; a contact's name when one matched), most seen first. Suggested like the one other invitee.
+    var windowNames: [String] = []
+    /// A meeting's own name from the call window's title ("Meet - Weekly design sync" gives "Weekly design sync"),
+    /// for a call with no calendar title. The recording takes it as its title.
+    var windowTitle: String? = nil
 
-    init(title: String = "", attendees: [String] = [], app: String? = nil) {
-        self.title = title; self.attendees = attendees; self.app = app
+    init(title: String = "", attendees: [String] = [], app: String? = nil, windowNames: [String] = [], windowTitle: String? = nil) {
+        self.title = title; self.attendees = attendees; self.app = app; self.windowNames = windowNames; self.windowTitle = windowTitle
     }
 
     init(from d: Decoder) throws {
-        enum K: String, CodingKey { case title, attendees, app }
+        enum K: String, CodingKey { case title, attendees, app, windowNames, windowTitle }
         let c = try d.container(keyedBy: K.self)
         title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? ""
         attendees = (try? c.decodeIfPresent([String].self, forKey: .attendees)) ?? []
         app = (try? c.decodeIfPresent(String.self, forKey: .app)) ?? nil
+        windowNames = (try? c.decodeIfPresent([String].self, forKey: .windowNames)) ?? []
+        windowTitle = (try? c.decodeIfPresent(String.self, forKey: .windowTitle)) ?? nil
     }
 
-    var isEmpty: Bool { title.trimmingCharacters(in: .whitespaces).isEmpty && attendees.isEmpty }
+    func encode(to e: Encoder) throws {
+        enum K: String, CodingKey { case title, attendees, app, windowNames, windowTitle }
+        var c = e.container(keyedBy: K.self)
+        try c.encode(title, forKey: .title)
+        try c.encode(attendees, forKey: .attendees)
+        try c.encodeIfPresent(app, forKey: .app)
+        if !windowNames.isEmpty { try c.encode(windowNames, forKey: .windowNames) }
+        try c.encodeIfPresent(windowTitle, forKey: .windowTitle)
+    }
+
+    /// The calendar event's title, or without one the call window's (`windowTitle`).
+    var meetingTitle: String {
+        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.isEmpty ? (windowTitle ?? "").trimmingCharacters(in: .whitespacesAndNewlines) : t
+    }
+
+    var isEmpty: Bool {
+        title.trimmingCharacters(in: .whitespaces).isEmpty && attendees.isEmpty && windowNames.isEmpty
+            && (windowTitle ?? "").trimmingCharacters(in: .whitespaces).isEmpty
+    }
 }
 
 /// A name Verbose suggests for a diarized speaker (SpeakerNames.swift), shown with Use and Dismiss and never applied
@@ -173,6 +200,11 @@ struct SpeakerSuggestion: Codable, Equatable, Identifiable {
     /// `sources` for a name from a calendar event's attendees (a call set up from Home's Next call card, Mac).
     static let calendarSource = "calendar"
     var fromCalendar: Bool { sources.contains(Self.calendarSource) }
+    /// `sources` for a name the call app's window showed while recording (MeetingContext.windowNames, Mac).
+    static let windowSource = "window"
+    var fromCallWindow: Bool { sources.contains(Self.windowSource) }
+    /// Made from the call itself (the invite or the call window), not by a suggestion run: a later run keeps it.
+    var fromCall: Bool { fromCalendar || fromCallWindow }
     /// The reasons on one line, first letter capitalized.
     var reasonText: String {
         let t = reasons.joined(separator: " · ")
@@ -576,7 +608,7 @@ struct Transcript: Codable, Identifiable, Equatable {
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
              summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited, schemaVersion,
              speakerSuggestions, unclear, previousVersion, rerunRequest, templateResults, autoRun, remindersSent, stills,
-             freeTranscriptLimit, meeting
+             freeTranscriptLimit, meeting, askWhoDismissed
     }
     /// Every key this build reads or writes, including the legacy path keys: anything else is a newer build's.
     static let knownKeys: Set<String> = Set(CodingKeys.allCases.map(\.stringValue) + LegacyKeys.allCases.map(\.stringValue))
@@ -675,6 +707,9 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// A call recorded for a calendar event: its title and the other people invited (MeetingContext). nil for
     /// everything else; older builds keep the key and write it back.
     var meeting: MeetingContext? = nil
+    /// Dismiss on the Mac's "Who was this with?" (`callPartnerToAsk`): it doesn't ask about this transcript again.
+    /// Written only when true; older builds keep the key and write it back.
+    var askWhoDismissed = false
     /// An imported video's stills, one where the picture changes (VideoStill.pick), shown in the transcript's margin.
     /// nil for audio and for videos imported before stills.
     var stills: [VideoStill]? = nil
@@ -780,6 +815,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         pendingAppend = try LibraryFile.checked(c.decodeIfPresent(String.self, forKey: .pendingAppend), field: "continued recording")
         multitrack = try? c.decodeIfPresent(MultitrackInfo.self, forKey: .multitrack)
         meeting = (try? c.decodeIfPresent(MeetingContext.self, forKey: .meeting)) ?? nil
+        askWhoDismissed = (try? c.decodeIfPresent(Bool.self, forKey: .askWhoDismissed)) ?? false
         stills = (try? c.decodeIfPresent([VideoStill].self, forKey: .stills)) ?? nil
         // Spans a newer build wrote in a shape this one can't read are dropped, never the whole file.
         sponsors = (try? c.decodeIfPresent([SponsorSpan].self, forKey: .sponsors)) ?? nil
@@ -800,6 +836,9 @@ struct Transcript: Codable, Identifiable, Equatable {
         } else {
             titleIsAuto = Self.defaultTitles.contains(title) || title == Self.titleFrom(segments)
         }
+        // Calls recorded before November 6, 2026 saved their generated title ("Meeting · FaceTime · Nov 6, 2026 at 8:33 PM")
+        // as one you named. Nobody types that, so it's automatic again and may be replaced (`isMeetingPlaceholder`).
+        if !titleIsAuto, kind == .meeting, Self.isMeetingPlaceholder(title) { titleIsAuto = true }
         titleByModel = try c.decodeIfPresent(Bool.self, forKey: .titleByModel) ?? false
         // A summary a newer build wrote in a shape this one can't read is dropped, never the whole file.
         summary = (try? c.decodeIfPresent(TranscriptSummary.self, forKey: .summary)) ?? nil
@@ -870,6 +909,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         try c.encode(summaryByModel, forKey: .summaryByModel)
         try c.encodeIfPresent(multitrack, forKey: .multitrack)
         try c.encodeIfPresent(meeting, forKey: .meeting)
+        if askWhoDismissed { try c.encode(true, forKey: .askWhoDismissed) }
         try c.encodeIfPresent(stills, forKey: .stills)
         try c.encodeIfPresent(sponsors, forKey: .sponsors)
         if let cleaned = documentCleanedBy { try c.encode(unknown.raw(for: "documentCleanedBy", current: cleaned.rawValue), forKey: .documentCleanedBy) }
@@ -1189,5 +1229,96 @@ struct VideoStill: Codable, Equatable, Hashable, Sendable {
         let a = aspect > 0 ? aspect : 9.0 / 16
         let w = a >= 1 ? tallWidth * 1.5 : tallWidth
         return (w, min(w / a, w * 1.8))
+    }
+}
+
+// MARK: - Calls: the generated title, naming the other side
+
+extension Transcript {
+    /// A call's title before it has a better one (App/MeetingSession.swift): "Meeting · FaceTime · Nov 6, 2026 at
+    /// 8:33 PM", or "Recovered meeting · Zoom · …" after a crash. `app` is the call track's label, `stamp` the date
+    /// as `Store.stamp` writes it.
+    static func meetingPlaceholder(app: String, stamp: String, recovered: Bool = false) -> String {
+        "\(recovered ? "Recovered meeting" : "Meeting") · \(app) · \(stamp)"
+    }
+
+    /// The title is one `meetingPlaceholder` wrote (or that with the other person's name, "Meeting with Dana · …"),
+    /// not a calendar event's title or one you typed: Apple Intelligence may replace it, and the first words never do.
+    static func isMeetingPlaceholder(_ title: String) -> Bool {
+        let parts = title.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " · ")
+        guard parts.count == 3 else { return false }
+        let lead = parts[0]
+        let named = ["Meeting with ", "Recovered meeting with "].contains { lead.hasPrefix($0) && lead.count > $0.count }
+        guard lead == "Meeting" || lead == "Recovered meeting" || named else { return false }
+        let app = parts[1].trimmingCharacters(in: .whitespaces), stamp = parts[2].trimmingCharacters(in: .whitespaces)
+        // The date in any locale's style ("Nov 6, 2026 at 8:33 PM", "2026/11/06 20:33"): some digits.
+        return !app.isEmpty && app.count <= 40 && stamp.count <= 48 && stamp.contains(where: \.isNumber)
+    }
+
+    /// A placeholder still waiting for a model's title: the first words never replace it (they'd be a call's "Hi,
+    /// can you hear me?").
+    var waitsForModelTitle: Bool { Self.isMeetingPlaceholder(title) }
+
+    /// `title` with the one other person on a call added, or nil when it wouldn't read naturally. A placeholder takes
+    /// the name after "Meeting" ("Meeting with Dana · FaceTime · …"). A written title ("Film schedule and sound mix")
+    /// takes " with Dana" at its end only when it's 2 to 8 words and 60 characters with the name, ends in a letter or
+    /// a digit, has no " · ", no "with", and no name yet: no possessive, none of the name's words, and no capital
+    /// after the first word (titles are sentence case, so a capital there is a name; "I" and short acronyms aside).
+    static func titleAddingName(_ title: String, name: String) -> String? {
+        let n = name.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        guard (2...40).contains(n.count), n.contains(where: \.isLetter), !n.contains("@"), !n.contains(where: \.isNumber),
+              n.lowercased() != "you" else { return nil }
+        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isMeetingPlaceholder(t) {
+            var parts = t.components(separatedBy: " · ")
+            guard parts[0] == "Meeting" || parts[0] == "Recovered meeting" else { return nil }
+            parts[0] += " with " + n
+            return parts.joined(separator: " · ")
+        }
+        let words = t.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        guard (2...8).contains(words.count), t.count + n.count + 6 <= 60, !t.contains(" · "),
+              let last = t.last, last.isLetter || last.isNumber else { return nil }
+        let nameWords = Set(n.lowercased().split(separator: " ").map { $0.trimmingCharacters(in: .punctuationCharacters) })
+        for (i, w) in words.enumerated() {
+            let clean = w.trimmingCharacters(in: .punctuationCharacters)
+            let lower = clean.lowercased()
+            if lower == "with" || nameWords.contains(lower) { return nil }
+            if lower.hasSuffix("'s") || lower.hasSuffix("’s") { return nil }
+            guard i > 0, let f = clean.first, f.isUppercase else { continue }
+            let acronym = clean.count <= 5 && clean.allSatisfy { $0.isUppercase || $0.isNumber }
+            if clean != "I", !acronym { return nil }
+        }
+        // A title ending in a word that wants what follows ("Notes for", "Plans to") would read badly with "with".
+        if let l = words.last?.lowercased(), ["a", "an", "the", "for", "to", "of", "on", "about", "and", "or", "in", "at", "from"].contains(l) { return nil }
+        return t + " with " + n
+    }
+
+    private static func isYou(_ s: Speaker) -> Bool { s.name.trimmingCharacters(in: .whitespaces).lowercased() == "you" }
+
+    /// A two-speaker call (You and one other) whose other speaker has a person's name: that name, else nil.
+    var namedCallPartner: String? {
+        guard kind == .meeting, speakers.count == 2, speakers.contains(where: Self.isYou),
+              let other = speakers.first(where: { !Self.isYou($0) }), !isUnnamed(other) else { return nil }
+        let n = other.name.trimmingCharacters(in: .whitespaces)
+        return n.isEmpty ? nil : n
+    }
+
+    /// After the other side of a call is named (Use on a suggestion, "Who was this with?", a rename) or an automatic
+    /// title is written: the name joins an automatic title when it reads naturally (`titleAddingName`). A title you
+    /// typed, or a calendar event's, never changes.
+    mutating func addCallNameToTitle() {
+        guard titleIsAuto, let n = namedCallPartner, let t = Self.titleAddingName(title, name: n), t != title else { return }
+        title = t
+    }
+
+    /// The other side of a finished two-track call (You and one other speaker) that nobody has named and nothing
+    /// suggests a name for: the speaker "Who was this with?" asks about on the Mac. Nil once suggestions have had
+    /// their run with one to show, once the speaker has a name, and after Dismiss (`askWhoDismissed`).
+    var callPartnerToAsk: Speaker? {
+        guard kind == .meeting, status == .ready, stage == nil, !askWhoDismissed, speakerSuggestions != nil,
+              speakers.count == 2, speakers.contains(where: Self.isYou),
+              let other = speakers.first(where: { !Self.isYou($0) }), isUnnamed(other),
+              !visibleSpeakerSuggestions.contains(where: { $0.speakerId == other.id }) else { return nil }
+        return other
     }
 }

@@ -84,7 +84,7 @@ enum MeetingNames {
     static func remoteName(_ m: MeetingContext, selfNames: [String]) -> RemoteName? {
         let people = others(m.attendees, selfNames: selfNames)
         if people.count == 1 { return RemoteName(name: people[0], reason: onlyInviteeReason) }
-        guard people.isEmpty, let pair = titlePair(m.title) else { return nil }
+        guard people.isEmpty, let pair = titlePair(m.meetingTitle) else { return nil }
         let mine = pair.map { isSelf($0, selfNames: selfNames) }
         guard mine.filter({ $0 }).count == 1, let other = zip(pair, mine).first(where: { !$0.1 })?.0 else { return nil }
         return RemoteName(name: other, reason: titleReason)
@@ -132,17 +132,56 @@ enum MeetingNames {
         "check-in", "checkin", "weekly", "biweekly", "monthly", "coffee", "lunch", "zoom", "meet", "teams",
     ]
 
-    /// The suggestions a calendar call starts with, for the call's track (`speakerId`): every other invitee, so the
-    /// speaker's menu offers them (Transcript.calendarNames); the one other invitee shows as a suggestion with Use and
-    /// Dismiss. With nobody invited, the other half of a one-on-one title. Nothing is renamed until you choose Use.
+    /// The suggestions a call starts with, for the call's track (`speakerId`): every other invitee, so the speaker's
+    /// menu offers them (Transcript.calendarNames); the one other invitee shows as a suggestion with Use and Dismiss.
+    /// With nobody invited, the other half of a one-on-one title; with neither, the one other person the call app's
+    /// window showed (`windowNames`, CallWindowNames), as "shown in the FaceTime window". Nothing is renamed until you
+    /// choose Use.
     static func suggestions(_ m: MeetingContext, selfNames: [String], speakerId: String) -> [SpeakerSuggestion] {
         let people = others(m.attendees, selfNames: selfNames)
         if !people.isEmpty {
             let why = people.count == 1 ? onlyInviteeReason : invitedReason
             return people.map { SpeakerSuggestion(speakerId: speakerId, name: $0, reasons: [why], sources: [SpeakerSuggestion.calendarSource]) }
         }
-        guard let r = remoteName(m, selfNames: selfNames) else { return [] }
-        return [SpeakerSuggestion(speakerId: speakerId, name: r.name, reasons: [r.reason], sources: [SpeakerSuggestion.calendarSource])]
+        if let r = remoteName(m, selfNames: selfNames) {
+            return [SpeakerSuggestion(speakerId: speakerId, name: r.name, reasons: [r.reason], sources: [SpeakerSuggestion.calendarSource])]
+        }
+        let seen = others(m.windowNames, selfNames: selfNames)
+        guard seen.count == 1 else { return [] }
+        return [SpeakerSuggestion(speakerId: speakerId, name: seen[0], reasons: [windowReason(app: m.app)], sources: [SpeakerSuggestion.windowSource])]
+    }
+
+    /// Why a name from the call window is suggested: "shown in the FaceTime window", or "shown in the call window" for
+    /// all system audio.
+    static func windowReason(app: String?) -> String {
+        let a = (app ?? "").trimmingCharacters(in: .whitespaces)
+        guard !a.isEmpty, !["others", "them", "system audio", "app audio"].contains(a.lowercased()) else { return "shown in the call window" }
+        return "shown in the \(a) window"
+    }
+
+    /// The other people on a call: the invitees who aren't you, or with none invited, the name the call window showed.
+    static func people(_ m: MeetingContext, selfNames: [String]) -> [String] {
+        let invited = others(m.attendees, selfNames: selfNames)
+        return invited.isEmpty ? others(m.windowNames, selfNames: selfNames) : invited
+    }
+
+    // MARK: Who was this with?
+
+    /// Names for "Who was this with?" as you type (Mac, Views/WhoWasThisRow.swift): the names whose whole start, or
+    /// one word's start, matches what's typed (ignoring case and accents), whole-name matches first, each once, at most
+    /// `limit`. Your own names never show. Nothing for fewer than one letter.
+    static func typeahead(_ typed: String, in names: [String], selfNames: [String] = [], limit: Int = 4) -> [String] {
+        func fold(_ s: String) -> String { s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil) }
+        let q = fold(typed.trimmingCharacters(in: .whitespaces))
+        guard q.contains(where: \.isLetter) else { return [] }
+        var first: [String] = [], second: [String] = [], seen = Set<String>()
+        for n in names {
+            let f = fold(n)
+            guard !isSelf(n, selfNames: selfNames), seen.insert(f).inserted else { continue }
+            if f.hasPrefix(q) { first.append(n) }
+            else if f.split(separator: " ").contains(where: { $0.hasPrefix(q) }) { second.append(n) }
+        }
+        return Array((first + second).prefix(limit))
     }
 
     // MARK: The meeting's words
@@ -154,11 +193,12 @@ enum MeetingNames {
     /// Title words at most, so the names keep their places.
     static let maxTitleTerms = 3
 
-    /// The meeting's own short word list, most telling first: the invitees' first names, yours, distinctive words
-    /// from the title (an acronym, a name), the invitees' full names, then your newest Dictionary words to fill the
+    /// The meeting's own short word list, most telling first: the other people's first names (`people`), yours,
+    /// distinctive words from the title (an acronym, a name; the call window's title without a calendar one), their
+    /// full names, then your newest Dictionary words to fill the
     /// list (`dictionary`, ranked as BoostVocabulary.rank ranks them). Each once, at most `maxTerms`.
     static func vocabulary(_ m: MeetingContext, selfNames: [String], dictionary: [String] = []) -> [String] {
-        let people = others(m.attendees, selfNames: selfNames)
+        let people = Self.people(m, selfNames: selfNames)
         var out: [String] = []
         func add(_ s: String) {
             let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -167,7 +207,7 @@ enum MeetingNames {
         }
         for p in people { if let f = p.split(separator: " ").first { add(String(f)) } }
         for s in selfNames where !s.contains(" ") { add(s) }
-        for w in titleTerms(m.title) { add(w) }
+        for w in titleTerms(m.meetingTitle) { add(w) }
         for p in people where p.contains(" ") { add(p) }
         for s in selfNames where s.contains(" ") { add(s) }
         for d in dictionary { add(d) }
@@ -201,7 +241,7 @@ enum MeetingNames {
     /// Priya."): Whisper follows the prompt's style and spelling, not instructions, and reads only its last 224 tokens
     /// (research §3.2), so it stays short. Empty when there's nothing to say.
     static func whisperPrompt(_ m: MeetingContext, terms: [String]) -> String {
-        let title = m.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = m.meetingTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         let lowerTitle = title.lowercased()
         let rest = terms.filter { !lowerTitle.contains($0.lowercased()) }
         var parts: [String] = []

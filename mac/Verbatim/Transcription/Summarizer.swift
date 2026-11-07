@@ -451,6 +451,8 @@ final class SummaryCenter: ObservableObject {
                 self.store?.update(id) { x in
                     guard x.titleIsAuto else { return }
                     x.title = title; x.titleByModel = true
+                    // A call whose other side is named already: "… with Dana" when it reads naturally.
+                    x.addCallNameToTitle()
                 }
                 self.retitled.insert(id)
                 Log.note("summary: title rewritten from the summary")
