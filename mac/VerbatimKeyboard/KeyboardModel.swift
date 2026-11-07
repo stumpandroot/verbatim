@@ -47,6 +47,9 @@ final class KeyboardModel: ObservableObject {
     /// A short line shown under the record card (a failure, or how to turn on Full Access).
     @Published private(set) var notice: String? = nil
     @Published var showsGlobe = true
+    /// Verbose's Settings › Limit animation, from the App Group (MotionMirror), read on each appearance. Off without
+    /// Full Access, when nothing in the App Group is read; the system's Reduce Motion stills the keyboard either way.
+    @Published private(set) var motionLimited = false
     /// Allow Full Access. Off until the controller reads it: nothing touches the App Group without it.
     @Published var hasFullAccess = false {
         didSet {
@@ -272,6 +275,8 @@ final class KeyboardModel: ObservableObject {
         logMemory("appeared")
         let button = DictateButton.read(defaults)
         if button != dictateButton { dictateButton = button }
+        let limited = MotionMirror.limited(in: defaults)
+        if limited != motionLimited { motionLimited = limited }
         // Without Full Access there's no App Group: no session, no snippets, no recent dictations.
         guard hasFullAccess else {
             snippets = []

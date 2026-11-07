@@ -1,13 +1,15 @@
 import SwiftUI
 
 /// Three bars that rise with the voice level (0…1): the bars mark, alive. Shared by the keyboard's Listening
-/// card and the app's hand-off screen. Under Reduce Motion the bars still follow the level, without easing.
+/// card and the app's hand-off screen. Under Reduce Motion or Limit animation the bars still follow the level, without
+/// easing: `limitMotion` comes from the app's root, and in the keyboard from `KeyboardView`, which adds Verbose's Limit
+/// animation from the App Group (MotionMirror).
 struct VoiceBars: View {
     var level: Double
     var color: Color
     var barWidth: CGFloat = 10
     var maxHeight: CGFloat = 40
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.limitMotion) private var reduceMotion
 
     private static let weights: [Double] = [0.65, 1.0, 0.8]
 

@@ -624,6 +624,8 @@ targets:
       - Verbatim/Flow/SpokenCorrections.swift
       # Which haptic each event plays, shared with the app and the watch (DESIGN.md §7).
       - Verbatim/Model/HapticPolicy.swift
+      # Motion's rules: Limit animation's copy in the App Group, which the keyboard follows (DESIGN.md §7).
+      - Verbatim/Model/MotionRules.swift
     info:
       path: VerbatimKeyboard/Info.plist
       properties:
