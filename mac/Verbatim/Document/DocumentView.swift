@@ -13,6 +13,9 @@ struct DocumentView: View {
     @State private var lintTask: Task<Void, Never>? = nil
     /// A Clean up or Tone waiting on "Re-running Clean up replaces your edits" (only asked when you've typed).
     @State private var pendingRun: (level: Polish.Level, tone: Polish.Tone)? = nil
+    /// The window's: ⌘Z (Edit › Undo) undoes the last Clean up, Tone, fix, or Reset, and ⇧⌘Z redoes it (MAC-01). Typing in
+    /// the editor goes on the same stack (NSTextView's own undo), so ⌘Z walks back through both in order.
+    @Environment(\.undoManager) private var undoManager
 
     private var text: String { transcript.documentText }
     /// Lints computed for exactly this text. After Clean up, Accept all, Undo, or typing, the old lints are
@@ -94,17 +97,12 @@ struct DocumentView: View {
                 .buttonStyle(RefinedActionStyle(kind: .quiet))
                 .disabled(!canUndo)
                 .accessibilityHint("Brings back the Cleaned text before the last change.")
-                .help("Undo the last Clean up, Tone, or fix (⇧⌘Z)")
+                .help("Undo the last Clean up, Tone, or fix (⌘Z)")
             if transcript.document != nil {
                 Button("Reset") { reset() }
                     .buttonStyle(RefinedActionStyle(kind: .quiet))
                     .help("Back to the corrected lines from Original")
             }
-        }
-        .background {
-            // ⇧⌘Z for Undo, once, out of sight.
-            Button("") { if canUndo { undo() } }.keyboardShortcut("z", modifiers: [.command, .shift])
-                .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
         }
         .frame(maxWidth: 720)
     }
@@ -123,11 +121,12 @@ struct DocumentView: View {
         }
     }
 
-    private func commit(_ new: String, history: Bool) {
+    private func commit(_ new: String, history: Bool, name: String = CleanedUndo.fix) {
         guard new != text else { return }
         if history {
-            // Harper's fixes: rules, kept in history.
+            // Harper's fixes: rules, kept in history, and on the window's Undo.
             app.store.update(transcript.id) { $0.applyRuleFixes(new) }
+            CleanedUndo.registered(undoManager, id: transcript.id, store: app.store, name: name)
         } else {
             // Typing: the fixes in it can become Dictionary suggestions (EditSessions).
             EditSessions.shared.typed(transcript.id, before: text, after: new)
@@ -157,16 +156,20 @@ struct DocumentView: View {
             ns = ns.replacingCharacters(in: l.nsRange, with: fix) as NSString
             lastStart = l.nsRange.location
         }
-        commit(ns as String, history: true)
+        commit(ns as String, history: true, name: CleanedUndo.acceptAll)
         lints = []
     }
 
+    /// The Undo button: the same step as ⌘Z when the window's last undo is one of the Cleaned tab's, so the two never
+    /// disagree; otherwise the Cleaned history's last step, with Redo after it.
     private func undo() {
-        app.store.update(transcript.id) { $0.undoDocument() }
+        if let um = undoManager, um.canUndo, CleanedUndo.names.contains(um.undoActionName) { um.undo(); return }
+        CleanedUndo.undo(undoManager, id: transcript.id, store: app.store, name: CleanedUndo.fix)
     }
 
     private func reset() {
         app.store.update(transcript.id) { $0.resetCleaned() }
+        CleanedUndo.registered(undoManager, id: transcript.id, store: app.store, name: CleanedUndo.reset)
     }
 
     private func run(level: Polish.Level, tone: Polish.Tone) {
@@ -187,6 +190,7 @@ struct DocumentView: View {
         let paras = DocumentText.paragraphs(base)
         let speakers = DocumentText.labelNames(transcript)
         let id = transcript.id
+        let undoManager = self.undoManager
         working = 0
         Task {
             do {
@@ -194,11 +198,45 @@ struct DocumentView: View {
                 let joined = out.joined(separator: "\n\n")
                 // Every level runs the model, None included, so the result is always marked as Apple Intelligence's.
                 app.store.update(id) { $0.applyCleanup(joined, level: level.rawValue, tone: tone.rawValue, byModel: true) }
+                CleanedUndo.registered(undoManager, id: id, store: app.store, name: tone == .spoken ? CleanedUndo.cleanUp : CleanedUndo.tone)
             } catch {
                 app.toast = Toast(error.localizedDescription)
             }
             working = nil
         }
+    }
+}
+
+/// The Cleaned tab's history on the window's UndoManager (MAC-01): each Clean up, Tone, fix, Accept all, or Reset
+/// registers an undo, so Edit › Undo (⌘Z) brings back the text before it and Edit › Redo (⇧⌘Z) puts the change back.
+/// The history itself is the transcript's (`documentHistory`, Model/CleanedLayer.swift), so it survives a relaunch
+/// and the iPhone's Undo reads the same steps.
+enum CleanedUndo {
+    static let cleanUp = "Clean Up", tone = "Tone", fix = "Fix", acceptAll = "Accept All", reset = "Reset"
+    /// The action names Edit › Undo shows ("Undo Clean Up").
+    static let names: Set<String> = [cleanUp, tone, fix, acceptAll, reset]
+
+    /// A change that pushed the history: register its undo.
+    @MainActor static func registered(_ um: UndoManager?, id: UUID, store: Store, name: String) {
+        guard let um else { return }
+        um.registerUndo(withTarget: store) { store in MainActor.assumeIsolated { undo(um, id: id, store: store, name: name) } }
+        um.setActionName(name)
+    }
+
+    /// Undo: the previous Cleaned text, and a Redo that puts this one back.
+    @MainActor static func undo(_ um: UndoManager?, id: UUID, store: Store, name: String) {
+        guard let before = store.transcript(id)?.cleanedSnapshot, !(store.transcript(id)?.documentHistory.isEmpty ?? true) else { return }
+        store.update(id) { $0.undoDocument() }
+        guard let um else { return }
+        um.registerUndo(withTarget: store) { store in MainActor.assumeIsolated { redo(um, id: id, store: store, snapshot: before, name: name) } }
+        um.setActionName(name)
+    }
+
+    /// Redo: the change again, and its undo again.
+    @MainActor private static func redo(_ um: UndoManager, id: UUID, store: Store, snapshot: Transcript.CleanedSnapshot, name: String) {
+        guard store.transcript(id) != nil else { return }
+        store.update(id) { $0.redoDocument(snapshot) }
+        registered(um, id: id, store: store, name: name)
     }
 }
 

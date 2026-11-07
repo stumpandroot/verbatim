@@ -731,8 +731,9 @@ struct HomeRecordingCard: View {
                 }
             }
             .buttonStyle(RefinedActionStyle(kind: .strong, ink: ink, light: palette == .full ? Refined.lift : Refined.paper))
-            // While the mic is starting, Stop cancels the start.
-            .keyboardShortcut(".", modifiers: [.option, .shift])
+            // While the mic is starting, Stop cancels the start. ⌥⇧. is Recording › Stop and Transcribe, on every
+            // screen (App/AppCommands.swift), not a shortcut of this card's.
+            .help("Stop and transcribe (⌥⇧.)")
         }
         .accessibilityLabel(starting ? "Starting the microphone" : paused ? "Recording paused" : capturing ? "Capturing \(app.capture.appName)" : "Recording")
         .uiTarget("home-recording")

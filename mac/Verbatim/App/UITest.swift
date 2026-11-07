@@ -1805,21 +1805,23 @@ enum UITest {
             check("recent dictations: menu titles are one line of 60", Recall.truncate(long).count == 60 && Recall.truncate(long).hasSuffix("…")
                   && Recall.truncate("Hi\n\nthere  you") == "Hi there you" && Recall.truncate("Short") == "Short")
             check("recent dictations: two-line preview", Recall.preview("One\n\n  Two\nThree") == "One\nTwo")
-            check("recent dictations: number keys 1–9 then 0", Recall.index(forKeyCode: 18) == 0 && Recall.index(forKeyCode: 25) == 8
-                  && Recall.index(forKeyCode: 29) == 9 && Recall.index(forKeyCode: 82) == 9 && Recall.index(forKeyCode: 0) == nil
+            check("recent dictations: number keys 1–9 then 0", RecallKeys.index(forKeyCode: 18) == 0 && RecallKeys.index(forKeyCode: 25) == 8
+                  && RecallKeys.index(forKeyCode: 29) == 9 && RecallKeys.index(forKeyCode: 82) == 9 && RecallKeys.index(forKeyCode: 0) == nil
                   && Recall.keyLabel(0) == "1" && Recall.keyLabel(9) == "0" && Recall.keyLabel(10) == nil)
-            check("recent dictations: a number copies, ⇧ pastes", Recall.keyAction(keyCode: 18, modifiers: [], queryEmpty: true) == .copy(0)
-                  && Recall.keyAction(keyCode: 29, modifiers: [.shift], queryEmpty: true) == .paste(9))
-            check("recent dictations: numbers type into search unless ⌘ is held", Recall.keyAction(keyCode: 18, modifiers: [], queryEmpty: false) == nil
-                  && Recall.keyAction(keyCode: 18, modifiers: [.command], queryEmpty: false) == .copy(0)
-                  && Recall.keyAction(keyCode: 18, modifiers: [.command, .shift], queryEmpty: false) == .paste(0)
-                  && Recall.keyAction(keyCode: 18, modifiers: [.option], queryEmpty: true) == nil)
-            check("recent dictations: arrows, Return, and Esc", Recall.keyAction(keyCode: 125, modifiers: [], queryEmpty: false) == .move(1)
-                  && Recall.keyAction(keyCode: 126, modifiers: [], queryEmpty: true) == .move(-1)
-                  && Recall.keyAction(keyCode: 36, modifiers: [], queryEmpty: false) == .pasteSelected
-                  && Recall.keyAction(keyCode: 36, modifiers: [.shift], queryEmpty: false) == .pasteSelected
-                  && Recall.keyAction(keyCode: 53, modifiers: [], queryEmpty: false) == .close
-                  && Recall.keyAction(keyCode: 0, modifiers: [], queryEmpty: true) == nil)
+            check("recent dictations: ⌘ and a number copy, ⇧⌘ pastes", Recall.keyAction(keyCode: 18, modifiers: [.command]) == .copy(0)
+                  && Recall.keyAction(keyCode: 29, modifiers: [.command, .shift]) == .paste(9))
+            check("recent dictations: plain digits always type into search (GPT-12)", Recall.keyAction(keyCode: 18, modifiers: []) == nil
+                  && Recall.keyAction(keyCode: 29, modifiers: [.shift]) == nil && Recall.keyAction(keyCode: 18, modifiers: [.option]) == nil)
+            check("recent dictations: arrows, Return, and Esc", Recall.keyAction(keyCode: 125, modifiers: []) == .move(1)
+                  && Recall.keyAction(keyCode: 126, modifiers: []) == .move(-1)
+                  && Recall.keyAction(keyCode: 36, modifiers: []) == .pasteSelected
+                  && Recall.keyAction(keyCode: 36, modifiers: [.shift]) == .pasteSelected
+                  && Recall.keyAction(keyCode: 53, modifiers: []) == .close
+                  && Recall.keyAction(keyCode: 0, modifiers: []) == nil)
+            var gate = PointerGate(at: CGPoint(x: 100, y: 100))
+            let stillHover = gate.hover(at: CGPoint(x: 100, y: 100))
+            let movedHover = gate.hover(at: CGPoint(x: 100, y: 130))
+            check("recent dictations: a hover takes the selection only after the pointer moves (MAC-36)", !stillHover && movedHover)
             check("didn't paste: the Ribbon keeps it with no text field or no read", Recall.rescue(for: .copiedOnly, command: false) == .noField
                   && Recall.rescue(for: .failed(.notRead), command: false) == .notRead)
             check("didn't paste: not after a paste that landed, an edit by voice, or a failure with its own fix",
@@ -3507,7 +3509,7 @@ extension UITest {
               LiveCaptionsView.waitingLine(.both(id: "us.zoom.xos", name: "Zoom"), open: true) == "Listening to Zoom and your mic. Words appear here as they're said."
               && LiveCaptionsView.waitingLine(.mic, open: true).hasPrefix("Listening to your mic."))
         check("review: Return pastes the selected recent dictation, as its pill says",
-              Recall.keyAction(keyCode: 36, modifiers: [], queryEmpty: true) == .pasteSelected)
+              Recall.keyAction(keyCode: 36, modifiers: []) == .pasteSelected)
         check("review: the on-device promise has one phrasing", TemplateCopy.onDevice("Mac") == "On this Mac with Apple Intelligence. Nothing leaves it.")
         check("review: saved actions draw brand glyphs", FlowAction.builtIn.allSatisfy { a in
             a.symbol == "sparkles" || a.symbol == "wand.and.stars" || a.art.strokes.count > 1 })

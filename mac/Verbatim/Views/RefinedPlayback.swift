@@ -126,10 +126,11 @@ extension View {
 
 /// Search matches in reading text: butter behind the match with ink fixed on it, in light and dark.
 enum ReadingHighlight {
-    static func marked(_ text: AttributedString, query: String) -> AttributedString {
+    /// `minLength`: search marks from two letters; the Mac's find bar (Views/TranscriptFind.swift) from one.
+    static func marked(_ text: AttributedString, query: String, minLength: Int = 2) -> AttributedString {
         var a = text
         let q = query.trimmingCharacters(in: .whitespaces)
-        guard q.count >= 2 else { return a }
+        guard q.count >= max(1, minLength) else { return a }
         var from = a.startIndex
         while from < a.endIndex, let r = a[from...].range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) {
             a[r].backgroundColor = Refined.badge(.butter)

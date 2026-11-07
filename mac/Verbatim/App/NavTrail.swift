@@ -118,6 +118,7 @@ final class NavTrail: ObservableObject {
     /// button that's the dictation hotkey stays dictation's (MouseButtonTap takes it; a listen-only tap doesn't).
     func installMonitor(_ app: AppState) {
         NavMenuItems.shared.install(app)
+        TranscriptMenuItems.shared.install(app)
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown, .swipe]) { [weak self, weak app] e in
             guard let self, let app, let w = e.window, w === app.mainWindow, w.attachedSheet == nil else { return e }
