@@ -738,8 +738,14 @@ struct RecorderControl<Glyph: View>: View {
 
 /// The recorder's Stop: the system red stop square in a ring (76 pt), with "Stop" under it, or a spinner and
 /// "Saving…" while the recording is saved. Red appears only here and on the record disc (DESIGN.md §13).
+///
+/// After a tap on Stop the ring fills slow, then fast, in the recording's color while "Saving…" shows, and the button
+/// bounces a little as it completes (`ring`, DESIGN.md §7, Celebrations); the square stays until the recorder closes.
 struct RecorderStopButton: View {
     var saving: Bool
+    /// The stop ring's celebration, while it plays.
+    var ring: BurstState = .idle
+    var ringColor: Color = Refined.persimmon
     var action: () -> Void
 
     var body: some View {
@@ -747,10 +753,17 @@ struct RecorderStopButton: View {
             VStack(spacing: 8) {
                 ZStack {
                     Circle().strokeBorder(Refined.separator, lineWidth: 4)
-                    if saving { ProgressView() }
+                    if ring.active {
+                        Circle().inset(by: 2).trim(from: 0, to: ring.fill)
+                            .stroke(ringColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                            .allowsHitTesting(false)
+                    }
+                    if saving && !ring.active { ProgressView() }
                     else { RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Refined.recordRed).frame(width: 30, height: 30) }
                 }
                 .frame(width: 76, height: 76)
+                .scaleEffect(ring.active ? ring.scale : 1)
                 Text(saving ? "Saving\u{2026}" : "Stop").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
             }
             .contentShape(Rectangle())

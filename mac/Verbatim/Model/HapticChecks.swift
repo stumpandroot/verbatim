@@ -18,8 +18,9 @@ enum HapticChecks {
         check("haptics: small saves and the tray are a light tap", phone.haptic(for: .smallSave) == .impact(.light, intensity: 1)
               && phone.haptic(for: .trayOpened) == .impact(.light, intensity: 1))
         check("haptics: the app plays no typing tap", phone.haptic(for: .typingKey) == nil)
-        check("haptics: success is only for a finished transcript, Your voice, and Send to Reminders",
-              HapticEvent.allCases.filter { phone.haptic(for: $0) == .success } == [.transcriptReady, .milestone, .sentToReminders])
+        check("haptics: a recording saved from the recorder's Stop is success", phone.haptic(for: .recordingSaved) == .success)
+        check("haptics: success is only for a finished transcript, a recording saved, a milestone, and Send to Reminders",
+              Set(HapticEvent.allCases.filter { phone.haptic(for: $0) == .success }) == [.transcriptReady, .recordingSaved, .milestone, .sentToReminders])
         check("haptics: the iPhone never plays a watch haptic",
               HapticEvent.allCases.compactMap { phone.haptic(for: $0) }.allSatisfy { !Self.isWatch($0) })
 
@@ -41,7 +42,7 @@ enum HapticChecks {
         typing.typingKeys = true
         check("haptics: with Typing haptics on, each key is a light tap at 0.6", typing.haptic(for: .typingKey) == .impact(.light, intensity: 0.6))
         check("haptics: the keyboard plays nothing for the app's other events",
-              [HapticEvent.pause, .mark, .transcriptReady, .failed, .autoPaused, .smallSave].allSatisfy { keyboard.haptic(for: $0) == nil })
+              [HapticEvent.pause, .mark, .transcriptReady, .recordingSaved, .milestone, .failed, .autoPaused, .smallSave].allSatisfy { keyboard.haptic(for: $0) == nil })
 
         // The watch: start, click, stop, failure, and nothing else.
         let watch = HapticPolicy(enabled: true, platform: .watch)
