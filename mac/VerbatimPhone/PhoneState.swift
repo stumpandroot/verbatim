@@ -1298,12 +1298,12 @@ extension PhoneState: TranscriptionHost {
         say("Switched to \(store.transcript(id)?.model ?? "the other words")")
     }
 
-    /// A transcript is ready: "Transcript ready" with Open for the last in a batch, and its celebration on the first
-    /// surface on screen (the open transcript, its Library row, or the toast), with the ready haptic and sound timed to
-    /// its fill (DESIGN.md §7, Celebrations).
+    /// A transcript is ready: its celebration on the first surface on screen (the open transcript, its Library row, or
+    /// the toast), with the ready haptic and sound timed to its fill, and "Transcript ready" with Open for the last in a
+    /// batch unless the transcript or its row already says so (DESIGN.md §7, Celebrations).
     func transcriptReady(_ id: UUID, corrections: Int, queueEmpty: Bool) {
         let celebration = playReady(id, queueEmpty: queueEmpty, celebrates: true)
-        if queueEmpty {
+        if ReadyCelebration.toastShows(queueEmpty: queueEmpty, surface: celebration?.surface) {
             say("Transcript ready", action: "Open", celebration: celebration?.surface == .toast ? celebration : nil) { [weak self] in self?.open(id) }
         }
     }

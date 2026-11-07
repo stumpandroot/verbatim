@@ -58,6 +58,10 @@ enum CelebrationChecks {
               surface(dictation: true, open: true, row: true, toast: true) == nil)
         check("celebrations: once per recording, and only in front",
               surface(first: false, open: true) == nil && surface(front: false, open: true) == nil)
+        check("celebrations: the toast stays away while the transcript or its row celebrates, and shows for the last in a batch otherwise",
+              !ReadyCelebration.toastShows(queueEmpty: true, surface: .transcript) && !ReadyCelebration.toastShows(queueEmpty: true, surface: .libraryRow)
+              && ReadyCelebration.toastShows(queueEmpty: true, surface: .toast) && ReadyCelebration.toastShows(queueEmpty: true, surface: nil)
+              && !ReadyCelebration.toastShows(queueEmpty: false, surface: nil))
         check("celebrations: nothing on screen and no toast (a batch) celebrates nowhere, so the haptic plays at once",
               surface(toast: false) == nil && !ReadyCelebration.feedbackWaits(for: nil)
               && ReadyCelebration.feedbackWaits(for: .libraryRow) && ReadyCelebration.startWithin <= 1)

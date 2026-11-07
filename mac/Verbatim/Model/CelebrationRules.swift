@@ -212,6 +212,12 @@ enum ReadyCelebration {
         return nil
     }
 
+    /// Whether "Transcript ready" shows: for the last in a batch, unless the open transcript or its Library row is
+    /// already celebrating it (exactly one place says so; the row and the transcript open it themselves).
+    static func toastShows(queueEmpty: Bool, surface: ReadySurface?) -> Bool {
+        queueEmpty && (surface == nil || surface == .toast)
+    }
+
     /// The ready haptic and sound wait for the fill when a surface celebrates, so they land with it; with nothing on
     /// screen they play at once.
     static func feedbackWaits(for surface: ReadySurface?) -> Bool { surface != nil }

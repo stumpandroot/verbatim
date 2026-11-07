@@ -82,7 +82,8 @@ extension AppState: TranscriptionHost {
         } else {
             chime?()
         }
-        if queueEmpty {
+        // The toast stays away while the open transcript celebrates (exactly one place says so).
+        if ReadyCelebration.toastShows(queueEmpty: queueEmpty, surface: celebration?.surface) {
             var ready = Toast(n > 0 ? "Transcript ready · Dictionary fixed \(n) word\(n == 1 ? "" : "s")" : "Transcript ready", action: "Open") { [weak self] in self?.go(.transcript(id)) }
             ready.celebration = celebration?.surface == .toast ? celebration : nil
             toast = ready
