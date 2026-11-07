@@ -137,6 +137,9 @@ enum UITest {
             window.makeKeyAndOrderFront(nil)
             await meetingSteps(main: window)
             recordChoiceChecks()
+            // The interactions audit's menus, find in the transcript, the Cleaned tab's Undo, and the inspector's room.
+            await macCommandSteps(app: app, window: window)
+            window.makeKeyAndOrderFront(nil)
             // Thoughts: today's page, the bubble, the menu bar's group, By day, the rename, and the pad's move.
             await thoughtsSteps(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
@@ -3601,3 +3604,86 @@ private struct WidePage: View {
     }
 }
 #endif
+
+// MARK: - Interactions audit: commands, find, Undo, and the inspector (November 7, 2026)
+
+// The interactions audit's Mac commands, find, focus, and small-window fixes (November 7, 2026), checked in the
+// running app: the Recording and Dictation menus and the transcript's View and Edit items are in the menu bar, ⌘F
+// opens the find bar on a transcript and steps through matches, the Cleaned tab's Undo goes through the window's
+// UndoManager with Redo after it, and the inspector follows its room. The pure rules are in App/MacCommandRules.swift
+// and run on Linux (mac/tools/test-mac-commands.sh).
+
+extension UITest {
+    static func macCommandSteps(app: AppState, window: NSWindow) async {
+        func menu(_ title: String) -> NSMenu? {
+            let m = NSApp.mainMenu?.items.first(where: { $0.submenu?.title == title })?.submenu
+            m?.update()
+            return m
+        }
+        let recording = menu("Recording")?.items.filter { !$0.isSeparatorItem }.map(\.title) ?? []
+        check("commands: a Recording menu with Stop and Transcribe, Pause, and Mark Moment (\(recording.joined(separator: ", ")))",
+              recording.contains("Stop and Transcribe") && recording.contains("Mark Moment") && recording.contains { $0.hasSuffix("Recording") && $0 != "Stop and Transcribe" })
+        if let stop = menu("Recording")?.items.first(where: { $0.title == "Stop and Transcribe" }) {
+            check("commands: Stop and Transcribe is ⌥⇧. and off while nothing records",
+                  stop.keyEquivalentModifierMask.contains(.option) && (app.recorder.isRecording || app.capture.isCapturing || !stop.isEnabled))
+        }
+        let dictation = menu("Dictation")?.items.filter { !$0.isSeparatorItem }.map(\.title) ?? []
+        check("commands: a Dictation menu with Dictate, New Thought, and Recent Dictations (\(dictation.joined(separator: ", ")))",
+              dictation.contains("Dictate") && dictation.contains { $0 == "New Thought" || $0 == "Stop Thought" } && dictation.contains("Recent Dictations"))
+        let view = menu("View")?.items.map(\.title) ?? []
+        check("commands: View has Bigger Text, Smaller Text, and Mark This Moment", TranscriptMenuItems.viewTitles.allSatisfy(view.contains))
+        let edit = menu("Edit")?.items.map(\.title) ?? []
+        check("commands: Edit has Copy Text, Copy for AI, Find…, Find Next, Find Previous, and Search or Ask…",
+              TranscriptMenuItems.editTitles.allSatisfy(edit.contains) && ["Find…", "Find Next", "Find Previous", "Search or Ask…"].allSatisfy(edit.contains))
+        check("commands: File says Record Voice Note", menu("File")?.items.contains { $0.title == "Record Voice Note" } ?? false)
+
+        // Find in the open transcript.
+        guard let t = app.store.live.first(where: { $0.status == .ready && !$0.showsAudioDetail && $0.segments.count >= 2 }) else {
+            Log.note("UITEST note: no ready transcript with lines for the find checks"); return
+        }
+        app.go(.transcript(t.id))
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        let word = t.segments.first?.text.split(separator: " ").first.map(String.init) ?? "the"
+        let find = TranscriptFind.shared
+        AppCommands.find(app)
+        find.query = word
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        check("find: ⌘F on a transcript opens the find bar, not Search or ask", find.open && !AskNav.shared.panelOpen && frames["transcript-find"] != nil)
+        check("find: the bar counts its matches and selects the first (\(find.countLabel))", !find.matches.isEmpty && find.current == 0 && find.currentLine != nil)
+        let first = find.current
+        find.next()
+        check("find: ⌘G steps to the next match, and ⇧⌘G back", find.matches.count == 1 ? find.current == 0 : find.current != first)
+        find.previous()
+        check("find: and back again", find.current == first)
+        find.close()
+        check("find: Esc or Done closes it and clears the query", !find.open && find.query.isEmpty && find.matches.isEmpty)
+        app.go(.library)
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        AppCommands.find(app)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        check("find: elsewhere ⌘F opens Search or ask", AskNav.shared.panelOpen && !find.open)
+        AskNav.shared.close()
+
+        // The Cleaned tab's Undo and Redo through the window's UndoManager (MAC-01).
+        if let um = window.undoManager, let id = app.store.live.first(where: { $0.status == .ready })?.id {
+            let before = app.store.transcript(id)?.documentText ?? ""
+            app.store.update(id) { $0.applyRuleFixes(before + " Fixed.") }
+            CleanedUndo.registered(um, id: id, store: app.store, name: CleanedUndo.fix)
+            check("undo: Edit › Undo names the Cleaned tab's change", um.canUndo && um.undoActionName == CleanedUndo.fix)
+            um.undo()
+            let undone = app.store.transcript(id)?.documentText == before
+            check("undo: ⌘Z brings the text back, and ⇧⌘Z can redo it", undone && um.canRedo)
+            um.redo()
+            check("undo: ⇧⌘Z redoes the change", app.store.transcript(id)?.documentText == before + " Fixed.")
+            um.undo()
+            um.removeAllActions(withTarget: app.store)
+        }
+
+        // The inspector follows its room (MAC-05).
+        let nav = WindowNav.shared
+        check("inspector: it has room only with about 560 pt of content beside it (\(Int(nav.detailWidth)) pt wide)",
+              nav.inspectorHasRoom == (nav.detailWidth - WindowNav.inspectorRoomWidth >= InspectorFit.minContent))
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+    }
+}
