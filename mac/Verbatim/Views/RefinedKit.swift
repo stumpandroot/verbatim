@@ -934,9 +934,17 @@ struct SegmentRowLayout: Layout {
 /// A transcript's kind as its colored chip, which opens a menu of every kind (the header's meta line): "Suggested by
 /// Verbose" while Verbose picked it. iPhone's tap target is 44 pt tall.
 struct KindPickerChip: View {
+    /// The kind a pick writes over, and the one the menu checks.
     var kind: RecordingKind?
+    /// The kind the chip shows: `refinedKind` (a link is Video or Podcast, a file Audio or Video), so the same
+    /// recording reads the same here as in the Library and on Home (MAC-12). Nil shows `kind`.
+    var shown: RecordingKind?
     var isAuto: Bool
     var onPick: (RecordingKind) -> Void
+
+    init(kind: RecordingKind?, shown: RecordingKind? = nil, isAuto: Bool, onPick: @escaping (RecordingKind) -> Void) {
+        self.kind = kind; self.shown = shown; self.isAuto = isAuto; self.onPick = onPick
+    }
 
     var body: some View {
         Menu {
@@ -948,7 +956,7 @@ struct KindPickerChip: View {
                 }
             }
         } label: {
-            KindChip(kind: kind)
+            KindChip(kind: shown ?? kind)
                 .frame(minHeight: RefinedPlatform.mac ? 0 : CGFloat(RefinedRules.minTapTarget))
                 .contentShape(Rectangle())
         }
@@ -958,7 +966,9 @@ struct KindPickerChip: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Change the kind")
-        .accessibilityLabel("Kind: \(RecordingKind.refinedName(kind)). Change")
+        // The label starts with the word the chip shows (MAC-39; DESIGN.md §8).
+        .accessibilityLabel(RecordingKind.refinedName(shown ?? kind))
+        .accessibilityHint("Changes the kind")
     }
 }
 

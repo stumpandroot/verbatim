@@ -874,7 +874,8 @@ struct LibraryPreview: View {
                 .padding(.top, 3)
             HStack(spacing: 8) {
                 if t.audioFileName != nil && t.status == .ready {
-                    Button { nav.play(t, app: app) } label: { Label("Play", systemImage: "play.fill") }   // brand: system surface (the inspector)
+                    // The kit's Play glyph, not an SF Symbol: the inspector isn't a system surface (MAC-40; DESIGN.md §3).
+                    Button { nav.play(t, app: app) } label: { Label { Text("Play") } icon: { IconGlyph(art: .iconPlay, size: 13, color: .white) } }   // white: the prominent button's own label color
                         .buttonStyle(.borderedProminent)
                         .help("Open and play (Space)")
                 }

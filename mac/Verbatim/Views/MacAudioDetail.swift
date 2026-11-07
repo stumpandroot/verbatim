@@ -62,7 +62,7 @@ struct MacAudioDetail: View {
             .refinedFont(.transcriptTitle).foregroundStyle(Refined.ink)
             .accessibilityLabel("Title")
             FlowRow(spacing: 8, lineSpacing: 6) {
-                KindPickerChip(kind: t.kind ?? .audio, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
+                KindPickerChip(kind: t.kind ?? .audio, shown: t.refinedKind ?? .audio, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
                 Text(RefinedRules.transcriptWhen(t.createdAt) + " \u{00B7} " + AudioOnlyRules.statusLine(t))
                     .refinedFont(.meta).foregroundStyle(Refined.mute)
             }

@@ -213,7 +213,7 @@ struct TranscriptView: View {
             title(t)
             FlowRow(spacing: 8, lineSpacing: 6) {
                 if t.kind != .dictation, t.status == .ready {
-                    KindPickerChip(kind: t.kind, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
+                    KindPickerChip(kind: t.kind, shown: t.refinedKind, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
                 }
                 if let project {
                     KindChip(title: project.name, hue: RefinedRules.projectHue(project.colorIndex))

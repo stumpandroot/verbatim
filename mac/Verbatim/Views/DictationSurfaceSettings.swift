@@ -236,7 +236,7 @@ struct HotkeyPickerRow: View {
                 if recording {
                     HStack(spacing: 5) {
                         Text("Press")
-                        KeyChip(text: "esc")
+                        KeyChip(text: "Esc")
                         Text("to stop recording without changing anything.")
                     }
                     .font(.system(size: 12.5)).foregroundStyle(Refined.mute)

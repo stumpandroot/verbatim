@@ -177,6 +177,51 @@ check("keyboard: calendar days and arrows, the pad's arrows and mic take focus a
       && read("Verbatim/Views/Controls.swift").contains(".focusable(enabled, interactions: .activate)"))
 check("keyboard: a search passage is a Button (MAC-23)", library.contains("Button(action: open)") && !library.contains(".onTapGesture { app.focusSegment = segment.id"))
 
+// Small windows (group 5).
+check("small: the Cleaned toolbar fits a row, two rows, or More (MAC-04)",
+      doc.contains("ViewThatFits(in: .horizontal)") && doc.contains("RefinedMenuLabel(title: \"More\")"))
+check("small: the Library's columns follow LibraryColumnPlan and the kind chip never truncates (MAC-05)",
+      library.contains("LibraryColumnPlan(width: width)") && library.contains("columns.shows(.people)")
+      && read("Verbatim/Views/RefinedKit.swift").contains("Text(title).refinedFont(.chip, weight: .semibold).lineLimit(1)\n            .fixedSize()"))
+let chrome = read("Verbatim/Views/MacChrome.swift")
+check("small: the inspector closes on its own without room, and its button can still show it (MAC-05)",
+      chrome.contains("InspectorFit.shows(chosen: true, detailWidth: detailWidth") && chrome.contains("Binding(get: { nav.inspectorVisible && app.screen.hasInspector }")
+      && chrome.contains("Button { nav.toggleInspector() }"))
+check("small: Thoughts times are one line at the widest time's width (MAC-06)",
+      read("Verbatim/Flow/ThoughtPad.swift").contains("struct ThoughtTime") && !read("Verbatim/Flow/ThoughtPad.swift").contains(".frame(width: 42, alignment: .leading)"))
+let bubble = read("Verbatim/Flow/ThoughtBubble.swift")
+check("small: the bubble's card fits its content with one stop phrasing (MAC-16)",
+      bubble.contains("static let stopHint = \"Click the disc to stop\"") && !bubble.contains(".frame(width: 278)") && !bubble.contains("Text(\"Click to stop"))
+check("small: Mac chips wrap (MAC-19)", read("Verbatim/Views/RefinedKit.swift").contains("FlowRow(spacing: 8, lineSpacing: 8) { content }"))
+check("small: Edit Home's tags sit above the outline and Choose tiles keeps its name (MAC-28)",
+      read("Verbatim/Views/HomeSectionsMac.swift").contains("if editing { badge.padding(.leading, 8)") && read("Verbatim/Views/EditHome.swift").contains(".fixedSize()"))
+check("small: stacked By day keeps the heading and writing first, with a day stepper (MAC-29)",
+      !read("Verbatim/Views/ByDayView.swift").contains("sideFirstWhenStacked: true") && read("Verbatim/Views/ByDayView.swift").contains("ByDayStepper(days:"))
+let card = read("Verbatim/Views/LinkAddedCard.swift")
+check("motion: the link card counts at once and shows at once from ⌘V (MAC-17, MAC-10)",
+      card.contains("autoFinish?.cancel(); autoFinish = nil\n        onLanded()") && card.contains("limitMotion || fromKeyboard ? 1 : 0.94"))
+check("motion: Search or ask shows at once (MAC-09)", read("Verbatim/Views/AskViews.swift").contains(".animation(.easeOut(duration: KeyMotion.recallFade), value: nav.panelOpen)"))
+
+// Same action, same result (group 6).
+check("kinds: the transcript's chip shows refinedKind, as the Library does (MAC-12)",
+      transcriptView.contains("KindPickerChip(kind: t.kind, shown: t.refinedKind") && read("Verbatim/Views/MacAudioDetail.swift").contains("shown: t.refinedKind ?? .audio"))
+let trash = read("Verbatim/Views/TrashView.swift")
+check("danger: Delete now and Empty are danger, never persimmon or the strong button (MAC-15)",
+      trash.contains("Text(\"Delete now\")") && trash.contains("foregroundStyle(Refined.danger)") && !trash.contains("Refined.accentText")
+      && !trash.contains("RefinedActionStyle(kind: .strong)"))
+check("copy: Deleted just now, never in 0 seconds (MAC-38)", trash.contains("\"just now\"") && trash.contains("min(d, now)"))
+check("copy: no em dashes in voice setup (MAC-38)", !read("Verbatim/Views/VoiceEnrollment.swift").contains("static let greatLine = \"Great —"))
+check("copy: Voice note in onboarding, Settings, and the shortcut, with the old phrase kept for Siri (MAC-30)",
+      read("Verbatim/Views/OnboardingView.swift").contains("A voice note or a call") && read("Verbatim/Views/SettingsKit.swift").contains("In voice notes")
+      && read("Verbatim/App/VerbatimIntents.swift").contains("Record a voice note with") && read("Verbatim/App/VerbatimIntents.swift").contains("Record a voice memo with"))
+let escaped = macFiles.flatMap { f in codeLines(f.1).filter { $0.contains("(text: \"esc\"") }.map { "\(f.0): \($0)" } }
+check("copy: Esc keycaps everywhere (MAC-41)", escaped.isEmpty, "\(escaped)")
+check("labels: the kind picker starts with its word; the type-apps remove button has a name (MAC-39)",
+      read("Verbatim/Views/RefinedKit.swift").contains(".accessibilityLabel(RecordingKind.refinedName(shown ?? kind))")
+      && read("Verbatim/Flow/Paster.swift").contains(".accessibilityLabel(\"Remove \\(Self.name(for: id))\")"))
+check("glyphs: no SF person or play on the toolbar or inspector (MAC-40)",
+      !chrome.contains("person.crop.circle") && !library.contains("systemImage: \"play.fill\""))
+
 let recall = read("Verbatim/Flow/Recall.swift")
 check("recall: the panel uses RecallKeys and gates hover on a real move",
       recall.contains("RecallKeys.action(keyCode: keyCode, mods: mods)") && recall.contains("model.pointer.hover(at: NSEvent.mouseLocation)")

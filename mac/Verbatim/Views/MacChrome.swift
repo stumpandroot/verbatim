@@ -456,8 +456,11 @@ private struct ToolbarActionsItem: View {
         case .library:
             libraryActions
         case .home:
-            Button { app.go(.activity) } label: { Label("You", systemImage: "person.crop.circle") }   // brand: system surface
-                .help("You: your week, cleanup, and where you dictate")
+            // The sidebar's You glyph as a template image, so the toolbar tints it (MAC-40; DESIGN.md §3).
+            Button { app.go(.activity) } label: {
+                Label { Text("You") } icon: { Image(nsImage: BrandArt.iconAboutMe.templateImage(size: 16, key: "toolbar-you")) }
+            }
+            .help("You: your week, cleanup, and where you dictate")
         default:
             EmptyView()
         }

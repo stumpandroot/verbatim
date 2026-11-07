@@ -466,6 +466,7 @@ struct PasteSettingsRows: View {
                     Spacer()
                     Button { typeApps = apps.filter { $0 != id }.joined(separator: "\n") } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.plain).help("Paste in this app again")
+                        .accessibilityLabel("Remove \(Self.name(for: id))")
                 }
             }
             LabeledContent("Type instead of paste in") { Button("Add App…") { choose() }.buttonStyle(.settingsPill) }

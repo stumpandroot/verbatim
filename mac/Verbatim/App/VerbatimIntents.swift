@@ -125,10 +125,10 @@ enum RecordKindOption: String, AppEnum {
     var kind: RecordingKind { RecordingKind(rawValue: rawValue) ?? .note }
 }
 
-/// Starts a voice memo recording, optionally as a kind you pick.
+/// Starts a voice note recording, optionally as a kind you pick.
 struct StartRecordingIntent: AppIntent {
     static let title: LocalizedStringResource = "Start recording"
-    static let description = IntentDescription("Opens Verbose and starts recording a voice memo. Pick a kind, such as Meeting, to file it as that kind.")
+    static let description = IntentDescription("Opens Verbose and starts recording a voice note. Pick a kind, such as Meeting, to file it as that kind.")
     static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Kind")
@@ -200,7 +200,9 @@ struct VerbatimMacShortcuts: AppShortcutsProvider {
                     shortTitle: "Last dictation",
                     systemImageName: "text.cursor")   // brand: system surface
         AppShortcut(intent: StartRecordingIntent(),
-                    phrases: ["Start recording in \(.applicationName)", "Record a voice memo with \(.applicationName)"],
+                    // "Voice note" as the app says it everywhere (MAC-30); the old phrase stays as a synonym for Siri.
+                    phrases: ["Start recording in \(.applicationName)", "Record a voice note with \(.applicationName)",
+                              "Record a voice memo with \(.applicationName)"],
                     shortTitle: "Start recording",
                     systemImageName: "mic")   // brand: system surface
         AppShortcut(intent: GetTranscriptTextIntent(),

@@ -100,7 +100,10 @@ enum WatchChecks {
         check("watch import: the chip says from the Apple Watch", p.notes.first.flatMap(Marks.chip) == "Moment 4:12 · from the Apple Watch"
               && p.notes.first.flatMap(Marks.shortSource) == "Apple Watch")
         let v = WatchImport.plan(note)
-        check("watch import: a voice note is a voice memo whose kind AutoLabel picks", v.kind == nil && v.title == "Voice memo" && v.label == WatchImport.voiceLabel)
+        check("watch import: a voice note is a Voice note whose kind AutoLabel picks", v.kind == nil && v.title == "Voice note" && v.label == WatchImport.voiceLabel
+              && WatchImport.voiceLabel == "Voice note · Apple Watch")
+        let olderNote = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: WatchImport.legacyVoiceLabel, duration: 3, audioFileName: nil, model: "")
+        check("watch import: one from an older build still reads as from the watch", WatchImport.isFromWatch(olderNote))
         check("watch import: two marks within 3 seconds are one moment", v.notes.count == 2)
         var t = Transcript(title: p.title, source: .voiceMemo, sourceLabel: p.label, duration: 42.5, audioFileName: nil, model: "")
         t.kind = p.kind

@@ -340,7 +340,7 @@ struct NotchView: View {
                     RibbonControl(id: "notch-cancel", label: "Cancel", help: "Cancel (Esc)", action: controller.cancel) { pressed in
                         HStack(spacing: 7) {
                             Text("Cancel").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Refined.onBlack)
-                            DarkKeycap(text: "esc", color: Refined.onBlackDim)
+                            DarkKeycap(text: "Esc", color: Refined.onBlackDim)
                         }
                         .padding(.leading, 12).padding(.trailing, 8).frame(height: 28)
                         .overlay(Capsule().strokeBorder(Refined.onBlackHair, lineWidth: 1))
