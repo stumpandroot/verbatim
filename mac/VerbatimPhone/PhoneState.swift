@@ -1377,9 +1377,10 @@ extension PhoneState: TranscriptionHost {
             if let moment { Sounds.play(moment) }
         } : nil
         let center = CelebrationCenter.shared
+        // A Library row counts only with the Library tab showing: a hidden tab can keep its rows alive.
         let surface = !celebrates ? nil : ReadyCelebration.surface(
             isDictation: t?.isDictation ?? false, isThought: t?.kind == .idea, first: first, foreground: front,
-            transcriptOpen: center.isOpen(id), rowOnScreen: center.rowOnScreen(id), toastShows: queueEmpty, phone: true)
+            transcriptOpen: center.isOpen(id), rowOnScreen: tab == .library && center.rowOnScreen(id), toastShows: queueEmpty, phone: true)
         guard let surface, let t, ReadyCelebration.feedbackWaits(for: surface) else { feedback?(); return nil }
         return center.celebrateReady(id, on: surface, tone: CelebrationTone.of(source: t.source.rawValue), feedback: feedback)
     }

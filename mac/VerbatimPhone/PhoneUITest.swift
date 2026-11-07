@@ -522,9 +522,10 @@ enum PhoneUITest {
         // With neither the transcript nor its row on screen: the toast, with Open, and the fill sweeping it.
         var away = Transcript(title: "Porch interview", source: .voiceMemo, sourceLabel: "Voice memo", duration: 1445, audioFileName: nil, model: "")
         away.status = .processing
-        app.store.add(away)
         app.tab = .home
-        try? await Task.sleep(nanoseconds: 900_000_000)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        app.store.add(away)
+        try? await Task.sleep(nanoseconds: 300_000_000)
         center.holdsEnd = true
         app.store.update(away.id) { $0.status = .ready }
         app.transcriptReady(away.id, corrections: 0, queueEmpty: true)
@@ -532,6 +533,19 @@ enum PhoneUITest {
               app.toast?.message == "Transcript ready" && app.toast?.action == "Open" && app.toast?.celebration?.surface == .toast
               && center.ready[away.id]?.surface == .toast)
         await show("p16g-toast-ready")
+        await clear()
+        // A Library row kept alive in the hidden Library tab doesn't count as on screen.
+        var hidden = Transcript(title: "Fence quote", source: .voiceMemo, sourceLabel: "Voice memo", duration: 312, audioFileName: nil, model: "")
+        hidden.status = .processing
+        app.tab = .library
+        app.store.add(hidden)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        app.tab = .home
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        app.store.update(hidden.id) { $0.status = .ready }
+        app.transcriptReady(hidden.id, corrections: 0, queueEmpty: true)
+        check("with the Library tab hidden, its rows don't take the celebration from the toast",
+              center.ready[hidden.id]?.surface != .libraryRow && app.toast?.message == "Transcript ready")
         await clear()
         app.tab = .library
         try? await Task.sleep(nanoseconds: 600_000_000)
