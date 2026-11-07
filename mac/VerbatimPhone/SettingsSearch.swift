@@ -71,6 +71,10 @@ enum SettingsSearchIndex {
     private static let support = PhoneSettingsMap.support
     private static let features = PhoneSettingsMap.features
 
+    /// The Sounds and Haptics rows' lines, shared by the rows and their search results.
+    static let soundsSubtitle = "Short sounds when you start or stop recording and when a transcript is ready, while Verbose is open."
+    static let hapticsSubtitle = "Taps when you record, stop, mark, or copy, here, in the keyboard, and on Apple Watch."
+
     static let all: [SettingsSearchEntry] = [
         // Personalization and preferences. Settings › Appearance: the palette, and light or dark.
         .init(id: "palette", section: personalization, label: "Palette", keywords: ["color", "colour", "soft", "full", "tint", "muted", "bright", "pastel", "record card", "tiles", "look", "style"],
@@ -94,8 +98,10 @@ enum SettingsSearchIndex {
               description: "Use a model that knows each recording's language"),
         .init(id: "limitMotion", section: personalization, label: "Limit animation", keywords: ["reduce motion", "animation", "accessibility", "movement"],
               description: "Fades instead of movement; illustrations stay still"),
-        .init(id: "haptics", section: personalization, label: "Haptics", keywords: ["vibration", "vibrate", "taps", "feedback", "buzz", "accessibility", "apple watch", "keyboard", "sound", "sounds", "chime"],
-              description: "Taps when you record, stop, mark, or copy, here, in the keyboard, and on Apple Watch. Also turns Verbose's sounds on or off."),
+        .init(id: "sounds", section: personalization, label: "Sounds", keywords: ["sound", "audio", "chime", "tick", "beep", "tone", "feedback", "accessibility", "mute", "quiet", "silent"],
+              description: soundsSubtitle),
+        .init(id: "haptics", section: personalization, label: "Haptics", keywords: ["vibration", "vibrate", "taps", "feedback", "buzz", "accessibility", "apple watch", "keyboard"],
+              description: hapticsSubtitle),
 
         // Recording and transcription
         .init(id: "quality", section: recording, label: "Quality", keywords: ["model", "accuracy", "speed", "preset", "language"],
@@ -303,6 +309,7 @@ enum SettingsSearchIndex {
         case "palette": return AppPalette.current.label
         case "appearance": return app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"
         case "limitMotion": return onOff(d.bool(forKey: MotionPreference.key))
+        case "sounds": return onOff(SoundSettings.enabled(in: Haptics.store))
         case "haptics": return onOff(Haptics.enabled)
         case "recordLiveWords": return onOff(RecordingLiveText.enabled)
         case "audioTracks": return AudioTracksPreference.current == .separate ? "Separate" : "Mix"

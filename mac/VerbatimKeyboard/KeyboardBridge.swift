@@ -144,15 +144,13 @@ enum KeyboardBridge {
         if inserted.trimmingCharacters(in: .whitespacesAndNewlines) == clean { return .keep("nothing changed") }
         if !sameField { return .keep("a different text field") }
         if age > polishWindow { return .keep("it arrived after \(Int(polishWindow)) s") }
-        guard let before, !before.isEmpty else { return .keep("the field doesn't show the text before the cursor") }
-        if before.hasSuffix(inserted) { return .replace }
-        if inserted.hasSuffix(before) {
-            let cut = inserted.index(inserted.endIndex, offsetBy: -before.count)
-            let afterBreak = cut > inserted.startIndex && inserted[inserted.index(before: cut)].isNewline
-            if before.count >= 16 || afterBreak { return .replace }
-            return .keep("too little text before the cursor to be sure")
+        // The same check Undo and Use as spoken make (InsertionGuard).
+        switch InsertionGuard.ending(before: before, inserted: inserted) {
+        case .matches: return .replace
+        case .unreadable: return .keep("the field doesn't show the text before the cursor")
+        case .tooShort: return .keep("too little text before the cursor to be sure")
+        case .changed: return .keep("the text before the cursor changed")
         }
-        return .keep("the text before the cursor changed")
     }
 
     /// Settings › Keyboard › Start dictating when you come back. On unless turned off.

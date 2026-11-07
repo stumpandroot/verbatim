@@ -50,9 +50,18 @@ enum WatchChecks {
               && WatchRules.sentLine(WatchTransfer(kind: .thought, startedAt: started, duration: 42)) == "Thought · 0:42")
         check("watch: Sent says where it goes", WatchRules.sentDetail(.thought, reachable: true) == "Your iPhone transcribes it and adds it to today's Thoughts."
               && WatchRules.sentDetail(.voiceNote, reachable: false).hasPrefix("Your iPhone gets it when it's in reach"))
+        // Saved on Watch, then Sending or Waiting, and Sent to iPhone only once the transfer finished (GPT-24).
+        check("watch: just after Stop it's saved on the watch, not sent", WatchRules.deliveryTitle(WatchRules.delivery(delivered: false, reachable: true)) == "Saved on Watch"
+              && WatchRules.deliveryTitle(WatchRules.delivery(delivered: false, reachable: false)) == "Saved on Watch")
+        check("watch: on its way, it says Sending or Waiting for your iPhone",
+              WatchRules.deliveryStatus(WatchRules.delivery(delivered: false, reachable: true)) == "Sending to your iPhone"
+              && WatchRules.deliveryStatus(WatchRules.delivery(delivered: false, reachable: false)) == "Waiting for your iPhone")
+        check("watch: Sent to iPhone only once the transfer finished", WatchRules.delivery(delivered: true, reachable: false) == .sent
+              && WatchRules.deliveryTitle(.sent) == "Sent to iPhone" && WatchRules.deliveryStatus(.sent) == nil)
         check("watch: the waiting line counts recordings", WatchRules.waitingLine(0) == nil
               && WatchRules.waitingLine(1) == "1 recording waiting for your iPhone" && WatchRules.waitingLine(3) == "3 recordings waiting for your iPhone")
         let words = [WatchRules.todayLine(2), WatchRules.sentDetail(.thought, reachable: false), WatchRules.fullMessage, WatchRules.stoppedFullMessage,
+                     WatchRules.deliveryTitle(.sending), WatchRules.deliveryTitle(.sent), WatchRules.deliveryStatus(.sending) ?? "", WatchRules.deliveryStatus(.waiting) ?? "",
                      WatchRules.micMessage, WatchRules.interruptedMessage, WatchRules.failedMessage, WatchRules.complicationDetail]
         check("watch: no exclamation points, em dashes, or filler in the watch's words",
               words.allSatisfy { w in !w.contains("!") && !w.contains("—") && !["just", "simply", "easily"].contains { w.lowercased().contains(" \($0) ") } })

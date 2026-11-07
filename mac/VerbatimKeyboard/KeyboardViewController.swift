@@ -137,12 +137,16 @@ final class KeyboardViewController: UIInputViewController {
         model.typing.refreshTraits(reset: false)
         applyAppearance()
         model.refreshFormat()
+        // The host changed the text: Undo stays only while the inserted words are still where they went in.
+        model.hostChanged()
     }
 
     override func selectionDidChange(_ textInput: UITextInput?) {
         super.selectionDidChange(textInput)
         // The cursor moved: shift follows auto-capitalization for the new place.
         model.typing.refreshTraits(reset: false)
+        // And Undo can't reach the inserted words from a new place (InsertionGuard).
+        model.hostChanged()
     }
 
     // MARK: The host app

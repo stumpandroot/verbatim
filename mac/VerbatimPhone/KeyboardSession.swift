@@ -888,7 +888,7 @@ final class KeyboardSession: ObservableObject {
         writeLive(d)
         KeyboardBridge.post(KeyboardBridge.Note.state)
         // The Live Activity's level, about once a second (ActivityKit isn't for 10 updates a second).
-        if Date().timeIntervalSince(lastLevelPush) >= 1 { lastLevelPush = Date(); updateActivity() }
+        if Date().timeIntervalSince(lastLevelPush) >= LiveFreshness.sessionLevelTick { lastLevelPush = Date(); updateActivity() }
         checkCommands()
         if dictating, seconds >= KeyboardBridge.maxSeconds { finishDictation() }
         // A first-tap dictation nobody came back to: stop listening after a minute.
@@ -1323,6 +1323,8 @@ final class KeyboardSession: ObservableObject {
             break
         }
         if Date().timeIntervalSince(lastBeat) >= KeyboardBridge.heartbeatInterval { writeSession() }
+        // A session that sits ready changes nothing for minutes: refresh its Live Activity so its stale date holds.
+        if Date().timeIntervalSince(lastActivityPush) >= LiveFreshness.sessionRefresh { updateActivity() }
     }
 
     private func writeSession() {
@@ -1466,7 +1468,7 @@ final class KeyboardSession: ObservableObject {
         guard activitiesAllowed else { return false }
         endStaleActivities()
         do {
-            let a = try Activity.request(attributes: VerbatimSessionAttributes(), content: ActivityContent(state: activityState(), staleDate: nil))
+            let a = try Activity.request(attributes: VerbatimSessionAttributes(), content: activityContent(activityState()))
             activity = a
             watch(a)
             return true
@@ -1530,7 +1532,18 @@ final class KeyboardSession: ObservableObject {
     private func updateActivity() {
         guard let a = activity else { return }
         let state = activityState()
-        Task { await a.update(ActivityContent(state: state, staleDate: nil)) }
+        lastActivityPush = Date()
+        Task { await a.update(activityContent(state)) }
+    }
+
+    /// When the Live Activity last got an update; the heartbeat refreshes it after `LiveFreshness.sessionRefresh`.
+    private var lastActivityPush = Date.distantPast
+
+    /// A live session state with its stale date (`LiveFreshness`): if updates stop (iOS ended Verbose), the Live
+    /// Activity turns stale and says to open Verbose, instead of claiming the microphone is listening. Paused for a call
+    /// holds still on its own, so it has none.
+    private func activityContent(_ state: VerbatimSessionAttributes.ContentState) -> ActivityContent<VerbatimSessionAttributes.ContentState> {
+        ActivityContent(state: state, staleDate: LiveFreshness.staleDate(now: Date(), holdsStill: state.shown == .paused))
     }
 
     /// Copied, Inserted, or a failure for a ribbon take. A result shows for `Ribbon.resultHold` seconds; a failed

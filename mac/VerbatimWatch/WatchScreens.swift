@@ -15,8 +15,8 @@ struct WatchRoot: View {
                 NavigationStack { WatchHome(recorder: recorder, link: link) }
             case .recording:
                 WatchRecording(recorder: recorder)
-            case .sent(let t, let reachable, let note):
-                WatchSent(transfer: t, reachable: reachable, note: note) { recorder.dismiss() }
+            case .saved(let t, let note):
+                WatchSent(transfer: t, link: link, note: note) { recorder.dismiss() }
             case .problem(let message):
                 WatchProblem(message: message) { recorder.dismiss() }
             }
@@ -187,7 +187,9 @@ struct WatchVoiceBars: View {
     }
 }
 
-/// Sent to iPhone: the audio stays on the watch until the iPhone has it.
+/// After Stop: "Saved on Watch" with "Sending to your iPhone" or "Waiting for your iPhone", then "Sent to iPhone" once
+/// Watch Connectivity says the transfer finished (`WatchRules.delivery`, GPT-24). The audio stays on the watch until
+/// the iPhone has it.
 ///
 /// When you stopped it yourself, the ring trims around in persimmon, slow then fast, and the check pops with the small
 /// bounce as it completes (DESIGN.md §7, Celebrations; `WatchSentMotion`). With the wrist down (`isLuminanceReduced`)
@@ -195,7 +197,7 @@ struct WatchVoiceBars: View {
 /// (a call, a full watch) shows it whole.
 struct WatchSent: View {
     var transfer: WatchTransfer
-    var reachable: Bool
+    @ObservedObject var link: WatchLink
     var note: String?
     var done: () -> Void
     @Environment(\.limitMotion) private var limitMotion
@@ -218,8 +220,12 @@ struct WatchSent: View {
                     .frame(width: 54, height: 54)
                     .accessibilityHidden(true)
                     .task { await celebrate() }
-                Text("Sent to iPhone").font(.system(size: 17, weight: .semibold)).foregroundStyle(WatchColor.text).padding(.top, 10)
-                Text(WatchRules.sentDetail(transfer.kind, reachable: reachable))
+                Text(WatchRules.deliveryTitle(delivery)).font(.system(size: 17, weight: .semibold)).foregroundStyle(WatchColor.text).padding(.top, 10)
+                    .accessibilityAddTraits(.updatesFrequently)
+                if let status = WatchRules.deliveryStatus(delivery) {
+                    Text(status).font(.system(size: 13, weight: .medium)).foregroundStyle(WatchColor.text).padding(.top, 3)
+                }
+                Text(WatchRules.sentDetail(transfer.kind, reachable: link.reachable || delivery == .sent))
                     .font(.system(size: 13)).foregroundStyle(WatchColor.dim).multilineTextAlignment(.center).padding(.top, 3)
                 if let note {
                     Text(note).font(.system(size: 13)).foregroundStyle(WatchColor.dim).multilineTextAlignment(.center).padding(.top, 6)
@@ -244,7 +250,13 @@ struct WatchSent: View {
 }
 
 extension WatchSent {
-    /// The ring trims, then the check pops: once, as Sent to iPhone appears (`WatchSentMotion`).
+    /// Saved on Watch until the iPhone has it, then Sent to iPhone.
+    private var delivery: WatchRules.Delivery {
+        WatchRules.delivery(delivered: link.delivered.contains(transfer.id), reachable: link.reachable)
+    }
+
+    /// The ring trims, then the check pops: once, as Saved on Watch appears (`WatchSentMotion`): the recording is
+    /// safe on the watch.
     private func celebrate() async {
         let T = CelebrationTiming.self
         switch WatchSentMotion.of(stoppedByYou: note == nil, luminanceReduced: dimmed, limited: limitMotion) {

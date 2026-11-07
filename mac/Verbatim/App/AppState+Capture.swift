@@ -53,6 +53,9 @@ extension AppState {
         if !soundOnly { recordingWords.begin(recorder) }   // before the mic opens, so live words hear the first word
         // Audio only or a Brain dump: if Verbose quits mid-recording, recovery files it as that kind.
         if pendingContinue == nil { Store.markKind(url, recordKind) }
+        // The start sound first; the recording keeps what the mic hears from when it ends (MicArm), so nothing is
+        // silenced and the sound isn't in it.
+        Sounds.playBeforeMic(SoundRules.start(), arming: recorder)
         recorder.begin(to: url) { [weak self] error in
             guard let self else { return }
             if let error {
@@ -65,8 +68,6 @@ extension AppState {
             self.pendingContinue = nil
             // If Verbatim quits mid-recording, recovery adds it to this transcript (RecordingSafety.swift).
             if let target = self.continuing { Store.markContinuation(url, to: target) }
-            // The mic is already open: what it hears of the start sound is written as silence (MicKeepOut).
-            Sounds.play(SoundRules.start(), keepingOutOf: self.recorder)
             if let warning = Store.lowSpaceWarning() { self.toast = Toast(warning) }
         }
     }

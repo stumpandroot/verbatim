@@ -183,6 +183,8 @@ struct BurstState: Equatable {
     var active = false
     /// The part a tap skips.
     var bursting = false
+    /// The whole overlay's opacity: it fades out at the end of a word's hold (the open transcript's Ready overlay).
+    var shown: Double = 1
 
     static let idle = BurstState()
 }
@@ -202,8 +204,9 @@ struct BurstScript {
 
     /// A Library row: the badge fills, "Ready" holds 1.6 s from when it shows.
     static let row = BurstScript(size: .medium, word: CelebrationWord.ready, hold: CelebrationTiming.wordHold, waitsForSwipe: true)
-    /// The open transcript: the card fills, "Ready", then the text replaces the card.
-    static let transcript = BurstScript(size: .medium, word: CelebrationWord.ready, hold: CelebrationTiming.replaceAfter)
+    /// The open transcript: the text and controls are already there; the fill and "Ready" play over the top of the text
+    /// (`ReadyOverlay`), hold briefly, and fade.
+    static let transcript = BurstScript(size: .medium, word: CelebrationWord.ready, hold: CelebrationTiming.readyOverlayHold)
     /// The toast: the fill sweeps it and stays while it shows.
     static let toast = BurstScript(size: .medium)
     /// The iPhone recorder's stop ring.
@@ -247,9 +250,10 @@ struct CelebrationBurst<Content: View>: View {
 
     var body: some View {
         content(state)
-            // A tap during the burst jumps to the end; the host's own taps and gestures still work, and outside a burst
-            // there's no gesture at all (an Optional gesture keeps the view's structure the same either way).
-            .simultaneousGesture(state.bursting ? TapGesture().onEnded { if let t = ticket { CelebrationCenter.shared.skip(t.id) } } : nil)
+            // A tap during the burst jumps to the end, and a tap during the hold ends it; the host's own taps and gestures
+            // still work, and outside a celebration there's no gesture at all (an Optional gesture keeps the view's
+            // structure the same either way).
+            .simultaneousGesture(state.active ? TapGesture().onEnded { if let t = ticket { CelebrationCenter.shared.skip(t.id) } } : nil)
             .task(id: ticket?.id) { await play() }
     }
 
@@ -315,11 +319,12 @@ struct CelebrationBurst<Content: View>: View {
         state.bursting = false
         if let word = script.word { AccessibilityNotification.Announcement(word).post() }
         guard !center.holdsEnd, let hold = script.holdAfterBurst(motion) else { return }
-        try? await Task.sleep(nanoseconds: UInt64(hold * 1_000_000_000))
+        // Every hold ends early on a tap (nothing waits for a celebration).
+        _ = await celebrationWait(hold, ticket.id)
         guard !Task.isCancelled, !center.holdsEnd else { return }
-        if script.word != nil, script.hold == T.wordHold {
-            // "Ready" and "Saved" go; the line they covered comes back.
-            withAnimation(.easeOut(duration: T.fadeOut)) { state.word = 0; state.old = 1 }
+        if script.word != nil {
+            // "Ready" and "Saved" go; the line they covered comes back, and the Ready overlay fades.
+            withAnimation(.easeOut(duration: T.fadeOut)) { state.word = 0; state.old = 1; state.shown = 0 }
             try? await Task.sleep(nanoseconds: UInt64(T.fadeOut * 1_000_000_000))
             guard !Task.isCancelled else { return }
         }
@@ -327,6 +332,33 @@ struct CelebrationBurst<Content: View>: View {
         withAnimation(.easeOut(duration: 0.24)) {
             if let onEnded { onEnded(ticket) } else { center.didFinish(ticket.id) }
         }
+    }
+}
+
+// MARK: - The open transcript's Ready
+
+/// A transcript that finished while it's open (DESIGN.md §7, Celebrations; `ReadyReveal`): its text, tabs, and player
+/// are already showing, and this plays on top of the text's first lines: the tint sweeps a band, "Ready" rises onto
+/// it, it holds briefly, and it fades. It never takes a tap or changes layout; a tap on the text under it ends it
+/// (`celebrationTapSkips`).
+struct ReadyOverlay: View {
+    var ticket: CelebrationTicket?
+    var radius: CGFloat
+    var height: CGFloat = 52
+    var wordSize: CGFloat = 17
+
+    var body: some View {
+        CelebrationBurst(ticket: ticket, script: .transcript) { burst in
+            Color.clear
+                .frame(maxWidth: .infinity).frame(height: height)
+                .celebrationWord(burst.active ? CelebrationWord.ready : nil, state: burst, size: wordSize)
+                .padding(.horizontal, 14)
+                .celebrationSweep(ticket?.tone.tint ?? Refined.persimmonTint, state: burst, radius: radius)
+                .scaleEffect(burst.active ? burst.scale : 1)
+                .opacity(burst.active ? burst.shown : 0)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -520,7 +552,8 @@ struct MilestoneBurst: View {
         }
         AccessibilityNotification.Announcement(CelebrationWord.milestone(ticket.milestone.threshold)).post()
         guard !center.holdsEnd else { return }
-        try? await Task.sleep(nanoseconds: UInt64(T.milestoneHold * 1_000_000_000))
+        // The hold ends early on a tap on the card (`celebrationTapSkips`).
+        _ = await celebrationWait(T.milestoneHold, id)
         guard !Task.isCancelled, !center.holdsEnd else { return }
         withAnimation(.easeOut(duration: T.milestoneFadeOut)) { shown = 0 }
         try? await Task.sleep(nanoseconds: UInt64(T.milestoneFadeOut * 1_000_000_000))

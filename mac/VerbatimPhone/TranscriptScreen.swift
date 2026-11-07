@@ -110,7 +110,8 @@ struct TranscriptScreen: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
                                 header(t)
-                                if t.status == .ready && readyTicket == nil {
+                                // The tabs show the moment it's ready, even while Ready plays over the text (ReadyReveal).
+                                if ReadyReveal.showsContent(ready: t.status == .ready, celebrating: readyTicket != nil) {
                                     RefinedSegmented(options: modes(t), selection: $mode)
                                         .padding(.top, 14)
                                         .onChange(of: t.corrections.isEmpty) { _, none in if none, mode == .review { mode = .transcript } }
@@ -412,24 +413,18 @@ struct TranscriptScreen: View {
     }
 
     @ViewBuilder private func content(_ t: Transcript) -> some View {
-        if t.status == .processing || readyTicket != nil {
-            // The processing card. When the transcript finishes here, its tint fills the card, "Ready" shows, and then
-            // the text replaces the card (DESIGN.md §7, Celebrations); nothing around it moves.
-            CelebrationBurst(ticket: readyTicket, script: .transcript) { burst in
-                HStack(spacing: 14) {
-                    SignalRings(active: t.processingDevice == Device.id).frame(width: 44, height: 44)
-                    VStack(alignment: .leading, spacing: 3) {
-                        LiveStage(t) { t in Text(t.status == .processing ? t.stageText : "Transcribing").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink) }
-                        Text(t.processingDevice == Device.id || t.status == .ready ? "On this iPhone. The first run downloads the model once." : "It appears here when it's done.")
-                            .refinedFont(.hint).foregroundStyle(Refined.mute)
-                    }
+        if ReadyReveal.showsProcessingCard(processing: t.status == .processing, celebrating: readyTicket != nil) {
+            // The processing card, only while it processes. When the transcript finishes here, the text and controls show
+            // at once and Ready plays over the top of the text (`readyContent`; DESIGN.md §7, Celebrations).
+            HStack(spacing: 14) {
+                SignalRings(active: t.processingDevice == Device.id).frame(width: 44, height: 44)
+                VStack(alignment: .leading, spacing: 3) {
+                    LiveStage(t) { t in Text(t.stageText).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink) }
+                    Text(t.processingDevice == Device.id ? "On this iPhone. The first run downloads the model once." : "It appears here when it's done.")
+                        .refinedFont(.hint).foregroundStyle(Refined.mute)
                 }
-                .opacity(burst.active ? burst.old : 1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .celebrationWord(burst.active ? CelebrationWord.ready : nil, state: burst, size: 17)
-                .celebrationSweep(readyTicket?.tone.tint ?? Refined.persimmonTint, state: burst, radius: RefinedPlatform.radius(.card), outset: 12)
-                .scaleEffect(burst.active ? burst.scale : 1)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 8)
             .transition(.opacity)
         } else if t.status == .failed {
@@ -491,6 +486,9 @@ struct TranscriptScreen: View {
             }
             // A tab change slides the body in from the side of the tab you picked as the old one fades (DESIGN.md §7, view switches).
             .slideSwitch(on: mode, order: Mode.allCases.firstIndex(of: mode) ?? 0)
+            // Finished while open: the text is here already, and Ready plays over its first lines; a tap ends it.
+            .overlay(alignment: .top) { ReadyOverlay(ticket: readyTicket, radius: RefinedPlatform.radius(.card)) }
+            .celebrationTapSkips(readyTicket?.id)
         }
     }
 

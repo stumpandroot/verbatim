@@ -221,7 +221,34 @@ enum WatchRules {
         return parts.joined(separator: " · ")
     }
 
-    /// Under "Sent to iPhone": where it goes, and whether the iPhone is in reach now.
+    /// Where a recording is after Stop (GPT-24). It's saved on the watch at once; it's sent only when Watch
+    /// Connectivity says the transfer finished without an error, never when it's queued.
+    enum Delivery: Equatable {
+        /// Queued, with the iPhone in reach.
+        case sending
+        /// Queued, waiting for the iPhone to come in reach.
+        case waiting
+        /// The transfer finished: the iPhone has it.
+        case sent
+    }
+
+    static func delivery(delivered: Bool, reachable: Bool) -> Delivery {
+        delivered ? .sent : reachable ? .sending : .waiting
+    }
+
+    /// The screen after Stop: "Saved on Watch" until the iPhone has it, then "Sent to iPhone".
+    static func deliveryTitle(_ d: Delivery) -> String { d == .sent ? "Sent to iPhone" : "Saved on Watch" }
+
+    /// The line under it while it's on its way; nil once sent.
+    static func deliveryStatus(_ d: Delivery) -> String? {
+        switch d {
+        case .sending: return "Sending to your iPhone"
+        case .waiting: return "Waiting for your iPhone"
+        case .sent: return nil
+        }
+    }
+
+    /// Under the title: where it goes, and whether the iPhone is in reach now.
     static func sentDetail(_ kind: WatchCaptureKind, reachable: Bool) -> String {
         let goes = kind == .thought ? "adds it to today's Thoughts" : "adds it to the Library"
         return reachable ? "Your iPhone transcribes it and \(goes)." : "Your iPhone gets it when it's in reach, then transcribes it and \(goes)."

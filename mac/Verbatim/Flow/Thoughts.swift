@@ -140,6 +140,8 @@ final class ThoughtCapture: ObservableObject {
         let started = Date()
         begin(at: started)
         words.begin(recorder)
+        // A thought is a quick capture: dictation's tick, played first; the recording keeps what's heard after it (MicArm).
+        Sounds.playBeforeMic(SoundRules.start(thought: true), arming: recorder)
         recorder.begin(to: url) { [weak self] error in
             guard let self else { return }
             if let error {
@@ -151,8 +153,6 @@ final class ThoughtCapture: ObservableObject {
                 self.say(error.localizedDescription)
                 return
             }
-            // A thought is a quick capture: dictation's tick, kept out of the recording (MicKeepOut).
-            Sounds.play(SoundRules.start(thought: true), keepingOutOf: self.recorder)
         }
         Log.note("thought: recording")
     }

@@ -1,7 +1,7 @@
 import Foundation
 
 // Interface sounds (Verbatim/Model/SoundRules.swift, DESIGN.md §7, Sounds): the moments, the 150 ms rule, and the
-// microphone keep-out (SoundChecks.swift, which both apps' self-tests also run). Then the files, the project, and the
+// start sound before the microphone (MicArm) (SoundChecks.swift, which both apps' self-tests also run). Then the files, the project, and the
 // sources. Reads them from the mac/ folder given as the first argument. Not part of any app target; run
 // mac/tools/test-sounds.sh.
 var passed = 0, failed = 0
@@ -117,8 +117,17 @@ check("player: the Mac plays prepared players at volume 1, the iPhone system sou
       player.contains("p.prepareToPlay()") && player.contains("p.volume = 1") && player.contains("AudioServicesCreateSystemSoundID")
       && player.contains("AudioServicesPlaySystemSound(id)") && !player.contains("volume = 0"))
 check("player: every sound passes the 150 ms rule and the switch", player.contains("spacing.allows(at:") && player.contains("guard enabled else { return nil }"))
-check("player: the iPhone plays only in front and follows the Haptics switch",
-      player.contains("SoundRules.phonePlays(foreground: UIApplication.shared.applicationState == .active)") && player.contains("static var enabled: Bool { Haptics.enabled }"))
+check("player: the iPhone plays only in front and follows its own Sounds switch, apart from Haptics",
+      player.contains("SoundRules.phonePlays(foreground: UIApplication.shared.applicationState == .active)")
+      && player.contains("static var enabled: Bool { SoundSettings.enabled(in: Haptics.store) }") && !player.contains("{ Haptics.enabled }"))
+let settingsScreen = read("VerbatimPhone/SettingsScreen.swift")
+check("iPhone Settings: Sounds and Haptics are two rows, each searchable",
+      settingsScreen.contains("SettingsToggleRow(title: \"Sounds\"") && settingsScreen.contains("SettingsToggleRow(title: \"Haptics\"")
+      && settingsScreen.contains("@AppStorage(SoundSettings.enabledKey, store: Haptics.store)")
+      && read("VerbatimPhone/SettingsSearch.swift").contains(".init(id: \"sounds\", section: personalization, label: \"Sounds\""))
+check("iPhone: the old combined switch carries over to Sounds once, at the store", read("VerbatimPhone/Haptics.swift").contains("SoundSettings.migrate(group)"))
+check("the keyboard and the watch keep following Haptics", read("VerbatimKeyboard/KeyboardModel.swift").contains("HapticSettings.enabled(in: d)")
+      && read("VerbatimPhone/PhoneWatch.swift").contains("haptics: Haptics.enabled)") && !read("VerbatimKeyboard/KeyboardModel.swift").contains("SoundSettings"))
 check("player: both apps load every sound at launch",
       read("Verbatim/App/AppState.swift").contains("Sounds.preload()") && read("VerbatimPhone/PhoneState.swift").contains("Sounds.preload()"))
 check("player: the Mac follows Settings › General › Sounds", read("Verbatim/App/AppState.swift").contains("didSet { Sounds.enabled = sounds }"))
@@ -134,9 +143,9 @@ check("sources: on the iPhone only recording, results, and errors play (PhoneSta
 // The moments, in place.
 let dictation = read("Verbatim/App/Dictation.swift")
 let begin = body(dictation, "    private func begin(handsFree: Bool, command wantCommand: Bool)")
-check("dictation: the start tick plays once the mic opens, kept out of the recording, before Accessibility is read",
-      before("try recorder.start(to:", "Sounds.play(.dictationStart, keepingOutOf: recorder)", in: begin)
-      && before("Sounds.play(.dictationStart, keepingOutOf: recorder)", "AppContext.capture(", in: begin))
+check("dictation: the start tick plays before the mic opens, arming the recording, and before Accessibility is read",
+      before("Sounds.playBeforeMic(.dictationStart, arming: recorder)", "try recorder.start(to:", in: begin)
+      && before("Sounds.playBeforeMic(.dictationStart, arming: recorder)", "AppContext.capture(", in: begin))
 let finishNow = body(dictation, "    private func finishNow(tail: Double)")
 check("dictation: the stop plays after the mic is off (the tail included), not for a thought",
       before("recorder.stop()", "Sounds.play(.dictationStop)", in: finishNow) && finishNow.contains("if !(toPad && !command) { Sounds.play(.dictationStop) }"))
@@ -147,15 +156,15 @@ check("dictation: the paste's outcome picks pasted or the error", dictation.cont
 check("dictation: a mic that can't start or be heard plays the error", body(dictation, "    private func showMicProblem(").contains("Sounds.play(.error)"))
 
 let capture = read("Verbatim/App/AppState+Capture.swift")
-check("Mac recording: the start is kept out of the recording; the stop plays once capture ends",
-      capture.contains("Sounds.play(SoundRules.start(), keepingOutOf: self.recorder)")
+check("Mac recording: the start plays before the mic opens, arming the recording; the stop plays once capture ends",
+      before("Sounds.playBeforeMic(SoundRules.start(), arming: recorder)", "recorder.begin(to: url)", in: body(capture, "    func startRecording()"))
       && capture.contains("await recorder.stopAndSave(captureEnded: { Sounds.play(SoundRules.stop(thought: false)) })"))
 let thoughts = read("Verbatim/Flow/Thoughts.swift")
-check("Mac thought: dictation's tick kept out of the recording; Thought saved once it's filed",
-      thoughts.contains("Sounds.play(SoundRules.start(thought: true), keepingOutOf: self.recorder)") && body(thoughts, "    func file(").contains("Sounds.play(SoundRules.stop(thought: true))"))
+check("Mac thought: dictation's tick before the mic opens, arming the recording; Thought saved once it's filed",
+      before("Sounds.playBeforeMic(SoundRules.start(thought: true), arming: recorder)", "recorder.begin(to: url)", in: thoughts) && body(thoughts, "    func file(").contains("Sounds.play(SoundRules.stop(thought: true))"))
 let session = read("Verbatim/App/MeetingSession.swift")
-check("meeting: the start (or the automatic call's) once both tracks run, kept off the mic track; the stop after the mic is off",
-      before("phase = .recording", "Sounds.play(SoundRules.start(automatic: startedAutomatically), keepingOutOf: mic)", in: session)
+check("meeting: the start (or the automatic call's) before the mic track opens, arming it; the stop after the mic is off",
+      before("Sounds.playBeforeMic(SoundRules.start(automatic: startedAutomatically), arming: recorder)", "recorder.begin(to: micURL)", in: session)
       && session.contains("await mic.stopAndSave(captureEnded: { Sounds.play(SoundRules.stop(thought: false)) })"))
 check("meeting: a call the wait started is automatic", read("Verbatim/App/MeetingCoordinator.swift").contains("automatic: announce)"))
 let pipeline = read("Verbatim/App/AppState+Pipeline.swift")
@@ -164,8 +173,8 @@ check("Mac results: transcription done for recordings only, the error when trans
 check("summary ready: once a batch's last summary is written", read("Verbatim/Transcription/Summarizer.swift").contains("if queue.isEmpty { Sounds.play(.summaryReady) }"))
 let phone = read("VerbatimPhone/PhoneState.swift")
 let startRecording = body(phone, "    func startRecording()")
-check("iPhone recording: the start once the mic opens, kept out of the recording; the stop once capture ends",
-      before("try recorder.start(to: url)", "Sounds.play(SoundRules.start(thought: thought), keepingOutOf: recorder)", in: startRecording)
+check("iPhone recording: the start before the mic opens, arming the recording; the stop once capture ends",
+      before("Sounds.playBeforeMic(SoundRules.start(thought: thought), arming: recorder)", "try recorder.start(to: url)", in: startRecording)
       && phone.contains("await recorder.stopAndSave(captureEnded: { Sounds.play(stopSound) })"))
 check("iPhone results: transcription done with the ready haptic, for recordings only",
       body(phone, "    private func playReady(").contains("SoundRules.transcriptDone(isDictation:"))
@@ -173,9 +182,20 @@ check("iPhone results: transcription done with the ready haptic, for recordings 
 // The microphone and the system track never keep Verbose's own sounds.
 let recorder = read("Verbatim/Audio/Recorder.swift")
 let write = body(recorder, "    private func write(_ buffer: AVAudioPCMBuffer, tapped:")
-check("keep out: the writer silences the window before the live words and the file get the buffer",
-      before("MicKeepOut.silenced(", "if liveTap != nil { tapped = out; tap = liveTap }", in: write) && before("MicKeepOut.silenced(", "append(out, to: file", in: write))
-check("keep out: the recorder hands the window to its writer", body(recorder, "    func keepOut(seconds: Double)").contains("writer.keepOut(MicKeepOut.window(playedAt:"))
+check("arm: the writer drops what came before the arm before the live words and the file get the buffer",
+      before("MicArm.kept(", "if liveTap != nil { tapped = out; tap = liveTap }", in: write) && before("MicArm.kept(", "append(out, to: file", in: write))
+check("arm: nothing is ever replaced with silence (no keep-out, no silencing)",
+      !recorder.contains("MicKeepOut") && !recorder.contains("Self.silence(") && !read("Verbatim/Audio/SoundPlayer.swift").contains("keepingOutOf"))
+check("arm: the recorder arms from the sound's start and every new writer takes it before its first buffer",
+      body(recorder, "    func armAfterSound(seconds: Double?)").contains("MicArm.at(playedAt: ProcessInfo.processInfo.systemUptime")
+      && recorder.components(separatedBy: "if let a = takeArm() { w.arm(at: a) }").count == 3
+      && recorder.contains("if let arm { w.arm(at: arm) }") && recorder.contains("let arm = takeArm()"))
+// App audio has no microphone (its capture leaves Verbose's own audio out), so its start plays as it begins.
+let plainStarts = code.filter { $0.1.contains("Sounds.play(SoundRules.start(") || $0.1.contains("Sounds.play(.dictationStart") }.map(\.0)
+check("arm: every start sound that opens a mic plays through playBeforeMic",
+      plainStarts == ["Verbatim/App/AppState+Capture.swift"] && body(capture, "    func startCapture(").contains("Sounds.play(SoundRules.start())")
+      && capture.components(separatedBy: "Sounds.play(SoundRules.start(").count == 2
+      && code.filter { $0.1.contains("Sounds.playBeforeMic(") }.count == 5, "\(plainStarts)")
 check("keep out: stopAndSave's captureEnded runs after the mic is off and before the join",
       before("finishStop()\n        captureEnded?()", "RecordingSegments.join(parts)", in: body(recorder, "    func stopAndSave(captureEnded:")))
 let tap = read("Verbatim/Audio/ProcessTapCapture.swift")

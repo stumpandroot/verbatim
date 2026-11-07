@@ -374,10 +374,10 @@ final class PhoneState {
             // the Action button, a widget, or Siri, iOS plays nothing; the Live Activity shows the start instead.)
             Haptics.play(.recordStart)
             let thought = pendingThought
+            // The start sound before the microphone takes anything in: the recording keeps what it hears from when the
+            // sound ends (MicArm), so nothing is silenced and the sound isn't in it. Only with Verbose in front.
+            Sounds.playBeforeMic(SoundRules.start(thought: thought), arming: recorder)
             try recorder.start(to: url)
-            // The sound once the microphone is open (iOS plays it then because the session allows system sounds while
-            // recording); what the microphone hears of it is written as silence (MicKeepOut). Only with Verbose in front.
-            Sounds.play(SoundRules.start(thought: thought), keepingOutOf: recorder)
             recordingStartedAt = Date()
             if !soundOnly { recordingWords.begin() }
             // Audio only or a Brain dump: if Verbose is closed mid-recording, recovery files it as that kind.
@@ -593,16 +593,14 @@ final class PhoneState {
         if freeLimit != nil { UnlockStore.shared.savedPastFreeTranscription(noun: kind.map { RecordChoice.kind($0).name.lowercased() } ?? "voice note") }
     }
 
-    /// The stop ring after the save (DESIGN.md §7, Celebrations): `.success` as the ring finishes filling, once the
-    /// recording is saved (at once when saving took longer than the fill), then the ring holds a moment and the recorder
-    /// closes. A tap on the recorder skips to the end. Discard, a thought, and a stop from outside the recorder have no
-    /// ring (RecordingFinish).
+    /// The stop ring after the save (DESIGN.md §7, Celebrations): the ring fills while the recording saves, as
+    /// decoration; once it's saved, `.success` plays and the recorder closes at once (Tim, November 7, 2026). Discard
+    /// and a stop from outside the recorder have no ring; a thought's has no success (RecordingFinish).
     private func finishRing(_ ring: CelebrationTicket, tapped: Date, saved: Bool, haptic: Bool) async {
-        let center = CelebrationCenter.shared
-        let toFill = RecordingFinish.hapticDelay(sinceTap: Date().timeIntervalSince(tapped), skipped: center.skipped(ring.id))
-        if toFill > 0 { _ = await celebrationWait(toFill, ring.id) }
+        // The ring is decoration only: once the recording is saved, `.success` plays and the recorder closes at once,
+        // whether or not the ring has finished filling (RecordingFinish.closeDelay is 0; nothing waits for it).
         if haptic && saved { Haptics.play(.recordingSaved) }
-        let toClose = RecordingFinish.closeDelay(sinceTap: Date().timeIntervalSince(tapped), ring: true, skipped: center.skipped(ring.id))
+        let toClose = RecordingFinish.closeDelay(saved: saved)
         if toClose > 0 { _ = await celebrationWait(toClose, ring.id) }
     }
 
@@ -703,12 +701,15 @@ final class PhoneState {
         }
     }
 
-    /// Stop or Save transcript on the captions screen.
-    func stopCaptions(save: Bool) {
+    /// Live captions' Stop: always ends and saves the session, at any length, and transcribes it, as Stop does
+    /// everywhere else (IP-06). Only a session with no audio at all is removed, with a message saying so. Throwing
+    /// the recording away is Discard (`discardCaptions`), which asks and goes to Recently Deleted.
+    func stopCaptions() {
         Haptics.play(.recordStop)
         showCaptions = false
         if PhoneUITest.enabled { captions.endScreenshots(); return }
-        guard save else { captions.discard(); return }
+        // Captions that never started recording (the microphone didn't open) have nothing to save.
+        guard captions.running else { captions.discard(); return }
         guard let (url, duration, env) = captions.stop() else { say("Couldn't finish saving. Verbose will recover the recording the next time it opens."); Haptics.play(.failed); return }
         // A short one is kept too; only a recording with no audio at all is removed.
         guard duration > 0 else { try? FileManager.default.removeItem(at: url); say(Store.nothingRecordedNotice); return }
@@ -717,6 +718,21 @@ final class PhoneState {
         t.waveform = env
         enqueue(t)
         say("Saved. Transcribing now.")
+    }
+
+    /// Live captions' Discard, after you confirm: the session ends and its recording goes to Recently Deleted (not
+    /// transcribed, restorable for 30 days), as the recorder's Discard does (`Store.keepDiscarded`).
+    func discardCaptions() {
+        Haptics.play(.recordStop)
+        showCaptions = false
+        if PhoneUITest.enabled { captions.endScreenshots(); return }
+        guard captions.running else { captions.discard(); return }
+        guard let (url, duration, env) = captions.stop() else { say("Couldn't finish saving. Verbose will recover the recording the next time it opens."); Haptics.play(.failed); return }
+        guard duration > 0 else { try? FileManager.default.removeItem(at: url); say(Store.nothingRecordedNotice); return }
+        let stopped = StoppedRecording(url: url, duration: duration, envelope: env,
+                                       framesWritten: Int64(duration * Recorder.targetFormat.sampleRate))
+        if store.keepDiscarded(stopped) != nil { say("Moved to Recently Deleted.") }
+        else { say("Couldn't move the recording. Verbose recovers it the next time it opens."); Haptics.play(.failed) }
     }
 
     // MARK: Import

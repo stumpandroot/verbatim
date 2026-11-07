@@ -1,7 +1,8 @@
 import SwiftUI
 import UIKit
 
-// The iPhone's haptics (DESIGN.md §7): the one switch every haptic goes through, and the keyboard's typing haptics row.
+// The iPhone's haptics (DESIGN.md §7): the switch every haptic goes through (Sounds has its own), and the keyboard's
+// typing haptics row.
 
 /// Every haptic in the app goes through here, so one switch turns them all off: Settings › Personalization and
 /// preferences › Haptics (on by default, kept per device in the App Group, so the keyboard follows it, and sent to the
@@ -11,12 +12,14 @@ enum Haptics {
     static let enabledKey = HapticSettings.enabledKey
 
     /// The App Group's defaults, where the keyboard can read the switch. A choice made before it moved there (in the
-    /// app's own defaults) is carried over once.
+    /// app's own defaults) is carried over once, and so is the Sounds switch the combined Haptics switch used to be
+    /// (`SoundSettings.migrate`: off stays off for both).
     static let store: UserDefaults = {
-        guard let group = KeyboardBridge.defaults else { return .standard }
+        guard let group = KeyboardBridge.defaults else { SoundSettings.migrate(.standard); return .standard }
         if group.object(forKey: enabledKey) == nil, let old = UserDefaults.standard.object(forKey: enabledKey) {
             group.set(old, forKey: enabledKey)
         }
+        SoundSettings.migrate(group)
         return group
     }()
 

@@ -76,6 +76,9 @@ final class WatchLink: NSObject, ObservableObject, WCSessionDelegate {
     /// Thoughts recorded on the watch that haven't reached the iPhone, by when they started.
     @Published private(set) var unsentThoughts: [Date] = []
     @Published private(set) var reachable = false
+    /// Recordings the iPhone has (their transfers finished without an error), so the screen after Stop says Sent to
+    /// iPhone only then.
+    @Published private(set) var delivered: Set<UUID> = []
 
     private var held: [WKWatchConnectivityRefreshBackgroundTask] = []
     private var retryScheduled = false
@@ -218,6 +221,7 @@ final class WatchLink: NSObject, ObservableObject, WCSessionDelegate {
             WatchStore.remove(WatchStore.outboxURL(t.id))
             if file.fileURL.standardizedFileURL != WatchStore.outboxURL(t.id).standardizedFileURL { WatchStore.remove(file.fileURL) }
             watchLog.notice("the iPhone has \(t.id.uuidString, privacy: .public)")
+            DispatchQueue.main.async { self.delivered.insert(t.id) }
         }
         refreshOutbox()
     }

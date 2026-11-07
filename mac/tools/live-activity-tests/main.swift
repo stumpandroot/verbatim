@@ -209,5 +209,80 @@ if let done = keyboard.range(of: "private struct DictateDone") {
     check("the keyboard has DictateDone", false)
 }
 
+// MARK: SF-01, GPT-31: a Live Activity whose updates stop says so (LiveFreshness, RibbonRules.swift)
+
+for c in LiveFreshness.cadences {
+    check("stale after \(Int(LiveFreshness.staleAfter)) s covers \(LiveFreshness.missedUpdates) missed updates every \(c) s", LiveFreshness.covers(cadence: c))
+}
+check("the threshold isn't longer than a minute (it still tells you soon)", LiveFreshness.staleAfter <= 60)
+check("the threshold would fail a cadence it can't cover", !LiveFreshness.covers(cadence: LiveFreshness.staleAfter))
+let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+check("a live update goes stale staleAfter later", LiveFreshness.staleDate(now: t0, holdsStill: false) == t0.addingTimeInterval(LiveFreshness.staleAfter))
+check("paused content holds still: no stale date", LiveFreshness.staleDate(now: t0, holdsStill: true) == nil)
+check("stale shows only for live content", LiveFreshness.showsStale(isStale: true, final: false) && !LiveFreshness.showsStale(isStale: true, final: true)
+      && !LiveFreshness.showsStale(isStale: false, final: false))
+for w in [LiveFreshness.recordingTitle, LiveFreshness.sessionTitle, LiveFreshness.detail, LiveFreshness.compact] {
+    check("stale words never claim it stopped, and follow the copy rules: \(w)", !w.lowercased().contains("stop") && !w.lowercased().contains("ended")
+          && !w.contains("\u{2014}") && !w.contains("!"))
+}
+let presence = source("VerbatimPhone/RecordingPresence.swift")
+let sessionApp = source("VerbatimPhone/KeyboardSession.swift")
+check("the recording's updates carry a stale date", presence.contains("staleDate: LiveFreshness.staleDate(now: Date(), holdsStill: state.isPaused || state.saved)")
+      && presence.contains("await a.update(content(state))") && presence.contains("content: content(state), pushType: nil"))
+check("the recording ticks at the cadence the threshold was checked against",
+      presence.contains("startTicker(every: thought ? LiveFreshness.thoughtTick : LiveFreshness.voiceNoteTick)"))
+check("the session's updates carry a stale date", sessionApp.contains("staleDate: LiveFreshness.staleDate(now: Date(), holdsStill: state.shown == .paused)")
+      && sessionApp.contains("await a.update(activityContent(state))") && sessionApp.contains("content: activityContent(activityState())"))
+check("the session refreshes its Live Activity while nothing else changes",
+      sessionApp.contains("if Date().timeIntervalSince(lastActivityPush) >= LiveFreshness.sessionRefresh { updateActivity() }"))
+check("the session pushes its level at the cadence the threshold was checked against",
+      sessionApp.contains("if Date().timeIntervalSince(lastLevelPush) >= LiveFreshness.sessionLevelTick {"))
+for (name, s, title) in [("recording", recording, "recordingTitle"), ("session", session, "sessionTitle")] {
+    check("the \(name) Lock Screen draws the stale presentation", s.contains("LiveFreshness.showsStale(isStale: context.isStale")
+          && s.contains("StaleLockScreen(title: LiveFreshness.\(title), skin: skin)"))
+    check("the \(name) Island draws it in every presentation", s.contains("StaleIslandBottom(title: LiveFreshness.\(title))")
+          && s.contains("StaleCompactWord(title: LiveFreshness.\(title))") && s.contains("label: LiveFreshness.\(title))"))
+}
+if let r = skin.range(of: "struct StaleLockScreen") {
+    let body = String(skin[r.lowerBound...].prefix(1200))
+    check("the stale Lock Screen has no timer and no buttons", !body.contains("Timer") && !body.contains("Button") && !body.contains("timerInterval"))
+} else {
+    check("StaleLockScreen exists", false)
+}
+
+// MARK: SF-09: a thought saved in the background plays no alert
+
+check("no Live Activity update sets off an alert (a saved thought plays no sound)",
+      !presence.contains("alertConfiguration") && !sessionApp.contains("alertConfiguration"))
+
+// MARK: SF-02: every view that draws your words is marked private
+
+/// The struct bodies (from `struct Name` to the next top-level declaration) in a widget source.
+func structBody(_ name: String, in s: String) -> String? {
+    guard let r = s.range(of: "struct \(name):") ?? s.range(of: "struct \(name) ") else { return nil }
+    let rest = s[r.lowerBound...]
+    let next = rest.dropFirst(8).range(of: "\n}\n")
+    return String(next.map { rest[..<$0.upperBound] } ?? rest)
+}
+/// The source without its comments, so a note like "never reads `state.liveWords`" isn't a read.
+func code(_ s: String) -> String {
+    s.components(separatedBy: "\n").map { l in l.range(of: "//").map { String(l[..<$0.lowerBound]) } ?? l }.joined(separator: "\n")
+}
+var wordViews = 0
+for (file, s) in [("RecordingLiveActivity.swift", code(recording)), ("VerbatimWidgets.swift", code(session))] {
+    // Words reach a view as `if let line = s.words` (a thought) or `s.liveWords` (a session's take), then `View(line: line)`.
+    for m in matches(#"if let line = s\.(words|liveWords), !line\.isEmpty \{ (\w+)\(line: line\)"#, in: s) {
+        wordViews += 1
+        let view = m[2]
+        check("\(file): \(view), which draws your words, is privacySensitive", structBody(view, in: s)?.contains(".privacySensitive()") == true)
+    }
+    // No other view reads them.
+    let reads = matches(#"\.(liveWords)\b"#, in: s).count
+    check("\(file): liveWords is read only to pass the words to a private view", reads == matches(#"s\.liveWords, !line\.isEmpty"#, in: s).count, "\(reads)")
+}
+check("both Islands' words views were found", wordViews == 2, "\(wordViews)")
+check("the Lock Screens never read words", (structBody("RibbonLockScreen", in: code(session)).map { !$0.contains(".liveWords") } ?? false)
+      && (structBody("ThoughtLockScreen", in: code(recording)).map { !$0.contains("state.words") } ?? false))
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

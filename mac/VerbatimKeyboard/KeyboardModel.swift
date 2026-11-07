@@ -260,6 +260,7 @@ final class KeyboardModel: ObservableObject {
 
     /// A key in the typing view changed the text: an Undo for words inserted earlier no longer lines up.
     private func didType() {
+        if notice == InsertionGuard.changedNotice { notice = nil }
         guard stage == .inserted else { return }
         insertion = nil
         polishing = false
@@ -517,27 +518,65 @@ final class KeyboardModel: ObservableObject {
         retime()
     }
 
-    /// Removes the inserted text.
+    /// Removes the inserted text, only when it's still exactly where it went in (`InsertionGuard.recovery`): the
+    /// same field, nothing selected, and the text before the cursor ending with it. Otherwise nothing is deleted and
+    /// Undo goes away.
     func undo() {
-        guard let ins = insertion else { return }
+        guard stage == .inserted, let ins = insertion else { return }
+        guard recoverable(ins) else { return }
         deleteBackward(ins.inserted.count)
         insertion = nil
         polishing = false
         set(.idle)
     }
 
-    /// Replaces the cleaned text with the transcript as spoken.
+    /// Replaces the cleaned text with the transcript as spoken, with the same check as Undo.
     func useAsSpoken() {
-        guard var ins = insertion, ins.raw != ins.text, !ins.raw.isEmpty else { return }
+        guard stage == .inserted, var ins = insertion, ins.raw != ins.text, !ins.raw.isEmpty else { return }
+        guard recoverable(ins) else { return }
         let lead = ins.inserted.hasPrefix(" ") && !ins.text.hasPrefix(" ") ? " " : ""
         deleteBackward(ins.inserted.count)
         let new = lead + ins.raw
         proxy?.insertText(new)
         ins.inserted = new; ins.text = ins.raw; ins.words = Self.wordCount(ins.raw)
+        ins.at = Date()   // a fresh insertion: the host gets InsertionGuard.settle to catch up
         insertion = ins
         // You chose your own words: a polished version arriving later doesn't replace them.
         polishing = false
         correction = nil
+    }
+
+    /// True when the inserted text can be removed now. When it can't, the Undo strip (and Use as spoken) goes away
+    /// and the keyboard says why, so a tap never deletes your other words.
+    private func recoverable(_ ins: Insertion) -> Bool {
+        guard let proxy else { return false }
+        let verdict = InsertionGuard.recovery(inserted: ins.inserted, before: proxy.documentContextBeforeInput,
+                                              sameField: ins.document == proxy.safeDocumentIdentifier,
+                                              selected: proxy.selectedText)
+        guard case .blocked(let why) = verdict else { return true }
+        if let d = ins.dictation { report(d, "recovery off: " + why) }
+        withdrawRecovery()
+        notice = InsertionGuard.changedNotice
+        return false
+    }
+
+    /// Drops Undo and Use as spoken: the inserted words stay as they are.
+    private func withdrawRecovery() {
+        insertion = nil
+        polishing = false
+        set(.idle)
+    }
+
+    /// The host app says the text or the selection changed (`textDidChange`, `selectionDidChange`). The keyboard's own
+    /// insert also lands here; that one still lines up. When the cursor moved, text got selected, the field
+    /// changed, or the words before the cursor aren't the inserted ones anymore, Undo and Use as spoken go away.
+    func hostChanged() {
+        guard stage == .inserted, let ins = insertion, let proxy else { return }
+        if InsertionGuard.keepAfterHostChange(inserted: ins.inserted, before: proxy.documentContextBeforeInput,
+                                              sameField: ins.document == proxy.safeDocumentIdentifier,
+                                              selected: proxy.selectedText, age: Date().timeIntervalSince(ins.at)) { return }
+        if let d = ins.dictation { report(d, "recovery off: the text or the cursor changed") }
+        withdrawRecovery()
     }
 
     // MARK: Snippets
@@ -577,7 +616,8 @@ final class KeyboardModel: ObservableObject {
         let inserted = lead + r.text
         proxy?.insertText(inserted)
         showingRecent = false
-        insertion = Insertion(inserted: inserted, text: r.text, raw: r.text, words: Self.wordCount(r.text))
+        insertion = Insertion(inserted: inserted, text: r.text, raw: r.text, words: Self.wordCount(r.text),
+                              document: proxy?.safeDocumentIdentifier, at: Date())
         set(.inserted)
         haptic(.copied)
     }
@@ -615,7 +655,8 @@ final class KeyboardModel: ObservableObject {
         let inserted = lead + s.expansion
         proxy?.insertText(inserted)
         showingSnippets = false
-        insertion = Insertion(inserted: inserted, text: s.expansion, raw: s.expansion, words: Self.wordCount(s.expansion))
+        insertion = Insertion(inserted: inserted, text: s.expansion, raw: s.expansion, words: Self.wordCount(s.expansion),
+                              document: proxy?.safeDocumentIdentifier, at: Date())
         set(.inserted)
     }
 
@@ -962,6 +1003,7 @@ final class KeyboardModel: ObservableObject {
     private func swapPolished(_ ins: Insertion, polished: String) {
         guard let d = ins.dictation else { return }
         guard visible, let proxy else { report(d, "kept: the keyboard isn't on screen"); return }
+        if let sel = proxy.selectedText, !sel.isEmpty { report(d, "kept: text is selected"); return }
         let lead = ins.inserted.hasPrefix(" ") && !ins.text.hasPrefix(" ") ? " " : ""
         let decision = KeyboardBridge.polishSwap(inserted: ins.inserted, polished: lead + polished,
                                                  before: proxy.documentContextBeforeInput,
@@ -978,6 +1020,7 @@ final class KeyboardModel: ObservableObject {
             updated.inserted = new
             updated.text = polished
             updated.words = Self.wordCount(polished)
+            updated.at = Date()   // a fresh insertion: the host gets InsertionGuard.settle to catch up
             insertion = updated
             haptic(.picked)
             report(d, "swapped")

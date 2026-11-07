@@ -40,6 +40,7 @@ struct SettingsScreen: View {
     @AppStorage(RecordingLiveText.enabledKey) private var recordLiveWords = true
     /// Haptics (Haptics.swift's `Haptics`). On by default, per device, in the App Group so the keyboard follows it.
     @AppStorage(Haptics.enabledKey, store: Haptics.store) private var hapticsOn = true
+    @AppStorage(SoundSettings.enabledKey, store: Haptics.store) private var soundsOn = true
     /// Understand spoken corrections, in the App Group so the keyboard's live words follow it.
     @AppStorage(SpokenCorrections.enabledKey, store: SpokenCorrections.store) private var spokenCorrections = true
     /// Dictation cleanup level (the Mac's `flow.cleanup` key; per device, never synced).
@@ -343,7 +344,10 @@ struct SettingsScreen: View {
             SettingsToggleRow(title: "Limit animation", isOn: $motionLimited)
                 .settingsSearchTarget("limitMotion", flash: searchFlash)
             SettingsDivider()
-            SettingsToggleRow(title: "Haptics", subtitle: "Taps when you record, stop, mark, or copy, here, in the keyboard, and on Apple Watch. Also turns Verbose's sounds on or off.", isOn: $hapticsOn)
+            SettingsToggleRow(title: "Sounds", subtitle: SettingsSearchIndex.soundsSubtitle, isOn: $soundsOn)
+                .settingsSearchTarget("sounds", flash: searchFlash)
+            SettingsDivider()
+            SettingsToggleRow(title: "Haptics", subtitle: SettingsSearchIndex.hapticsSubtitle, isOn: $hapticsOn)
                 .settingsSearchTarget("haptics", flash: searchFlash)
                 // The Apple Watch follows this switch through the context the iPhone sends it.
                 .onChange(of: hapticsOn) { _, _ in PhoneWatchLink.shared.publish(app.store) }

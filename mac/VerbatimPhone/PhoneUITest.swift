@@ -206,7 +206,7 @@ enum PhoneUITest {
                     app.captions.flipped = true
                     await show("p02c-live-captions-flipped")
                 }
-                app.stopCaptions(save: false)
+                app.stopCaptions()
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 app.showLinkSheet = true
                 await show("\(prefix)03-link")
@@ -536,7 +536,7 @@ enum PhoneUITest {
         app.tab = .library
         try? await Task.sleep(nanoseconds: 600_000_000)
 
-        // The same, open: the processing card fills, "Ready", then the text replaces it.
+        // The same, open: the text and tabs show at once, and Ready plays over the text (ReadyReveal).
         var open = Transcript(title: "Garden bed plan", source: .voiceMemo, sourceLabel: "Voice memo", duration: 198, audioFileName: nil, model: "")
         open.status = .processing
         open.stage = "Transcribing 98%"
@@ -551,7 +551,8 @@ enum PhoneUITest {
         check("a transcript finishing while open celebrates on its card, with no toast", center.ready[open.id]?.surface == .transcript && app.toast == nil)
         await show("p16c-transcript-ready")
         await clear()
-        check("when it ends, the text replaces the card", center.ready[open.id] == nil)
+        check("the text showed through the celebration and stays when it ends",
+              center.ready[open.id] == nil && ReadyReveal.showsContent(ready: app.store.transcript(open.id)?.status == .ready, celebrating: true))
         app.libraryPath = NavigationPath()
         try? await Task.sleep(nanoseconds: 600_000_000)
 
@@ -2499,6 +2500,18 @@ enum PhoneUITest {
         if let storedHaptics { hapticsStore.set(storedHaptics, forKey: hapticsKey) } else { hapticsStore.removeObject(forKey: hapticsKey) }
         check("haptics are on by default and the switch turns them off (P-04)", onByDefault && offWhenOff)
         check("settings search finds Haptics (P-04)", SettingsSearchIndex.search("haptics").flatMap(\.entries).contains { $0.id == "haptics" })
+        // Sounds is its own switch: turning Haptics off leaves the sounds on, and the other way round.
+        let soundsKey = SoundSettings.enabledKey
+        let storedSounds = hapticsStore.object(forKey: soundsKey), storedHapticsAgain = hapticsStore.object(forKey: hapticsKey)
+        hapticsStore.set(true, forKey: soundsKey); hapticsStore.set(false, forKey: hapticsKey)
+        let soundsStayOn = Sounds.enabled && !Haptics.enabled
+        hapticsStore.set(false, forKey: soundsKey); hapticsStore.set(true, forKey: hapticsKey)
+        let hapticsStayOn = !Sounds.enabled && Haptics.enabled
+        if let storedSounds { hapticsStore.set(storedSounds, forKey: soundsKey) } else { hapticsStore.removeObject(forKey: soundsKey) }
+        if let storedHapticsAgain { hapticsStore.set(storedHapticsAgain, forKey: hapticsKey) } else { hapticsStore.removeObject(forKey: hapticsKey) }
+        check("Sounds and Haptics are separate switches", soundsStayOn && hapticsStayOn)
+        check("settings search finds Sounds", SettingsSearchIndex.search("sounds").flatMap(\.entries).contains { $0.id == "sounds" }
+              && !SettingsSearchIndex.search("chime").flatMap(\.entries).contains { $0.id == "haptics" })
         // P-08: voice notes, everywhere you read it.
         let memo = Transcript(title: "Self-test memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 30, audioFileName: nil, model: "")
         check("the filter chip says Voice notes (P-08)", LibrarySource.voiceMemos.label == "Voice notes")

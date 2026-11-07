@@ -14,7 +14,7 @@ import UIKit
 /// - iPhone: system sounds made from the same files (`AudioServicesCreateSystemSoundID`). They mix with your music
 ///   instead of stopping it, never touch the recording's audio session, follow the Ring/Silent switch, and play while
 ///   recording because every recording session allows them (`RecordingRoute.allowHaptics`). They follow Settings ›
-///   Haptics, the iPhone's one switch for feedback, and play only with Verbose in front, as haptics do.
+///   Sounds (its own switch, apart from Haptics) and play only with Verbose in front, as haptics do.
 ///
 /// Two sounds never play within 150 ms of each other (`SoundSpacing`): the second is dropped.
 @MainActor
@@ -24,8 +24,8 @@ enum Sounds {
     static var enabled = true
     private static var players: [SoundMoment: AVAudioPlayer] = [:]
     #else
-    /// Settings › Personalization and preferences › Haptics.
-    static var enabled: Bool { Haptics.enabled }
+    /// Settings › Personalization and preferences › Sounds, apart from Haptics (`SoundSettings`).
+    static var enabled: Bool { SoundSettings.enabled(in: Haptics.store) }
     private static var ids: [SoundMoment: SystemSoundID] = [:]
     #endif
     private static var spacing = SoundSpacing()
@@ -47,8 +47,8 @@ enum Sounds {
     }
 
     /// Plays the moment's sound. Returns its length in seconds when it plays, nil when it doesn't (sounds off, Verbose
-    /// in the background on the iPhone, or another sound under 150 ms ago). A start played into an open microphone
-    /// passes the length to the recorder (`Recorder.keepOut`).
+    /// in the background on the iPhone, or another sound under 150 ms ago). A start that opens the microphone goes
+    /// through `playBeforeMic` instead.
     @discardableResult
     static func play(_ m: SoundMoment) -> Double? {
         guard enabled else { return nil }
@@ -73,10 +73,11 @@ enum Sounds {
         return m.seconds
     }
 
-    /// Plays a start that the microphone may hear, and keeps it out of `recorder`'s recording.
-    static func play(_ m: SoundMoment, keepingOutOf recorder: Recorder) {
-        guard let seconds = play(m) else { return }
-        recorder.keepOut(seconds: seconds)
+    /// Plays a start before `recorder` starts (call it just before `start` or `begin`): the recording keeps what the
+    /// microphone hears from when the sound ends (`MicArm`), so the sound is never in it and nothing is silenced. When
+    /// the sound doesn't play (sounds off, Verbose in the background), the recording keeps everything from its start.
+    static func playBeforeMic(_ m: SoundMoment, arming recorder: Recorder) {
+        recorder.armAfterSound(seconds: play(m))
     }
 
     private static func loaded(_ m: SoundMoment) -> Bool {

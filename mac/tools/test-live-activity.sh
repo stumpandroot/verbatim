@@ -1,6 +1,7 @@
 #!/bin/bash
 # The iPhone's system surfaces after the build 228 review (W-01 to W-10): the Live Activities' timers, buttons, labels,
-# and Lock Screen colors, the controls' custom symbols and the Action button control's name (VerbatimWidgets/
+# and Lock Screen colors, their stale presentation and its threshold against each update cadence (LiveFreshness, SF-01),
+# the Island words marked private (SF-02), the controls' custom symbols and the Action button control's name (VerbatimWidgets/
 # RibbonRules.swift), the widgets' names and type sizes, and the keyboard's text on the persimmon fill. Widgets can't be
 # screenshot in CI, so these read the rules, the tokens (Tokens.swift), and the sources. Needs only a Swift toolchain
 # (macOS or Linux), not Xcode.

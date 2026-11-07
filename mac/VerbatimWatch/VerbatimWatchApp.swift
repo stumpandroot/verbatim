@@ -3,7 +3,7 @@ import WatchKit
 import WatchConnectivity
 
 // Verbose on Apple Watch (DESIGN.md §20; mockup "Library features", section 4): Record and New thought, a recording
-// screen with Mark and Stop, and Sent to iPhone. The watch records and sends; the iPhone transcribes and syncs to the
+// screen with Mark and Stop, and Saved on Watch, then Sent to iPhone. The watch records and sends; the iPhone transcribes and syncs to the
 // Mac. Watch Connectivity is activated at launch, so files queued earlier go out and the iPhone's thought count
 // arrives even when the app was opened by a complication or woken in the background.
 

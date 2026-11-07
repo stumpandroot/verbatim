@@ -152,6 +152,23 @@ enum HapticSettings {
     static func typingKeys(in d: UserDefaults?) -> Bool { d?.object(forKey: typingKey) as? Bool ?? false }
 }
 
+/// Settings › Personalization and preferences › Sounds (iPhone): Verbose's sounds, apart from Haptics (Tim, November 7,
+/// 2026). Beside the Haptics switch in the App Group. Before the two were split, Haptics turned the sounds off too, so
+/// the first launch with this switch carries that choice over (`migrate`): off stays off for both, and on (or never
+/// set) stays on. After that the two never follow each other. The keyboard and the watch play no sounds and keep
+/// following Haptics.
+enum SoundSettings {
+    static let enabledKey = "sounds.enabled"
+
+    static func enabled(in d: UserDefaults?) -> Bool { d?.object(forKey: enabledKey) as? Bool ?? true }
+
+    /// Once: stores the Sounds switch from the combined Haptics switch, when it isn't stored yet.
+    static func migrate(_ d: UserDefaults) {
+        guard d.object(forKey: enabledKey) == nil else { return }
+        d.set(HapticSettings.enabled(in: d), forKey: enabledKey)
+    }
+}
+
 #if os(iOS)
 /// Plays a haptic with the system's feedback generators, which follow System Haptics and Vibration on their own.
 enum HapticPlayer {
