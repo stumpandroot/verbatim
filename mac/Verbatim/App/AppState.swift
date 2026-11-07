@@ -325,6 +325,14 @@ final class AppState: DistinctTracking {
 
     /// True while AppKit is handling a key press (a menu item's key equivalent), false for a click on the same item.
     static var handlingKeyPress: Bool { NSApp.currentEvent?.type == .keyDown }
+    /// True while a mouse click is being handled (a button's action from a click, not its keyboard shortcut): only a
+    /// click celebrates (RecordingFinish, DESIGN.md §7).
+    static var clickedNow: Bool {
+        switch NSApp.currentEvent?.type {
+        case .leftMouseUp?, .leftMouseDown?: return true
+        default: return false
+        }
+    }
 
     func goHome() { go(.home) }
 

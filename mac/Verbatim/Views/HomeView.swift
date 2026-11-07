@@ -54,6 +54,8 @@ struct HomeView: View {
     @State var whatsNewPopup: ReleaseNote?
     @AppStorage(ReleaseNotes.lastSeenKey) var whatsNewLastSeen = 0
     @Environment(\.limitMotion) private var limitMotion
+    /// "Saved" on the Record card and a word milestone on This week (DESIGN.md §7, Celebrations).
+    @ObservedObject private var celebrations = CelebrationCenter.shared
 
     /// The gutter between tiles and between two sections in a band.
     static let gap: CGFloat = 12
@@ -87,7 +89,7 @@ struct HomeView: View {
         .background(Refined.paper)
         .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
         .onChange(of: app.focusLink) { _, _ in importOpen = true }
-        .onAppear { NavMarks.mark("home-appear"); mics.refresh(); checkWhatsNew() }
+        .onAppear { NavMarks.mark("home-appear"); mics.refresh(); checkWhatsNew(); showMilestone() }
         .sheet(item: $whatsNewPopup) { note in
             WhatsNewSheet(note: note, app: .mac, seeAll: {
                 whatsNewPopup = nil
@@ -102,7 +104,15 @@ struct HomeView: View {
         // Home list) again.
         .onDisappear { if edit.editing { edit.editing = false } }
         .onReceive(Self.minute) { now = $0 }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mics.refresh(); now = Date() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mics.refresh(); now = Date(); showMilestone() }
+    }
+
+    /// A word milestone waiting since a dictation crossed it (WordMilestones) shows on This week when Home appears or
+    /// Verbose comes back to the front with Home showing, never at paste time (DESIGN.md §7, Celebrations). The Mac
+    /// plays no haptic.
+    private func showMilestone() {
+        guard app.screen == .home, NSApp.isActive, !edit.editing else { return }
+        celebrations.showPendingMilestone(mac: true, weekShown: layouts.layout.isVisible(.week), feedback: nil)
     }
 
     /// After an update to a bigger build: the What's new sheet, once, instead of Home's line. Seen as soon as it opens,
@@ -308,11 +318,15 @@ struct HomeView: View {
     /// The Record card: a click records a voice note; right-click has Record As's ways and the microphone. VoiceOver
     /// reads one button with each way to record as an action.
     private func recordCard(compact: Bool) -> some View {
-        RecordCard(status: recordStatus, hint: "Click for a voice note, right-click for a call, a thought, and more · ⌥⇧R",
-                   accessibilityHint: "Starts a voice note. Shortcut: Option Shift R. Right-click for more ways to record.",
-                   compact: compact,
-                   actions: recordAs.visible.map { c in RecordCardAction(name: c.actionName) { app.startRecordChoice(c) } }) {
-            app.requestRecord()
+        // "Saved" on the chip after a recording stopped from here with a click, for 1.6 s (DESIGN.md §7, Celebrations).
+        CelebrationBurst(ticket: celebrations.saved, script: .saved) { saved in
+            RecordCard(status: recordStatus, hint: "Click for a voice note, right-click for a call, a thought, and more · ⌥⇧R",
+                       accessibilityHint: "Starts a voice note. Shortcut: Option Shift R. Right-click for more ways to record.",
+                       compact: compact,
+                       actions: recordAs.visible.map { c in RecordCardAction(name: c.actionName) { app.startRecordChoice(c) } },
+                       saved: saved) {
+                app.requestRecord()
+            }
         }
         .contextMenu { RecordMenu(onChange: { mics.refresh() }) }
         .help("Recording from \(micName). Right-click for more ways to record, or to change the microphone.")
@@ -523,8 +537,11 @@ struct HomeView: View {
             WeekCard(words: week.words, detail: "\(week.words == 1 ? "word" : "words"), \(recordings)", saved: savedLine,
                      total: total, days: week.cardDays, large: large)
                 .frame(maxHeight: .infinity)
+                // A word milestone sweeps the card (DESIGN.md §7, Celebrations).
+                .milestoneOverlay(celebrations.milestone, radius: RefinedPlatform.radius(.card))
         }
         .buttonStyle(RefinedPress())
+        .celebrationTapSkips(celebrations.milestone?.id)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(recordings), \(saved) saved typing\(total.map { ", \($0)" } ?? ""), \(HomeCounts.countLabel(n.moments, "moment", "moments")).")
         .accessibilityHint("Opens You: your week, cleanup, and where you dictate.")
@@ -704,7 +721,8 @@ struct HomeRecordingCard: View {
             }
             Spacer(minLength: 8)
             Button {
-                if capturing { app.stopCapture() } else { app.stopRecording() }
+                // A click (not ⌥⇧.) on Home's card shows "Saved" on the Record card (RecordingFinish, DESIGN.md §7).
+                if capturing { app.stopCapture() } else { app.stopRecording(from: AppState.clickedNow ? .homeCardClick : .keyboard) }
             } label: {
                 HStack(spacing: 8) {
                     RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.recordRed).frame(width: 9, height: 9)

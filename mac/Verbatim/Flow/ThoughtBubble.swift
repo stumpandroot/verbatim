@@ -164,7 +164,7 @@ final class ThoughtBubble {
             app.stopRecording()
             return
         }
-        capture?.toggle()
+        capture?.toggle(source: .bubbleClick)
     }
 
     /// The card's Mark.
@@ -239,8 +239,9 @@ struct ThoughtBubbleView: View {
                 switch capture.phase {
                 case .recording:
                     ThoughtMicLevel(live: capture.recorder.live, color: Refined.inkFixed).frame(width: s * 0.55, height: s * 0.55)
-                case .saved:
+                case .saved(let at):
                     BrandGlyph(art: .webCheck, color: Refined.paperFixed, minLineWidth: 1.8).frame(width: s * 0.4, height: s * 0.4)
+                        .modifier(CheckFill(fills: capture.checkFills, key: at))
                 case .idle:
                     ThoughtGlyph(color: Refined.paperFixed, lineWidth: 1.4).frame(width: s * 0.55, height: s * 0.55)
                 }
@@ -277,6 +278,7 @@ struct ThoughtBubbleView: View {
                 BubbleCard {
                     HStack(spacing: 8) {
                         BrandGlyph(art: .webCheck, color: Refined.ink, minLineWidth: 1.6).frame(width: 13, height: 13)
+                            .modifier(CheckFill(fills: capture.checkFills, key: at))
                         Text("Added to Thoughts · \(Thoughts.time(at, systemFormat: false))").refinedFont(.body, weight: .semibold).foregroundStyle(Refined.ink)
                     }
                 }
@@ -407,5 +409,34 @@ private struct BubbleMarkedCard: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Marks.confirmation(confirmation))
         }
+    }
+}
+
+/// A thought saved from a click on the bubble: its check glyph fills once from the leading edge, slow then fast, with
+/// no bounce and no word (DESIGN.md §7, Celebrations). Under Limit animation the check is whole from the start and
+/// arrives with the card's own fade; a thought stopped from its hotkey shows it at once, as keyboard actions never
+/// animate.
+struct CheckFill: ViewModifier {
+    var fills: Bool
+    /// The saved moment it belongs to: each new one fills once.
+    var key: Date
+    @State private var progress: CGFloat = 1
+    @Environment(\.limitMotion) private var limitMotion
+
+    func body(content: Content) -> some View {
+        content
+            .mask(alignment: .leading) {
+                Rectangle().scaleEffect(x: max(0.0001, progress), y: 1, anchor: .leading)
+            }
+            .task(id: key) {
+                guard fills else { progress = 1; return }
+                let T = CelebrationTiming.self
+                if limitMotion {
+                    progress = 1
+                    return
+                }
+                progress = 0
+                withAnimation(.timingCurve(T.fillCurve.x1, T.fillCurve.y1, T.fillCurve.x2, T.fillCurve.y2, duration: T.fill)) { progress = 1 }
+            }
     }
 }

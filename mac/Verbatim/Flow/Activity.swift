@@ -53,10 +53,17 @@ final class ActivityLog: ObservableObject {
     }
 
     func add(_ e: ActivityEvent) {
+        let before = totalWords
         events.removeAll { $0.id == e.id }
         events.append(e)
         save()
+        // A word milestone this dictation crossed waits for Home (WordMilestones, DESIGN.md §7, Celebrations): never at
+        // paste time. Kept apart from these numbers, so a reset never celebrates one again.
+        MilestoneStore.shared.note(old: before, new: totalWords)
     }
+
+    /// Every word dictated on this Mac since the numbers began (a reset starts it again).
+    var totalWords: Int { events.reduce(0) { $0 + $1.words } }
 
     /// Adds many events with one save (the screenshot tour's sample data).
     func addAll(_ list: [ActivityEvent]) {

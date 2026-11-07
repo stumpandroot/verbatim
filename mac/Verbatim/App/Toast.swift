@@ -6,6 +6,8 @@ struct Toast: Identifiable, Equatable {
     let message: String
     var action: String? = nil
     var onAction: (() -> Void)? = nil
+    /// "Transcript ready" when the transcript isn't open: its color sweeps the toast (DESIGN.md §7, Celebrations).
+    var celebration: CelebrationTicket? = nil
     /// When it appeared, for how long it stays (ToastTiming).
     let shownAt = Date()
     init(_ message: String, action: String? = nil, onAction: (() -> Void)? = nil) {
@@ -33,25 +35,40 @@ struct ToastView: View {
 
     @ViewBuilder private var toast: some View {
         if let t = app.toast {
-            HStack(spacing: 14) {
-                Text(t.message).font(.system(size: 13)).lineLimit(2)
-                if let a = t.action {
-                    // A small outlined action in paper on the toast's ink (the refined kit, DESIGN.md §13).
-                    Button { app.toast = nil; t.onAction?() } label: {
-                        Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.paper)
-                            .lineLimit(1).fixedSize()
-                            .padding(.horizontal, 12).frame(height: 28)
-                            .overlay(Capsule().strokeBorder(Refined.paper, lineWidth: 1.5))
-                            .contentShape(Capsule())
+            // A finished transcript's fill sweeps the toast in its color, and the words turn to ink with it.
+            CelebrationBurst(ticket: t.celebration, script: .toast) { burst in
+                let shape = RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous)
+                let ink = burst.active && burst.covered ? Refined.onFill : Refined.paper
+                HStack(spacing: 14) {
+                    Text(t.message).font(.system(size: 13)).lineLimit(2)
+                    if let a = t.action {
+                        // A small outlined action in paper on the toast's ink (the refined kit, DESIGN.md §13).
+                        Button { app.toast = nil; t.onAction?() } label: {
+                            Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(ink)
+                                .lineLimit(1).fixedSize()
+                                .padding(.horizontal, 12).frame(height: 28)
+                                .overlay(Capsule().strokeBorder(ink, lineWidth: 1.5))
+                                .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help(ToastUndo.offersUndo(a) ? "Undo (⌘Z)" : "")
+                        .uiTarget("toast-action")
                     }
-                    .buttonStyle(.plain)
-                    .help(ToastUndo.offersUndo(a) ? "Undo (⌘Z)" : "")
-                    .uiTarget("toast-action")
                 }
+                .padding(.horizontal, 14).padding(.vertical, 10)
+                .background {
+                    ZStack(alignment: .leading) {
+                        shape.fill(Refined.ink)
+                        if burst.active, let c = t.celebration {
+                            shape.fill(c.tone.fill).scaleEffect(x: max(0.0001, burst.fill), y: 1, anchor: .leading).clipShape(shape)
+                        }
+                    }
+                    .allowsHitTesting(false)
+                }
+                .foregroundStyle(ink)
+                .scaleEffect(burst.active ? burst.scale : 1)
             }
-            .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(Refined.ink, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
-            .foregroundStyle(Refined.paper)
+            .onDisappear { if let c = t.celebration { CelebrationCenter.shared.didFinish(c.id) } }
             .frame(maxWidth: 520)
             .padding(.bottom, 24)
             .transition(transition)
