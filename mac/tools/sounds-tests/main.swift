@@ -127,7 +127,7 @@ check("iPhone Settings: Sounds and Haptics are two rows, each searchable",
       && read("VerbatimPhone/SettingsSearch.swift").contains(".init(id: \"sounds\", section: personalization, label: \"Sounds\""))
 check("iPhone: the old combined switch carries over to Sounds once, at the store", read("VerbatimPhone/Haptics.swift").contains("SoundSettings.migrate(group)"))
 check("the keyboard and the watch keep following Haptics", read("VerbatimKeyboard/KeyboardModel.swift").contains("HapticSettings.enabled(in: d)")
-      && read("VerbatimPhone/PhoneWatch.swift").contains("haptics: Haptics.enabled)") && !read("VerbatimKeyboard/KeyboardModel.swift").contains("SoundSettings"))
+      && read("VerbatimPhone/PhoneWatch.swift").contains("haptics: Haptics.enabled") && !read("VerbatimKeyboard/KeyboardModel.swift").contains("SoundSettings"))
 check("player: both apps load every sound at launch",
       read("Verbatim/App/AppState.swift").contains("Sounds.preload()") && read("VerbatimPhone/PhoneState.swift").contains("Sounds.preload()"))
 check("player: the Mac follows Settings › General › Sounds", read("Verbatim/App/AppState.swift").contains("didSet { Sounds.enabled = sounds }"))

@@ -3082,7 +3082,10 @@ extension UITest {
         await step("thoughts: the sidebar's Thoughts opens By day", window, target: "side-thoughts", check: { app.screen == .byDay(.idea) })
         try? await Task.sleep(nanoseconds: 600_000_000)
         let day = Calendar.current.component(.day, from: today)
-        let bydayParts = ["byday-calendar", "byday-dot-\(day)", "byday-page", "byday-thoughts"]
+        // Stacked in the self-test's narrow window, the day's page leads with the day stepper and the calendar sits
+        // under it, where today's dot may be below the fold (MAC-29): the stepper stands in for it then.
+        let todayMark = frames["byday-dot-\(day)"] != nil ? "byday-dot-\(day)" : "byday-stepper"
+        let bydayParts = ["byday-calendar", todayMark, "byday-page", "byday-thoughts"]
         if bydayParts.contains(where: { frames[$0] == nil }) {
             Log.note("UITEST detail: By day missing \(bydayParts.filter { frames[$0] == nil }), byday frames \(frames.keys.filter { $0.hasPrefix("byday") }.sorted())")
         }
@@ -3090,7 +3093,8 @@ extension UITest {
         frames = frames.filter { !$0.key.hasPrefix("byday") }
         await step("thoughts: the sidebar's Journal opens its By day", window, target: "side-journal", check: { app.screen == .byDay(.journal) })
         try? await Task.sleep(nanoseconds: 600_000_000)
-        check("thoughts: Journal's calendar has a dot on today's entry", frames["byday-journal"] != nil && frames["byday-dot-\(day)"] != nil)
+        check("thoughts: Journal's calendar has a dot on today's entry", frames["byday-journal"] != nil
+              && (frames["byday-dot-\(day)"] != nil || frames["byday-stepper"] != nil))
         app.projectFilter = nil; app.libraryFilter = .all; app.libraryKind = .idea
         app.go(.library)
         try? await Task.sleep(nanoseconds: 800_000_000)
