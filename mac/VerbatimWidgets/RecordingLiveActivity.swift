@@ -41,7 +41,7 @@ struct RecordingLiveActivity: Widget {
                         } else {
                             HStack(spacing: 7) {
                                 ThoughtVoiceBars(level: s.level ?? 0, color: Refined.persimmon, count: 5).frame(width: 22, height: 18)
-                                Text(ThoughtRules.activityTitle).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                                Text(ThoughtRules.activityTitle).scaledFont(14, weight: .semibold).foregroundStyle(.white)
                                     .lineLimit(1).fixedSize()
                             }
                             .padding(.leading, 4)
@@ -54,7 +54,7 @@ struct RecordingLiveActivity: Widget {
                             } else {
                                 ThoughtVoiceBars(level: s.level ?? 0.5, color: Refined.persimmon, count: 5).frame(width: 22, height: 18)
                             }
-                            Text(s.saved ? "Saved" : s.isPaused ? "Paused" : "Recording").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                            Text(s.saved ? "Saved" : s.isPaused ? "Paused" : "Recording").scaledFont(14, weight: .semibold).foregroundStyle(.white)
                                 .lineLimit(1).fixedSize()
                         }
                         .padding(.leading, 4)
@@ -64,7 +64,7 @@ struct RecordingLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.trailing) {
                     if !(thought && s.saved) {
                         RecordingTimer(state: s)
-                            .font(Refined.mono(14, weight: .medium)).foregroundStyle(.white)
+                            .scaledFont(14, weight: .medium).monospacedDigit().foregroundStyle(.white)
                             .frame(maxWidth: 90, alignment: .trailing)
                             .padding(.trailing, 4)
                     }
@@ -85,8 +85,8 @@ struct RecordingLiveActivity: Widget {
                         }
                     } else {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(context.attributes.title).font(Refined.serif(18)).foregroundStyle(Refined.onBlack).lineLimit(1)
-                            Text(islandLine(s)).font(.system(size: 13)).foregroundStyle(Refined.onBlackDim).lineLimit(2)
+                            Text(context.attributes.title).scaledFont(18, design: .serif).foregroundStyle(Refined.onBlack).lineLimit(1)
+                            Text(islandLine(s)).scaledFont(13).foregroundStyle(Refined.onBlackDim).lineLimit(2)
                             if !s.saved {
                                 HStack(spacing: 8) {
                                     MarkButton(tone: .island, source: "island")
@@ -168,14 +168,14 @@ private struct RecordingLockScreen: View {
             if state.saved {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark").font(.system(size: 15, weight: .bold)).foregroundStyle(ink).accessibilityHidden(true)
-                    Text(state.status).font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(2)
+                    Text(state.status).scaledFont(15, weight: .semibold).foregroundStyle(ink).lineLimit(2)
                 }
                 .accessibilityElement(children: .combine)
             } else {
                 HStack(spacing: 8) {
                     BarsMark(color: skin.mark).frame(width: 18, height: 18)
                     Text(state.isPaused ? (state.pausedReason ?? "Paused") : "Recording · \(title)")
-                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
+                        .scaledFont(15, weight: .semibold).foregroundStyle(ink).lineLimit(1)
                     Spacer(minLength: 8)
                     RecordingTimer(state: state).font(Refined.mono(15, weight: .medium)).foregroundStyle(ink)
                         .frame(width: RecordingTimer.width(15), alignment: .trailing)
@@ -184,15 +184,15 @@ private struct RecordingLockScreen: View {
                 if state.markCount > 0, let at = state.markedAt {
                     HStack(spacing: 6) {
                         Image("marked").font(.system(size: 13, weight: .medium)).accessibilityHidden(true)
-                        Text("Marked").font(.system(size: 13, weight: .semibold))
-                        Text(VerbatimRecordingAttributes.clock(at)).font(Refined.mono(13, weight: .medium))
-                        Text("· \(state.marksLabel) so far").font(.system(size: 13)).foregroundStyle(skin.dim)
+                        Text("Marked").scaledFont(13, weight: .semibold)
+                        Text(VerbatimRecordingAttributes.clock(at)).scaledFont(13, weight: .medium).monospacedDigit()
+                        Text("· \(state.marksLabel) so far").scaledFont(13).foregroundStyle(skin.dim)
                     }
                     .foregroundStyle(ink)
                     .lineLimit(1).minimumScaleFactor(0.85)
                     .accessibilityElement(children: .combine)
                 } else {
-                    Text("Saved as you go").font(.system(size: 13)).foregroundStyle(skin.dim).lineLimit(1)
+                    Text("Saved as you go").scaledFont(13).foregroundStyle(skin.dim).lineLimit(1)
                 }
                 HStack(spacing: 8) {
                     MarkButton(tone: .lock(skin), source: "lockScreen")
@@ -213,7 +213,7 @@ private struct MarkButton: View {
         Button(intent: MarkMomentIntent(source: source)) {
             HStack(spacing: 7) {
                 Image("mark").font(.system(size: 15, weight: .medium))
-                Text("Mark").font(.system(size: 15, weight: .semibold)).lineLimit(1)
+                Text("Mark").scaledFont(15, weight: .semibold).lineLimit(1)
             }
             .foregroundStyle(tone.foreground)
             .padding(.horizontal, 15).frame(height: tone.height)
@@ -251,7 +251,7 @@ private struct StopButton: View {
         Button(intent: StopRecordingIntent()) {
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.inkFixed).frame(width: 10, height: 10)
-                Text("Stop").font(.system(size: 15, weight: .bold)).foregroundStyle(Refined.inkFixed).lineLimit(1)
+                Text("Stop").scaledFont(15, weight: .bold).foregroundStyle(Refined.inkFixed).lineLimit(1)
             }
             .padding(.horizontal, wide ? 0 : 18)
             .frame(maxWidth: wide ? .infinity : nil)
@@ -274,8 +274,8 @@ private struct MarkedCompact: View {
     var body: some View {
         HStack(spacing: 5) {
             Image("marked").font(.system(size: 13, weight: .medium)).foregroundStyle(Refined.butterFixed)
-            Text("Marked").font(.system(size: 13, weight: .semibold)).foregroundStyle(Refined.onBlack)
-            Text(clock).font(Refined.mono(13, weight: .medium)).foregroundStyle(Refined.onBlack)
+            Text("Marked").scaledFont(13, weight: .semibold).foregroundStyle(Refined.onBlack)
+            Text(clock).scaledFont(13, weight: .medium).monospacedDigit().foregroundStyle(Refined.onBlack)
         }
         .lineLimit(1).fixedSize()
         .accessibilityElement(children: .combine)
@@ -328,13 +328,13 @@ private struct ThoughtLockScreen: View {
                 HStack(spacing: 8) {
                     BarsMark(color: skin.mark).frame(width: 18, height: 18)
                     Text(state.isPaused ? (state.pausedReason ?? "Paused") : ThoughtRules.lockTitle)
-                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
+                        .scaledFont(15, weight: .semibold).foregroundStyle(ink).lineLimit(1)
                     Spacer(minLength: 8)
                     RecordingTimer(state: state).font(Refined.mono(15, weight: .medium)).foregroundStyle(ink)
                         .frame(width: RecordingTimer.width(15), alignment: .trailing)
                 }
                 ThoughtVoiceBars(level: state.level ?? 0, color: skin.mark, count: 34).frame(height: 22)
-                Text(ThoughtRules.intoLine(page ?? "Thoughts")).font(.system(size: 13)).foregroundStyle(skin.dim)
+                Text(ThoughtRules.intoLine(page ?? "Thoughts")).scaledFont(13).foregroundStyle(skin.dim)
                     .lineLimit(1).minimumScaleFactor(0.85)
                 HStack(spacing: 8) {
                     // An interruption (a call, another app's audio) paused it: Resume, as the voice note offers.
@@ -355,10 +355,10 @@ private struct ThoughtSavedLine: View {
         HStack(spacing: 8) {
             Image(systemName: "checkmark").font(.system(size: 15, weight: .bold)).foregroundStyle(skin?.ink ?? Refined.persimmon)
                 .accessibilityHidden(true)
-            Text(ThoughtRules.savedTitle).font(.system(size: 15, weight: .semibold)).foregroundStyle(skin?.ink ?? .white)
+            Text(ThoughtRules.savedTitle).scaledFont(15, weight: .semibold).foregroundStyle(skin?.ink ?? .white)
                 .lineLimit(1).fixedSize()
             if let at = state.savedAt {
-                Text(at, format: .dateTime.hour().minute()).font(Refined.mono(14, weight: .medium))
+                Text(at, format: .dateTime.hour().minute()).scaledFont(14, weight: .medium).monospacedDigit()
                     .foregroundStyle(skin?.mute ?? Color.white.opacity(0.7)).lineLimit(1)
             }
         }
@@ -375,7 +375,7 @@ private struct ThoughtIslandWords: View {
         TailWords(text: line, lines: 2, lineHeight: IslandWordsMetrics.lineHeight) { tail in
             let parts = Ribbon.splitWords(tail)
             Text("\(Text(parts.older).foregroundStyle(Color.white.opacity(0.5)))\(Text(parts.newest).foregroundStyle(Color.white))")
-                .font(Refined.serif(16))
+                .scaledFont(16, design: .serif)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         // Your words: redacted wherever the system hides private content (security review IPH-18).
@@ -392,7 +392,7 @@ private struct ThoughtIntoLabel: View {
         HStack(spacing: 6) {
             Image("thought").font(.system(size: 14, weight: .medium)).foregroundStyle(.white.opacity(0.75))
                 .accessibilityHidden(true)
-            Text(ThoughtRules.intoLine(page ?? "Thoughts")).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75))
+            Text(ThoughtRules.intoLine(page ?? "Thoughts")).scaledFont(13).foregroundStyle(.white.opacity(0.75))
                 .lineLimit(1).minimumScaleFactor(0.8)
         }
     }

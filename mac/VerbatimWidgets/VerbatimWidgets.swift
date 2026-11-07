@@ -64,7 +64,7 @@ struct SessionLiveActivity: Widget {
                     if listening {
                         HStack(spacing: 7) {
                             LevelBars(level: s.level, color: Refined.persimmon, count: 5).frame(width: 22, height: 18)
-                            Text(s.warming ? Ribbon.gettingReadyTitle : "Listening").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                            Text(s.warming ? Ribbon.gettingReadyTitle : "Listening").scaledFont(14, weight: .semibold).foregroundStyle(.white)
                                 .lineLimit(1).fixedSize()
                         }
                         .padding(.leading, 4)
@@ -82,14 +82,14 @@ struct SessionLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.center) {
                     if !listening {
                         Text(Ribbon.headline(s.shown, words: s.words, gettingReady: s.warming))
-                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                            .scaledFont(15, weight: .semibold).foregroundStyle(.white).lineLimit(1)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     if listening {
                         VStack(alignment: .leading, spacing: 10) {
                             if s.warming {
-                                Text(Ribbon.gettingReadyDetail).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                                Text(Ribbon.gettingReadyDetail).scaledFont(13).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
                             } else if let line = s.liveWords, !line.isEmpty { IslandWords(line: line) }
                             HStack(spacing: 8) {
                                 TargetLabel(target: s.target)
@@ -104,7 +104,7 @@ struct SessionLiveActivity: Widget {
                     } else {
                         VStack(spacing: 10) {
                             Text(Ribbon.detail(s.shown, takes: s.takes, message: s.message))
-                                .font(.system(size: 13)).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
+                                .scaledFont(13).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             RibbonButtons(phase: s.shown, onDark: true)
                         }
@@ -188,17 +188,17 @@ private struct RibbonLockScreen: View {
             HStack(spacing: 8) {
                 PhaseGlyph(phase: state.shown, onDark: skin.dark).frame(width: 18, height: 18)
                 Text(Ribbon.headline(state.shown, words: state.words, gettingReady: state.warming))
-                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
+                    .scaledFont(15, weight: .semibold).foregroundStyle(ink).lineLimit(1)
                 Spacer(minLength: 8)
                 trailing
             }
             if state.shown == .listening {
                 LevelBars(level: state.level, color: skin.mark, count: 34).frame(height: 22)
                 Text(state.warming ? Ribbon.gettingReadyLine : Ribbon.lockLine(target: state.target, take: state.takes))
-                    .font(.system(size: 13)).foregroundStyle(skin.dim).lineLimit(1).minimumScaleFactor(0.85)
+                    .scaledFont(13).foregroundStyle(skin.dim).lineLimit(1).minimumScaleFactor(0.85)
             } else {
                 Text(Ribbon.detail(state.shown, takes: state.takes, message: state.message))
-                    .font(.system(size: 13)).foregroundStyle(skin.dim).lineLimit(2)
+                    .scaledFont(13).foregroundStyle(skin.dim).lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
             RibbonButtons(phase: state.shown, onDark: skin.dark)
@@ -210,7 +210,7 @@ private struct RibbonLockScreen: View {
         if state.shown == .listening, let start = state.takeStartedAt {
             TakeTimer(start: start).font(Refined.mono(15, weight: .medium)).foregroundStyle(ink).frame(width: 60, alignment: .trailing)
         } else if state.shown == .ready, let started = state.sessionStartedAt {
-            Text(started, style: .relative).font(.system(size: 13)).monospacedDigit().foregroundStyle(skin.mute)
+            Text(started, style: .relative).scaledFont(13).monospacedDigit().foregroundStyle(skin.mute)
                 .multilineTextAlignment(.trailing).frame(maxWidth: 110, alignment: .trailing)
         }
     }
@@ -225,7 +225,7 @@ private struct IslandWords: View {
         TailWords(text: line, lines: 2, lineHeight: IslandWordsMetrics.lineHeight) { tail in
             let parts = Ribbon.splitWords(tail)
             Text("\(Text(parts.older).foregroundStyle(Color.white.opacity(0.5)))\(Text(parts.newest).foregroundStyle(Color.white))")
-                .font(Refined.serif(16))
+                .scaledFont(16, design: .serif)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
@@ -248,7 +248,7 @@ private struct TargetLabel: View {
         HStack(spacing: 6) {
             Image(systemName: "keyboard").font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.7))
                 .accessibilityHidden(true)
-            Text(Ribbon.intoLine(target)).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75))
+            Text(Ribbon.intoLine(target)).scaledFont(13).foregroundStyle(.white.opacity(0.75))
                 .lineLimit(1).minimumScaleFactor(0.8)
         }
     }
@@ -376,7 +376,7 @@ private struct RibbonButton<I: AppIntent>: View {
     var body: some View {
         Button(intent: intent) {
             Text(title)
-                .font(.system(size: 14, weight: .semibold))
+                .scaledFont(14, weight: .semibold)
                 .foregroundStyle(primary || !onDark ? Refined.inkFixed : Color.white)
                 .lineLimit(1)
                 .frame(maxWidth: compact ? nil : .infinity)

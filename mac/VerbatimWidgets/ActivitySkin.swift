@@ -30,6 +30,8 @@ struct ActivityLockSurface<Content: View>: View {
     var body: some View {
         let skin = ActivitySkin(dark: scheme == .dark)
         content(skin)
+            // Text grows with Dynamic Type (`scaledFont`, SF-11), within the Lock Screen's height.
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)
             .activityBackgroundTint(skin.background)
             .activitySystemActionForegroundColor(skin.ink)
     }
