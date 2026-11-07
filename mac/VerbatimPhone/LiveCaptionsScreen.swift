@@ -4,7 +4,7 @@ import Combine
 import UIKit
 
 /// Live captions in the room: the iPhone's microphone, live words as large lines, recorded the whole time so
-/// "Save transcript" hands the main engine the full recording. Keeps the screen awake while it runs. A call or
+/// Stop hands the main engine the full recording. Keeps the screen awake while it runs. A call or
 /// another app taking the audio pauses it (the recorder pauses itself); Resume carries on in the same file.
 @MainActor
 final class PhoneCaptions: ObservableObject {
@@ -133,7 +133,7 @@ final class PhoneCaptions: ObservableObject {
         retries += 1
         if retries % 8 == 0, retries <= 240 { words.start(format: Recorder.targetFormat) }
         status = retries > 240
-            ? "Live captions aren't available on this iPhone for this language. The recording continues; Save transcript still works."
+            ? "Live captions aren't available on this iPhone for this language. The recording continues; Stop still saves it."
             : "Getting live captions ready… The recording has started."
     }
 
@@ -159,14 +159,15 @@ final class PhoneCaptions: ObservableObject {
 }
 
 /// The full-screen captions view (approved mockup PhoneCaptions): a mono header, faded older lines over a large
-/// current line, Aa Size / language / Flip for them, then Stop and Save transcript.
+/// current line, Aa Size / language / Flip for them, then Discard and Stop (which saves and transcribes).
 struct LiveCaptionsScreen: View {
     @Environment(PhoneState.self) var app
     @ObservedObject var captions: PhoneCaptions
     @ObservedObject var feed: CaptionFeed
     @AppStorage(CaptionSize.key) private var sizeRaw = CaptionSize.medium.rawValue
     @Environment(\.limitMotion) private var limitMotion
-    @State private var confirmStop = false
+    @State private var confirmDiscard = false
+    @State private var discardLength = ""
 
     private var size: CaptionSize { CaptionSize(rawValue: sizeRaw) ?? .medium }
 
@@ -190,27 +191,30 @@ struct LiveCaptionsScreen: View {
                 .transition(.opacity)
             }
             chips.padding(.bottom, 12)
+            // Stop always saves (and transcribes) the session, at any length, as Stop does everywhere else. Discard
+            // is its own button: it asks, then moves the recording to Recently Deleted.
             HStack(spacing: 10) {
-                Button { stopTapped() } label: {
-                    Text("Stop").frame(maxWidth: .infinity).frame(minHeight: 50)
+                Button { discardTapped() } label: {
+                    Text("Discard").frame(maxWidth: .infinity).frame(minHeight: 50)
                 }
                 .buttonStyle(RefinedActionStyle(kind: .quiet))
-                Button { app.stopCaptions(save: true) } label: {
-                    Text("Save transcript").frame(maxWidth: .infinity).frame(minHeight: 50)
+                .disabled(!captions.running)
+                .accessibilityHint("Asks before it moves the recording to Recently Deleted")
+                Button { app.stopCaptions() } label: {
+                    Text("Stop").frame(maxWidth: .infinity).frame(minHeight: 50)
                 }
                 .buttonStyle(RefinedActionStyle(kind: .strong))
-                .disabled(!captions.running)
+                .accessibilityHint(captions.running ? "Saves the recording and transcribes it" : "Closes live captions")
             }
         }
         .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 14)
         .background(Refined.paper.ignoresSafeArea())
         .animation(Motion.fade, value: captions.paused)
-        .confirmationDialog("Stop live captions?", isPresented: $confirmStop, titleVisibility: .visible) {
-            Button("Save transcript") { app.stopCaptions(save: true) }
-            Button("Discard recording", role: .destructive) { app.stopCaptions(save: false) }
+        .confirmationDialog("Move this recording to Recently Deleted?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+            Button("Move to Recently Deleted", role: .destructive) { app.discardCaptions() }
             Button("Keep captioning", role: .cancel) {}
         } message: {
-            Text("The recording can be saved as a transcript, or deleted.")
+            Text("\(discardLength) recorded. You can restore it for 30 days.")
         }
     }
 
@@ -279,8 +283,8 @@ struct LiveCaptionsScreen: View {
             .contentShape(Rectangle())
     }
 
-    private func stopTapped() {
-        if captions.running, captions.elapsed > 20, !PhoneUITest.enabled { confirmStop = true }
-        else { app.stopCaptions(save: false) }
+    private func discardTapped() {
+        discardLength = captions.elapsed.timecode
+        confirmDiscard = true
     }
 }

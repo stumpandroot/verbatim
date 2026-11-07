@@ -119,6 +119,14 @@ check("moments: the ready haptic and sound wait for the celebration's fill, or p
 check("moments: a word milestone is success as its fill completes, on Home", read("VerbatimPhone/HomeScreen.swift").contains("{ Haptics.play(.milestone) }"))
 check("moments: Live captions tap before their microphone opens",
       before("Haptics.play(.recordStart)", "try recorder.start(to: url)", in: read("VerbatimPhone/LiveCaptionsScreen.swift")))
+// Live captions' Stop always saves (IP-06): no length switch that discards, and Discard is its own confirmed action.
+let capStop = body(phone, "func stopCaptions()"), capDiscard = body(phone, "func discardCaptions()")
+let capScreen = read("VerbatimPhone/LiveCaptionsScreen.swift")
+check("moments: Live captions' Stop and Discard tap at the tap, before saving",
+      before("Haptics.play(.recordStop)", "captions.stop()", in: capStop) && before("Haptics.play(.recordStop)", "captions.stop()", in: capDiscard))
+check("Live captions' Stop saves at any length, and only Discard goes to Recently Deleted",
+      capStop.contains("enqueue(t)") && !capStop.contains("store.keepDiscarded(") && !capScreen.contains("elapsed > 20") && capDiscard.contains("store.keepDiscarded(") && capScreen.contains("app.discardCaptions()")
+      && capScreen.contains("confirmDiscard = true"), capStop)
 check("moments: the keyboard session taps before its microphone opens",
       before("Haptics.play(.recordStart)", "try startAudio()", in: read("VerbatimPhone/KeyboardSession.swift")))
 let pause = body(phone, "func togglePause()")

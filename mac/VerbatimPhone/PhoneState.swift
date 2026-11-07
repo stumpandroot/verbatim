@@ -703,12 +703,15 @@ final class PhoneState {
         }
     }
 
-    /// Stop or Save transcript on the captions screen.
-    func stopCaptions(save: Bool) {
+    /// Live captions' Stop: always ends and saves the session, at any length, and transcribes it, as Stop does
+    /// everywhere else (IP-06). Only a session with no audio at all is removed, with a message saying so. Throwing
+    /// the recording away is Discard (`discardCaptions`), which asks and goes to Recently Deleted.
+    func stopCaptions() {
         Haptics.play(.recordStop)
         showCaptions = false
         if PhoneUITest.enabled { captions.endScreenshots(); return }
-        guard save else { captions.discard(); return }
+        // Captions that never started recording (the microphone didn't open) have nothing to save.
+        guard captions.running else { captions.discard(); return }
         guard let (url, duration, env) = captions.stop() else { say("Couldn't finish saving. Verbose will recover the recording the next time it opens."); Haptics.play(.failed); return }
         // A short one is kept too; only a recording with no audio at all is removed.
         guard duration > 0 else { try? FileManager.default.removeItem(at: url); say(Store.nothingRecordedNotice); return }
@@ -717,6 +720,21 @@ final class PhoneState {
         t.waveform = env
         enqueue(t)
         say("Saved. Transcribing now.")
+    }
+
+    /// Live captions' Discard, after you confirm: the session ends and its recording goes to Recently Deleted (not
+    /// transcribed, restorable for 30 days), as the recorder's Discard does (`Store.keepDiscarded`).
+    func discardCaptions() {
+        Haptics.play(.recordStop)
+        showCaptions = false
+        if PhoneUITest.enabled { captions.endScreenshots(); return }
+        guard captions.running else { captions.discard(); return }
+        guard let (url, duration, env) = captions.stop() else { say("Couldn't finish saving. Verbose will recover the recording the next time it opens."); Haptics.play(.failed); return }
+        guard duration > 0 else { try? FileManager.default.removeItem(at: url); say(Store.nothingRecordedNotice); return }
+        let stopped = StoppedRecording(url: url, duration: duration, envelope: env,
+                                       framesWritten: Int64(duration * Recorder.targetFormat.sampleRate))
+        if store.keepDiscarded(stopped) != nil { say("Moved to Recently Deleted.") }
+        else { say("Couldn't move the recording. Verbose recovers it the next time it opens."); Haptics.play(.failed) }
     }
 
     // MARK: Import

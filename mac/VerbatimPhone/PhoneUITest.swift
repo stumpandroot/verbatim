@@ -206,7 +206,7 @@ enum PhoneUITest {
                     app.captions.flipped = true
                     await show("p02c-live-captions-flipped")
                 }
-                app.stopCaptions(save: false)
+                app.stopCaptions()
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 app.showLinkSheet = true
                 await show("\(prefix)03-link")
