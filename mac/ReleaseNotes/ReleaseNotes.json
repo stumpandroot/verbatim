@@ -1,6 +1,39 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Names and titles for calls without an invite",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Names from the call window",
+          "icon": "speakers",
+          "text": "A FaceTime or Zoom call with one other person suggests the name its window showed.",
+          "detail": "Verbose reads the call window through Accessibility while it records. Use or Dismiss the name; nothing renames on its own. With Contacts allowed, the contact's spelling wins."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Who was this with?",
+          "icon": "speakers",
+          "text": "When a call ends with the other side unnamed, type a name or pick one from Contacts.",
+          "detail": "It sits under the transcript's title. The name replaces FaceTime or Speaker 2 throughout the transcript. Dismiss hides it for that call."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Better titles for calls",
+          "icon": "ai",
+          "text": "Calls without a calendar title get the meeting's name or an Apple Intelligence title.",
+          "detail": "Meet, Teams, Zoom, and Webex window titles name the call. Otherwise Apple Intelligence titles it from the summary, and naming the other person can add \"with Dana\". Titles you typed stay."
+        }
+      ]
+    },
+    {
       "build": "301",
       "date": "2026-11-07",
       "version": "1.0 beta",
