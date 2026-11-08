@@ -64,11 +64,11 @@ struct ThoughtsSettingsScreen: View {
                        value: ThoughtRules.siriStatus)
             }
 
-            StepCard(art: .iconActionButton, icon: "button.horizontal.top.press", title: ("Action", "button"), steps: actionSteps) {
+            StepCard(art: .iconActionButton, icon: "button.horizontal.top.press", title: "Action button", steps: actionSteps) {
                 pill("Open Settings") { if let u = URL(string: UIApplication.openSettingsURLString) { openURL(u) } }
             }
             .padding(.top, 22)
-            StepCard(art: .iconBackTap, icon: "hand.tap", title: ("Back", "Tap"), steps: backTapSteps) {
+            StepCard(art: .iconBackTap, icon: "hand.tap", title: "Back Tap", steps: backTapSteps) {
                 HStack(spacing: 10) {
                     pill("Open Shortcuts") { if let u = URL(string: "shortcuts://") { openURL(u) } }
                     Text("Then come back here.").scaledFont(13).foregroundStyle(Refined.mute)
@@ -144,12 +144,12 @@ struct ThoughtsSettingsScreen: View {
     }
 }
 
-/// A how-to card: the icon, the serif title with its last word in italic, numbered
+/// A how-to card: the icon, the serif title (upright, as Siri's card has it; no italic last word, IP-26), numbered
 /// steps, and its buttons.
 private struct StepCard<Footer: View>: View {
     var art: BrandArt
     var icon: String
-    var title: (String, String)
+    var title: String
     var steps: [String]
     @ViewBuilder var footer: () -> Footer
 
@@ -158,7 +158,7 @@ private struct StepCard<Footer: View>: View {
             HStack(spacing: 10) {
                 SettingsLabel(hue: .sage, art: art, title: "")
                     .fixedSize()
-                SerifTitle(title.0, italic: title.1, size: 20).foregroundStyle(Refined.ink)
+                Text(title).scaledFont(20, design: .serif).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
             }
             ForEach(Array(steps.enumerated()), id: \.offset) { i, step in

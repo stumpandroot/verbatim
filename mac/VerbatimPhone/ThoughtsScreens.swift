@@ -560,29 +560,3 @@ private struct PhoneMonthCalendar: View {
         }
     }
 }
-
-// MARK: - Pieces
-
-/// Serif text with an italic last part ("Plan · *Mon, Oct 26*"), in the refined serif, scaled with Dynamic Type.
-struct SerifTitle: View {
-    var plain: String
-    var italic: String?
-    var size: CGFloat
-    @ScaledMetric private var scale: CGFloat = 1
-
-    init(_ plain: String, italic: String? = nil, size: CGFloat) {
-        self.plain = plain
-        self.italic = italic
-        self.size = size
-    }
-
-    var body: some View {
-        let font = Font.system(size: size * scale, design: .serif)
-        if let italic, !italic.isEmpty {
-            let lead = plain.isEmpty ? "" : plain + " "
-            (Text(lead) + Text(italic).italic()).font(font)
-        } else {
-            Text(plain).font(font)
-        }
-    }
-}

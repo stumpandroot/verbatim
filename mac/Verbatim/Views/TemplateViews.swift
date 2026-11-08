@@ -31,7 +31,8 @@ enum TemplateTitle {
     }
 }
 
-/// A result's text as sections: headings in the display face, then paragraphs, bullets, and checklist lines.
+/// A result's text as sections: headings in the display face, then paragraphs, bullets, and checklist lines (the
+/// kit's `RefinedCheckbox`, not tickable here).
 struct TemplateResultBody: View {
     var text: String
     var heading: Font
@@ -57,11 +58,10 @@ struct TemplateResultBody: View {
                     }
                 case .check(let s, let done):
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .strokeBorder(dim, lineWidth: 1.3)
-                            .frame(width: 12, height: 12)
-                            .overlay { if done { Image(systemName: "checkmark").font(.system(size: 8, weight: .bold)).foregroundStyle(ink) } }
-                            .accessibilityHidden(true)
+                        // The kit's check, as Plan my day's tasks show it, so every "- [ ]" line looks the same (IP-30).
+                        // It shows the state; ticking stays in plans.
+                        RefinedCheckbox(on: done, size: 16)
+                            .alignmentGuide(.firstTextBaseline) { $0.height * 0.8 }
                         Text(s).font(textFont).foregroundStyle(ink).fixedSize(horizontal: false, vertical: true)
                     }
                     .accessibilityElement(children: .combine)
