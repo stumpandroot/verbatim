@@ -73,7 +73,7 @@ Rules:
 
 1. **[checked]** Never put text on a blur or material (`.ultraThinMaterial`, `.regularMaterial`, `.glassEffect`). Glass belongs to system chrome: toolbars, tab bars, sheets, and transient controls without text. A floating bar with text uses `Refined.card` plus a hairline.
 2. Paper, illustrations, and colored tiles stay opaque.
-3. Radii (sharp, `Radius` in Tokens.swift): 4 for filter chips, fields, and keycaps; 6 for rows and sheets; 8 for tiles and cards; 10 for the Record panel, color panels, and big strips. Use the tokens, never a number. Don't round everything the same. Screens built on the refined kit take their radii from `RefinedRules.radius` (§13).
+3. Radii (sharp, `Radius` in Tokens.swift): 4 for filter chips, fields, and keycaps; 6 for rows and sheets; 8 for tiles and cards; 10 for the Record panel, color panels, and big strips. Use the tokens, never a number. Don't round everything the same. Screens built on the refined kit take their radii from `RefinedRules.radius` (§13). The widgets, the Live Activities, and the keyboard take the sizes only they use from `SurfaceRadius` (`VerbatimWidgets/SurfaceRadius.swift`: the widget tile 14, the week's bars 1.5, the stop square 2, keys 7, keyboard cards 14, and keyboard chips 17). **[checked]** No `cornerRadius:` number in the widgets, the keyboard, or the watch.
 4. Shadows: none on cards (§13). A hairline separates a floating surface. No soft shadows everywhere.
 5. Fills are opaque, with no grain. Nothing textured goes under glass.
 

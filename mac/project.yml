@@ -325,6 +325,7 @@ targets:
         excludes: ["Info.plist", "VerbatimMacWidgets.entitlements"]
       - VerbatimWidgets/WidgetSnapshot.swift
       - VerbatimWidgets/HomeWidgets.swift
+      - VerbatimWidgets/SurfaceRadius.swift
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Brand.swift
     info:
@@ -630,6 +631,8 @@ targets:
       - Verbatim/Model/HapticPolicy.swift
       # Motion's rules: Limit animation's copy in the App Group, which the keyboard follows (DESIGN.md §7).
       - Verbatim/Model/MotionRules.swift
+      # The small surfaces' radii (keys, cards, chips), shared with the widgets (SF-24).
+      - VerbatimWidgets/SurfaceRadius.swift
     info:
       path: VerbatimKeyboard/Info.plist
       properties:

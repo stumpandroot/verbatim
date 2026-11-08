@@ -9,6 +9,8 @@
 #   5. Fixed text sizes on iPhone (§13 Type 3): `.font(.system(size:` in VerbatimPhone/ only for an Image (an SF Symbol
 #      glyph), or on a line marked `// type: fixed (why)` or `// type: scaled (@ScaledMetric)`. Text uses `refinedFont`
 #      or `scaledFont`, which scale with Dynamic Type.
+#   6. Radius numbers on the small surfaces (§5.3, SF-24): `cornerRadius:` takes a token (`Radius`, `SurfaceRadius`,
+#      or one derived from a size) in the widgets, the keyboard, and the watch, never a number.
 # Run from anywhere: bash mac/tools/brand-check.sh   (exit 1 lists each problem as file:line)
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -37,6 +39,9 @@ mark=$(grep -rnE --include=*.swift 'BrandArt\.mark\b|art: *\.mark\b' $SRC | grep
 
 fixed=$(grep -rn --include=*.swift '\.font(\.system(size:' VerbatimPhone | grep -v '// type: ' | awk '{ i = index($0, ".font(.system(size:"); if (index(substr($0, 1, i), "Image(") == 0) print }' | cut -d: -f1,2)
 [ -n "$fixed" ] && report "Fixed text sizes on iPhone (use refinedFont or scaledFont, or mark '// type: fixed (why)'):" "$fixed"
+
+radii=$(grep -rnE --include=*.swift 'cornerRadius: *[0-9]' VerbatimWidgets VerbatimMacWidgets VerbatimKeyboard VerbatimWatch VerbatimWatchWidgets 2>/dev/null | cut -d: -f1,2)
+[ -n "$radii" ] && report "Radius numbers on the widgets, keyboard, or watch (use Radius or SurfaceRadius, DESIGN.md §5.3):" "$radii"
 
 [ $fail -eq 0 ] && echo "brand-check: OK"
 exit $fail

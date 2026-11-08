@@ -267,7 +267,7 @@ private struct StopButton: View {
     var body: some View {
         Button(intent: StopRecordingIntent()) {
             HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.inkFixed).frame(width: 10, height: 10)
+                RoundedRectangle(cornerRadius: SurfaceRadius.stopSquare, style: .continuous).fill(Refined.inkFixed).frame(width: 10, height: 10)
                 Text("Stop").scaledFont(15, weight: .bold).foregroundStyle(Refined.inkFixed).lineLimit(1)
             }
             .padding(.horizontal, wide ? 0 : 18)

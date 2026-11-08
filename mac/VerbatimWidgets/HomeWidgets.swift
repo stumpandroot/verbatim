@@ -294,7 +294,7 @@ private struct WeekBars: View {
                 ForEach(Array(week.days.enumerated()), id: \.offset) { i, words in
                     let future = today.map { i > $0 } ?? false
                     let h = future ? 2.5 : max(3, g.size.height * CGFloat(words) / CGFloat(peak))
-                    let shape = RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    let shape = RoundedRectangle(cornerRadius: SurfaceRadius.weekBar, style: .continuous)
                     if i == today {
                         shape.fill(todayColor).frame(height: h).widgetAccentable()
                     } else {
@@ -380,7 +380,7 @@ private struct RecordDictateView: View {
     }
 
     private func tile(_ skin: Skin, record: Bool) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: SurfaceRadius.widgetTile, style: .continuous)
         let fill = skin.full ? (record ? Refined.persimmon : Refined.butter) : Color.primary.opacity(0.1)
         return VStack(alignment: .leading, spacing: 0) {
             if record {
