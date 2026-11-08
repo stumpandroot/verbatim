@@ -81,17 +81,20 @@ struct OnboardingView: View {
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
             title(Refined.tagline)
             para("Record, import, or dictate. Verbose turns it into text you can use, on your Mac. Your recordings go only to your own iCloud, when sync is on.")
-            HStack(spacing: 12) {
-                pillar("Capture", "Record, import, a link", .capture, .persimmon)
-                pillar("Refine", "Clean up, original kept", .refine, .petal)
-                pillar("Dictate", "Talk into any app", .document, .butter)
+            // The three Method diagrams in ink on paper (MAC-14; DESIGN.md §3, Diagrams), one idea each. Dictation is
+            // named under Capture.
+            HStack(alignment: .top, spacing: 16) {
+                method("Capture", "Record, import, dictate, or a link", .diagramCapture)
+                method("Refine", "Clean up, original kept", .diagramRefine)
+                method("Understand", "Summaries, search, and Ask", .diagramUnderstand)
             }
             .padding(.top, 22)
         }
     }
 
-    /// Four more ways in (mockup "Verbose Tour Steps", October 30, 2026): Home's hues with each one's shortcut. The tiles
-    /// only show; nothing here starts a recording.
+    /// Four more ways in (mockup "Verbose Tour Steps", October 30, 2026; colors from the redesign mockup, MAC-14): Record
+    /// keeps persimmon and Import sage, their capture hues, and New thought and Search or ask sit on the neutral card, as
+    /// New thought does on Home, so no hue means two things. The tiles only show; nothing here starts a recording.
     private var ways: some View {
         VStack(alignment: .leading, spacing: 0) {
             title("Four more ways in")
@@ -102,8 +105,8 @@ struct OnboardingView: View {
                     wayTile("Import", keys: "⌘O", spoken: "Command O", "Audio or video files, or a YouTube or podcast link.", .iconLinks, .sage)
                 }
                 GridRow {
-                    wayTile("New thought", keys: "⌃⌥P", spoken: "Control Option P", "From any app. Press it, talk, press it again. It lands on today's page.", .iconThought, .butter)
-                    wayTile("Search or ask", keys: "⌘K", spoken: "Command K", "Every transcript. Ask a question and the answer cites where it came from.", .iconAsk, .petal)
+                    wayTile("New thought", keys: "⌃⌥P", spoken: "Control Option P", "From any app. Press it, talk, press it again. It lands on today's page.", .iconThought, .neutral)
+                    wayTile("Search or ask", keys: "⌘K", spoken: "Command K", "Every transcript. Ask a question and the answer cites where it came from.", .iconAsk, .neutral)
                 }
             }
             .padding(.top, 20)
@@ -122,7 +125,7 @@ struct OnboardingView: View {
                     } else { DictationController.openMicrophoneSettings() }
                 }
                 PaperDivider(leading: 52, trailing: 16)
-                permissionRow(art: .iconAccessibility, hue: .sage, name: "Accessibility", why: "To hear your hotkey and paste into other apps",
+                permissionRow(art: .iconAccessibility, hue: .neutral, name: "Accessibility", why: "To hear your hotkey and paste into other apps",
                               ok: trusted, action: "Allow…") { app.dictation.openAccessibilitySettings() }
             }
             .padding(.top, 18)
@@ -306,24 +309,30 @@ struct OnboardingView: View {
         Text(s).refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
     }
 
-    /// One of the three ideas on a tile in its hue (the kit's Full fills, with their ink).
-    private func pillar(_ name: String, _ note: String, _ art: BrandArt, _ hue: RefinedHue) -> some View {
-        let ink = Refined.onBadge(hue)
-        return VStack(alignment: .leading, spacing: 2) {
-            IconGlyph(art: art, size: 30, color: ink)
-            Spacer(minLength: 8)
-            Text(name).refinedFont(.sectionTitle).foregroundStyle(ink)
-            Text(note).refinedFont(.meta, weight: .semibold).foregroundStyle(ink)
+    /// One of the three ideas (MAC-14): its diagram in ink on paper, its name in the serif, and a line. The diagrams are
+    /// still drawings, so Limit animation has nothing to stop.
+    private func method(_ name: String, _ note: String, _ art: BrandArt) -> some View {
+        VStack(spacing: 4) {
+            BrandGlyph(art: art, color: Refined.ink, minLineWidth: Self.diagramLine)
+                .frame(height: 84)
+                .frame(maxWidth: .infinity)
+            Text(name).refinedFont(.sectionTitle).foregroundStyle(Refined.ink).padding(.top, 6)
+            Text(note).refinedFont(.meta).foregroundStyle(Refined.mute)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 124, maxHeight: 124, alignment: .leading)
-        .refinedSurface(Refined.badge(hue), radius: RefinedPlatform.radius(.tile))
+        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
 
-    /// One of the four ways in: the name, its keycap, and a line, on the hue's Full fill with its ink.
+    /// One line weight for the three diagrams at this size: each one's 2.8 stroke scales below it, so all three draw at
+    /// this floor and match.
+    static let diagramLine: CGFloat = 1.4
+
+    /// One of the four ways in: the name, its keycap, and a line, on the hue's Full fill with its ink, or on the card
+    /// with the reading ink for `.neutral`.
     private func wayTile(_ name: String, keys: String, spoken: String, _ line: String, _ art: BrandArt, _ hue: RefinedHue) -> some View {
         let ink = Refined.onBadge(hue)
+        let surface = hue == .neutral ? Refined.card : Refined.badge(hue)
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 IconGlyph(art: art, size: 17, color: ink)
@@ -336,7 +345,7 @@ struct OnboardingView: View {
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
         .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
-        .refinedSurface(Refined.badge(hue), radius: RefinedPlatform.radius(.tile))
+        .refinedSurface(surface, radius: RefinedPlatform.radius(.tile))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(name), \(spoken). \(line)")
     }
