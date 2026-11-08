@@ -64,6 +64,10 @@ final class PhoneState {
     /// `libraryFilterRequest` as a publisher, for the Library tab's `onReceive` (LibraryScreen.swift): the value now,
     /// then each set.
     @ObservationIgnored let libraryFilterRequestValues = CurrentValueSubject<String?, Never>(nil)
+    /// Set to open the Library tab's field with Ask chosen (`openAsk`, AskScreens.swift); the Library screen clears it.
+    var askRequest: AskRoute? = nil { didSet { askRequestValues.send(askRequest) } }
+    /// `askRequest` as a publisher, for the Library tab's `onReceive`: the value now, then each set.
+    @ObservationIgnored let askRequestValues = CurrentValueSubject<AskRoute?, Never>(nil)
     /// The Add from Library sheet, open for this project (from a project's Library view, or the screenshot tour).
     var addFromLibrary: UUID? = nil
     /// The one-time recording-consent notice, shown before the first recording on this iPhone.

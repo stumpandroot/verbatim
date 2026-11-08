@@ -832,10 +832,12 @@ struct RefinedSearchField: View {
 #if os(iOS)
 /// The system's search field (`UISearchTextField`, the field `.searchable` draws) placed on the page under a screen's
 /// serif title (the iPhone Library), where the navigation bar's drawer would put it above the title: the system's
-/// magnifying glass, clear button, keyboard, and Dynamic Type, on the field color. Return runs `onSubmit`.
+/// magnifying glass, clear button, keyboard, and Dynamic Type, on the field color. Return runs `onSubmit`. Changing
+/// `focusRequest` puts the keyboard up (the Library's Ask place, IP-39); its first value doesn't.
 struct SystemSearchField: UIViewRepresentable {
     @Binding var text: String
     var prompt: String
+    var focusRequest = 0
     var onSubmit: () -> Void = {}
 
     func makeUIView(context: Context) -> UISearchTextField {
@@ -854,6 +856,7 @@ struct SystemSearchField: UIViewRepresentable {
         f.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .editingChanged)
         f.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         f.text = text
+        context.coordinator.focusSeen = focusRequest
         return f
     }
 
@@ -861,6 +864,11 @@ struct SystemSearchField: UIViewRepresentable {
         context.coordinator.parent = self
         if f.text != text { f.text = text }
         if f.placeholder != prompt { f.attributedPlaceholder = Self.placeholder(prompt); f.accessibilityLabel = prompt }
+        if context.coordinator.focusSeen != focusRequest {
+            context.coordinator.focusSeen = focusRequest
+            // After this update, so the field is in the window when it asks for the keyboard.
+            DispatchQueue.main.async { f.becomeFirstResponder() }
+        }
     }
 
     /// The prompt in `mute`, which reaches 4.5:1 on the field in both modes (the system's placeholder gray was about
@@ -873,6 +881,8 @@ struct SystemSearchField: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextFieldDelegate {
         var parent: SystemSearchField
+        /// The last `focusRequest` acted on.
+        var focusSeen = 0
         init(_ parent: SystemSearchField) { self.parent = parent }
         @objc func changed(_ f: UITextField) { parent.text = f.text ?? "" }
         func textFieldShouldClear(_ f: UITextField) -> Bool { parent.text = ""; return true }

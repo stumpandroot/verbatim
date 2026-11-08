@@ -1,7 +1,9 @@
 import SwiftUI
+import UIKit
 
 /// The Library in the refined look (DESIGN.md §6.8 and §13; mockup "Verbose Refined Look", PhoneLibrary), one layout
-///: the large serif "Library" with the count, the system search field (Search or ask), one row of small buttons for
+///: the large serif "Library" with the count, the system search field (Search or ask, the one way into search and Ask:
+/// typing shows a Search | Ask switch under it, IP-39), one row of small buttons for
 /// the places (Dictations, By day, Templates, Ask, and Projects when you have one), the quick filter chips (All, Voice
 /// notes, Meetings, Thoughts, Audio, Links, Marked), then each day under its serif title as a card of recordings: the
 /// kind's badge, the title, a meta line (the kind, who, the moments, or where it is while it's being made), and the
@@ -15,6 +17,14 @@ struct LibraryScreen: View {
     /// The search and the filter, kept when Library is built again (`LibraryKeep`).
     @State private var search = LibraryKeep.librarySearch
     @State private var filter: Filter = LibraryKeep.libraryFilter
+    /// Search or Ask in the switch under the field, and where Ask looks (IP-39; `SearchOrAsk`).
+    @State private var mode: SearchOrAsk = LibraryKeep.libraryMode
+    @State private var askScope = LibraryKeep.libraryAskScope
+    /// Bumped to put the keyboard up in the field (the Ask place with nothing asked yet).
+    @State private var focusRequest = 0
+    /// Save as recipe from Ask's actions in More.
+    @State private var editingRecipe: RecipeDraft? = nil
+    @ObservedObject private var askCenter = AskCenter.shared
     /// The type (Voice notes, Links, Marked, …) and its platform, remembered on this iPhone.
     @State private var typeFilter = LibraryFilter.saved(LibraryFilter.libraryKey)
     @State private var newProject = false
@@ -28,6 +38,8 @@ struct LibraryScreen: View {
     /// A kind's tab (Meetings, …; PhoneApp's `rootScreen`): the tab's name, the title while the Library is on the tab's
     /// kind. Nil elsewhere.
     var tabTitle: String? = nil
+    /// Pushed as Ask (`AskRoute`, from a stack without the Library tab): opens with Ask chosen, asking its words at once.
+    var ask: AskRoute? = nil
     @State private var routeApplied = false
     /// Select recordings (More), the selection, and the pushes from More and the Projects row.
     @State private var selecting = false
@@ -42,18 +54,25 @@ struct LibraryScreen: View {
     /// For the self-test: the kind the Library last shown is on (its raw value; nil for any other filter), and its title.
     static var shownKind: String?
     static var shownTitle: String?
+    /// For the self-test: Search or Ask in the field's switch, and the field's words, on the Library last shown.
+    static var shownMode: SearchOrAsk = .search
+    static var shownQuery = ""
 
     /// A filter besides the type: a kind, Pinned, In progress, or a project. A type and these don't combine: choosing
     /// one clears the other.
     enum Filter: Hashable { case all, pinned, working, project(UUID), kind(RecordingKind) }
 
     private var trimmedSearch: String { search.trimmingCharacters(in: .whitespaces) }
-    private var searching: Bool { !trimmedSearch.isEmpty }
+    /// What filters the recordings: the field's words with Search chosen, nothing with Ask chosen (they're a question).
+    private var listQuery: String { mode == .ask ? "" : trimmedSearch }
+    private var searching: Bool { !listQuery.isEmpty }
+    /// What the page shows under the field: the Library, the matches, or Ask.
+    private var content: SearchOrAsk.Content { SearchOrAsk.content(query: search, mode: mode) }
 
     /// The filter and the search, before the type (which counts over this). Dictations are included here;
     /// `LibraryFilter.apply` leaves them out unless you're searching or chose Dictations.
     private var scoped: [Transcript] {
-        let q = trimmedSearch.lowercased()
+        let q = listQuery.lowercased()
         let filter = self.filter
         // Once per library change, filter, and search (Store+Memo.swift), not on every render.
         return app.store.memo("phone.scoped|\(String(describing: filter))|\(q)") { app.store.live.filter { t in
@@ -71,7 +90,7 @@ struct LibraryScreen: View {
     }
 
     /// What `scoped` depends on besides the library, for the memo keys built on it.
-    private var scopeKey: String { "\(String(describing: filter))|\(trimmedSearch.lowercased())" }
+    private var scopeKey: String { "\(String(describing: filter))|\(listQuery.lowercased())" }
 
     /// Dictations, newest first. They have their own list, reached from the card at the top (and Home's Dictate and
     /// Recent dictations).
@@ -128,22 +147,28 @@ struct LibraryScreen: View {
         let scoped = self.scoped
         let searching = self.searching, typeFilter = self.typeFilter, sort = self.sort
         let items = app.store.memo("phone.items|\(scopeKey)|\(typeFilter.raw)|\(sort.rawValue)") { sort.sorted(typeFilter.apply(scoped, searching: searching)) }
-        let passages = trimmedSearch.count >= 2 ? LibrarySearch.passages(items, query: search, perTranscript: 3, cap: 60) : []
+        let content = self.content
+        let passages = content == .search && trimmedSearch.count >= 2 ? LibrarySearch.passages(items, query: search, perTranscript: 3, cap: 60) : []
         return List(selection: $selection) {
             header(items: items, scoped: scoped)
-            Group {
-                if let p = project, !selecting { addFromLibrary(p) }
-                if searching { askAbout }
-                if !passages.isEmpty { passagesSection(passages) }
-                if items.isEmpty {
-                    if let k = kindTabKind, !searching, project == nil { kindEmptyState(k) } else { emptyState(project: project) }
+            if content == .ask {
+                // Ask, in the same field (IP-39): the answer with its citations, the other passages, and Recipes.
+                PhoneAskPanel()
+                    .modifier(PageRow(top: 14, bottom: 24))
+            } else {
+                Group {
+                    if let p = project, !selecting { addFromLibrary(p) }
+                    if !passages.isEmpty { passagesSection(passages) }
+                    if items.isEmpty {
+                        if let k = kindTabKind, !searching, project == nil { kindEmptyState(k) } else { emptyState(project: project) }
+                    }
+                    ForEach(Self.daySections(lines(items)), id: \.label) { day in
+                        daySection(day)
+                    }
                 }
-                ForEach(Self.daySections(lines(items)), id: \.label) { day in
-                    daySection(day)
-                }
+                // A chip's change fades the list in as a whole (`fadeList`); each row takes the same opacity, nothing more.
+                .opacity(listShown ? 1 : 0)
             }
-            // A chip's change fades the list in as a whole (`fadeList`); each row takes the same opacity, nothing more.
-            .opacity(listShown ? 1 : 0)
         }
         .listStyle(.plain)
         .environment(\.defaultMinListRowHeight, 1)
@@ -161,15 +186,24 @@ struct LibraryScreen: View {
         .navigationDestination(isPresented: $showProjects) { ProjectsScreen() }
         .onChange(of: search) { _, v in if route == nil { LibraryKeep.librarySearch = v } }
         .onChange(of: filter) { _, v in if route == nil { LibraryKeep.libraryFilter = v } }
+        .onChange(of: mode) { _, v in if route == nil { LibraryKeep.libraryMode = v }; noteShown() }
+        .onChange(of: search) { _, _ in Self.shownQuery = search }
+        .onChange(of: askScope) { _, v in
+            if route == nil { LibraryKeep.libraryAskScope = v }
+            // A new scope asks the question on screen again (not when the field took the answer's own scope).
+            if mode == .ask, let r = askCenter.result, r.scope != v, !trimmedSearch.isEmpty { runAsk() }
+        }
         .onChange(of: filter) { _, _ in noteShown() }
         .onAppear {
             Self.onScreen += 1
             defer { noteShown() }
-            // Pushed: starts on its own filter and an empty search, once.
+            // Pushed: starts on its own filter and an empty search, once (with Ask chosen when it was pushed as Ask).
             guard let route, !routeApplied else { return }
             routeApplied = true
             search = ""
+            mode = .search
             if let r = route.request { applyRequest(r) } else { filter = .all }
+            if let ask { chooseAsk(requested: ask.query) }
         }
         .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
         .onReceive(app.libraryFilterRequestValues) { r in
@@ -183,6 +217,13 @@ struct LibraryScreen: View {
             // again.
             DispatchQueue.main.async { if app.libraryFilterRequest == r { app.libraryFilterRequest = nil } }
         }
+        .onReceive(app.askRequestValues) { r in
+            // Ask from anywhere (`openAsk`): this field with Ask chosen. For the Library tab only; cleared on the next turn.
+            guard let r, route == nil else { return }
+            chooseAsk(requested: r.query)
+            DispatchQueue.main.async { if app.askRequest == r { app.askRequest = nil } }
+        }
+        .sheet(item: $editingRecipe) { d in PhoneRecipeEditor(draft: d).phoneState(app) }
         .sheet(isPresented: Binding(get: { app.addFromLibrary != nil }, set: { if !$0 { app.addFromLibrary = nil } })) {
             if let p = app.addFromLibrary { PhoneAddFromLibrarySheet(project: p).phoneState(app) }
         }
@@ -200,6 +241,8 @@ struct LibraryScreen: View {
     /// Puts the Library on a filter from a request: "working", "project:<id>", "source:<type>" (Marked, Links), a
     /// kind's raw value, or anything else for All.
     private func applyRequest(_ r: String) {
+        // A filter asks for recordings: Ask's question leaves the field and Search comes back (IP-39).
+        if mode == .ask { mode = .search; search = "" }
         if r.hasPrefix("source:"), let s = LibrarySource(rawValue: String(r.dropFirst("source:".count))) {
             filter = .all; setType(LibraryFilter(source: s)); return
         }
@@ -223,22 +266,36 @@ struct LibraryScreen: View {
                 .accessibilityElement(children: .combine)
                 .modifier(PageRow(top: 0, bottom: 0))
         }
-        SystemSearchField(text: $search, prompt: "Search or ask")
+        // The one way into search and Ask (IP-39). Return asks while Ask is chosen.
+        SystemSearchField(text: $search, prompt: SearchOrAsk.prompt(mode), focusRequest: focusRequest) { submit() }
             .frame(minHeight: 38)
+            .accessibilityIdentifier("library.search")
             .modifier(PageRow(top: isTabRoot ? 4 : 14, bottom: 0))
+        let content = self.content
+        // Search | Ask, under the field while you type and while Ask is chosen (the kit's switch, as on the Mac's panel).
+        if SearchOrAsk.showsSwitch(query: search, mode: mode) {
+            RefinedSegmented(label: "Search or ask", options: SearchOrAsk.allCases.map { ($0, $0.title) }, selection: modeBinding)
+                .accessibilityIdentifier("library.searchOrAsk")
+                .modifier(PageRow(top: 8, bottom: 0))
+        }
         // Dictations as a card of its own (November 6, 2026, mockup "Verbose Dictations", frame 3: the pill was too
         // easy to miss), then By day, Templates, Ask, and Projects as one row of small buttons, so recordings start
-        // higher (critique, build 283). Not inside a project.
-        if project == nil {
+        // higher (critique, build 283). Not inside a project, and not while you search or ask.
+        if project == nil, content == .library {
             dictationsCard
                 .modifier(PageRow(top: 8, bottom: 0))
             placesRow
                 .modifier(PageRow(top: 8, bottom: 0, edge: 0))
         }
-        chips
-            .modifier(PageRow(top: 10, bottom: 0, edge: 0))
+        if content == .ask {
+            PhoneAskScopeChips(scope: $askScope)
+                .modifier(PageRow(top: 10, bottom: 0, edge: 0))
+        } else {
+            chips
+                .modifier(PageRow(top: 10, bottom: 0, edge: 0))
+        }
         let platforms = typeFilter.platformCounts(scoped, searching: searching)
-        if typeFilter.source.hasPlatforms, !platforms.isEmpty {
+        if content != .ask, typeFilter.source.hasPlatforms, !platforms.isEmpty {
             RefinedChipRow(label: "Platform", margin: 20) {
                 ForEach(platforms, id: \.0) { p, n in
                     RefinedChip(title: p, selected: typeFilter.platform == p) {
@@ -266,7 +323,7 @@ struct LibraryScreen: View {
                 }
                 .buttonStyle(RefinedPress())
             } else {
-                filterMenu(circle: true)
+                if content != .ask { filterMenu(circle: true) }
                 moreMenu(circle: true)
             }
         }
@@ -284,6 +341,8 @@ struct LibraryScreen: View {
     private func noteShown() {
         if case .kind(let k) = filter { Self.shownKind = k.rawValue } else { Self.shownKind = nil }
         Self.shownTitle = title
+        Self.shownMode = mode
+        Self.shownQuery = search
     }
 
     /// The number `countText` shows, so it changes in place.
@@ -428,7 +487,8 @@ struct LibraryScreen: View {
         switch id {
         case "library.byDay": app.pushHere(ByDayRoute(kind: .idea))
         case "library.templates": app.pushHere(TemplatesRoute())
-        case "library.ask": app.pushHere(AskRoute())
+        // The same field, with Ask chosen (IP-39), instead of a page with a field of its own.
+        case "library.ask": chooseAsk(requested: nil)
         default: showProjects = true
         }
     }
@@ -508,10 +568,39 @@ struct LibraryScreen: View {
             .modifier(CardRow(first: true, last: true, divider: 56, top: 16))
     }
 
-    /// The search field asks too: ask about what you typed.
-    private var askAbout: some View {
-        AskAboutRow(query: trimmedSearch)
-            .modifier(CardRow(first: true, last: true, divider: 56, top: 16))
+    // MARK: Search or ask (IP-39)
+
+    /// The switch: choosing Ask goes through `chooseAsk`, so typed words are asked and an empty field shows the last answer
+    /// or puts the keyboard up.
+    private var modeBinding: Binding<SearchOrAsk> {
+        Binding(get: { mode }, set: { v in if v == .ask { chooseAsk(requested: nil) } else { mode = .search } })
+    }
+
+    /// Chooses Ask in the field (the switch, the Ask place, `openAsk`, or a pushed `AskRoute`): `requested` words fill
+    /// the field and are asked at once (`SearchOrAsk.enter`).
+    private func chooseAsk(requested: String?) {
+        let e = SearchOrAsk.enter(query: search, requested: requested, lastQuestion: askCenter.result?.question,
+                                  answered: askCenter.phase == .done && askCenter.result != nil)
+        mode = .ask
+        if let f = e.fill {
+            search = f
+            // The last answer's question comes back with the scope it was asked in.
+            if requested == nil, let r = askCenter.result { askScope = r.scope }
+        }
+        if e.focus { focusRequest += 1 }
+        if e.ask { runAsk() }
+    }
+
+    /// Return in the field: asks with Ask chosen; with Search, the keyboard goes away and the matches stay.
+    private func submit() {
+        if SearchOrAsk.submitAsks(query: search, mode: mode) { runAsk() }
+    }
+
+    /// Asks the field's words in the chosen scope, with the keyboard put away.
+    private func runAsk() {
+        guard !trimmedSearch.isEmpty else { return }
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        askCenter.ask(trimmedSearch, scope: askScope)
     }
 
     @ViewBuilder private func passagesSection(_ passages: [LibrarySearch.PassageHit]) -> some View {
@@ -599,7 +688,7 @@ struct LibraryScreen: View {
             }
             ToolbarItem(placement: .topBarTrailing) { selectionMenu }
         } else {
-            ToolbarItem(placement: .topBarTrailing) { filterMenu(circle: false) }
+            if content != .ask { ToolbarItem(placement: .topBarTrailing) { filterMenu(circle: false) } }
             ToolbarItem(placement: .topBarTrailing) { moreMenu(circle: false) }
         }
     }
@@ -657,10 +746,16 @@ struct LibraryScreen: View {
         .accessibilityIdentifier("library.filter")
     }
 
-    /// More: Select recordings, Recently Deleted, and New project.
+    /// More: Select recordings, Recently Deleted, and New project; with Ask chosen, Ask's actions in place of Select.
     private func moreMenu(circle: Bool) -> some View {
         Menu {
-            Button { selecting = true } label: { Label("Select recordings", systemImage: "checkmark.circle") }   // brand: system surface (menu)
+            // With Ask chosen, Ask's actions come first: Copy, Save as recipe, Recipes, and Recent questions.
+            if content == .ask {
+                PhoneAskMenuItems(recall: { h in search = h.question; askScope = h.scope }, editing: $editingRecipe)
+                Divider()
+            } else {
+                Button { selecting = true } label: { Label("Select recordings", systemImage: "checkmark.circle") }   // brand: system surface (menu)
+            }
             Button { showTrash = true } label: { Label("Recently Deleted", systemImage: "trash") }
             Button { newProject = true } label: { Label("New project…", systemImage: "folder.badge.plus") }   // brand: system surface (menu)
         } label: {
