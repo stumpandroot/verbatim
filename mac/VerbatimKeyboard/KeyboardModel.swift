@@ -55,6 +55,8 @@ final class KeyboardModel: ObservableObject {
         didSet {
             typing.hasFullAccess = hasFullAccess
             typing.typingHaptic = policy.haptic(for: .typingKey)
+            // The space bar's cursor drag starts with one selection tick (DESIGN.md §7).
+            typing.dragHaptic = policy.haptic(for: .picked)
         }
     }
     /// The resting view: Home or Typing (`KeyboardSurface.opening` picks it on each appearance). Typing works
@@ -101,6 +103,9 @@ final class KeyboardModel: ObservableObject {
     /// Settings › Keyboard › Dictate button: size, position, and style. Read from the App Group each time the
     /// keyboard appears (one small read, so memory stays flat); the default without Full Access.
     @Published private(set) var dictateButton = DictateButton.standard
+    /// The languages you type in and the one now, for the menu's Language row (shown with two or more).
+    @Published private(set) var typingLanguages: [String] = []
+    @Published private(set) var typingLanguage = "en_US"
 
     /// True when there's no session (and no call has one paused): Home offers Start a session, which opens Verbose
     /// straight into one, or the other ways to start one when that didn't work (`startCard`).
@@ -276,6 +281,7 @@ final class KeyboardModel: ObservableObject {
         logMemory("appeared")
         let button = DictateButton.read(defaults)
         if button != dictateButton { dictateButton = button }
+        configureTyping()
         let limited = MotionMirror.limited(in: defaults)
         if limited != motionLimited { motionLimited = limited }
         // Without Full Access there's no App Group: no session, no snippets, no recent dictations.
@@ -361,6 +367,43 @@ final class KeyboardModel: ObservableObject {
         clock.setElapsed(0)
         closePanels()
         set(take.phase == .listening ? .listening : .writing)
+    }
+
+    // MARK: Typing help
+
+    /// Settings › Autocorrect and Suggestions and the Dictionary's words (App Group, Full Access only; both on and no
+    /// words without it), your languages (the app's list of the keyboards in the Settings app; without it, this
+    /// keyboard's view of them or the system's languages), and the language now: the field's own, the one you last
+    /// chose in the menu, or your first. Then your text replacements and contacts.
+    private func configureTyping() {
+        let available = TypingAssist.availableLanguages
+        let chosen = TypingHelp.readLanguages(defaults)
+            ?? TypingLanguages.keyboardLanguages(UITextInputMode.activeInputModes.compactMap(\.primaryLanguage) + Locale.preferredLanguages,
+                                                 available: available)
+        typing.assist.configure(help: TypingHelp.read(defaults), dictionary: TypingHelp.readWords(defaults), chosen: chosen,
+                                document: proxy?.documentInputMode?.primaryLanguage,
+                                picked: UserDefaults.standard.string(forKey: TypingHelp.Key.picked))
+        typing.setLanguage(typing.assist.language)
+        if chosen != typingLanguages { typingLanguages = chosen }
+        if typing.assist.language != typingLanguage { typingLanguage = typing.assist.language }
+        typing.assist.loadLexicon()
+    }
+
+    /// The menu's Language row: the next of your languages, kept in the keyboard's own defaults for next time.
+    func cycleLanguage() {
+        guard let next = TypingLanguages.next(after: typingLanguage, in: typingLanguages) else { return }
+        UserDefaults.standard.set(next, forKey: TypingHelp.Key.picked)
+        typing.setLanguage(next)
+        typingLanguage = next
+        haptic(.picked)
+    }
+
+    /// "English", "Spanish"; with two of one language, its region too ("English (United Kingdom)").
+    func languageName(_ id: String) -> String {
+        let code = TypingLanguages.code(id)
+        let twice = typingLanguages.filter { TypingLanguages.code($0) == code }.count > 1
+        let name = twice ? Locale.current.localizedString(forIdentifier: id) : Locale.current.localizedString(forLanguageCode: code)
+        return name ?? id
     }
 
     // MARK: Actions

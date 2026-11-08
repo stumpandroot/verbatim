@@ -124,6 +124,12 @@ final class KeyboardViewController: UIInputViewController {
         model.didAppear()
     }
 
+    /// iOS is short of memory: typing help drops its spell checker and cache (made again on the next word).
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        model.typing.assist.trim()
+    }
+
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         model.pause()
