@@ -29,21 +29,31 @@ struct OnboardingView: View {
                 Spacer(minLength: 8)
                 Text("\(step + 1) of \(total)").refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
             }
-            Group {
-                switch current {
-                case .welcome: welcome
-                case .permissions: permissions
-                case .tryIt: tryIt
-                case .ways: ways
-                case .placement: placement
-                case .quality: quality
+            // Every step scrolls when it's taller than the sheet (Many languages' choices, a long hotkey name), above
+            // a footer that stays put, so Continue and Back are always there (GPT-28). A step that fits doesn't bounce.
+            ScrollView(.vertical) {
+                Group {
+                    switch current {
+                    case .welcome: welcome
+                    case .permissions: permissions
+                    case .tryIt: tryIt
+                    case .ways: ways
+                    case .placement: placement
+                    case .quality: quality
+                    }
                 }
+                // Continue slides the next step in from the right, Back the step before from the left; Limit animation
+                // crossfades (DESIGN.md §7, `slideSwitch`).
+                .slideSwitch(on: step, order: step)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(.bottom, 14)
             }
-            // Continue slides the next step in from the right, Back the step before from the left; Limit animation
-            // crossfades (DESIGN.md §7, `slideSwitch`).
-            .slideSwitch(on: step, order: step)
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators(.automatic)
+            .softScrollEdges(.bottom)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            footer
+            .uiTarget("onboarding-step-scroll")
+            footer.padding(.top, 10)
         }
         .padding(.horizontal, 40).padding(.top, 34).padding(.bottom, 26)
         .frame(width: 640, height: 460)
@@ -65,7 +75,7 @@ struct OnboardingView: View {
             HStack(spacing: 10) {
                 BarsMark(color: Refined.persimmon).frame(width: 19, height: 20)
                 Text("\(Text("verbose").foregroundStyle(Refined.ink))\(Text(".").foregroundStyle(Refined.accentText))")
-                    .font(.system(size: 22, design: .serif))
+                    .font(Refined.serif(22))
             }
             .padding(.top, 18)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
@@ -123,12 +133,13 @@ struct OnboardingView: View {
 
     private var tryIt: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                Text("Hold").refinedFont(.largeTitle)
-                Text(app.dictation.hotkey.title).refinedFont(.rowTitle, weight: .semibold)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(Refined.neutral, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                Text("and say hello").refinedFont(.largeTitle)
+            // One line when it fits; a long key name ("Right Command") moves "and say hello" under it, never cut.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { Text("Hold").refinedFont(.largeTitle); holdKey; Text("and say hello").refinedFont(.largeTitle) }
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 10) { Text("Hold").refinedFont(.largeTitle); holdKey }
+                    Text("and say hello").refinedFont(.largeTitle)
+                }
             }
             .foregroundStyle(Refined.ink).padding(.top, 14).padding(.bottom, 6)
             para(trusted ? "Let go, and your words land here. Tap the key once to keep listening hands-free; tap again to finish."
@@ -148,6 +159,11 @@ struct OnboardingView: View {
             }
         }
         .onAppear { practiceFocused = true }
+    }
+
+    /// Your dictation key as the raised keycap (MAC-32), large beside the title.
+    private var holdKey: some View {
+        Keycap(keys: app.dictation.hotkey.title, size: 15, style: .raised).foregroundStyle(Refined.ink)
     }
 
     private var placement: some View {
@@ -313,9 +329,8 @@ struct OnboardingView: View {
                 IconGlyph(art: art, size: 17, color: ink)
                 Text(name).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(ink)
                 Spacer(minLength: 6)
-                Text(keys).refinedFont(.meta, weight: .semibold).monospacedDigit().foregroundStyle(ink)
-                    .padding(.horizontal, 7).padding(.vertical, 1)
-                    .background(Refined.lift.opacity(0.55), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                // The keycap in the tile's ink (MAC-32), as Home's tiles show their shortcuts.
+                Keycap(keys: keys).foregroundStyle(ink)
             }
             Text(line).refinedFont(.meta).foregroundStyle(ink).fixedSize(horizontal: false, vertical: true)
         }

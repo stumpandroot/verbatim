@@ -420,17 +420,44 @@ extension Label where Title == Text, Icon == ArtIcon {
     }
 }
 
-/// A keyboard shortcut as a keycap: mono inside an outlined rectangle with the button radius (DESIGN.md §2.3).
-/// Takes the foreground style.
+/// A keyboard shortcut as a keycap, the one way a shortcut is drawn (DESIGN.md §2.3; MAC-32): mono (`Refined.mono`)
+/// inside a rectangle with the button radius (4), never smaller than 12 pt (data text, DESIGN.md §2). Its text takes
+/// the foreground style, so on a Full fill (a tile, the Record card, the recording card) it's the fill's ink.
+/// - `outline`: an edge in the foreground at 75%, on paper, cards, and fills.
+/// - `raised`: the card with a `separator` edge, for keys listed or picked (Recent dictations' hints and row keys,
+///   Settings' hotkey choices).
+/// - `onBlack`: an `onBlackHair` edge, on the notch's black.
+/// "fn" adds the globe, as the key shows it.
 struct Keycap: View {
+    enum Style { case outline, raised, onBlack }
     var keys: String
-    var size: CGFloat = 11
+    var size: CGFloat = 12
+    var style: Style = .outline
+
+    init(keys: String, size: CGFloat = 12, style: Style = .outline) {
+        self.keys = keys; self.size = max(Self.minSize, size); self.style = style
+    }
+
+    /// Data text is never smaller than 12 pt.
+    static let minSize: CGFloat = 12
+
     var body: some View {
-        Text(keys).font(Refined.mono(size))
-            .padding(.horizontal, size * 0.5).padding(.vertical, size * 0.3)
-            .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(ForegroundStyle().opacity(0.75), lineWidth: 1))
-            .fixedSize()
-            .accessibilityLabel(Keycap.spoken(keys))
+        let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+        HStack(spacing: 3) {
+            Text(keys).font(Refined.mono(size, weight: .medium)).lineLimit(1)
+            if keys == "fn" { Image(systemName: "globe").font(.system(size: size - 1)) }
+        }
+        .padding(.horizontal, size * 0.5).padding(.vertical, size * 0.3)
+        .background {
+            switch style {
+            case .outline: shape.strokeBorder(ForegroundStyle().opacity(0.75), lineWidth: 1)
+            case .raised: shape.fill(Refined.card).overlay(shape.strokeBorder(Refined.separator, lineWidth: 1))
+            case .onBlack: shape.strokeBorder(Refined.onBlackHair, lineWidth: 1)
+            }
+        }
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Keycap.spoken(keys))
     }
 
     /// "⌥⇧R" → "Option Shift R", for VoiceOver.

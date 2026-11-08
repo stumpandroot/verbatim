@@ -135,7 +135,7 @@ struct HomeThoughtsMac: View {
                     }
                 }
             }
-            .buttonStyle(RefinedPress())
+            .buttonStyle(RefinedPress(hover: .fill(radius: RefinedPlatform.radius(.card))))
             .accessibilityHint("Opens today's Thoughts page.")
             HStack {
                 HomeNewThoughtButton().uiTarget("home-thoughts-new")
@@ -163,7 +163,7 @@ struct HomeThoughtsMac: View {
                 .frame(minHeight: 36)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(RefinedPress())
+            .buttonStyle(RefinedPress(hover: .row))
             .accessibilityHint("Opens today's Thoughts page.")
             HomeNewThoughtButton().uiTarget("home-thoughts-new")
         }
@@ -200,7 +200,7 @@ struct HomeJournalMac: View {
             .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
             .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         }
-        .buttonStyle(RefinedPress())
+        .buttonStyle(RefinedPress(hover: .fill(radius: RefinedPlatform.radius(.card))))
         .accessibilityValue(HomeJournalWeek.countLine(week))
         .accessibilityHint("Opens Journal by day.")
     }
@@ -223,7 +223,7 @@ struct HomeJournalMac: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(RefinedPress())
+                .buttonStyle(RefinedPress(hover: .row))
                 .accessibilityHint("Opens Journal by day.")
                 // Play sits beside the entry's button, not inside it (macOS 26 click safety). One row when it fits;
                 // in Home's narrow side column, play and the count on one row and the week's dots under them, so

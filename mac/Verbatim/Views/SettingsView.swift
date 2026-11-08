@@ -232,7 +232,7 @@ struct SettingsSearchResults: View {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("\u{201C}\(model.query.trimmingCharacters(in: .whitespaces))\u{201D}")
-                        .font(.system(size: 30, design: .serif)).foregroundStyle(Refined.ink)
+                        .font(Refined.serif(30)).foregroundStyle(Refined.ink)
                         .lineLimit(1).minimumScaleFactor(0.7)
                         .accessibilityAddTraits(.isHeader)
                     Text("\(results.count) result\(results.count == 1 ? "" : "s")").font(.system(size: 14)).foregroundStyle(Refined.dim)
@@ -373,7 +373,7 @@ struct MenuBarPanel: View {
                 BarsMark().frame(width: 16, height: 16)
                 Refined.wordmark(17).accessibilityLabel("Verbose")
                 Spacer()
-                HStack(spacing: 5) { Keycap(keys: "⌥⇧R", size: 10.5); Text("to record") }.font(.system(size: 11)).foregroundStyle(Refined.mute)
+                HStack(spacing: 5) { Keycap(keys: "⌥⇧R"); Text("to record").refinedFont(.meta) }.foregroundStyle(Refined.mute)
             }
             // Calls (CallViews.swift): Record a call, before the call starts.
             MenuBarCallsSection()

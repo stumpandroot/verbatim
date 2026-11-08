@@ -303,7 +303,7 @@ struct NotchView: View {
         case .hidden, .rest, .notice, .error:
             EmptyView()
         case .peek:
-            DarkKeycap(text: controller.hotkeyKeycap)
+            Keycap(keys: controller.hotkeyKeycap, style: .onBlack).foregroundStyle(Refined.onBlack)
         case .listening, .open:
             Group {
                 VoiceBars(levels: VoiceBars.live(live.levels, count: 9), height: 16)
@@ -340,7 +340,7 @@ struct NotchView: View {
                     RibbonControl(id: "notch-cancel", label: "Cancel", help: "Cancel (Esc)", action: controller.cancel) { pressed in
                         HStack(spacing: 7) {
                             Text("Cancel").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Refined.onBlack)
-                            DarkKeycap(text: "Esc", color: Refined.onBlackDim)
+                            Keycap(keys: "Esc", style: .onBlack).foregroundStyle(Refined.onBlackDim)
                         }
                         .padding(.leading, 12).padding(.trailing, 8).frame(height: 28)
                         .overlay(Capsule().strokeBorder(Refined.onBlackHair, lineWidth: 1))

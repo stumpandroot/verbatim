@@ -64,6 +64,8 @@ final class LiveCaptions: ObservableObject {
     private let capture = AppAudioCapture()
     private weak var app: AppState?
     private var panel: LiveCaptionsPanel?
+    /// The panel's height while it's open (the self-test checks a saved frame can't make it taller, MAC-42).
+    var panelHeight: CGFloat? { isOpen ? panel?.frameHeight : nil }
 
     /// Finished pieces (a source change ends one); each is mixed, then the pieces are joined in order.
     private var pieces: [[Track]] = []

@@ -227,7 +227,7 @@ struct FlowMenuView: View {
             Text(title).font(.system(size: 13)).foregroundStyle(Refined.ink)
             Spacer(minLength: 8)
             if let trailing { Text(trailing).font(.system(size: 12)).foregroundStyle(Refined.mute).lineLimit(1) }
-            if let keys { Keycap(keys: keys, size: 10.5).foregroundStyle(Refined.mute) }
+            if let keys { Keycap(keys: keys).foregroundStyle(Refined.mute) }
             if chevron { Image(systemName: opensLeft ? "chevron.left" : "chevron.right").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(Refined.mute) }
         }
     }
