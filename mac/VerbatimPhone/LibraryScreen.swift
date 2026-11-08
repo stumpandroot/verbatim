@@ -647,9 +647,9 @@ struct LibraryScreen: View {
             }
         } label: {
             if circle {
-                TitleCircle { Image(systemName: "line.3.horizontal.decrease").font(.system(size: 15, weight: .semibold)).foregroundStyle(Refined.ink) }   // brand: system surface (the Filter menu's button)
+                TitleCircle { IconGlyph(art: .iconFilter, size: 18, color: Refined.ink) }   // Our glyph, as Thoughts' circles use (IP-25).
             } else {
-                Image(systemName: "line.3.horizontal.decrease")   // brand: system surface (toolbar)
+                ToolbarArt(art: .iconFilter, key: "filter")
             }
         }
         .accessibilityLabel("Filter")

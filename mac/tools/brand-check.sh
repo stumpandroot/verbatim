@@ -9,6 +9,10 @@
 #   5. Fixed text sizes on iPhone (§13 Type 3): `.font(.system(size:` in VerbatimPhone/ only for an Image (an SF Symbol
 #      glyph), or on a line marked `// type: fixed (why)` or `// type: scaled (@ScaledMetric)`. Text uses `refinedFont`
 #      or `scaledFont`, which scale with Dynamic Type.
+#   6. In-app toolbars aren't system surfaces (§3): `// brand: system surface (toolbar)` doesn't excuse an SF Symbol.
+#   7. Glyphs exported as custom symbols (§3) never fall back to the SF Symbol in the targets that ship them
+#      (VerbatimPhone, VerbatimWidgets): `bookmark`, `mic`, and `captions.bubble` fail even on a system surface line;
+#      use `mark` or `marked`, `dictate`, or `captions` (`Label(_:image:)`, `Image(_:)`).
 # Run from anywhere: bash mac/tools/brand-check.sh   (exit 1 lists each problem as file:line)
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -20,8 +24,11 @@ report() { echo "brand-check: $1"; echo "$2" | sed 's/^/  /'; echo; fail=1; }
 ALLOWED='^(xmark|xmark\.circle\.fill|plus|plus\.circle|minus\.circle|chevron\..*|checkmark|checkmark\.circle\.fill|ellipsis|ellipsis\.circle|square\.and\.arrow\.up|trash|magnifyingglass|sidebar\.left|line\.3\.horizontal|arrow\.right|arrow\.up\.arrow\.down|arrow\.uturn\.backward|arrow\.counterclockwise|return|delete\.left|globe|keyboard|shift|shift\.fill|capslock\.fill)$'
 syms=$(grep -rnoE --include=*.swift '(systemName|systemImage): *"[^"]+"' $SRC \
   | awk -F: '{ n=$0; sub(/.*: *"/, "", n); sub(/"$/, "", n); print $1 ":" $2 "  " n }' \
-  | while IFS= read -r l; do echo "${l##*  }" | grep -qE "$ALLOWED" && continue; f=${l%%:*}; n=${l#*:}; n=${n%%  *}; sed -n "${n}p" "$f" | grep -q 'brand: system surface' || echo "$l"; done)
+  | while IFS= read -r l; do echo "${l##*  }" | grep -qE "$ALLOWED" && continue; f=${l%%:*}; n=${l#*:}; n=${n%%  *}; sed -n "${n}p" "$f" | grep 'brand: system surface' | grep -vq 'brand: system surface (toolbar' || echo "$l"; done)
 [ -n "$syms" ] && report "SF Symbols not on the DESIGN.md §3 allowlist (use a BrandArt glyph):" "$syms"
+
+exported=$(for d in VerbatimPhone VerbatimWidgets; do [ -d "$d" ] && grep -rnE --include=*.swift '(systemName|systemImage): *"(bookmark|mic|captions\.bubble)"' "$d"; done | cut -d: -f1,2)
+[ -n "$exported" ] && report "SF Symbols for glyphs exported as custom symbols (use mark, marked, dictate, or captions):" "$exported"
 
 hex=$(grep -rnE --include=*.swift '(hex: *0x[0-9A-Fa-f]{6}|Color\(red:|Color\(\.sRGB|UIColor\(red:|NSColor\(red:|NSColor\(calibratedRed:)' $SRC | grep -v 'Views/Tokens.swift' | cut -d: -f1,2)
 [ -n "$hex" ] && report "Colors outside Tokens.swift (add or use a Refined token):" "$hex"

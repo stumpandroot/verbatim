@@ -573,14 +573,14 @@ struct TranscriptScreen: View {
                     .disabled(!ready)
                 Button { showFind = true } label: { Label("Find", systemImage: "magnifyingglass") }
                     .disabled(!ready)
-                Button { mark(t) } label: { Label("Mark", systemImage: "bookmark") }   // brand: system surface (menu)
+                Button { mark(t) } label: { Label("Mark", image: "mark") }   // The exported custom symbols, as the Island and widgets show (IP-15).
                     .disabled(!ready || t.audioFileName == nil)
             }
             Section {
                 Button { mode = .summary } label: { Label("Summary", systemImage: "text.alignleft") }   // brand: system surface (menu)
                     .disabled(!ready)
                 Button { showNotes = true } label: {
-                    Label("Moments", systemImage: "bookmark")   // brand: system surface (menu)
+                    Label("Moments", image: "marked")
                     Text(moments == 1 ? "1 saved" : "\(moments) saved")
                 }
                 Button { showSpeakers = true } label: {
@@ -973,7 +973,7 @@ struct PhoneLines: View {
         if app.player.loadedURL != nil {
             Button { play(s) } label: { Label("Play from here", systemImage: "play") }   // brand: system surface (menu)
         }
-        Button { bookmark(s) } label: { Label("Bookmark", systemImage: "bookmark") }   // brand: system surface (menu)
+        Button { bookmark(s) } label: { Label("Bookmark", image: "marked") }
         Button { onNote(s) } label: { Label("Add note…", systemImage: "note.text.badge.plus") }   // brand: system surface (menu)
         Button { fixing = s } label: { Label("Fix a word…", systemImage: "pencil") }   // brand: system surface
         Button { copyQuote(s) } label: { Label("Copy quote", systemImage: "quote.opening") }   // brand: system surface (menu)
@@ -1056,7 +1056,7 @@ struct PhonePlayerBar: View {
                 let at = clock.time
                 let seg = transcript.segments.first { at >= $0.start && at < $0.end }
                 app.addNote(transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
-            } label: { Label("Mark this moment", systemImage: "bookmark") }   // brand: system surface (menu)
+            } label: { Label("Mark this moment", image: "mark") }
             Toggle(isOn: $follow) { Label("Follow playback", systemImage: "text.line.first.and.arrowtriangle.forward") }   // brand: system surface (menu)
         }
         .accessibilityIdentifier("transcript.player")

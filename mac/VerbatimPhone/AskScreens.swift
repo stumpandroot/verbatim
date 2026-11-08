@@ -92,17 +92,17 @@ struct AskScreen: View {
                 Menu {
                     let recipesShown = RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty)
                     if let r = center.result, center.phase == .done {
-                        Button { UIPasteboard.general.string = r.copyText; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", systemImage: "doc.on.doc") }   // brand: system surface (menu)
+                        Button { UIPasteboard.general.string = r.copyText; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", menuArt: .iconCopy, key: "copy") }
                         if recipesShown {
-                            Button { editing = RecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as recipe", systemImage: "bookmark") }   // brand: system surface (menu)
+                            Button { editing = RecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as recipe", systemImage: "plus.circle") }
                         }
                     }
                     if recipesShown {
-                        Button { app.pushHere(RecipesRoute()) } label: { Label("Recipes", systemImage: "calendar") }   // brand: system surface (menu)
+                        Button { app.pushHere(RecipesRoute()) } label: { Label("Recipes", menuArt: .iconAsk, key: "ask") }   // Our glyphs, as Home and Thoughts use (IP-25).
                     }
                     Toggle("Show Recipes", isOn: $showRecipes).disabled(!app.store.recipes.isEmpty)
                     if !center.history.isEmpty {
-                        Menu("Recent Questions") {
+                        Menu("Recent questions") {
                             ForEach(center.history) { h in Button(h.question) { query = h.question; scope = h.scope; center.show(h) } }
                         }
                     }

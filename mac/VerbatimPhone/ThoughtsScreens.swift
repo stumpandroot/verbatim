@@ -95,13 +95,13 @@ struct DayPageScreen: View {
             ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink(value: ByDayRoute(kind: kind)) {
-                    Image(systemName: "calendar")   // brand: system surface (toolbar)
+                    ToolbarArt(art: .iconCalendar, key: "calendar")
                 }
                 .accessibilityLabel("By day")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { copyPage(items) } label: {
-                    Image(systemName: "doc.on.doc")   // brand: system surface (toolbar)
+                    ToolbarArt(art: .iconCopy, key: "copy")
                 }
                 .disabled(ThoughtText.joined(items).isEmpty)
                 .accessibilityLabel("Copy the day")
