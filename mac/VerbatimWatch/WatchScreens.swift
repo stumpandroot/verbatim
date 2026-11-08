@@ -42,11 +42,14 @@ struct WatchHome: View {
             VStack(spacing: 8) {
                 Button { recorder.start(.voiceNote) } label: {
                     HStack(spacing: 10) {
+                        // The record disc, as on Home's Record card and the watch face (SF-13): the ink disc with the
+                        // system red dot, which is the one place that red appears.
                         ZStack {
                             Circle().fill(WatchColor.onRecord)
-                            IconGlyph(art: .capture, size: 22, color: WatchColor.record)
+                            Circle().fill(Refined.recordRed).frame(width: 16, height: 16)
                         }
                         .frame(width: 42, height: 42)
+                        .accessibilityHidden(true)
                         Text("Record").scaledFont(20, weight: .semibold).foregroundStyle(WatchColor.onRecord)
                         Spacer(minLength: 0)
                     }

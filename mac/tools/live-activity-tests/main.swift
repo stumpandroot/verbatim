@@ -358,5 +358,23 @@ let recordingIsland = island(code(recordingActivity), until: "private let record
 check("the Dynamic Island never dims (it doesn't read the skin)", !recordingIsland.isEmpty && !sessionIsland.isEmpty
       && !recordingIsland.contains("skin.") && !sessionIsland.contains("skin.") && !sessionIsland.contains("outlinePrimary"))
 
+// MARK: SF-10, SF-13, SF-17: the watch's complications and one Record glyph
+
+let watchWidgets = source("VerbatimWatchWidgets/WatchWidgets.swift"), watchScreens = source("VerbatimWatch/WatchScreens.swift")
+check("the watch's Record is circular or a corner, with its kind unchanged", watchWidgets.contains("kind: \"co.stumpandroot.verbatim.watch.record\"")
+      && watchWidgets.contains(".supportedFamilies([.accessoryCircular, .accessoryCorner])") && watchWidgets.contains(".widgetLabel(\"Record\")"))
+check("the watch's Today's thoughts is rectangular or inline, with its kind unchanged", watchWidgets.contains("kind: \"co.stumpandroot.verbatim.watch.thoughts\"")
+      && watchWidgets.contains(".supportedFamilies([.accessoryRectangular, .accessoryInline])") && watchWidgets.contains("family == .accessoryInline"))
+let watchGlyph = structBody(watchWidgets, "WatchRecordGlyph")
+check("the watch's Record is the record disc, not the bars mark", !watchGlyph.isEmpty && watchGlyph.contains("Circle().fill(Refined.recordRed)")
+      && !structBody(watchWidgets, "WatchRecordView").contains("BarsMark") && !watchGlyph.contains("BarsMark"))
+check("tinted faces draw Record as a white, accentable glyph on the system's plate (SF-17)", watchWidgets.contains("@Environment(\\.widgetRenderingMode)")
+      && watchGlyph.contains("Color.white") && watchGlyph.contains(".widgetAccentable()") && watchWidgets.contains("AccessoryWidgetBackground()"))
+check("the watch app's Record is the record disc too (no capture glyph)", watchScreens.contains("Circle().fill(Refined.recordRed).frame(width: 16, height: 16)")
+      && !watchScreens.contains("art: .capture"))
+check("a recording's Lock Screen leads with the recording dot or the Thoughts symbol, not the session's bars mark",
+      !structBody(recordingActivity, "RecordingLockScreen").contains("BarsMark") && !structBody(recordingActivity, "ThoughtLockScreen").contains("BarsMark")
+      && structBody(recordingActivity, "ThoughtLockScreen").contains("Image(\"thought\")"))
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

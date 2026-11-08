@@ -3,7 +3,7 @@ import WidgetKit
 import ActivityKit
 import AppIntents
 
-/// The recording's Live Activity (mockup "Library features", section 3a). Lock Screen, on paper: the bars mark,
+/// The recording's Live Activity (mockup "Library features", section 3a). Lock Screen, on paper: the recording dot,
 /// "Recording · Voice note", a mono timer that runs on its own, your voice, "Marked 4:12 · 3 moments so far" once
 /// you've marked one, and Mark, Pause or Resume, and Stop (the one persimmon fill). Dynamic Island compact: a persimmon
 /// dot (a pause glyph while paused) and the timer, or "Marked 4:12" and the count for two seconds after a mark;
@@ -171,8 +171,8 @@ private func islandLine(_ s: VerbatimRecordingAttributes.ContentState) -> String
     return s.markCount > 0 ? "\(s.marksLabel) marked" : "Saved as you go"
 }
 
-/// A voice note on the Lock Screen (mockup "Library features", section 3a), on paper or the dark paper: the bars mark,
-/// "Recording · Voice note" and the time, your voice, the last mark and the count ("Marked 4:12 · 3 moments so far"),
+/// A voice note on the Lock Screen (mockup "Library features", section 3a), on paper or the dark paper: the recording
+/// dot, "Recording · Voice note" and the time, your voice, the last mark and the count ("Marked 4:12 · 3 moments so far"),
 /// and Mark, Pause, and Stop. Saved: a check and "Saved. Transcribing on this iPhone."
 private struct RecordingLockScreen: View {
     var title: String
@@ -190,7 +190,9 @@ private struct RecordingLockScreen: View {
                 .accessibilityElement(children: .combine)
             } else {
                 HStack(spacing: 8) {
-                    BarsMark(color: skin.mark).frame(width: 18, height: 18)
+                    // The recording dot, as in the Island and the minimized recorder (the bars mark is the session's, SF-13).
+                    Circle().fill(skin.mark).frame(width: 10, height: 10).opacity(state.isPaused ? 0.4 : 1)
+                        .frame(width: 18, height: 18).accessibilityHidden(true)
                     Text(state.isPaused ? (state.pausedReason ?? "Paused") : "Recording · \(title)")
                         .scaledFont(15, weight: .semibold).foregroundStyle(ink).lineLimit(1)
                     Spacer(minLength: 8)
@@ -333,7 +335,7 @@ private struct RecordingTimer: View {
 
 // MARK: - A thought
 
-/// A thought on the Lock Screen, on paper or the dark paper: the bars mark, "Recording a thought" (or why it paused),
+/// A thought on the Lock Screen, on paper or the dark paper: the Thoughts symbol, "Recording a thought" (or why it paused),
 /// the time, your voice, where it goes, and Stop, with Resume beside it while paused. Never reads `state.words`:
 /// anyone can read a Lock Screen. Saved: a check and "Added to Thoughts · 9:41".
 private struct ThoughtLockScreen: View {
@@ -348,7 +350,9 @@ private struct ThoughtLockScreen: View {
                 ThoughtSavedLine(state: state, skin: skin)
             } else {
                 HStack(spacing: 8) {
-                    BarsMark(color: skin.mark).frame(width: 18, height: 18)
+                    // The Thoughts symbol, as in the minimal Island and on the New thought control (SF-13).
+                    Image("thought").font(.system(size: 15, weight: .medium)).foregroundStyle(skin.mark)
+                        .frame(width: 18, height: 18).accessibilityHidden(true)
                     Text(state.isPaused ? (state.pausedReason ?? "Paused") : ThoughtRules.lockTitle)
                         .scaledFont(15, weight: .semibold).foregroundStyle(ink).lineLimit(1)
                     Spacer(minLength: 8)
