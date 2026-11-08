@@ -2992,8 +2992,9 @@ enum PhoneUITest {
         Log.note("UITEST typing: the spell checker has \(available.count) languages: \(available.sorted().joined(separator: " "))")
         check("typing: the spell checker has English", available.contains { TypingLanguages.code($0) == "en" })
         let supported = KeyboardLanguagesMirror.supported
-        check("typing: your keyboards' languages are ones the checker has, once each",
-              supported.allSatisfy(available.contains) && Set(supported).count == supported.count)
+        check("typing: your keyboards' languages are ones the checker has or a non-Latin layout types, once each",
+              supported.allSatisfy { available.contains($0) || TypingLanguages.otherScript.contains(TypingLanguages.code($0)) }
+              && Set(supported).count == supported.count)
         KeyboardLanguagesMirror.update()
         check("typing: the languages are in the App Group", (TypingHelp.readLanguages(d) ?? []) == supported)
         check("typing: Spanish gets ñ, French AZERTY, German QWERTZ",
@@ -3029,7 +3030,46 @@ enum PhoneUITest {
         check("settings search finds autocorrect, suggestions, and languages",
               SettingsSearchIndex.search("autocorrect").flatMap(\.entries).contains { $0.id == "keyboardAutocorrect" }
               && SettingsSearchIndex.search("predictive").flatMap(\.entries).contains { $0.id == "keyboardSuggestions" }
-              && SettingsSearchIndex.search("azerty").flatMap(\.entries).contains { $0.id == "keyboardLanguages" })
+              && SettingsSearchIndex.search("azerty").flatMap(\.entries).contains { $0.id == "keyboardLanguages" }
+              && SettingsSearchIndex.search("hebrew").flatMap(\.entries).contains { $0.id == "keyboardLanguages" })
+        typingLayoutChecks(check, available: available)
+    }
+
+    /// Round 2's layouts (TypingScripts.swift): Russian, Ukrainian, Greek, Arabic, and Hebrew each load and type one known
+    /// word (through the long-press rows and Greek's accent key where the word needs them), and corrections follow
+    /// whether Apple's spell checker has the language on this iPhone, which is logged. Key positions and hit testing are
+    /// checked on Linux (mac/tools/test-typing-correction.sh).
+    static func typingLayoutChecks(_ check: (String, Bool) -> Void, available: [String]) {
+        let cases: [(id: String, layout: KeyLayout, word: String)] = [
+            ("ru_RU", .russian, "привет"), ("uk_UA", .ukrainian, "їжак"), ("el_GR", .greek, "λόγος"),
+            ("ar_SA", .arabic, "مرحبا"), ("he_IL", .hebrew, "שלום"),
+        ]
+        for c in cases {
+            let layout = TypingLanguages.layout(for: c.id)
+            check("typing: \(c.id) loads its layout", layout == c.layout && layout.letterRows.count == 3
+                  && layout.isRightToLeft == (c.layout == .arabic || c.layout == .hebrew))
+            let taps = layout.taps(toType: c.word, language: c.id)
+            check("typing: \(c.id) types \(c.word)", taps.map(KeyLayout.replay) == c.word)
+            let lang = TypingLanguages.resolve(c.id, available: available)
+            check("typing: \(c.id) is a language the keyboard types", lang != nil)
+            let corrects = lang.map { TypingLanguages.hasCorrections($0, available: available) } ?? false
+            Log.note("UITEST typing: \(c.id) \(corrects ? "has" : "has no") corrections on this device (\(lang ?? "none"))")
+        }
+        check("typing: Hebrew and Arabic have no shift and read right to left",
+              !KeyLayout.hebrew.hasCase && !KeyLayout.arabic.hasCase && KeyLayout.hebrew.letterRows[0].first == "ק"
+              && KeyLayout.arabic.letterRows[0].first == "ض")
+        check("typing: Greek's accent key puts tonos on the next vowel", KeyLayout.replay([.key(DeadKeys.tonos), .key("ο")]) == "ό")
+        check("typing: long-press е in Russian is ё, г in Ukrainian is ґ",
+              AccentSets.alternates(for: "е", language: "ru_RU") == ["ё"] && AccentSets.alternates(for: "г", language: "uk_UA") == ["ґ"])
+        // With the real checker, where it has the language: a misspelled Russian word gets the right guess.
+        if let ru = TypingLanguages.match("ru_RU", available: available) {
+            let checker = UITextChecker()
+            let word = "превет"
+            let range = NSRange(location: 0, length: (word as NSString).length)
+            let miss = checker.rangeOfMisspelledWord(in: word, range: range, startingAt: 0, wrap: false, language: ru).location != NSNotFound
+            let g = checker.guesses(forWordRange: range, in: word, language: ru) ?? []
+            check("typing: Russian превет is misspelled and привет is a guess", miss && g.contains("привет"))
+        }
     }
 
     /// After a call: when a recording resumes and on which input; and the recording Live Activity's content.

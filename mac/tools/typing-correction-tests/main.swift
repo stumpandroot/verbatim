@@ -174,15 +174,15 @@ check("languages: exact match", TypingLanguages.match("en-GB", available: availa
 check("languages: the bare code", TypingLanguages.match("es-ES", available: available) == "es")
 check("languages: the first region", TypingLanguages.match("pt", available: available) == "pt_BR")
 check("languages: none for a language the checker lacks", TypingLanguages.match("ja-JP", available: available) == nil)
-let kb = TypingLanguages.keyboardLanguages(["en-US", "emoji", "es-MX", "ru-RU", "en-US", "ja-JP", "fr-FR"], available: available)
-check("languages: your keyboards, in order, Latin only, once", kb == ["en_US", "es_MX", "fr"], "\(kb)")
-check("languages: what this keyboard can't type", TypingLanguages.unsupported(["en-US", "emoji", "ru-RU", "ja-JP", "dictation"], available: available) == ["ru", "ja"])
+let kb = TypingLanguages.keyboardLanguages(["en-US", "emoji", "es-MX", "ja-JP", "en-US", "fr-FR"], available: available)
+check("languages: your keyboards, in order, once, none without a layout", kb == ["en_US", "es_MX", "fr"], "\(kb)")
+check("languages: what this keyboard can't type", TypingLanguages.unsupported(["en-US", "emoji", "ru-RU", "ja-JP", "dictation", "zh-Hans"], available: available) == ["ja", "zh"])
 check("current: the field's language when it's yours", TypingLanguages.current(chosen: kb, document: "es-MX", picked: "en_US", available: available) == "es_MX")
 check("current: not a field language you didn't add", TypingLanguages.current(chosen: kb, document: "de-DE", picked: nil, available: available) == "en_US")
 check("current: the one you picked", TypingLanguages.current(chosen: kb, document: nil, picked: "fr", available: available) == "fr")
 check("current: a pick you removed falls back to the first", TypingLanguages.current(chosen: kb, document: nil, picked: "it", available: available) == "en_US")
 check("current: no list follows the field", TypingLanguages.current(chosen: [], document: "de-DE", picked: nil, available: available) == "de")
-check("current: not a field in another script", TypingLanguages.current(chosen: [], document: "ru-RU", picked: nil, available: available) == "en_US")
+check("current: not a field in a script with no layout", TypingLanguages.current(chosen: [], document: "ja-JP", picked: nil, available: available) == "en_US")
 check("current: English with nothing to go on", TypingLanguages.current(chosen: [], document: nil, picked: nil, available: available) == "en_US")
 check("next: wraps", TypingLanguages.next(after: "fr", in: kb) == "en_US" && TypingLanguages.next(after: "en_US", in: kb) == "es_MX")
 check("next: none with one language", TypingLanguages.next(after: "en_US", in: ["en_US"]) == nil)
@@ -200,7 +200,8 @@ check("layout: German is QWERTZ with ü ö ä", TypingLanguages.layout(for: "de"
 check("layout: columns", KeyLayout.qwerty.columns == 10 && KeyLayout.spanish.columns == 10 && KeyLayout.qwertz.columns == 11)
 check("layout: every layout has 26 or more letters and each once", KeyLayout.allCases.allSatisfy { l in
     let all = l.letterRows.flatMap { $0 }; return Set(all).count == all.count && all.filter { $0 != "'" }.count >= 26 })
-check("layout: titles", KeyLayout.allCases.map(\.title) == ["QWERTY", "QWERTY with ñ", "AZERTY", "QWERTZ"])
+check("layout: titles", KeyLayout.allCases.map(\.title) == ["QWERTY", "QWERTY with ñ", "AZERTY", "QWERTZ", "ЙЦУКЕН", "ЙЦУКЕН with і and є",
+                                                         "Greek, with an accent key", "Right to left", "Right to left"])
 
 let qwertyRows = TypingLayout.rows(layer: .letters, field: .standard, showsGlobe: true)
 check("rows: QWERTY's middle row is centered between spacers", qwertyRows[1].first == .spacer(1) && qwertyRows[1].last == .spacer(1) && qwertyRows[1].count == 11)
@@ -267,6 +268,237 @@ check("drag: back to the left", drag.move(to: 92) == -4 && drag.moved == -1)
 check("drag: back to the start", drag.move(to: 100) == 1 && drag.moved == 0)
 var fast = CursorDrag(startX: 0)
 check("drag: a long move at once", fast.move(to: -80) == -10)
+
+// MARK: Round 2: languages in other scripts
+
+let avail2 = ["en_US", "es", "fr", "ru", "el"]
+check("other scripts: Russian takes the checker's language", TypingLanguages.resolve("ru-RU", available: avail2) == "ru")
+check("other scripts: Hebrew, Arabic, and Ukrainian type without the checker", TypingLanguages.resolve("he-IL", available: avail2) == "he_IL"
+      && TypingLanguages.resolve("ar", available: avail2) == "ar" && TypingLanguages.resolve("uk-UA", available: avail2) == "uk_UA")
+check("other scripts: Greek takes the checker's language", TypingLanguages.resolve("el-GR", available: avail2) == "el")
+check("other scripts: still none for a script with no layout", TypingLanguages.resolve("ja-JP", available: avail2) == nil
+      && TypingLanguages.resolve("hi", available: avail2) == nil && TypingLanguages.resolve("emoji", available: avail2) == nil)
+check("other scripts: a Latin language still needs the checker", TypingLanguages.resolve("it", available: avail2) == nil)
+let kb2 = TypingLanguages.keyboardLanguages(["en-US", "ru-RU", "he-IL", "emoji", "ar", "uk-UA", "el-GR", "ru"], available: avail2)
+check("other scripts: your keyboards, in order, once", kb2 == ["en_US", "ru", "he_IL", "ar", "uk_UA", "el"], "\(kb2)")
+check("other scripts: none of them is unsupported", TypingLanguages.unsupported(["ru-RU", "he-IL", "ar", "uk-UA", "el-GR"], available: avail2).isEmpty)
+check("corrections: only where the checker has the language", TypingLanguages.hasCorrections("ru", available: avail2)
+      && TypingLanguages.hasCorrections("el", available: avail2) && !TypingLanguages.hasCorrections("he_IL", available: avail2)
+      && !TypingLanguages.hasCorrections("ar", available: avail2))
+check("corrections: Settings says which type without them", TypingLanguages.settingsLine("ru", available: avail2) == "ЙЦУКЕН"
+      && TypingLanguages.settingsLine("he_IL", available: avail2) == "Right to left, without corrections")
+check("current: a field in Hebrew types Hebrew", TypingLanguages.current(chosen: ["en_US", "he_IL"], document: "he-IL", picked: nil, available: avail2) == "he_IL")
+check("current: with no list, a Russian field types Russian", TypingLanguages.current(chosen: [], document: "ru-RU", picked: nil, available: avail2) == "ru")
+check("current: a Greek field you didn't add stays out", TypingLanguages.current(chosen: ["en_US"], document: "el-GR", picked: nil, available: avail2) == "en_US")
+check("layout: each language's layout", TypingLanguages.layout(for: "ru") == .russian && TypingLanguages.layout(for: "uk_UA") == .ukrainian
+      && TypingLanguages.layout(for: "el") == .greek && TypingLanguages.layout(for: "ar_SA") == .arabic && TypingLanguages.layout(for: "he_IL") == .hebrew)
+
+// MARK: Round 2: the layouts
+
+check("Russian: ЙЦУКЕН, 11, 11, and 9", KeyLayout.russian.letterRows.map(\.count) == [11, 11, 9] && KeyLayout.russian.columns == 11
+      && KeyLayout.russian.letterRows[0].prefix(6).joined() == "йцукен" && KeyLayout.russian.letterRows[1].joined() == "фывапролджэ"
+      && KeyLayout.russian.letterRows[2].joined() == "ячсмитьбю")
+check("Russian: ё and ъ are on long-press", !KeyLayout.russian.readingRows.joined().contains("ё") && !KeyLayout.russian.readingRows.joined().contains("ъ")
+      && AccentSets.alternates(for: "е", language: "ru_RU") == ["ё"] && AccentSets.alternates(for: "ь", language: "ru") == ["ъ"])
+check("Russian: capitals on long-press", AccentSets.capitals(AccentSets.alternates(for: "е", language: "ru")) == ["Ё"]
+      && AccentSets.capitals(["ъ"]) == ["Ъ"])
+check("Ukrainian: і and є in Russian's ы and э places", KeyLayout.ukrainian.letterRows[1][1] == "і" && KeyLayout.ukrainian.letterRows[1].last == "є"
+      && !KeyLayout.ukrainian.readingRows.joined().contains("ы") && !KeyLayout.ukrainian.readingRows.joined().contains("э"))
+check("Ukrainian: ї and ґ are on long-press", AccentSets.alternates(for: "і", language: "uk") == ["ї"] && AccentSets.alternates(for: "г", language: "uk_UA") == ["ґ"]
+      && AccentSets.alternates(for: "г", language: "ru").isEmpty && AccentSets.alternates(for: "е", language: "uk").isEmpty)
+check("Greek: the accent key, then final sigma, 10, 9, and 7", KeyLayout.greek.letterRows[0].prefix(2) == [DeadKeys.tonos, "ς"]
+      && KeyLayout.greek.letterRows.map(\.count) == [10, 9, 7] && KeyLayout.greek.letterRows[1].joined() == "ασδφγηξκλ"
+      && KeyLayout.greek.letterRows[2].joined() == "ζχψωβνμ" && KeyLayout.greek.columns == 10)
+check("Greek: tonos and diaeresis on long-press", AccentSets.alternates(for: "ο", language: "el") == ["ό"]
+      && AccentSets.alternates(for: "ι", language: "el_GR") == ["ί", "ϊ", "ΐ"] && AccentSets.alternates(for: "υ", language: "el") == ["ύ", "ϋ", "ΰ"]
+      && AccentSets.alternates(for: DeadKeys.tonos, language: "el") == [DeadKeys.dialytika, DeadKeys.dialytikaTonos])
+check("Greek: capital rows", AccentSets.capitals(["ά"]) == ["Ά"] && AccentSets.capitals(["ί", "ϊ"]) == ["Ί", "Ϊ"]
+      && AccentSets.capitals([DeadKeys.dialytika]) == [DeadKeys.dialytika])
+check("Arabic: right to left, drawn ض to ج from the left", KeyLayout.arabic.isRightToLeft && KeyLayout.arabic.letterRows[0].first == "ض"
+      && KeyLayout.arabic.letterRows[0].last == "ج" && KeyLayout.arabic.readingRows[0].first == "ج"
+      && KeyLayout.arabic.letterRows[1].joined() == "شسيبلاتنمكة" && KeyLayout.arabic.letterRows[2].joined() == "ءظطذدزروى")
+check("Arabic: 11 columns, no capitals", KeyLayout.arabic.columns == 11 && !KeyLayout.arabic.hasCase && KeyLayout.arabic.deleteRow == 2)
+check("Arabic: hamza forms on long-press", AccentSets.alternates(for: "ا", language: "ar") == ["أ", "إ", "آ"]
+      && AccentSets.alternates(for: "و", language: "ar") == ["ؤ"] && AccentSets.capitals(["أ", "إ"]) == ["أ", "إ"])
+check("Hebrew: right to left, drawn ק to פ from the left", KeyLayout.hebrew.isRightToLeft && KeyLayout.hebrew.letterRows[0].joined() == "קראטוןםפ"
+      && KeyLayout.hebrew.letterRows[1].joined() == "שדגכעיחלךף" && KeyLayout.hebrew.letterRows[2].joined() == "זסבהנמצתץ")
+check("Hebrew: Delete ends the top row, no long-press letters", KeyLayout.hebrew.deleteRow == 0 && !KeyLayout.hebrew.hasCase
+      && KeyLayout.hebrew.readingRows.joined().allSatisfy { AccentSets.alternates(for: $0, language: "he").isEmpty })
+check("layouts: only Arabic and Hebrew are right to left", KeyLayout.allCases.filter(\.isRightToLeft) == [.arabic, .hebrew])
+
+let alphabets: [(KeyLayout, String, String)] = [
+    (.russian, "ru", "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"),
+    (.ukrainian, "uk", "абвгґдеєжзиіїйклмнопрстуфхцчшщьюя"),
+    (.greek, "el", "αβγδεζηθικλμνξοπρσςτυφχψωάέήίόύώϊϋΐΰ"),
+    (.arabic, "ar", "ابتثجحخدذرزسشصضطظعغفقكلمنهويةءىأإآؤئ"),
+    (.hebrew, "he", "אבגדהוזחטיכלמנסעפצקרשתךםןףץ"),
+]
+for (layout, lang, letters) in alphabets {
+    let missing = letters.filter { layout.taps(toType: String($0), language: lang) == nil }
+    check("\(layout.rawValue): every letter of the alphabet can be typed", missing.isEmpty, "missing \(missing)")
+}
+
+func rowsFor(_ l: KeyLayout) -> [[RowItem]] { TypingLayout.rows(layer: .letters, field: .standard, showsGlobe: true, letters: l) }
+func keyCount(_ rows: [[RowItem]], _ kind: KeyKind) -> Int { rows.joined().filter { if case .key(kind, _) = $0 { return true }; return false }.count }
+check("rows: shift only where there are capitals", KeyLayout.allCases.allSatisfy { keyCount(rowsFor($0), .shift) == ($0.hasCase ? 1 : 0) })
+check("rows: one Delete in every layout", KeyLayout.allCases.allSatisfy { keyCount(rowsFor($0), .delete) == 1 })
+check("rows: Hebrew's Delete ends the top row", rowsFor(.hebrew)[0].last == .key(.delete, .flex(1)) && rowsFor(.hebrew)[2].first == .spacer(1))
+check("rows: Arabic's third row has Delete and no shift", rowsFor(.arabic)[2].first == .spacer(1)
+      && { if case .key(.delete, _)? = rowsFor(.arabic)[2].last { return true }; return false }())
+check("rows: ЙЦУКЕН's shift and delete narrow to fit nine letters", TypingLayout.thirdRowModifierWidth(letters: 9, columns: 11) == 1
+      && TypingLayout.thirdRowModifierWidth(letters: 7, columns: 10) == 1.3 && TypingLayout.thirdRowModifierWidth(letters: 7, columns: 11) == 1.3)
+check("rows: the bottom row and return don't move", KeyLayout.allCases.allSatisfy { rowsFor($0)[3] == rowsFor(.qwerty)[3] })
+check("rows: Arabic's punctuation has ، and ؟", TypingLayout.rows(layer: .numbers, field: .standard, showsGlobe: true, letters: .arabic)[2].contains(.char("\u{060C}", 1.4))
+      && TypingLayout.rows(layer: .symbols, field: .standard, showsGlobe: true, letters: .arabic)[2].contains(.char("\u{061F}", 1.4))
+      && TypingLayout.rows(layer: .numbers, field: .standard, showsGlobe: true, letters: .russian) == TypingLayout.rows(layer: .numbers, field: .standard, showsGlobe: true))
+
+// Every layout fits the keyboard at each width: keys in order, no overlaps, inside the side margins.
+for width in [320.0, 375.0, 390.0, 430.0] {
+    let sz = CGSize(width: width, height: 234)
+    let met = KeyMetrics.forSize(sz, rows: 4)
+    for l in KeyLayout.allCases {
+        let placed = TypingLayout.place(rowsFor(l), in: sz, metrics: met, columns: l.columns)
+        var ok = true
+        for r in 0..<4 {
+            let row = placed.filter { $0.id.row == r }
+            if (row.first?.frame.minX ?? 0) < met.sideMargin - 0.5 || (row.last?.frame.maxX ?? .infinity) > width - met.sideMargin + 0.5 { ok = false }
+            for (a, b) in zip(row, row.dropFirst()) where b.frame.minX < a.frame.maxX - 0.01 { ok = false }
+            if row.contains(where: { $0.frame.width < 20 }) { ok = false }
+        }
+        check("fit: \(l.rawValue) at \(Int(width)) pt", ok, "\(placed.map { ($0.kind, $0.frame.minX, $0.frame.width) })")
+    }
+}
+
+/// Types a word through a layout as fingers would: each tap lands on its key's center, the hit test must find that key,
+/// and the taps (with the long-press rows and the accent key) must type the word.
+func typeOnKeys(_ word: String, _ l: KeyLayout, _ lang: String) -> String? {
+    guard let taps = l.taps(toType: word, language: lang) else { return nil }
+    let sz = CGSize(width: 390, height: 234)
+    let placed = TypingLayout.place(rowsFor(l), in: sz, metrics: KeyMetrics.forSize(sz, rows: 4), columns: l.columns)
+    for t in taps {
+        let base: String
+        switch t { case .key(let k): base = k; case .hold(let k, _): base = k }
+        guard let key = placed.first(where: { $0.kind == .character(base) }),
+              TypingLayout.hit(CGPoint(x: key.frame.midX, y: key.frame.midY), in: placed)?.id == key.id else { return nil }
+    }
+    return KeyLayout.replay(taps)
+}
+for (word, l, lang) in [("привет", KeyLayout.russian, "ru"), ("єдність", .ukrainian, "uk"), ("їжак", .ukrainian, "uk"), ("ґанок", .ukrainian, "uk"),
+                        ("γεια", .greek, "el"), ("λόγος", .greek, "el"), ("μυστήριο", .greek, "el"), ("مرحبا", .arabic, "ar"),
+                        ("أهلا", .arabic, "ar"), ("שלום", .hebrew, "he"), ("ספר", .hebrew, "he")] {
+    check("type: \(word) on \(l.rawValue)", typeOnKeys(word, l, lang) == word, "\(String(describing: l.taps(toType: word, language: lang)))")
+}
+check("type: a letter no layout key has", KeyLayout.hebrew.taps(toType: "a", language: "he") == nil && KeyLayout.russian.taps(toType: "ї", language: "ru") == nil)
+
+let heKeys = TypingLayout.place(rowsFor(.hebrew), in: size, metrics: m, columns: 10)
+let order = TypingLayout.readingOrder(heKeys, rightToLeftRows: [0, 1, 2])
+check("VoiceOver: Hebrew's rows read right to left, starting at Delete", order.first?.kind == .delete && order[1].kind == .character("פ")
+      && order.filter { $0.id.row == 1 }.first?.kind == .character("ף"))
+check("VoiceOver: the bottom row reads left to right", order.filter { $0.id.row == 3 }.map(\.kind) == heKeys.filter { $0.id.row == 3 }.map(\.kind))
+check("VoiceOver: a left-to-right layout keeps its order", TypingLayout.readingOrder(de, rightToLeftRows: []) == de)
+check("VoiceOver: the accent key says Accent", KeyKind.character(DeadKeys.tonos).spokenLabel(shift: .off, layer: .letters, returnKind: .standard) == "Accent")
+
+// MARK: Round 2: Greek's accent key
+
+func press(_ inputs: [String]) -> String {
+    var text = "", pending: String?
+    for i in inputs { let r = DeadKeys.press(pending: pending, input: i); text += r.insert; pending = r.pending }
+    return text + (pending.map { "[\($0)]" } ?? "")
+}
+check("accent key: waits for the vowel", DeadKeys.press(pending: nil, input: DeadKeys.tonos) == .init(insert: "", pending: DeadKeys.tonos))
+check("accent key: ΄ then ο is ό, capitals too", press([DeadKeys.tonos, "ο"]) == "ό" && press([DeadKeys.tonos, "Ο"]) == "Ό" && press([DeadKeys.tonos, "ω"]) == "ώ")
+check("accent key: diaeresis and both", press([DeadKeys.dialytika, "ι"]) == "ϊ" && press([DeadKeys.dialytikaTonos, "υ"]) == "ΰ" && press([DeadKeys.dialytika, "Υ"]) == "Ϋ")
+check("accent key: space types the mark", press([DeadKeys.tonos, " "]) == DeadKeys.tonos)
+check("accent key: twice types the mark", press([DeadKeys.tonos, DeadKeys.tonos]) == DeadKeys.tonos)
+check("accent key: a consonant gets the mark before it", press([DeadKeys.tonos, "κ"]) == DeadKeys.tonos + "κ")
+check("accent key: another mark replaces the first", press([DeadKeys.tonos, DeadKeys.dialytika, "ι"]) == DeadKeys.tonos + "ϊ")
+check("accent key: nothing waiting types as is", press(["α", "β"]) == "αβ")
+check("accent key: decompose finds the mark", DeadKeys.decompose("ό")! == (DeadKeys.tonos, "ο") && DeadKeys.decompose("ΰ")! == (DeadKeys.dialytikaTonos, "υ")
+      && DeadKeys.decompose("ο") == nil)
+check("accent key: the key types ό when long-press is skipped", KeyLayout.replay([.key(DeadKeys.tonos), .key("ο")]) == "ό"
+      && KeyLayout.replay([.hold(DeadKeys.tonos, pick: DeadKeys.dialytika), .key("ι")]) == "ϊ")
+check("accent key: names", DeadKeys.spokenName(DeadKeys.dialytika) == "Diaeresis" && DeadKeys.spokenName("α") == nil)
+
+// MARK: Round 2: words in each script
+
+check("script: each word's", WritingScript.of(word: "привет") == .cyrillic && WritingScript.of(word: "λόγος") == .greek
+      && WritingScript.of(word: "مرحبا") == .arabic && WritingScript.of(word: "שלום") == .hebrew && WritingScript.of(word: "hello") == .latin
+      && WritingScript.of(word: "mañana") == .latin)
+check("script: marks and apostrophes have none", WritingScript.of(word: "كَتَبَ") == .arabic && WritingScript.of(word: "м\u{02BC}ята") == .cyrillic
+      && WritingScript.of(word: "123") == nil && WritingScript.of(word: "don't") == .latin)
+check("script: mixed is other", WritingScript.of(word: "приvet") == .other)
+check("script: each language's", WritingScript.of(language: "ru_RU") == .cyrillic && WritingScript.of(language: "uk") == .cyrillic
+      && WritingScript.of(language: "el") == .greek && WritingScript.of(language: "ar") == .arabic && WritingScript.of(language: "he_IL") == .hebrew
+      && WritingScript.of(language: "en_US") == .latin && WritingScript.of(language: "ja") == .other)
+check("script: right to left", WritingScript.arabic.isRightToLeft && WritingScript.hebrew.isRightToLeft && !WritingScript.greek.isRightToLeft)
+
+// Cyrillic
+check("Cyrillic: the last word", w("Я думаю превет").word == "превет")
+check("Cyrillic: hyphenated", w("кто-нибуть") == WordAtCursor(word: "нибуть", token: "кто-нибуть") && !alone("кто-нибуть"))
+check("Cyrillic: after an opening guillemet", w("«превет").word == "превет" && !alone("«превет"))
+check("Cyrillic: the closing guillemet ends a word", TypingCorrection.isBoundary("\u{00BB}"))
+check("Cyrillic: corrected in Russian", fix("Я думаю превет", ["привет"], lang: "ru") == "привет" && fix("Превет", ["привет"], lang: "ru") == "Привет")
+check("Cyrillic: ё is one edit", fix("еще", ["ещё"], lang: "ru") == "ещё")
+check("Cyrillic: inner capital left alone", alone("ВКонтакте"))
+check("Cyrillic: Ukrainian apostrophe stays in the word", w("м'ята").word == "м'ята" && w("м\u{02BC}ята").word == "м\u{02BC}ята")
+check("Cyrillic: an English word isn't corrected in Russian", fix("helo", ["хело"], lang: "ru") == nil
+      && TypingCorrection.leavesAlone(w("helo"), skip: none, language: "ru"))
+check("Cyrillic: a Russian word isn't corrected in English", fix("превет", ["prevent"], lang: "en_US") == nil)
+check("Cyrillic: a mixed word isn't corrected", TypingCorrection.leavesAlone(w("приvet"), skip: none, language: "ru"))
+
+// Greek
+check("Greek: final sigma is a letter of the word", w("ο καλός").word == "καλός" && w("ο λογοσ").word == "λογοσ")
+check("Greek: σ at the end becomes ς", fix("ο λογοσ", misspelled: false, [], lang: "el") == "λογος" && fix("καλόσ", misspelled: false, [], lang: "el_GR") == "καλός")
+check("Greek: in your case", fix("Λογοσ", misspelled: false, [], lang: "el") == "Λογος")
+check("Greek: capitals have no final form", fix("ΛΟΓΟΣ", misspelled: false, [], lang: "el") == nil)
+check("Greek: σ alone or inside stays", fix("σ", misspelled: false, [], lang: "el") == nil && fix("σπίτι", misspelled: false, [], lang: "el") == nil)
+check("Greek: final sigma before the checker's guess", fix("λογοσ", misspelled: true, ["λόγος"], lang: "el") == "λογος")
+check("Greek: final sigma only in Greek", fix("λογοσ", misspelled: false, [], lang: "en_US") == nil)
+check("Greek: not in a word you put back", fix("λογοσ", misspelled: false, [], skip: ["λογοσ"], lang: "el") == nil)
+check("Greek: final sigma rule", TypingScripts.finalSigma("λογοσ") == "λογος" && TypingScripts.finalSigma("bus") == nil
+      && TypingScripts.finalSigma("2σ") == nil && TypingScripts.finalSigma("λογος") == nil)
+check("Greek: question mark and ano teleia end a word", TypingCorrection.isBoundary("\u{037E}") && TypingCorrection.isBoundary("\u{0387}"))
+check("Greek: corrected with the checker", fix("καλιμερα", ["καλημέρα"], lang: "el") == "καλημέρα")
+
+// Arabic
+check("Arabic: the last word", w("مرحبا بكم").word == "بكم")
+check("Arabic: vowel marks stay in the word", w("كَتَبَ").word == "كَتَبَ" && w("كَتَبَ").word.count == 3)
+check("Arabic: tatweel stays in the word", w("كـتاب").word == "كـتاب")
+check("Arabic: comma, semicolon, and question mark end a word", ["\u{060C}", "\u{061B}", "\u{061F}"].allSatisfy(TypingCorrection.isBoundary))
+check("Arabic: Arabic-Indic digits are numbers", alone("ب٣"))
+check("Arabic: corrected with the checker", fix("مرحيا", ["مرحبا"], lang: "ar") == "مرحبا")
+check("Arabic: an English word isn't corrected in Arabic", fix("helo", ["هلو"], lang: "ar") == nil)
+
+// Hebrew
+check("Hebrew: the last word", w("שלום עולם").word == "עולם")
+check("Hebrew: an acronym with gershayim is one word, left alone", w("צה\u{05F4}ל").word == "צה\u{05F4}ל" && alone("צה\u{05F4}ל")
+      && fix("צה\u{05F4}ל", ["צהל"], lang: "he") == nil)
+check("Hebrew: an abbreviation ending in geresh isn't a word to correct", w("פרופ\u{05F3}").word == "")
+check("Hebrew: maqaf joins like a hyphen", w("בית\u{05BE}ספר") == WordAtCursor(word: "ספר", token: "בית\u{05BE}ספר") && !alone("בית\u{05BE}ספר"))
+check("Hebrew: final letters are letters", w("שלום").word == "שלום" && w("ארץ").word == "ארץ")
+check("Hebrew: corrected with the checker", fix("שלומ", ["שלום"], lang: "he") == "שלום")
+check("Hebrew: an English word isn't corrected in Hebrew", fix("helo", ["הלו"], lang: "he") == nil)
+
+// MARK: Round 2: right to left
+
+check("direction: a Hebrew line runs right to left", TypingScripts.paragraphIsRightToLeft(before: "שלום ", after: nil, fallback: false))
+check("direction: an Arabic line after the cursor", TypingScripts.paragraphIsRightToLeft(before: "", after: "مرحبا", fallback: false))
+check("direction: an English line runs left to right on the Hebrew layout", !TypingScripts.paragraphIsRightToLeft(before: "Hi שלום", after: nil, fallback: true))
+check("direction: the first letter decides", TypingScripts.paragraphIsRightToLeft(before: "שלום hello", after: nil, fallback: false))
+check("direction: only this paragraph", !TypingScripts.paragraphIsRightToLeft(before: "שלום\nhello ", after: nil, fallback: true)
+      && TypingScripts.paragraphIsRightToLeft(before: "hello\n", after: "שלום\nhi", fallback: false))
+check("direction: no letters yet follows the layout", TypingScripts.paragraphIsRightToLeft(before: "12 ", after: nil, fallback: true)
+      && !TypingScripts.paragraphIsRightToLeft(before: nil, after: nil, fallback: false))
+
+var rtlDrag = CursorDrag(startX: 100, rightToLeft: true)
+check("drag: right to left, dragging left moves forward", rtlDrag.move(to: 84) == 2)
+check("drag: right to left, dragging right moves back", rtlDrag.move(to: 116) == -4 && rtlDrag.moved == 2)
+let rtlRow = AccentRow.layout(keyMinX: 300, keyWidth: 33, count: 3, areaWidth: 390, rightToLeft: true)
+check("row: right to left, it ends over the key", rtlRow.originX == 234 && rtlRow.originX + rtlRow.width == 333)
+check("row: right to left, the first letter is over the key", rtlRow.index(at: 320) == 0 && rtlRow.index(at: 240) == 2 && rtlRow.index(at: 280) == 1)
+check("row: right to left, slots mirror", rtlRow.option(atSlot: 0) == 2 && rtlRow.option(atSlot: 2) == 0 && row.option(atSlot: 1) == 1)
+let rtlEdge = AccentRow.layout(keyMinX: 3, keyWidth: 33, count: 4, areaWidth: 390, rightToLeft: true)
+check("row: right to left, shifted right to stay on the keyboard", rtlEdge.originX == 3)
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
