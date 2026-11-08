@@ -51,12 +51,18 @@ struct WordAtCursor: Equatable {
 
     static let empty = WordAtCursor(word: "", token: "")
 
+    /// Letters of every script (Cyrillic, Greek with its final ς, Arabic with its vowel marks, Hebrew), numbers,
+    /// apostrophes, and Hebrew's geresh and gershayim, which sit inside abbreviations (צה״ל).
     static func isWordCharacter(_ c: Character) -> Bool {
-        c.isLetter || c.isNumber || c == "'" || c == "\u{2019}" || c.unicodeScalars.allSatisfy { $0.properties.generalCategory == .nonspacingMark }
+        c.isLetter || c.isNumber || isApostrophe(c) || TypingScripts.innerMarks.contains(c)
+            || c.unicodeScalars.allSatisfy { $0.properties.generalCategory == .nonspacingMark }
     }
 
+    static func isApostrophe(_ c: Character) -> Bool { c == "'" || c == "\u{2019}" }
+
     /// From the text before the cursor (nil when the field doesn't say). A word that ends in an apostrophe isn't one
-    /// (the apostrophe may be a closing quote); leading apostrophes are opening quotes, not part of it.
+    /// (the apostrophe may be a closing quote), nor one ending in a geresh or gershayim (a Hebrew abbreviation); leading
+    /// apostrophes are opening quotes, not part of it.
     static func before(_ text: String?) -> WordAtCursor {
         guard let text, let last = text.last, !last.isWhitespace else { return .empty }
         var token = Substring(text)
@@ -64,8 +70,8 @@ struct WordAtCursor: Equatable {
         var start = token.endIndex
         while start > token.startIndex, isWordCharacter(token[token.index(before: start)]) { start = token.index(before: start) }
         var word = token[start...]
-        while let f = word.first, f == "'" || f == "\u{2019}" { word = word.dropFirst() }
-        if let l = word.last, l == "'" || l == "\u{2019}" { return WordAtCursor(word: "", token: String(token)) }
+        while let f = word.first, isApostrophe(f) || TypingScripts.innerMarks.contains(f) { word = word.dropFirst() }
+        if let l = word.last, isApostrophe(l) || TypingScripts.innerMarks.contains(l) { return WordAtCursor(word: "", token: String(token)) }
         return WordAtCursor(word: String(word), token: String(token))
     }
 }
@@ -82,8 +88,9 @@ struct AppliedCorrection: Equatable {
 }
 
 enum TypingCorrection {
-    /// What ends a word and lets space, return, or punctuation correct it.
-    static let boundaries: Set<String> = [" ", "\n", ".", ",", "!", "?", ";", ":", ")", "\u{201D}", "\""]
+    /// What ends a word and lets space, return, or punctuation correct it, with Arabic's, Greek's, and the closing
+    /// guillemet (`TypingScripts.boundaries`).
+    static let boundaries: Set<String> = Set([" ", "\n", ".", ",", "!", "?", ";", ":", ")", "\u{201D}", "\""]).union(TypingScripts.boundaries)
 
     static func isBoundary(_ text: String) -> Bool { boundaries.contains(text) }
 
@@ -93,19 +100,24 @@ enum TypingCorrection {
     static func hasInnerCapital(_ w: String) -> Bool { w.dropFirst().contains { $0.isUppercase } }
 
     /// True when space never corrects this word: shorter than 2 letters, with a number in it, with a capital after its
-    /// first letter (iPhone, NASA), part of a link, an email address, a path, or a tag, a word in Verbose's Dictionary,
-    /// your text replacements and contacts, or one you've put back this session. `skip` holds lowercased words.
-    static func leavesAlone(_ w: WordAtCursor, skip: Set<String>) -> Bool {
+    /// first letter (iPhone, NASA), a Hebrew abbreviation (with a geresh or gershayim), in another script than the
+    /// language's (English typed while Russian is on) or mixing scripts, part of a link, an email address, a path, or a
+    /// tag, a word in Verbose's Dictionary, your text replacements and contacts, or one you've put back this session.
+    /// `skip` holds lowercased words.
+    static func leavesAlone(_ w: WordAtCursor, skip: Set<String>, language: String? = nil) -> Bool {
         let word = w.word
         if word.count < 2 { return true }
         if word.contains(where: { $0.isNumber }) { return true }
         if hasInnerCapital(word) { return true }
+        if word.contains(where: TypingScripts.innerMarks.contains) { return true }
+        if let language, TypingScripts.isForeign(word, language: language) { return true }
         if !tokenIsPlain(w) { return true }
         return skip.contains(word.lowercased())
     }
 
     /// The text before the word in its run is only opening punctuation, or the first half of a hyphenated word
-    /// ("well-knwon"). Anything else (example.com, name@mail, a/b, #tag, 3.5x) makes it not a plain word.
+    /// ("well-knwon", Russian "кто-нибуть", Hebrew's maqaf). Anything else (example.com, name@mail, a/b, #tag, 3.5x) makes
+    /// it not a plain word.
     static func tokenIsPlain(_ w: WordAtCursor) -> Bool {
         let lower = w.token.lowercased()
         if lower.contains("@") || lower.contains("://") || lower.hasPrefix("www.") { return false }
@@ -114,8 +126,8 @@ enum TypingCorrection {
         // Leading apostrophes the word dropped belong to the prefix too.
         while let f = prefix.first, openers.contains(f) { prefix = prefix.dropFirst() }
         if prefix.isEmpty { return true }
-        guard prefix.last == "-" else { return false }
-        return prefix.allSatisfy { $0.isLetter || $0 == "-" || $0 == "'" || $0 == "\u{2019}" }
+        guard let last = prefix.last, last == "-" || last == TypingScripts.maqaf else { return false }
+        return prefix.allSatisfy { $0.isLetter || $0 == "-" || $0 == TypingScripts.maqaf || WordAtCursor.isApostrophe($0) }
     }
 
     /// How far a guess may be from what you typed (edits, with a swap of two letters counting once): 1 for words up to 4
@@ -150,9 +162,12 @@ enum TypingCorrection {
         return g.uppercased() + guess.dropFirst()
     }
 
-    /// English's lone "i" and its contractions take a capital (i → I, i'm → I'm), as on the system keyboard.
+    /// Fixed corrections, which need no spell checker: English's lone "i" and its contractions take a capital (i → I,
+    /// i'm → I'm), and a Greek word ending in σ ends in ς (`TypingScripts.finalSigma`), as on the system keyboard.
     static func fixedCorrection(_ word: String, language: String) -> String? {
-        guard TypingLanguages.code(language) == "en", word.first == "i" else { return nil }
+        let code = TypingLanguages.code(language)
+        if code == "el" { return TypingScripts.finalSigma(word) }
+        guard code == "en", word.first == "i" else { return nil }
         if word == "i" { return "I" }
         let rest = word.dropFirst()
         guard let a = rest.first, a == "'" || a == "\u{2019}", ["m", "ll", "ve", "d"].contains(rest.dropFirst().lowercased()) else { return nil }
@@ -163,7 +178,7 @@ enum TypingCorrection {
     /// the current language. The first guess close enough to what you typed wins.
     static func correction(for w: WordAtCursor, misspelled: Bool, guesses: [String], skip: Set<String>, language: String) -> String? {
         if let fixed = fixedCorrection(w.word, language: language), tokenIsPlain(w), !skip.contains(w.word.lowercased()) { return fixed }
-        guard misspelled, !leavesAlone(w, skip: skip) else { return nil }
+        guard misspelled, !leavesAlone(w, skip: skip, language: language) else { return nil }
         for g in guesses {
             let cased = matchCase(g, to: w.word)
             guard cased != w.word, closeEnough(w.word, g) else { continue }
@@ -286,11 +301,13 @@ struct SuggestionStrip: Equatable {
 // MARK: - Long-press row
 
 /// Where the long-press row sits over a held key, and which letter a finger at `x` picks. Each slot is a key wide; the row
-/// starts over the key and runs right, shifted left as far as it must to stay on the keyboard.
+/// starts over the key and runs right (left on Arabic's and Hebrew's right-to-left layouts, so the first letter is always
+/// over the key), shifted as far as it must to stay on the keyboard.
 struct AccentRow: Equatable {
     var originX: CGFloat
     var slot: CGFloat
     var count: Int
+    var rightToLeft = false
 
     static let holdDelay: TimeInterval = 0.4
     /// A finger moves this far from where the row opened before it picks a different letter.
@@ -298,39 +315,52 @@ struct AccentRow: Equatable {
 
     var width: CGFloat { slot * CGFloat(count) }
 
-    static func layout(keyMinX: CGFloat, keyWidth: CGFloat, count: Int, areaWidth: CGFloat, margin: CGFloat = 3) -> AccentRow {
+    static func layout(keyMinX: CGFloat, keyWidth: CGFloat, count: Int, areaWidth: CGFloat, margin: CGFloat = 3,
+                       rightToLeft: Bool = false) -> AccentRow {
         let slot = max(28, keyWidth)
         let width = slot * CGFloat(count)
         let maxOrigin = max(margin, areaWidth - margin - width)
-        return AccentRow(originX: min(max(margin, keyMinX), maxOrigin), slot: slot, count: count)
+        let start = rightToLeft ? keyMinX + keyWidth - width : keyMinX
+        return AccentRow(originX: min(max(margin, start), maxOrigin), slot: slot, count: count, rightToLeft: rightToLeft)
     }
 
+    /// The option a finger at `x` picks (the first option is over the key).
     func index(at x: CGFloat) -> Int {
         guard count > 0, slot > 0 else { return 0 }
         let i = Int(((x - originX) / slot).rounded(.down))
-        return min(max(0, i), count - 1)
+        return option(atSlot: min(max(0, i), count - 1))
     }
+
+    /// The option drawn in a slot, counting slots from the left (and the slot an option is drawn in: the same mirror).
+    func option(atSlot i: Int) -> Int { rightToLeft ? count - 1 - i : i }
 }
 
 // MARK: - Space-bar cursor drag
 
 /// Hold the space bar for about 0.3 s and the key labels clear; dragging left or right then moves the cursor one character
-/// per 8 points. One haptic when it starts, none while you drag.
+/// per 8 points, in visual order: in a right-to-left paragraph (`TypingScripts.paragraphIsRightToLeft`), dragging left
+/// moves the cursor forward through the text, which is toward the left of the line. One haptic when it starts, none while
+/// you drag.
 struct CursorDrag: Equatable {
     static let holdDelay: TimeInterval = 0.3
     static let step: CGFloat = 8
 
     var startX: CGFloat
-    /// Characters moved so far (negative is left).
+    var rightToLeft = false
+    /// Steps moved so far, on screen (negative is left).
     private(set) var moved = 0
 
-    init(startX: CGFloat) { self.startX = startX }
+    init(startX: CGFloat, rightToLeft: Bool = false) {
+        self.startX = startX
+        self.rightToLeft = rightToLeft
+    }
 
-    /// The finger is at `x`: how many characters to move the cursor now (the change since the last call).
+    /// The finger is at `x`: how many characters to move the cursor through the text now (the change since the last call;
+    /// negative is back), for `adjustTextPosition`.
     mutating func move(to x: CGFloat) -> Int {
         let target = Int(((x - startX) / Self.step).rounded(.towardZero))
         let delta = target - moved
         moved = target
-        return delta
+        return rightToLeft ? -delta : delta
     }
 }

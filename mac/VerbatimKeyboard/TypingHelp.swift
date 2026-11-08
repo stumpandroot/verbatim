@@ -81,12 +81,14 @@ struct TypingHelp: Equatable {
 // MARK: - Languages
 
 /// The letter keys' layout for a language. QWERTY for English and most Latin-script languages; Spanish adds ñ; French
-/// is AZERTY (Canadian French stays QWERTY, as on the system keyboard); German is QWERTZ with ü, ö, and ä.
+/// is AZERTY (Canadian French stays QWERTY, as on the system keyboard); German is QWERTZ with ü, ö, and ä. Russian and
+/// Ukrainian are ЙЦУКЕН, and Greek, Arabic, and Hebrew follow Apple's keyboards; their rows are in TypingScripts.swift.
 enum KeyLayout: String, Equatable, CaseIterable {
-    case qwerty, spanish, azerty, qwertz
+    case qwerty, spanish, azerty, qwertz, russian, ukrainian, greek, arabic, hebrew
 
-    /// The three letter rows, top to bottom (the third row sits between shift and delete).
-    var letterRows: [[String]] {
+    /// The three letter rows, top to bottom, in reading order: right to left for Arabic and Hebrew (the first letter is
+    /// the rightmost key). The third row sits between shift and delete.
+    var readingRows: [[String]] {
         switch self {
         case .qwerty:
             return [["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
@@ -104,11 +106,29 @@ enum KeyLayout: String, Equatable, CaseIterable {
             return [["q", "w", "e", "r", "t", "z", "u", "i", "o", "p", "ü"],
                     ["a", "s", "d", "f", "g", "h", "j", "k", "l", "ö", "ä"],
                     ["y", "x", "c", "v", "b", "n", "m"]]
+        case .russian: return ScriptLayouts.russian
+        case .ukrainian: return ScriptLayouts.ukrainian
+        case .greek: return ScriptLayouts.greek
+        case .arabic: return ScriptLayouts.arabic
+        case .hebrew: return ScriptLayouts.hebrew
         }
     }
 
-    /// Letter keys across the widest row: 10, or 11 for QWERTZ.
-    var columns: Int { letterRows.map(\.count).max() ?? 10 }
+    /// The rows as drawn, left to right.
+    var letterRows: [[String]] { isRightToLeft ? readingRows.map { Array($0.reversed()) } : readingRows }
+
+    /// Arabic and Hebrew rows read right to left, as on Apple's keyboards. Delete, return, and the bottom row stay where
+    /// they are on every layout.
+    var isRightToLeft: Bool { self == .arabic || self == .hebrew }
+
+    /// Arabic and Hebrew have no capitals, so their layouts have no shift key and shift stays off.
+    var hasCase: Bool { !isRightToLeft }
+
+    /// The letter row Delete ends: the third, or the first in Hebrew, as on Apple's Hebrew keyboard.
+    var deleteRow: Int { self == .hebrew ? 0 : 2 }
+
+    /// Letter keys across the widest row: 10, or 11 for QWERTZ, ЙЦУКЕН, and Arabic.
+    var columns: Int { readingRows.map(\.count).max() ?? 10 }
 
     /// How Settings › Languages names the layout.
     var title: String {
@@ -117,19 +137,27 @@ enum KeyLayout: String, Equatable, CaseIterable {
         case .spanish: return "QWERTY with ñ"
         case .azerty: return "AZERTY"
         case .qwertz: return "QWERTZ"
+        case .russian: return "ЙЦУКЕН"
+        case .ukrainian: return "ЙЦУКЕН with і and є"
+        case .greek: return "Greek, with an accent key"
+        case .arabic, .hebrew: return "Right to left"
         }
     }
 }
 
 enum TypingLanguages {
-    /// Languages written in the Latin alphabet, which the keyboard's layouts can type. Languages in other scripts
-    /// (Cyrillic, Greek, Arabic, Hebrew) and input-method languages (Chinese, Japanese, Korean, Hindi) aren't in round 1:
-    /// the globe key switches to the system keyboard for them.
+    /// Languages written in the Latin alphabet, which the keyboard's Latin layouts type when Apple's spell checker has
+    /// them. Input-method languages (Chinese, Japanese, Korean, Hindi) and scripts without a layout here use the system
+    /// keyboard through the globe key.
     static let latinScript: Set<String> = [
         "en", "es", "fr", "de", "it", "pt", "nl", "sv", "da", "nb", "nn", "no", "fi", "pl", "tr", "id", "ms", "vi", "ro",
         "cs", "sk", "hu", "hr", "sl", "ca", "eu", "gl", "et", "lv", "lt", "sq", "af", "sw", "tl", "fil", "is", "ga", "cy",
         "mt", "az", "uz", "bs", "lb", "fo", "haw", "mi", "sm", "to",
     ]
+
+    /// Languages in other scripts with a layout here (round 2): Russian and Ukrainian, Greek, Arabic, and Hebrew. They
+    /// type whether or not the spell checker has them; corrections and suggestions come only where it does.
+    static let otherScript: Set<String> = ["ru", "uk", "el", "ar", "he"]
 
     /// The spelling the spell checker uses: "en-US" becomes "en_US".
     static func normalize(_ s: String) -> String {
@@ -152,12 +180,31 @@ enum TypingLanguages {
         return available.first { code($0) == c }
     }
 
-    /// The languages the keyboard types in, in the order of the keyboards (or the system's languages): each one the spell
-    /// checker supports and a Latin layout can type, once.
+    /// The language identifier the keyboard types in for a keyboard's or the system's language: the spell checker's own
+    /// for a Latin-script language it has; for Russian, Ukrainian, Greek, Arabic, and Hebrew, the checker's when it has
+    /// one, else the identifier as given ("he-IL" → "he_IL"). Nil for a language no layout here types.
+    static func resolve(_ s: String, available: [String]) -> String? {
+        let c = code(s)
+        if latinScript.contains(c) { return match(s, available: available) }
+        guard otherScript.contains(c) else { return nil }
+        return match(s, available: available) ?? normalize(s)
+    }
+
+    /// True when Apple's spell checker has the language, so autocorrect and the strip's words work in it.
+    static func hasCorrections(_ language: String, available: [String]) -> Bool { available.contains(language) }
+
+    /// Settings › Languages' line under a language: its layout, and "without corrections" when the checker lacks it.
+    static func settingsLine(_ language: String, available: [String]) -> String {
+        let title = layout(for: language).title
+        return hasCorrections(language, available: available) ? title : title + ", without corrections"
+    }
+
+    /// The languages the keyboard types in, in the order of the keyboards (or the system's languages): each one a layout
+    /// here can type (`resolve`), once.
     static func keyboardLanguages(_ candidates: [String], available: [String]) -> [String] {
         var out: [String] = []
         for c in candidates {
-            guard let m = match(c, available: available), latinScript.contains(code(m)), !out.contains(m) else { continue }
+            guard let m = resolve(c, available: available), !out.contains(m) else { continue }
             out.append(m)
         }
         return out
@@ -169,7 +216,7 @@ enum TypingLanguages {
         for c in candidates {
             let k = code(c)
             guard !k.isEmpty, !["emoji", "dictation", "mul", "und"].contains(k), !out.contains(k) else { continue }
-            if let m = match(c, available: available), latinScript.contains(code(m)) { continue }
+            if resolve(c, available: available) != nil { continue }
             out.append(k)
         }
         return out
@@ -179,8 +226,7 @@ enum TypingLanguages {
     /// conversation) when it's one of yours, else the one you last chose in the keyboard's menu, else your first. With no
     /// list, the field's language or English.
     static func current(chosen: [String], document: String?, picked: String?, available: [String]) -> String {
-        if let doc = document.flatMap({ match($0, available: available) }), latinScript.contains(code(doc)),
-           chosen.isEmpty || chosen.contains(doc) {
+        if let doc = document.flatMap({ resolve($0, available: available) }), chosen.isEmpty || chosen.contains(doc) {
             return doc
         }
         if let p = picked, chosen.contains(p) { return p }
@@ -201,6 +247,11 @@ enum TypingLanguages {
         case "es": return .spanish
         case "fr": return n.uppercased().hasSuffix("_CA") ? .qwerty : .azerty
         case "de": return .qwertz
+        case "ru": return .russian
+        case "uk": return .ukrainian
+        case "el": return .greek
+        case "ar": return .arabic
+        case "he": return .hebrew
         default: return .qwerty
         }
     }
@@ -210,7 +261,7 @@ enum TypingLanguages {
 
 /// The row over a held letter key (about 0.4 s): the current language's letters first, then the rest, in the key popup's
 /// style. Only the letters in the mockup have rows (a, e, i, o, u, n, c, s, y, z, l), plus g for Turkish ğ and d for
-/// Vietnamese đ.
+/// Vietnamese đ. Russian, Ukrainian, Greek, and Arabic letters' rows are in TypingScripts.swift (`ScriptLayouts`).
 enum AccentSets {
     /// Every alternate for each letter, in the order the row lists them when the language has no preference.
     static let all: [String: [String]] = [
@@ -265,7 +316,7 @@ enum AccentSets {
     static func alternates(for base: String, language: String) -> [String] {
         let key = base.lowercased()
         let lang = TypingLanguages.code(language)
-        let mine = preferred[lang]?[key] ?? []
+        let mine = preferred[lang]?[key] ?? ScriptLayouts.alternates[lang]?[key] ?? []
         if languageOnly.contains(key) { return mine }
         guard let rest = all[key] else { return mine }
         var out = mine
@@ -274,11 +325,12 @@ enum AccentSets {
     }
 
     /// The same row for a capital (shift or caps lock on). A letter with no single capital (ß) is left out, and Turkish
-    /// dotless ı becomes I.
+    /// dotless ı becomes I. Letters and marks without case (Arabic's hamza forms, Greek's accent marks) stay as they are.
     static func capitals(_ row: [String]) -> [String] {
         row.compactMap { a in
             let up = a.uppercased()
-            return up.count == 1 && up != a ? up : nil
+            if up == a { return a.contains(where: \.isCased) ? nil : a }
+            return up.count == 1 ? up : nil
         }
     }
 }

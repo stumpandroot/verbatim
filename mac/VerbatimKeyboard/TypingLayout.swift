@@ -133,8 +133,20 @@ enum TypingLayout {
     static let returnWidth = 2.25
     static let globeWidth = 1.1
 
+    /// Shift and delete beside the third letter row: 1.3 letter keys, narrowed (to no less than one) when the row is
+    /// nearly as wide as the layout, as on ЙЦУКЕН's nine-letter third row.
+    static func thirdRowModifierWidth(letters: Int, columns: Int) -> Double {
+        min(modifierWidth, max(1, Double(columns - letters) / 2))
+    }
+
+    /// The 123 and #+= layers' punctuation: Arabic's has its own comma and question mark.
+    static func punctuation(for letters: KeyLayout) -> [String] {
+        letters == .arabic ? ScriptLayouts.arabicPunctuation : punctuationRow
+    }
+
     /// The rows for a layer and a field. `showsGlobe` follows `needsInputModeSwitchKey`; `letters` is the language's
-    /// letter layout (`TypingLanguages.layout`): QWERTY, QWERTY with ñ, AZERTY, or QWERTZ.
+    /// letter layout (`TypingLanguages.layout`): QWERTY, QWERTY with ñ, AZERTY, QWERTZ, ЙЦУКЕН, Greek, Arabic, or Hebrew.
+    /// Arabic and Hebrew have no shift key; Hebrew's Delete ends the top row, as on Apple's Hebrew keyboard.
     static func rows(layer: TypingLayer, field: FieldKind, showsGlobe: Bool, letters: KeyLayout = .qwerty) -> [[RowItem]] {
         if field == .numberPad || field == .decimalPad {
             return numberPad(decimal: field == .decimalPad, showsGlobe: showsGlobe)
@@ -148,24 +160,32 @@ enum TypingLayout {
             func middle(_ keys: [String]) -> [RowItem] {
                 keys.count >= full ? keys.map { .char($0) } : [.spacer(1)] + keys.map { .char($0) } + [.spacer(1)]
             }
-            rows = [
-                middle(l[0]),
-                middle(l[1]),
-                [.key(.shift, .units(modifierWidth)), .spacer(1)] + l[2].map { .char($0) }
-                    + [.spacer(1), .key(.delete, .units(modifierWidth))],
-            ]
+            // Hebrew: the top row's letters, then Delete across what's left.
+            let top: [RowItem] = letters.deleteRow == 0 ? l[0].map { .char($0) } + [.key(.delete, .flex(1))] : middle(l[0])
+            let third: [RowItem]
+            if letters.hasCase {
+                let w = thirdRowModifierWidth(letters: l[2].count, columns: full)
+                third = [.key(.shift, .units(w)), .spacer(1)] + l[2].map { .char($0) } + [.spacer(1), .key(.delete, .units(w))]
+            } else if letters.deleteRow == 2 {
+                // Arabic: no shift; the letters centered in the space left of Delete.
+                third = [.spacer(1)] + l[2].map { .char($0) }
+                    + [.spacer(1), .key(.delete, .units(thirdRowModifierWidth(letters: l[2].count, columns: full)))]
+            } else {
+                third = middle(l[2])
+            }
+            rows = [top, middle(l[1]), third]
         case .numbers:
             rows = [
                 numbersRow1.map { .char($0) },
                 numbersRow2.map { .char($0) },
-                [.key(.layer(.symbols), .units(modifierWidth)), .spacer(1)] + punctuationRow.map { .char($0, 1.4) }
+                [.key(.layer(.symbols), .units(modifierWidth)), .spacer(1)] + punctuation(for: letters).map { .char($0, 1.4) }
                     + [.spacer(1), .key(.delete, .units(modifierWidth))],
             ]
         case .symbols:
             rows = [
                 symbolsRow1.map { .char($0) },
                 symbolsRow2.map { .char($0) },
-                [.key(.layer(.numbers), .units(modifierWidth)), .spacer(1)] + punctuationRow.map { .char($0, 1.4) }
+                [.key(.layer(.numbers), .units(modifierWidth)), .spacer(1)] + punctuation(for: letters).map { .char($0, 1.4) }
                     + [.spacer(1), .key(.delete, .units(modifierWidth))],
             ]
         }
@@ -273,6 +293,15 @@ enum TypingLayout {
         }
     }
 
+    /// The order VoiceOver reads the keys: row by row, left to right, except the rows in `rightToLeftRows` (Arabic's and
+    /// Hebrew's letter rows), which read right to left.
+    static func readingOrder(_ keys: [PlacedKey], rightToLeftRows: Set<Int>) -> [PlacedKey] {
+        keys.sorted { a, b in
+            if a.id.row != b.id.row { return a.id.row < b.id.row }
+            return rightToLeftRows.contains(a.id.row) ? a.frame.minX > b.frame.minX : a.frame.minX < b.frame.minX
+        }
+    }
+
     private static func dist(_ v: CGFloat, _ lo: CGFloat, _ hi: CGFloat) -> CGFloat {
         v < lo ? lo - v : (v > hi ? v - hi : 0)
     }
@@ -363,7 +392,7 @@ extension KeyKind {
     /// What VoiceOver says for a key. Character keys say their character (VoiceOver names punctuation).
     func spokenLabel(shift: ShiftState, layer: TypingLayer, returnKind: ReturnKind) -> String {
         switch self {
-        case .character(let s): return TypingRules.text(for: s, layer: layer, shift: shift)
+        case .character(let s): return DeadKeys.spokenName(s) ?? TypingRules.text(for: s, layer: layer, shift: shift)
         case .shift: return "Shift"
         case .delete: return "Delete"
         case .space: return "Space"
