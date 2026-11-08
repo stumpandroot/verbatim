@@ -1125,6 +1125,7 @@ struct PhoneLinkCard: View {
 /// paper behind its rows. A bookmark or a marked moment carries the accent mark; tap one to play from it.
 struct NotesSheet: View {
     @Environment(PhoneState.self) var app
+    @Environment(\.dismiss) private var dismiss
     var id: UUID
     @State private var draft = ""
     @FocusState private var focused: Bool
@@ -1181,6 +1182,7 @@ struct NotesSheet: View {
             .background(Refined.paper.ignoresSafeArea())
             .navigationTitle("Moments and notes")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
     }
 }

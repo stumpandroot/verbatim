@@ -51,7 +51,7 @@ struct TranscriptFindSheet: View {
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Find in this transcript")
             .navigationTitle("Find")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
