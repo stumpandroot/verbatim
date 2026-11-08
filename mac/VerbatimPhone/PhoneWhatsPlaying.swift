@@ -59,7 +59,7 @@ struct WhatsPlayingSheet: View {
             .background(Refined.paper.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                CloseToolbarItem { dismiss() }
             }
         }
         .presentationDetents([.large])

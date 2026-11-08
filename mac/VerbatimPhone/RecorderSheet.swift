@@ -254,7 +254,8 @@ struct RecorderSheet: View {
     private func kindItem(_ c: RecordChoice, current: RecordChoice) -> some View {
         Button { app.switchRecordingKind(to: c) } label: {
             // A menu item's second Text is its subtitle.
-            if c == current { Label(c.name, systemImage: "checkmark") } else { Label(c.name, systemImage: c.menuSymbol) }   // brand: system surface
+            // Each way's own glyph, as the Record as tray shows it, not an SF Symbol (IP-15).
+            if c == current { Label(c.name, systemImage: "checkmark") } else { Label(c.name, menuArt: c.art, key: "rec-\(c.name)") }
             Text(c.recorderLine(settings: auto.settings, templates: app.store.allTemplates))
         }
     }

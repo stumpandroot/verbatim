@@ -333,7 +333,8 @@ struct TranscriptScreen: View {
             // The kind's chip (tap to change it), the project's, then when, the length, the speakers, and the language.
             FlowRow(spacing: 8, lineSpacing: 2) {
                 if t.kind != .dictation, t.status == .ready {
-                    KindPickerChip(kind: t.kind, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
+                    // Shows what the Library and Home show (a link is Video or Podcast); a pick writes `kind` (MAC-12).
+                    KindPickerChip(kind: t.kind, shown: t.refinedKind, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
                 }
                 if let project {
                     KindChip(title: project.name, hue: RefinedRules.projectHue(project.colorIndex))
@@ -572,14 +573,14 @@ struct TranscriptScreen: View {
                     .disabled(!ready)
                 Button { showFind = true } label: { Label("Find", systemImage: "magnifyingglass") }
                     .disabled(!ready)
-                Button { mark(t) } label: { Label("Mark", systemImage: "bookmark") }   // brand: system surface (menu)
+                Button { mark(t) } label: { Label("Mark", image: "mark") }   // The exported custom symbols, as the Island and widgets show (IP-15).
                     .disabled(!ready || t.audioFileName == nil)
             }
             Section {
                 Button { mode = .summary } label: { Label("Summary", systemImage: "text.alignleft") }   // brand: system surface (menu)
                     .disabled(!ready)
                 Button { showNotes = true } label: {
-                    Label("Moments", systemImage: "bookmark")   // brand: system surface (menu)
+                    Label("Moments", image: "marked")
                     Text(moments == 1 ? "1 saved" : "\(moments) saved")
                 }
                 Button { showSpeakers = true } label: {
@@ -972,7 +973,7 @@ struct PhoneLines: View {
         if app.player.loadedURL != nil {
             Button { play(s) } label: { Label("Play from here", systemImage: "play") }   // brand: system surface (menu)
         }
-        Button { bookmark(s) } label: { Label("Bookmark", systemImage: "bookmark") }   // brand: system surface (menu)
+        Button { bookmark(s) } label: { Label("Bookmark", image: "marked") }
         Button { onNote(s) } label: { Label("Add note…", systemImage: "note.text.badge.plus") }   // brand: system surface (menu)
         Button { fixing = s } label: { Label("Fix a word…", systemImage: "pencil") }   // brand: system surface
         Button { copyQuote(s) } label: { Label("Copy quote", systemImage: "quote.opening") }   // brand: system surface (menu)
@@ -1055,7 +1056,7 @@ struct PhonePlayerBar: View {
                 let at = clock.time
                 let seg = transcript.segments.first { at >= $0.start && at < $0.end }
                 app.addNote(transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
-            } label: { Label("Mark this moment", systemImage: "bookmark") }   // brand: system surface (menu)
+            } label: { Label("Mark this moment", image: "mark") }
             Toggle(isOn: $follow) { Label("Follow playback", systemImage: "text.line.first.and.arrowtriangle.forward") }   // brand: system surface (menu)
         }
         .accessibilityIdentifier("transcript.player")
@@ -1103,8 +1104,8 @@ struct PhoneLinkCard: View {
     private var card: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Refined.neutralSquare)
-                if let f = info.thumbnailFile { StillImage(file: f, maxPixel: 240).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)) }
+                RoundedRectangle(cornerRadius: RefinedPlatform.radius(.square), style: .continuous).fill(Refined.neutralSquare)
+                if let f = info.thumbnailFile { StillImage(file: f, maxPixel: 240).clipShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.square), style: .continuous)) }
                 else { IconGlyph(art: .iconPlay, size: 18, color: Refined.mute) }
             }
             .frame(width: 72, height: 42)
@@ -1124,6 +1125,7 @@ struct PhoneLinkCard: View {
 /// paper behind its rows. A bookmark or a marked moment carries the accent mark; tap one to play from it.
 struct NotesSheet: View {
     @Environment(PhoneState.self) var app
+    @Environment(\.dismiss) private var dismiss
     var id: UUID
     @State private var draft = ""
     @FocusState private var focused: Bool
@@ -1180,6 +1182,7 @@ struct NotesSheet: View {
             .background(Refined.paper.ignoresSafeArea())
             .navigationTitle("Moments and notes")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
     }
 }

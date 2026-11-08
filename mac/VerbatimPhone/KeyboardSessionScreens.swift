@@ -185,7 +185,7 @@ private struct WayBackCoach: View {
                 row(illustration: AnyView(BreadcrumbHint(name: sourceApp)), text: Ribbon.breadcrumbLine(sourceApp: sourceApp))
             }
         }
-        .cardSurface(radius: Radius.row)
+        .cardSurface(radius: RefinedPlatform.radius(.card))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(showsBreadcrumb ? "Swipe right along the bottom edge, " + Ribbon.breadcrumbLine(sourceApp: sourceApp) : "Swipe right along the bottom edge")
     }
@@ -273,7 +273,7 @@ struct FirstDictationNote: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: Radius.row)
+        .cardSurface(radius: RefinedPlatform.radius(.card))
         .accessibilityElement(children: .combine)
     }
 }
@@ -337,7 +337,7 @@ struct KeyboardSetupScreen: View {
                     }
                 }
                 .padding(16)
-                .cardSurface(radius: Radius.row)
+                .cardSurface(radius: RefinedPlatform.radius(.card))
 
                 SettingsPageLabel(text: "Sessions").padding(.top, 6)
                 SessionCard(session: app.session)
@@ -360,7 +360,7 @@ struct KeyboardSetupScreen: View {
                     SettingsToggleRow(title: "Also copy each dictation",
                                       subtitle: "Each keyboard dictation also goes on the clipboard, so you can paste it somewhere else. The clock button in the keyboard shows your last dictations either way.", isOn: $alwaysCopy)
                 }
-                .cardSurface(radius: Radius.row)
+                .cardSurface(radius: RefinedPlatform.radius(.card))
 
                 PhoneLowerAudioRow()
 
@@ -384,7 +384,7 @@ struct KeyboardSetupScreen: View {
                     }
                 }
                 .padding(16)
-                .cardSurface(radius: Radius.row)
+                .cardSurface(radius: RefinedPlatform.radius(.card))
 
                 SettingsPageLabel(text: "Privacy").padding(.top, 6)
                 Text("While a session is on, Verbose keeps the microphone open so dictation starts instantly, and the orange microphone dot stays on. Audio is only saved while you're dictating, and stays on this iPhone unless iCloud sync is on. Each dictation is saved in Library › Dictations; deleting it also removes it from the keyboard's recent dictations, which keep at most 10 from the last day.")
@@ -458,7 +458,7 @@ private struct SessionCard: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
-        .cardSurface(radius: Radius.row)
+        .cardSurface(radius: RefinedPlatform.radius(.card))
     }
 }
 
@@ -500,7 +500,7 @@ struct SessionEndedScreen: View {
                     }
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .cardSurface(radius: Radius.row)
+                .cardSurface(radius: RefinedPlatform.radius(.card))
                 .padding(.top, 20)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Last take: " + take)

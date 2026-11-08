@@ -4,7 +4,10 @@ import AVFoundation
 /// The welcome tour on iPhone: what Verbatim does, the microphone, the ways to record, the keyboard, and transcription
 /// quality with iCloud status (the two middle steps: mockup "Verbose Tour Steps", October 30, 2026). Drawn
 /// on the refined kit (DESIGN.md §13): the step count, the large serif title, cards, and the kit's strong action. The
-/// last step offers Verbose Unlock's free trial once (`UnlockTourOffer`, DESIGN.md §21), so it scrolls when it runs long.
+/// last step offers Verbose Unlock's free trial once (`UnlockTourOffer`, DESIGN.md §21) with quiet actions, so the step's
+/// own button stays the one strong action (IP-17). Every step scrolls above a footer that stays put (the dashes and the
+/// buttons), so larger text never pushes an action off the screen, and the illustration shrinks at accessibility sizes
+/// (GPT-28).
 struct PhoneOnboarding: View {
     @Environment(PhoneState.self) var app
     @State private var step: Int
@@ -15,6 +18,7 @@ struct PhoneOnboarding: View {
     @State private var openedSettings = false
     @Environment(\.openURL) private var openURL
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     private let total = 5
 
     init(startStep: Int = 0) { _step = State(initialValue: startStep) }
@@ -23,19 +27,28 @@ struct PhoneOnboarding: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Step \(step + 1) of \(total)").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
                 .frame(maxWidth: .infinity).padding(.top, 16)
-            Group {
-                switch step {
-                case 0: welcome
-                case 1: microphone
-                case 2: ways
-                case 3: keyboard
-                default: ScrollView { quality }.scrollBounceBehavior(.basedOnSize)
+            // Each step scrolls when it runs long (GPT-28); a new step starts at its top, since the scroll view is
+            // the step's own.
+            ScrollView {
+                Group {
+                    switch step {
+                    case 0: welcome
+                    case 1: microphone
+                    case 2: ways
+                    case 3: keyboard
+                    default: quality
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 16)
             }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicatorsFlash(onAppear: true)
+            .modifier(OnboardingScrollEdge())
+            .frame(maxHeight: .infinity, alignment: .top)
             // Continue slides the next step in from the right, Back the step before from the left; Limit animation
             // crossfades (DESIGN.md §7, `slideSwitch`).
             .slideSwitch(on: step, order: step)
-            Spacer(minLength: 16)
             HStack(spacing: 6) {
                 ForEach(0..<total, id: \.self) { i in
                     Capsule().fill(i <= step ? Refined.accentText : Refined.track).frame(width: 22, height: 4)
@@ -65,8 +78,10 @@ struct PhoneOnboarding: View {
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
             title(Refined.tagline)
             para("Record a thought, an interview, or a call, or paste a link to a video or podcast. Verbose writes it down on this iPhone. Everything stays on this iPhone unless you turn on iCloud sync or Cloud cleanup.")
+            // Smaller at accessibility sizes, so the words keep the room (GPT-28).
+            let big = typeSize.isAccessibilitySize
             BrandGlyph(art: .diagramCapture, color: Refined.ink, minLineWidth: 1.2)
-                .frame(width: 170, height: 220).frame(maxWidth: .infinity).padding(.top, 50)
+                .frame(width: big ? 102 : 170, height: big ? 132 : 220).frame(maxWidth: .infinity).padding(.top, big ? 24 : 50)
                 .accessibilityHidden(true)
         }
     }
@@ -196,7 +211,8 @@ struct PhoneOnboarding: View {
             .clipShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
             .padding(.top, 22)
             sync.padding(.top, 16)
-            // Verbose Unlock's free trial, offered once with Not now (Tim's decision, October 31, 2026).
+            // Verbose Unlock's free trial, offered once with Not now (decided October 31, 2026). Its actions are
+            // quiet, so Start using Verbose stays the step's one strong action (IP-17).
             UnlockTourOffer().padding(.top, 16)
         }
     }
@@ -285,5 +301,13 @@ struct PhoneOnboarding: View {
     private func done() {
         Onboarding.finish()
         app.showOnboarding = false
+    }
+}
+
+/// The steps' scroll view on iOS 26 and later: a soft edge at the foot, so a step that runs long shows there's more
+/// above the dashes instead of cutting a card off (IP-17).
+private struct OnboardingScrollEdge: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) { content.scrollEdgeEffectStyle(.soft, for: .bottom) } else { content }
     }
 }

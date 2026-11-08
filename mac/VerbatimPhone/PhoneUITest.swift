@@ -129,6 +129,7 @@ enum PhoneUITest {
         KeyboardSessionChecks.run()   // Build E2: format chip, host map, App Store seams, session timeouts.
         ribbonChecks(app)             // The recording ribbon: routing, takes, timeouts, and the session's take API.
         libraryChecks()
+        polishChecks(app)             // The polish round's iPhone fixes: kind chips, glyphs, and radii.
         // What's new: the bundled notes, their rules, and when Home's note shows (ReleaseNotes.swift).
         ReleaseNotes.selfTest(app: .phone) { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)") }
         homeChecks()
@@ -2716,6 +2717,30 @@ enum PhoneUITest {
     }
 
     /// The Library's type and platform filters and Add from Library (shared with the Mac's self-test).
+    /// The polish round (November 7, 2026): the transcript's kind chip reads as the Library reads it (MAC-12), menus and
+    /// toolbars draw our glyphs (IP-15, IP-25), and icon squares at other sizes keep `IconSquare`'s corner (IP-24).
+    static func polishChecks(_ app: PhoneState) {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") polish: \(name)") }
+        // The seeded YouTube link has no kind of its own: its chip shows Video, as its Library row does, not Voice note.
+        if let link = app.store.transcripts.first(where: { $0.title == "Folding wagon walkthrough" }) {
+            check("a link with no kind of its own shows Video on its transcript's chip, as in the Library (MAC-12)",
+                  link.refinedKind == .video && RecordingKind.refinedName(link.refinedKind) == "Video"
+                  && (link.kind != nil || RecordingKind.refinedName(link.kind) == "Voice note"))
+        } else {
+            check("the seeded link is there for the kind chip check", false)
+        }
+        check("Mark and Moments use the exported custom symbols (IP-15)",
+              UIImage(named: "mark") != nil && UIImage(named: "marked") != nil)
+        check("the recorder's kind menu draws each way's glyph as a template image (IP-15)",
+              RecordChoice.all.allSatisfy { $0.art.templateImage(size: 20, key: "menu-rec-\($0.name)").renderingMode == .alwaysTemplate })
+        let filter = BrandArt.iconFilter.templateImage(size: 22, key: "toolbar-filter")
+        check("toolbar glyphs are template images the bar can tint (IP-25)", filter.renderingMode == .alwaysTemplate && filter.size.width == 22)
+        check("icon squares keep IconSquare's corner at other sizes (IP-24)",
+              RefinedPlatform.squareRadius(side: 30) == RefinedPlatform.radius(.square)
+              && abs(RefinedPlatform.squareRadius(side: 22) - 5.87) < 0.01 && abs(RefinedPlatform.squareRadius(side: 34) - 9.07) < 0.01)
+        check("Settings cards share the refined card radius (IP-24)", RefinedPlatform.radius(.card) == 14)
+    }
+
     static func libraryChecks() {
         var pass = 0, fail = 0
         LibraryFilterChecks.run { name, ok in

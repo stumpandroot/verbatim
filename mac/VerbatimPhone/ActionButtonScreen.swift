@@ -39,7 +39,7 @@ struct ActionButtonScreen: View {
                         ActionChoiceRow(choice: c, selected: c == choice) { choiceRaw = c.rawValue }
                     }
                 }
-                .cardSurface(radius: Radius.row)
+                .cardSurface(radius: RefinedPlatform.radius(.card))
                 .padding(.top, 2)
 
                 ActionButtonSetupCard { app.openAppSettings() }
@@ -58,7 +58,7 @@ struct ActionButtonScreen: View {
                     Rectangle().fill(Refined.separator).frame(height: 1).padding(.leading, 14)
                     IdleTimeoutRow(session: app.session)
                 }
-                .cardSurface(radius: Radius.row)
+                .cardSurface(radius: RefinedPlatform.radius(.card))
                 .padding(.top, 6)
 
                 Text("While a session is on, the orange microphone dot shows at the top of the screen. Audio is saved only while you dictate.")
@@ -119,7 +119,7 @@ struct ActionButtonSetupCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: Radius.row)
+        .cardSurface(radius: RefinedPlatform.radius(.card))
     }
 }
 

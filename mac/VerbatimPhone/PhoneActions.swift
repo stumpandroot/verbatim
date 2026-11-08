@@ -108,10 +108,10 @@ struct PhoneActionSheet: View {
             .background(Refined.paper.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { stop(); dismiss() } }
                 if phase == .done {
-                    ToolbarItem(placement: .primaryAction) { Button("Redo") { start() } }
+                    ToolbarItem(placement: .topBarTrailing) { Button("Redo") { start() } }
                 }
+                CloseToolbarItem { stop(); dismiss() }
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { editing = false } }
             }
         }

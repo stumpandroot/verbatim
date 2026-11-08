@@ -117,7 +117,7 @@ struct WordsDayScreen: View {
                     if i > 0 { PaperDivider(leading: 60) }
                     Button { app.open(r.recording.id) } label: {
                         HStack(spacing: 12) {
-                            RoundedRectangle(cornerRadius: 9, style: .continuous).fill(r.recording.tone.fill)
+                            RoundedRectangle(cornerRadius: RefinedPlatform.squareRadius(side: 34), style: .continuous).fill(r.recording.tone.fill)
                                 .frame(width: 34, height: 34)
                                 .overlay(IconGlyph(art: Self.art(r.recording.kind), size: 18, color: Refined.onFill))
                                 .accessibilityHidden(true)

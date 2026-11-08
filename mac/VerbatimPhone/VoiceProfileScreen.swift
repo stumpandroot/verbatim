@@ -131,7 +131,7 @@ struct VoiceProfileScreen: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: Radius.tile)
+        .cardSurface(radius: RefinedPlatform.radius(.card))
     }
 
     /// The switches that use the profile and Delete voice profile, confirmed in place.
@@ -164,7 +164,7 @@ struct VoiceProfileScreen: View {
                 }
             }
         }
-        .cardSurface(radius: Radius.tile)
+        .cardSurface(radius: RefinedPlatform.radius(.card))
     }
 
     // MARK: Bottom

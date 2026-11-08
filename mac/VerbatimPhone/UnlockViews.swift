@@ -389,14 +389,16 @@ struct UnlockTourOffer: View {
                     } label: {
                         ZStack {
                             Text(UnlockCopy.tourStart).opacity(unlock.busy == .trial ? 0 : 1)
-                            if unlock.busy == .trial { ProgressView().tint(Refined.paper) }
+                            if unlock.busy == .trial { ProgressView().tint(Refined.ink) }
                         }
                     }
-                    .buttonStyle(RefinedActionStyle(kind: .strong))
+                    // Quiet: the tour step's own button is its one strong action (IP-17; DESIGN.md §1 rule 3).
+                    .buttonStyle(RefinedActionStyle())
                     .disabled(unlock.busy != nil)
                     .accessibilityIdentifier("onboarding.trial")
                     Button(UnlockCopy.notNow) { offered = true }
-                        .buttonStyle(RefinedActionStyle())
+                        .refinedFont(.hint, weight: .medium).foregroundStyle(Refined.dim)
+                        .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
                         .accessibilityIdentifier("onboarding.trial.notNow")
                 }
                 .padding(.leading, 44)

@@ -449,10 +449,10 @@ struct PhoneTemplateTryOnSheet: View {
             .navigationTitle(template.name.isEmpty ? "Try on" : template.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { preview.stop(); dismiss() } }
                 if preview.phase == .done {
-                    ToolbarItem(placement: .primaryAction) { Button("Copy") { UIPasteboard.general.string = preview.text; app.say("Copied"); Haptics.play(.copied) } }
+                    ToolbarItem(placement: .topBarTrailing) { Button("Copy") { UIPasteboard.general.string = preview.text; app.say("Copied"); Haptics.play(.copied) } }
                 }
+                CloseToolbarItem { preview.stop(); dismiss() }
             }
         }
         .onAppear { if let t { preview.start(template, on: t) } }

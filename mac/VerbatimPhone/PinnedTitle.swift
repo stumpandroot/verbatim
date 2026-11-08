@@ -23,6 +23,23 @@ extension View {
     }
 }
 
+/// A navigation bar button's glyph from our set (IP-25): a template image, so the bar tints it for its state, Dark
+/// mode, and Liquid Glass the way it tints an SF Symbol. In-app toolbars aren't system surfaces (DESIGN.md §3).
+struct ToolbarArt: View {
+    var art: BrandArt
+    /// Names the rendered image in `BrandArt`'s cache.
+    var key: String
+    var body: some View {
+        Image(uiImage: art.templateImage(size: 22, key: "toolbar-\(key)"))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Filter: three lines, each shorter than the one above, centered, on the icon grid (the Library's Filter menu).
+extension BrandArt {
+    static let iconFilter = BrandArt(box: iconGrid, strokes: [.path("M4 7H20"), .path("M7 12H17"), .path("M10 17H14")], strokeWidth: 1.5)
+}
+
 /// A round button's face in a title row (Home's Settings button): the glyph on a card-colored circle, in a full tap
 /// target. Use it as a Button's or a Menu's label.
 struct TitleCircle<Glyph: View>: View {

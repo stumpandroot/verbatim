@@ -168,7 +168,8 @@ struct PhoneAudioDetail: View {
                     .accessibilityLabel("Title")
                     .accessibilityAddTraits(.isHeader)
                 FlowRow(spacing: 8, lineSpacing: 2) {
-                    KindPickerChip(kind: t.kind ?? .audio, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
+                    // Shows what the Library shows; a pick writes `kind` (MAC-12).
+                    KindPickerChip(kind: t.kind ?? .audio, shown: t.refinedKind ?? .audio, isAuto: t.kindIsAuto) { k in app.pickKind(k, for: t.id) }
                     Text(RefinedRules.transcriptWhen(t.createdAt) + " \u{00B7} " + AudioOnlyRules.statusLine(t))
                         .refinedFont(.meta).foregroundStyle(Refined.mute)
                         .frame(minHeight: CGFloat(RefinedRules.minTapTarget))

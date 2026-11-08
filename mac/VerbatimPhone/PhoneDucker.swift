@@ -13,7 +13,7 @@ struct PhoneLowerAudioRow: View {
     var body: some View {
         SettingsToggleRow(title: "Lower other audio while Verbose listens",
                           subtitle: "Other sound drops to a whisper so it doesn't reach the microphone.", isOn: $on)
-            .cardSurface(radius: Radius.row)
+            .cardSurface(radius: RefinedPlatform.radius(.card))
     }
 }
 

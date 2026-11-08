@@ -95,13 +95,13 @@ struct DayPageScreen: View {
             ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink(value: ByDayRoute(kind: kind)) {
-                    Image(systemName: "calendar")   // brand: system surface (toolbar)
+                    ToolbarArt(art: .iconCalendar, key: "calendar")
                 }
                 .accessibilityLabel("By day")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { copyPage(items) } label: {
-                    Image(systemName: "doc.on.doc")   // brand: system surface (toolbar)
+                    ToolbarArt(art: .iconCopy, key: "copy")
                 }
                 .disabled(ThoughtText.joined(items).isEmpty)
                 .accessibilityLabel("Copy the day")
@@ -557,32 +557,6 @@ private struct PhoneMonthCalendar: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(DayPages.dateTitle(d))\(isToday ? ", today" : "")")
                 .accessibilityHidden(!inMonth)
-        }
-    }
-}
-
-// MARK: - Pieces
-
-/// Serif text with an italic last part ("Plan · *Mon, Oct 26*"), in the refined serif, scaled with Dynamic Type.
-struct SerifTitle: View {
-    var plain: String
-    var italic: String?
-    var size: CGFloat
-    @ScaledMetric private var scale: CGFloat = 1
-
-    init(_ plain: String, italic: String? = nil, size: CGFloat) {
-        self.plain = plain
-        self.italic = italic
-        self.size = size
-    }
-
-    var body: some View {
-        let font = Font.system(size: size * scale, design: .serif)
-        if let italic, !italic.isEmpty {
-            let lead = plain.isEmpty ? "" : plain + " "
-            (Text(lead) + Text(italic).italic()).font(font)
-        } else {
-            Text(plain).font(font)
         }
     }
 }
