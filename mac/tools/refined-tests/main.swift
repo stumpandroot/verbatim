@@ -587,5 +587,45 @@ check("sentence case: Restore purchases and Save as recipe (IP-27)",
 check("the Library scrolls the chosen chip into view (IP-21)", kit.contains("withTransaction(t) { proxy.scrollTo(selected, anchor: .center) }"))
 check("kind tabs use the kit's empty state, not \"Choose All\" (IP-31)", read("\(mac)/VerbatimPhone/LibraryScreen.swift").contains("private func kindEmptyState("))
 
+// Polish round (November 7, 2026), iPhone.
+let phoneTranscript = read("\(mac)/VerbatimPhone/TranscriptScreen.swift")
+let phoneAudio = read("\(mac)/VerbatimPhone/AudioDetailScreen.swift")
+check("the iPhone's kind chips show refinedKind and write kind (MAC-12)",
+      phoneTranscript.contains("KindPickerChip(kind: t.kind, shown: t.refinedKind,")
+      && phoneAudio.contains("KindPickerChip(kind: t.kind ?? .audio, shown: t.refinedKind ?? .audio,"))
+check("Mark, Moments, Bookmark, and Mark this moment use the exported symbols (IP-15)",
+      phoneTranscript.contains("Label(\"Mark\", image: \"mark\")") && phoneTranscript.contains("Label(\"Moments\", image: \"marked\")")
+      && phoneTranscript.contains("Label(\"Bookmark\", image: \"marked\")") && phoneTranscript.contains("Label(\"Mark this moment\", image: \"mark\")")
+      && !phoneTranscript.contains("systemImage: \"bookmark\""))
+check("the recorder's kind menu draws Record as's glyphs (IP-15)",
+      read("\(mac)/VerbatimPhone/RecorderSheet.swift").contains("Label(c.name, menuArt: c.art,"))
+let phoneSources = (try? FileManager.default.contentsOfDirectory(atPath: "\(mac)/VerbatimPhone"))?.filter { $0.hasSuffix(".swift") }
+    .map { read("\(mac)/VerbatimPhone/\($0)") } ?? []
+check("no in-app toolbar claims the system-surface exemption (IP-25)",
+      !phoneSources.isEmpty && phoneSources.allSatisfy { !$0.contains("brand: system surface (toolbar)") })
+check("Thoughts and the Library's toolbars draw our glyphs (IP-25)",
+      read("\(mac)/VerbatimPhone/ThoughtsScreens.swift").contains("ToolbarArt(art: .iconCalendar")
+      && read("\(mac)/VerbatimPhone/LibraryScreen.swift").contains("ToolbarArt(art: .iconFilter"))
+check("Ask's menu: Copy and Recipes take our glyphs, and Recent questions is sentence case (IP-25, IP-27)",
+      read("\(mac)/VerbatimPhone/AskScreens.swift").contains("Label(\"Recipes\", menuArt: .iconAsk")
+      && !read("\(mac)/VerbatimPhone/AskScreens.swift").contains("Recent Questions"))
+check("no older radii on iPhone: Radius.row and Radius.tile are gone (IP-24)",
+      phoneSources.allSatisfy { !$0.contains("Radius.row") && !$0.contains("Radius.tile") })
+check("no serif title italicizes its last word on iPhone (IP-26)", phoneSources.allSatisfy { !$0.replacingOccurrences(of: "LargeSerifTitle", with: "").contains("SerifTitle") && !$0.contains(".italic()") })
+check("template checklists draw the kit's check (IP-30)",
+      read("\(views)/TemplateViews.swift").contains("RefinedCheckbox(on: done, size: 16)")
+      && !read("\(views)/TemplateViews.swift").contains("RoundedRectangle(cornerRadius: 2"))
+let closers = ["PhoneWhatsPlaying.swift", "PhoneActions.swift", "TemplatesScreens.swift", "TranscriptSheets.swift", "TranscriptScreen.swift"]
+check("read-only sheets close one way, the trailing close button (IP-28)",
+      closers.allSatisfy { read("\(mac)/VerbatimPhone/\($0)").contains("CloseToolbarItem {") }
+      && phoneSources.allSatisfy { !$0.contains("Button(\"Close\")") })
+let onboarding = read("\(mac)/VerbatimPhone/PhoneOnboarding.swift")
+check("every onboarding step scrolls above a footer that stays put (GPT-28)",
+      onboarding.contains("ScrollView {\n                Group {\n                    switch step {") && onboarding.contains("default: quality\n"))
+let offer = read("\(mac)/VerbatimPhone/UnlockViews.swift")
+let offerBody = offer.components(separatedBy: "struct UnlockTourOffer").last ?? ""
+check("the tour's trial offer has no strong action, so Start using Verbose is the step's one (IP-17)",
+      offer.contains("struct UnlockTourOffer") && !offerBody.contains("kind: .strong"))
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
