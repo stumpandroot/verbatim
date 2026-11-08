@@ -216,6 +216,12 @@ check("keys: ⌃⌥P changes the thought bubble at once; the return to idle stil
       && read("Verbatim/Flow/Thoughts.swift").contains("self?.keyDriven = false; self?.phase = .idle"))
 check("onboarding: the step's dashes and labels fade under Limit animation (iPhone)",
       read("VerbatimPhone/PhoneOnboarding.swift").contains(".animation(limitMotion ? Motion.fade : Motion.settle, value: step)"))
+let macOnboarding = read("Verbatim/Views/OnboardingView.swift")
+check("onboarding: Return switches the Mac's step at once, footer included; a click keeps the slide (MAC-37)",
+      macOnboarding.contains("NavEntrance.of(launch: false, keyboard: AppState.handlingKeyPress, limited: reduceMotion) == .still")
+      && macOnboarding.contains("app.fromKeyboard(fromKeyboard)") && macOnboarding.contains("withTransaction(t) { step = next }")
+      && macOnboarding.contains(".transaction(value: step) { t in\n            if stepFromKeyboard { t.animation = nil; t.disablesAnimations = true }")
+      && !macOnboarding.contains("step += 1") && !macOnboarding.contains("step -= 1"))
 
 // The springs Tim kept (November 7, 2026).
 check("kept: page and glide springs unchanged",

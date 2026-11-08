@@ -1799,6 +1799,9 @@ enum UITest {
         check("settings ids are unique", Set(SettingsIndex.all.map(\.id)).count == SettingsIndex.all.count)
         // The welcome tour's steps (OnboardingView.swift), and no Look setting (one look since step 7, DESIGN.md §13).
         check("onboarding: the tour has six steps, permissions after the welcome, the ways in after Try it", OnboardingStep.count == 6 && OnboardingStep.at(1) == .permissions && OnboardingStep.at(3) == .ways)
+        check("onboarding: Return on Continue switches the step at once; a click slides it (MAC-37)",
+              NavEntrance.of(launch: false, keyboard: true, limited: false) == .still && NavEntrance.of(launch: false, keyboard: false, limited: false) == .slide
+              && NavEntrance.of(launch: false, keyboard: true, limited: true) == .still)
         // The side column never repeats the sidebar (MAC-34, November 8, 2026): Home's holds This week, Today's thoughts,
         // and Journal, and without them Home takes the full width; the Library's holds only Selected, so an open
         // inspector gives the table the full width.

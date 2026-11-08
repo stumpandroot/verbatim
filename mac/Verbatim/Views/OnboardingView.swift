@@ -10,6 +10,9 @@ struct OnboardingView: View {
     @EnvironmentObject private var dictation: DictationController
     @ObservedObject private var flow = FlowSettings.shared
     @State private var step: Int
+    /// The last step change came from the keyboard (Return on the default action): it shows at once, with no slide and
+    /// no footer motion (MAC-37).
+    @State private var stepFromKeyboard = false
     @State private var micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
     @State private var trusted = false
     @State private var practice = ""
@@ -42,8 +45,8 @@ struct OnboardingView: View {
                     case .quality: quality
                     }
                 }
-                // Continue slides the next step in from the right, Back the step before from the left; Limit animation
-                // crossfades (DESIGN.md §7, `slideSwitch`).
+                // A click on Continue slides the next step in from the right, Back the step before from the left; Limit
+                // animation crossfades (DESIGN.md §7, `slideSwitch`). Return switches at once (`move(to:)`).
                 .slideSwitch(on: step, order: step)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.bottom, 14)
@@ -59,6 +62,10 @@ struct OnboardingView: View {
         .frame(width: 640, height: 460)
         .background(Refined.paper)
         .animation(reduceMotion ? Motion.fade : Motion.settle, value: step)
+        // A step changed from the keyboard animates nothing: not the step's slide, not the footer (MAC-37).
+        .transaction(value: step) { t in
+            if stepFromKeyboard { t.animation = nil; t.disablesAnimations = true }
+        }
         .tint(Refined.accentText)
         .onAppear { refresh(); edge = currentEdge }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in refresh() }
@@ -232,12 +239,12 @@ struct OnboardingView: View {
             if current == .welcome {
                 Button("Skip the tour") { done() }.buttonStyle(.plain).refinedFont(.hint).foregroundStyle(Refined.dim)
             } else {
-                Button("Back") { step -= 1 }.controlSize(.large)
+                Button("Back") { move(to: step - 1) }.controlSize(.large)
                 if current == .permissions && !(trusted && micStatus == .authorized) {
-                    Button("Do this later") { step += 1 }.buttonStyle(.plain).refinedFont(.hint).foregroundStyle(Refined.mute).padding(.leading, 14)
+                    Button("Do this later") { move(to: step + 1) }.buttonStyle(.plain).refinedFont(.hint).foregroundStyle(Refined.mute).padding(.leading, 14)
                 }
                 if current == .tryIt && practice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Button("Skip this step") { step += 1 }.buttonStyle(.plain).refinedFont(.hint).foregroundStyle(Refined.mute).padding(.leading, 14)
+                    Button("Skip this step") { move(to: step + 1) }.buttonStyle(.plain).refinedFont(.hint).foregroundStyle(Refined.mute).padding(.leading, 14)
                 }
             }
             Spacer()
@@ -249,8 +256,20 @@ struct OnboardingView: View {
 
     /// Continue: the system's prominent button in the accent.
     private var primaryButton: some View {
-        Button(primaryTitle) { if step == total - 1 { done() } else { step += 1 } }
+        Button(primaryTitle) { if step == total - 1 { done() } else { move(to: step + 1) } }
             .buttonStyle(.borderedProminent).controlSize(.large)
+    }
+
+    /// Goes to step `next`. From the keyboard (Return on Continue, the default action) the step switches at once, as a
+    /// navigation from a key does (`NavEntrance`, `AppState.fromKeyboard`, DESIGN.md §7; MAC-37); a click keeps the slide.
+    private func move(to next: Int) {
+        let fromKeyboard = NavEntrance.of(launch: false, keyboard: AppState.handlingKeyPress, limited: reduceMotion) == .still
+        stepFromKeyboard = fromKeyboard
+        app.fromKeyboard(fromKeyboard) {
+            guard fromKeyboard else { step = next; return }
+            var t = Transaction(); t.disablesAnimations = true
+            withTransaction(t) { step = next }
+        }
     }
 
     private var primaryTitle: String {
