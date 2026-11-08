@@ -451,3 +451,96 @@ enum WidgetLinkKey {
     }
 }
 #endif
+
+// MARK: - The running recording (iPhone, SF-16, SF-18)
+
+/// The recording that's running, mirrored into the App Group by the app (VerbatimPhone/RecordingPresence.swift) for
+/// the Record and dictate widget and the Record voice note and New thought switches in Control Center. Only times, a
+/// kind's name, and whether it's a thought: never words or audio.
+///
+/// The app writes it when a recording starts, pauses, resumes, changes kind, or stops, and refreshes its heartbeat
+/// every `heartbeatEvery` while one runs. A mirror whose heartbeat is older than `staleAfter` (iOS ended Verbose) reads
+/// as nothing recording, so a widget never shows a recording that isn't there for long: while one runs, the widget
+/// looks again every `recheckEvery`. Launch, and Stop with nothing recording, clear it.
+struct RecordingMirror: Codable, Equatable {
+    /// When the timer reads 0:00: the write's time minus the seconds recorded, so `Text(timerInterval:)` counts on its own.
+    var since: Date
+    /// While paused, where the timer holds; nil while it runs.
+    var pausedAt: Date?
+    /// A thought (the New thought switch) rather than another recording (the Record switch and widget).
+    var thought: Bool
+    /// What it's filed as: "Voice note", "Meeting", "Thought".
+    var label: String
+    /// The app's last write.
+    var heartbeat: Date
+
+    static let key = "widget.recording"
+    /// What reads it: the Record and dictate widget and the Record voice note switch (New thought's is
+    /// `ThoughtRules.controlKind`). The app reloads them when what they show changes.
+    static let recordWidgetKind = "co.stumpandroot.verbatim.widget.record"
+    static let recordControlKind = "co.stumpandroot.verbatim.ios.control.record"
+    /// The app refreshes the heartbeat this often while a recording runs.
+    static let heartbeatEvery: TimeInterval = 60
+    /// A heartbeat older than this means the app stopped writing: nothing reads as recording.
+    static let staleAfter: TimeInterval = 180
+    /// While a recording runs, the Record widget looks again this often (and whenever the app reloads it).
+    static let recheckEvery: TimeInterval = 15 * 60
+
+    /// A recording `elapsed` seconds in at `now`.
+    static func make(elapsed: Double, paused: Bool, thought: Bool, label: String, now: Date = Date()) -> RecordingMirror {
+        let e = elapsed.isFinite ? max(0, elapsed) : 0
+        return RecordingMirror(since: now.addingTimeInterval(-e), pausedAt: paused ? now : nil, thought: thought,
+                               label: label, heartbeat: now)
+    }
+
+    /// The app is still writing: its heartbeat is recent (and not from the future, beyond a minute's clock slack).
+    func live(at now: Date) -> Bool {
+        let age = now.timeIntervalSince(heartbeat)
+        return age < Self.staleAfter && age > -60
+    }
+
+    /// The same recording as `other`, ignoring the heartbeat and where the timer's start lands (it moves a little with
+    /// each write): the widgets need reloading only when this changes.
+    func sameShown(as other: RecordingMirror?) -> Bool {
+        guard let other else { return false }
+        return thought == other.thought && label == other.label && (pausedAt == nil) == (other.pausedAt == nil)
+            && abs(since.timeIntervalSince(other.since)) < 2
+    }
+
+    /// A recording other than a thought is running (the Record switch is on, and the Record widget shows it).
+    static func recordingOn(_ m: RecordingMirror?, now: Date = Date()) -> Bool { m.map { $0.live(at: now) && !$0.thought } ?? false }
+    /// A thought is recording (the New thought switch is on).
+    static func thoughtOn(_ m: RecordingMirror?, now: Date = Date()) -> Bool { m.map { $0.live(at: now) && $0.thought } ?? false }
+
+    /// A switch acts only when what you asked for differs from what's running: on with a recording already running,
+    /// or off with nothing to stop, does nothing (the switch was out of date).
+    static func switchActs(on: Bool, running: Bool) -> Bool { on != running }
+
+    func encoded() -> Data? {
+        let e = JSONEncoder(); e.dateEncodingStrategy = .secondsSince1970
+        return try? e.encode(self)
+    }
+    static func decode(_ data: Data) -> RecordingMirror? {
+        let d = JSONDecoder(); d.dateDecodingStrategy = .secondsSince1970
+        return try? d.decode(RecordingMirror.self, from: data)
+    }
+
+    /// The App Group's defaults on iPhone; nil on the Mac, where nothing mirrors a recording.
+    static var defaults: UserDefaults? {
+        #if os(iOS)
+        return WidgetSnapshotStore.groupID.flatMap { UserDefaults(suiteName: $0) }
+        #else
+        return nil
+        #endif
+    }
+
+    static func read(_ d: UserDefaults? = RecordingMirror.defaults) -> RecordingMirror? {
+        d?.data(forKey: key).flatMap(decode)
+    }
+
+    /// Writes the mirror, or removes it for nil.
+    static func write(_ m: RecordingMirror?, to d: UserDefaults? = RecordingMirror.defaults) {
+        guard let d else { return }
+        if let data = m?.encoded() { d.set(data, forKey: key) } else { d.removeObject(forKey: key) }
+    }
+}

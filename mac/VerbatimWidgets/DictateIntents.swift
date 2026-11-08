@@ -98,6 +98,12 @@ extension ActionButtonIntent: ForegroundContinuableIntent {
 extension ActionButtonIntent: AudioRecordingIntent {}
 
 @available(iOS 18.0, *)
+extension SetTakeIntent: ForegroundContinuableIntent {
+    @available(iOS 26.0, *)
+    static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+}
+
+@available(iOS 18.0, *)
 extension SetSessionIntent: ForegroundContinuableIntent {
     @available(iOS 26.0, *)
     static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
@@ -153,6 +159,38 @@ struct DictateIntent: LiveActivityIntent {
 
     func perform() async throws -> some IntentResult {
         let outcome = await MainActor.run { RibbonSignal.send(.toggle) }
+        #if !VERBATIM_WIDGETS
+        if outcome == .needsForeground {
+            try await continueInVerbose { SessionStartSignal.fire(.shortcut, take: true) }
+        }
+        #endif
+        _ = outcome
+        return .result()
+    }
+}
+
+/// Control Center's Dictate, as a switch (iOS 18, SF-16): on while a take listens (`KeyboardBridge.takeListening`),
+/// which is its own job beside the session switch (the microphone on or off). Turned on, it starts a take, as Dictate
+/// does (with no session, Verbose opens for a moment to start one and listen); turned off, it stops the take and
+/// delivers the words, as Done does. A switch that was out of date does nothing.
+@available(iOS 18.0, *)
+struct SetTakeIntent: SetValueIntent, LiveActivityIntent {
+    static var title: LocalizedStringResource = "Dictate"
+    static var description = IntentDescription("Starts a Verbose dictation, or stops it and delivers your words.")
+    static var isDiscoverable: Bool = false
+    static var openAppWhenRun: Bool = false
+    /// As for Dictate: unlock first on a locked iPhone. Done in the Live Activity stays open, so a take can always stop.
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+    @Parameter(title: "Listening")
+    var value: Bool
+
+    init() {}
+
+    func perform() async throws -> some IntentResult {
+        let on = value
+        let listening = await MainActor.run { KeyboardBridge.takeListening }
+        guard RecordingMirror.switchActs(on: on, running: listening) else { return .result() }
+        let outcome = await MainActor.run { RibbonSignal.send(on ? .toggle : .finish) }
         #if !VERBATIM_WIDGETS
         if outcome == .needsForeground {
             try await continueInVerbose { SessionStartSignal.fire(.shortcut, take: true) }

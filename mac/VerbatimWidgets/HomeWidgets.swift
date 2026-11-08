@@ -38,6 +38,11 @@ import AppKit
 struct HomeEntry: TimelineEntry {
     var date: Date
     var snapshot: WidgetSnapshot?
+    /// The recording that's running, for Record (iPhone, SF-18); nil on the Mac and while nothing records.
+    var recording: RecordingMirror? = nil
+
+    /// A recording other than a thought runs: Record shows it with its time and Stop.
+    var recordingOn: Bool { RecordingMirror.recordingOn(recording, now: date) }
 }
 
 enum HomeData {
@@ -83,6 +88,26 @@ enum HomeData {
     }
 }
 
+/// Record and dictate's: Home's data plus the running recording (iPhone, SF-18). While one runs, it looks again every
+/// `RecordingMirror.recheckEvery` (the app reloads it on start, pause, and stop), so a recording iOS ended goes back to
+/// Record.
+struct RecordProvider: TimelineProvider {
+    func placeholder(in context: Context) -> HomeEntry {
+        HomeEntry(date: Date(), snapshot: HomeData.sample())
+    }
+    func getSnapshot(in context: Context, completion: @escaping (HomeEntry) -> Void) {
+        var e = HomeData.entry(preview: context.isPreview)
+        if !context.isPreview { e.recording = RecordingMirror.read() }
+        completion(e)
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<HomeEntry>) -> Void) {
+        var e = HomeData.entry()
+        e.recording = RecordingMirror.read()
+        guard e.recordingOn else { completion(HomeData.timeline()); return }
+        completion(Timeline(entries: [e], policy: .after(e.date.addingTimeInterval(RecordingMirror.recheckEvery))))
+    }
+}
+
 struct HomeProvider: TimelineProvider {
     func placeholder(in context: Context) -> HomeEntry {
         HomeEntry(date: Date(), snapshot: HomeData.sample())
@@ -119,15 +144,15 @@ struct WeekProvider: AppIntentTimelineProvider {
 // MARK: - Widgets
 
 struct RecordDictateWidget: Widget {
-    static let kind = "co.stumpandroot.verbatim.widget.record"
+    static let kind = RecordingMirror.recordWidgetKind
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: Self.kind, provider: HomeProvider()) { entry in
+        StaticConfiguration(kind: Self.kind, provider: RecordProvider()) { entry in
             RecordDictateView(entry: entry)
         }
         .configurationDisplayName("Record and dictate")
         #if os(iOS)
-        .description("Start a voice note or a dictation session with one tap.")
+        .description("Start a voice note or a session with one tap. While a voice note records, Record shows its time and Stop.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular])
         #else
         .description("Start a voice note or a dictation on this Mac with one click.")
@@ -192,6 +217,17 @@ private struct RecordTap<Label: View>: View {
         #endif
     }
 }
+
+#if os(iOS)
+/// Stop, while a recording runs (SF-18): stops it and saves it, as the Live Activity's Stop does (`StopRecordingIntent`,
+/// in Verbose's process, without opening it).
+private struct StopTap<Label: View>: View {
+    @ViewBuilder var label: () -> Label
+    var body: some View {
+        Button(intent: StopRecordingIntent()) { label() }.buttonStyle(.plain)
+    }
+}
+#endif
 
 /// Dictate: starts a keyboard session on iPhone; starts a dictation on the Mac.
 private struct DictateTap<Label: View>: View {
@@ -356,21 +392,35 @@ private struct RecordDictateView: View {
         }
     }
 
-    // Small: the Record button alone (and StandBy).
-    private func small(_ skin: Skin) -> some View {
-        RecordTap { RecordPanel(skin: skin) }
-            .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
-            .containerBackground(for: .widget) { Refined.persimmon }
-            .accessibilityLabel("Record a voice note")
+    // Small: the Record button alone (and StandBy). While a recording runs (iPhone, SF-18): "Recording", its time, and
+    // Stop, and a tap stops and saves it.
+    @ViewBuilder private func small(_ skin: Skin) -> some View {
+        Group {
+            #if os(iOS)
+            if let r = entry.recording, entry.recordingOn {
+                StopTap { RecordingPanel(recording: r, skin: skin) }
+                    .accessibilityLabel("Stop recording")
+                    .accessibilityValue(r.label)
+            } else {
+                RecordTap { RecordPanel(skin: skin) }.accessibilityLabel("Record a voice note")
+            }
+            #else
+            RecordTap { RecordPanel(skin: skin) }.accessibilityLabel("Record a voice note")
+            #endif
+        }
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
+        .containerBackground(for: .widget) { Refined.persimmon }
     }
 
-    // Medium: Record and Dictate side by side.
+    // Medium: Record and Dictate side by side. While a recording runs (iPhone), the Record tile shows it with Stop.
     private func medium(_ skin: Skin) -> some View {
         HStack(spacing: 10) {
-            RecordTap { tile(skin, record: true) }.accessibilityLabel("Record a voice note")
+            recordTile(skin)
             DictateTap { tile(skin, record: false) }
                 #if os(iOS)
-                .accessibilityLabel("Start a dictation session")
+                // Its word is the label, so Voice Control's "Tap Dictate" finds it (SF-16).
+                .accessibilityLabel("Dictate")
+                .accessibilityHint("Starts a session, so you can dictate in any app")
                 #else
                 .accessibilityLabel("Start dictating")
                 #endif
@@ -378,6 +428,44 @@ private struct RecordDictateView: View {
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
         .containerBackground(for: .widget) { Refined.paper }
     }
+
+    @ViewBuilder private func recordTile(_ skin: Skin) -> some View {
+        #if os(iOS)
+        if let r = entry.recording, entry.recordingOn {
+            StopTap { recordingTile(r, skin) }
+                .accessibilityLabel("Stop recording")
+                .accessibilityValue(r.label)
+        } else {
+            RecordTap { tile(skin, record: true) }.accessibilityLabel("Record a voice note")
+        }
+        #else
+        RecordTap { tile(skin, record: true) }.accessibilityLabel("Record a voice note")
+        #endif
+    }
+
+    #if os(iOS)
+    /// The Record tile while a recording runs: what it's filed as, "Recording" with its time, and Stop.
+    private func recordingTile(_ r: RecordingMirror, _ skin: Skin) -> some View {
+        let shape = RoundedRectangle(cornerRadius: SurfaceRadius.widgetTile, style: .continuous)
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(r.label).scaledFont(14, weight: .semibold).foregroundStyle(skin.onPanel).lineLimit(1)
+            Spacer(minLength: 4)
+            Text(r.pausedAt == nil ? "Recording" : "Paused").scaledFont(23, design: .serif).foregroundStyle(skin.onPanel)
+                .lineLimit(1).minimumScaleFactor(0.8)
+            HStack(alignment: .center, spacing: 6) {
+                RecordingClock(recording: r).scaledFont(15, weight: .semibold).foregroundStyle(skin.onPanel)
+                Spacer(minLength: 0)
+                HStack(spacing: 5) {
+                    StopMark(skin: skin, size: 11)
+                    Text("Stop").scaledFont(14, weight: .semibold).foregroundStyle(skin.onPanel).lineLimit(1)
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(skin.full ? Refined.persimmon : Color.primary.opacity(0.1), in: shape)
+    }
+    #endif
 
     private func tile(_ skin: Skin, record: Bool) -> some View {
         let shape = RoundedRectangle(cornerRadius: SurfaceRadius.widgetTile, style: .continuous)
@@ -435,7 +523,8 @@ private struct RecordDictateView: View {
             // which starts the microphone too (SF-26).
             HStack(spacing: 6) {
                 RecordTap { lockPill("Record", record: true) }.accessibilityLabel("Record a voice note")
-                DictateTap { lockPill("Dictate", record: false) }.accessibilityLabel("Start a dictation session")
+                DictateTap { lockPill("Dictate", record: false) }.accessibilityLabel("Dictate")
+                    .accessibilityHint("Starts a session, so you can dictate in any app")
             }
             .frame(maxHeight: .infinity)
         }
@@ -485,6 +574,53 @@ private struct RecordPanel: View {
         }
     }
 }
+
+#if os(iOS)
+/// The small Record widget while a recording runs (SF-18), on the same persimmon: what it's filed as ("Voice note"),
+/// "Recording" (or "Paused") in the serif, the time counting on its own, and Stop: the fill's ink square with its word,
+/// since the widget itself is Stop's persimmon. SF Pro semibold 14 or larger in the fill's ink (DESIGN.md §1.5).
+private struct RecordingPanel: View {
+    var recording: RecordingMirror
+    var skin: Skin
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(recording.label).scaledFont(14, weight: .semibold).foregroundStyle(skin.onPanel).lineLimit(1)
+            Spacer(minLength: 0)
+            Text(recording.pausedAt == nil ? "Recording" : "Paused").scaledFont(26, design: .serif).foregroundStyle(skin.onPanel)
+                .lineLimit(1).minimumScaleFactor(0.8)
+            RecordingClock(recording: recording).scaledFont(15, weight: .semibold).foregroundStyle(skin.onPanel)
+            HStack(spacing: 6) {
+                StopMark(skin: skin, size: 12)
+                Text("Stop").scaledFont(14, weight: .semibold).foregroundStyle(skin.onPanel).lineLimit(1)
+            }
+            .padding(.top, 6)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+/// The recording's time, counting on its own (held while paused), in tabular digits.
+private struct RecordingClock: View {
+    var recording: RecordingMirror
+    var body: some View {
+        Text(timerInterval: recording.since...recording.since.addingTimeInterval(60 * 60 * 24), pauseTime: recording.pausedAt,
+             countsDown: false, showsHours: true)
+            .monospacedDigit().lineLimit(1)
+    }
+}
+
+/// Stop's square in the fill's ink (the system's primary in one-color modes, accentable).
+private struct StopMark: View {
+    var skin: Skin
+    var size: CGFloat
+    var body: some View {
+        RoundedRectangle(cornerRadius: SurfaceRadius.stopSquare, style: .continuous).fill(skin.onPanel)
+            .frame(width: size, height: size)
+            .widgetAccentable()
+            .accessibilityHidden(true)
+    }
+}
+#endif
 
 // MARK: - Recent recordings
 

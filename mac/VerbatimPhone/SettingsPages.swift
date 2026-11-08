@@ -220,7 +220,7 @@ struct WelcomeTourScreen: View {
 /// and how to add each (VerbatimWidgets).
 struct WidgetsInfoScreen: View {
     private static let widgets: [(String, String)] = [
-        ("Record and dictate", "Start a voice note or a dictation session with one tap."),
+        ("Record and dictate", "Start a voice note or a session with one tap. While a voice note records, Record shows its time and Stop."),
         ("Recent recordings", "Your latest recordings and dictations. Open one to read its transcript."),
         ("This week", "Words you dictated this week, day by day."),
         ("New thought", "Starts a thought at once, behind a Live Activity. It lands on today's Thoughts page."),
@@ -228,11 +228,11 @@ struct WidgetsInfoScreen: View {
         ("Thoughts", "On the Lock Screen: starts a thought. The rectangular one shows today's count, never your words."),
     ]
     private static let controls: [(String, String)] = [
-        ("Verbose session", "Turns the microphone on for dictation in any app, or off."),
+        ("Verbose session", "Turns the microphone on for dictation in any app, or off. Shows Session on while it's on."),
         ("Verbose action", "Does what you chose in Settings › Action button, and takes that choice's name."),
-        ("Record voice note", "Starts a voice note, in place when iOS allows it."),
-        ("Dictate", "Starts a dictation session, so you can dictate in any app."),
-        ("New thought", "Starts a thought, in place when iOS allows it. Press it again to stop."),
+        ("Record voice note", "Starts a voice note, in place when iOS allows it. Shows Recording while one runs; turn it off to stop and save."),
+        ("Dictate", "Starts listening, or stops and puts your words in. With no session on, Verbose opens for a moment to start one."),
+        ("New thought", "Starts a thought, in place when iOS allows it. Shows Recording a thought while one records; turn it off to stop."),
     ]
 
     var body: some View {

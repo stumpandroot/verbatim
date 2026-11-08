@@ -3,6 +3,7 @@ import ActivityKit
 import UserNotifications
 import UIKit
 import Combine
+import WidgetKit
 
 /// A voice note recording outside the app: its Live Activity (Lock Screen and Dynamic Island, drawn by
 /// VerbatimWidgets/RecordingLiveActivity.swift) and the notification when a call leaves it paused.
@@ -14,6 +15,8 @@ import Combine
 ///   off, the recording still pauses honestly, and the Live Activity and the in-app banner still say so.
 /// - When the recording stays paused after a call while Verbatim is in the background, a notification says so;
 ///   tapping it opens the recorder. Coming back to Verbatim opens the recorder on its paused banner.
+/// - The running recording is mirrored into the App Group (`RecordingMirror`, SF-16, SF-18) for the Record widget and
+///   the Record and New thought switches in Control Center, which reload when what they show changes.
 @MainActor
 final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
     static let shared = RecordingPresence()
@@ -32,6 +35,9 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
     /// "Added to Thoughts" for two seconds when it's saved.
     private var activityIsThought = false
     private var thoughtTicker: Timer?
+    /// Refreshes the mirror's heartbeat while a recording runs (`RecordingMirror.heartbeatEvery`).
+    private var mirrorTimer: Timer?
+    private var lastMirror: RecordingMirror?
 
     func attach(_ app: PhoneState) {
         guard self.app == nil else { return }
@@ -39,15 +45,18 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
         guard !PhoneUITest.enabled else { return }
         UNUserNotificationCenter.current().delegate = self
         endLeftovers()
+        // A mirror left by a recording iOS ended: the widgets and switches go back to Record.
+        if !app.recorder.isRecording { Self.clearMirror() }
         let recorder = app.recorder
         recorder.onNeedsAttention = { [weak self] reason in self?.needsAttention(reason) }
         RecordingControl.handler = { [weak self] command in self?.perform(command) ?? false }
+        RecordingControl.recordingOtherThanThought = { [weak app] in app.map { $0.recorder.isRecording && !$0.recordingThought } ?? false }
         // @Published sends before the value changes, so each change is read on the next turn of the run loop.
         recorder.$isRecording.removeDuplicates().dropFirst().sink { [weak self] on in
             DispatchQueue.main.async { self?.recordingChanged(on) }
         }.store(in: &bag)
         recorder.$isPaused.removeDuplicates().dropFirst().sink { [weak self] _ in
-            DispatchQueue.main.async { self?.update() }
+            DispatchQueue.main.async { self?.update(); self?.syncMirror() }
         }.store(in: &bag)
         app.autoPauseReasonValues.removeDuplicates().dropFirst().sink { [weak self] _ in
             DispatchQueue.main.async { self?.update() }
@@ -71,6 +80,49 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
             endActivity(saved: stoppingFromActivity)
             stoppingFromActivity = false
         }
+        syncMirror()
+    }
+
+    // MARK: The widgets' and switches' mirror (SF-16, SF-18)
+
+    /// Writes the running recording into the App Group (or clears it), refreshes its heartbeat while one runs, and
+    /// reloads the Record widget and the Record and New thought switches when what they show changes.
+    func syncMirror() {
+        guard let app, !PhoneUITest.enabled else { return }
+        let m: RecordingMirror? = app.recorder.isRecording
+            ? RecordingMirror.make(elapsed: app.recorder.elapsed, paused: app.recorder.isPaused, thought: app.recordingThought,
+                                   label: app.recordingChoice.name)
+            : nil
+        RecordingMirror.write(m)
+        let changed = m.map { !$0.sameShown(as: lastMirror) } ?? (lastMirror != nil)
+        lastMirror = m
+        if m == nil {
+            mirrorTimer?.invalidate(); mirrorTimer = nil
+        } else if mirrorTimer == nil {
+            let t = Timer(timeInterval: RecordingMirror.heartbeatEvery, repeats: true) { _ in
+                Task { @MainActor in RecordingPresence.shared.syncMirror() }
+            }
+            RunLoop.main.add(t, forMode: .common)
+            mirrorTimer = t
+        }
+        if changed { Self.reloadMirroredSurfaces() }
+    }
+
+    /// The Record and dictate widget and the two switches read the mirror.
+    static func reloadMirroredSurfaces() {
+        WidgetCenter.shared.reloadTimelines(ofKind: RecordingMirror.recordWidgetKind)
+        if #available(iOS 18.0, *) {
+            ControlCenter.shared.reloadControls(ofKind: RecordingMirror.recordControlKind)
+            ControlCenter.shared.reloadControls(ofKind: ThoughtRules.controlKind)
+        }
+    }
+
+    /// At launch with nothing recording, and when Stop finds nothing recording: a mirror left by a recording iOS ended
+    /// goes, so nothing reads as recording.
+    static func clearMirror() {
+        guard RecordingMirror.read() != nil else { return }
+        RecordingMirror.write(nil)
+        reloadMirroredSurfaces()
     }
 
     private func currentState() -> VerbatimRecordingAttributes.ContentState? {
@@ -103,6 +155,7 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
     /// title, and page are fixed when it starts, so it starts again as the new kind, with the same elapsed time. Any
     /// other change of kind only updates it.
     func kindChanged() {
+        defer { syncMirror() }   // Record's switch and New thought's follow the kind
         guard let app, let a = activity, activityIsThought != app.recordingThought else { update(quiet: true); return }
         activity = nil
         activityIsThought = false

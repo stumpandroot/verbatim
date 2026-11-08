@@ -1411,6 +1411,18 @@ enum PhoneUITest {
             check("New thought from the widget doesn't throw (\(error))", false)
         }
         app.pendingThought = false
+
+        // Control Center's New thought switch (SF-16): turned off with no thought recording (a switch out of date), it
+        // does nothing: no recording, and Verbose doesn't come forward.
+        if #available(iOS 18.0, *), !app.recorder.isRecording {
+            opened = false
+            do {
+                try await SetThoughtIntent.run(on: false) { _ in opened = true }
+                check("New thought's switch turned off with nothing recording does nothing", !opened && !app.recorder.isRecording)
+            } catch {
+                check("New thought's switch doesn't throw (\(error))", false)
+            }
+        }
     }
 
     /// The Action button set to Dictate with no session on, run as a press runs it (`ActionButtonIntent.run`, with

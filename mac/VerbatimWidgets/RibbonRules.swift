@@ -466,6 +466,22 @@ extension Ribbon {
         (size * monoAdvance * Double(showsHours ? 7 : 5)).rounded(.up) + 1
     }
 
+    // MARK: The session's words on system surfaces (SF-16, SF-30)
+
+    /// One verb phrase for turning the session on, wherever it appears: the Control Center switch while off, the Lock
+    /// Screen widget, and the keyboard.
+    static let startSessionTitle = "Start a session"
+    /// And one for the state: the switch while on, and the Lock Screen widget ("Session on · 12 min").
+    static let sessionOnTitle = "Session on"
+    /// The Lock Screen session widget (circular, rectangular, inline). It reads `KeyboardBridge.sessionLive`, and the app
+    /// reloads it when a session starts or ends.
+    static let sessionWidgetKind = "co.stumpandroot.verbatim.ios.widget.startSession"
+    /// Control Center's Dictate, a switch for a take (on while one listens); the app reloads it when that changes.
+    static let dictateControlKind = "co.stumpandroot.verbatim.ios.control.dictate"
+    /// While a session is on, the Lock Screen widget looks again this often, so a session iOS ended doesn't read as on
+    /// for long (the app reloads it whenever a session starts or ends).
+    static let sessionWidgetRecheck: TimeInterval = 15 * 60
+
     /// The Action button's control (iOS 18). The app mirrors Settings › Action button's choice into the App Group
     /// under `actionChoiceKey` and reloads the control, so it's named for what it does.
     static let actionControlKind = "co.stumpandroot.verbatim.ios.control.action"

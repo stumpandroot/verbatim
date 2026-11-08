@@ -382,5 +382,53 @@ check("Home's scroll view has the soft bottom edge under Record's accessory (iOS
       source("VerbatimPhone/RecordAccessory.swift").contains("content.scrollEdgeEffectStyle(.soft, for: .bottom)")
       && source("VerbatimPhone/HomeScreen.swift").contains("ScrollView { content }\n                .modifier(AccessoryScrollEdge())"))
 
+// MARK: SF-16, SF-18, SF-30: controls and widgets that show what's running
+
+let controlsNow = source("VerbatimWidgets/StartSessionWidgets.swift"), homeNow = source("VerbatimWidgets/HomeWidgets.swift")
+let snapshotSource = source("VerbatimWidgets/WidgetSnapshot.swift"), thoughtRules = source("VerbatimWidgets/ThoughtRules.swift")
+check("placed widgets and controls keep their kinds", Ribbon.sessionWidgetKind == "co.stumpandroot.verbatim.ios.widget.startSession"
+      && Ribbon.dictateControlKind == "co.stumpandroot.verbatim.ios.control.dictate"
+      && snapshotSource.contains("static let recordWidgetKind = \"co.stumpandroot.verbatim.widget.record\"")
+      && snapshotSource.contains("static let recordControlKind = \"co.stumpandroot.verbatim.ios.control.record\"")
+      && thoughtRules.contains("static let controlKind = \"co.stumpandroot.verbatim.ios.control.thought\"")
+      && controlsNow.contains("static let kind = Ribbon.sessionWidgetKind") && controlsNow.contains("static let kind = RecordingMirror.recordControlKind")
+      && controlsNow.contains("static let kind = Ribbon.dictateControlKind") && controlsNow.contains("static let kind = ThoughtRules.controlKind")
+      && homeNow.contains("static let kind = RecordingMirror.recordWidgetKind"))
+check("one phrase to turn the session on, and one for its state", Ribbon.startSessionTitle == "Start a session" && Ribbon.sessionOnTitle == "Session on"
+      && !controlsNow.contains("Session off") && !controlsNow.contains("\"Start dictating\"") && !controlsNow.contains("\"Start dictation session\"")
+      && !controlsNow.contains("Start a Verbose dictation session"))
+for (name, intent, value) in [("Record voice note", "SetRecordingIntent()", "RecordingSwitchValue()"), ("Dictate", "SetTakeIntent()", "TakeSwitchValue()"),
+                              ("New thought", "SetThoughtIntent()", "ThoughtSwitchValue()")] {
+    check("Control Center's \(name) is a switch that shows what's running", controlsNow.contains("provider: \(value)") && controlsNow.contains("action: \(intent)")
+          && controlsNow.contains("ControlWidgetToggle(\"\(name == "Record voice note" ? "Record" : name)\""))
+}
+check("no control says to press it again: it shows Recording a thought instead", !controlsNow.contains("Press it again") && controlsNow.contains("\"Recording a thought\""))
+let recordIntent = source("VerbatimWidgets/RecordVoiceNoteIntent.swift"), thoughtIntent = source("VerbatimWidgets/NewThoughtIntent.swift"), dictateIntents = source("VerbatimWidgets/DictateIntents.swift")
+check("the Record and New thought switches start in place as audio recording intents, and act only when out of step",
+      recordIntent.contains("extension SetRecordingIntent: AudioRecordingIntent {}") && thoughtIntent.contains("extension SetThoughtIntent: AudioRecordingIntent {}")
+      && recordIntent.contains("RecordingMirror.switchActs(on: on, running: running)") && thoughtIntent.contains("RecordingMirror.switchActs(on: on, running: recording)")
+      && dictateIntents.contains("RecordingMirror.switchActs(on: on, running: listening)"))
+check("the Record switch turned off never stops a thought", recordIntent.contains("RecordingControl.recordingOtherThanThought()")
+      && presence.contains("$0.recorder.isRecording && !$0.recordingThought"))
+check("the app mirrors the recording, refreshes its heartbeat, and reloads what reads it", presence.contains("RecordingMirror.write(m)")
+      && presence.contains("Timer(timeInterval: RecordingMirror.heartbeatEvery") && presence.contains("reloadTimelines(ofKind: RecordingMirror.recordWidgetKind)")
+      && presence.contains("reloadControls(ofKind: RecordingMirror.recordControlKind)") && presence.contains("reloadControls(ofKind: ThoughtRules.controlKind)"))
+check("a mirror left by a recording iOS ended is cleared at launch and by Stop with nothing recording",
+      presence.contains("if !app.recorder.isRecording { Self.clearMirror() }") && source("VerbatimWidgets/RecordingActivity.swift").contains("RecordingPresence.clearMirror()"))
+check("the Record widget shows a running recording with Stop, and looks again while one runs",
+      homeNow.contains("Button(intent: StopRecordingIntent())") && homeNow.contains("if let r = entry.recording, entry.recordingOn {")
+      && homeNow.contains("policy: .after(e.date.addingTimeInterval(RecordingMirror.recheckEvery))") && homeNow.contains("provider: RecordProvider()"))
+check("the Lock Screen session widget shows Session on with its time, and its bars are accentable",
+      controlsNow.contains("KeyboardBridge.sessionLive ? (KeyboardBridge.sessionStartedAt ?? now) : nil")
+      && controlsNow.contains("Text(started, style: .relative)") && controlsNow.contains("BarsMark(color: .white).padding(12).widgetAccentable()")
+      && controlsNow.contains("BarsMark(color: .white).frame(width: 26, height: 26).widgetAccentable()")
+      && controlsNow.contains(".after(entry.date.addingTimeInterval(Ribbon.sessionWidgetRecheck)) : .never"))
+check("the session writes when it started and reloads the Lock Screen widget and the Dictate switch",
+      sessionApp.contains("forKey: KeyboardBridge.Key.startedAt)") && sessionApp.contains("reloadTimelines(ofKind: Ribbon.sessionWidgetKind)")
+      && sessionApp.contains("reloadControls(ofKind: Ribbon.dictateControlKind)") && sessionApp.contains("reloadTakeControl(listening: phase == .listening)"))
+for w in [Ribbon.startSessionTitle, Ribbon.sessionOnTitle, "Recording a thought", "Listening", "Recording"] {
+    check("switch words follow the copy rules: \(w)", !w.contains("\u{2014}") && !w.contains("!") && w.first?.isUppercase == true)
+}
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

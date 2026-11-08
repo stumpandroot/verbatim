@@ -1333,6 +1333,8 @@ final class KeyboardSession: ObservableObject {
         lastBeat = Date()
         d.set(true, forKey: KeyboardBridge.Key.sessionActive)
         d.set(Date().timeIntervalSince1970, forKey: KeyboardBridge.Key.heartbeat)
+        // For the Lock Screen widget's "Session on · 12 min" (SF-30).
+        d.set(sessionStartedAt?.timeIntervalSince1970 ?? 0, forKey: KeyboardBridge.Key.startedAt)
         d.set(Self.micName(), forKey: KeyboardBridge.Key.micName)
         d.set(PhoneDictation.level.title, forKey: KeyboardBridge.Key.levelLabel)
         KeyboardBridge.post(KeyboardBridge.Note.state)
@@ -1443,6 +1445,7 @@ final class KeyboardSession: ObservableObject {
             d.removeObject(forKey: KeyboardBridge.formatKey)
             d.set(0.0, forKey: KeyboardBridge.Key.endsAt)
             d.set(0.0, forKey: KeyboardBridge.Key.pausedAt)
+            d.set(0.0, forKey: KeyboardBridge.Key.startedAt)
             if let reason { d.set(reason, forKey: KeyboardBridge.Key.endReason) } else { d.removeObject(forKey: KeyboardBridge.Key.endReason) }
         }
         KeyboardBridge.post(KeyboardBridge.Note.state)
@@ -1604,12 +1607,23 @@ final class KeyboardSession: ObservableObject {
         Task { await kept.activity.end(nil, dismissalPolicy: .immediate) }
     }
 
-    /// The Control Center switch follows the session (iOS 18).
+    /// The Control Center switch, the Dictate switch, and the Lock Screen session widget follow the session (iOS 18 for
+    /// the controls; SF-16, SF-30).
     private func reloadControl() {
         guard !PhoneUITest.enabled else { return }
+        WidgetCenter.shared.reloadTimelines(ofKind: Ribbon.sessionWidgetKind)
         if #available(iOS 18.0, *) {
             ControlCenter.shared.reloadControls(ofKind: "co.stumpandroot.verbatim.ios.control.startSession")
+            ControlCenter.shared.reloadControls(ofKind: Ribbon.dictateControlKind)
         }
+    }
+
+    /// The Dictate switch shows whether a take listens: reloaded when that changes (`write`).
+    private var takeShownListening = false
+    private func reloadTakeControl(listening: Bool) {
+        guard listening != takeShownListening, !PhoneUITest.enabled else { return }
+        takeShownListening = listening
+        if #available(iOS 18.0, *) { ControlCenter.shared.reloadControls(ofKind: Ribbon.dictateControlKind) }
     }
 
     // MARK: Recording ribbon
@@ -1748,6 +1762,7 @@ final class KeyboardSession: ObservableObject {
         if let message { d.set(message, forKey: KeyboardBridge.Key.message) } else { d.removeObject(forKey: KeyboardBridge.Key.message) }
         if phase != .listening { d.set(0.0, forKey: KeyboardBridge.Key.level) }
         KeyboardBridge.post(KeyboardBridge.Note.state)
+        reloadTakeControl(listening: phase == .listening)
     }
 
     private func beginBackground() {

@@ -30,7 +30,55 @@ struct NewThoughtIntent: LiveActivityIntent {
     }
 }
 
+/// Control Center's New thought, as a switch (iOS 18, SF-16): on while a thought records (`RecordingMirror.thoughtOn`),
+/// so you can see that pressing it will stop one. Turned on, it starts a thought as New thought does; turned off, it
+/// stops the thought and adds it to today's page. A switch that was out of date does nothing.
+@available(iOS 18.0, *)
+struct SetThoughtIntent: SetValueIntent, LiveActivityIntent {
+    static var title: LocalizedStringResource = "New thought"
+    static var description = IntentDescription("Starts a thought in Verbose, or stops the thought recording and adds it to today's page.")
+    static var isDiscoverable: Bool = false
+    static var openAppWhenRun: Bool = false
+    /// As for New thought: unlock first on a locked iPhone.
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+    @Parameter(title: "Recording a thought")
+    var value: Bool
+
+    init() {}
+
+    func perform() async throws -> some IntentResult {
+        #if !VERBATIM_WIDGETS
+        try await Self.run(on: value) { then in try await continueInVerbose(then) }
+        #endif
+        return .result()
+    }
+}
+
 #if !VERBATIM_WIDGETS
+@available(iOS 18.0, *)
+extension SetThoughtIntent {
+    /// What `perform` does (the self-test runs it, `PhoneUITest.newThoughtIntentChecks`): New thought's own run, only
+    /// when the switch asks for something other than what's recording.
+    static func run(on: Bool, openVerbose: (@escaping @MainActor () -> Void) async throws -> Void) async throws {
+        let recording = await MainActor.run { ThoughtSignal.decide() } == .stop
+        guard RecordingMirror.switchActs(on: on, running: recording) else {
+            Log.note("new thought switch: already \(recording ? "recording" : "stopped"); nothing to do")
+            return
+        }
+        try await NewThoughtIntent.run(openVerbose: openVerbose)
+    }
+}
+
+@available(iOS 18.0, *)
+extension SetThoughtIntent: ForegroundContinuableIntent {
+    @available(iOS 26.0, *)
+    static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+}
+
+/// The New thought switch turned on starts a thought in place, as New thought does.
+@available(iOS 18.0, *)
+extension SetThoughtIntent: AudioRecordingIntent {}
+
 extension NewThoughtIntent {
     /// What `perform` does, with the way Verbose comes forward passed in, so the self-test runs it as a widget tap
     /// does (`PhoneUITest.newThoughtIntentChecks`). Stops a recording thought, or starts one in place (its Live
