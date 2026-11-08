@@ -1,6 +1,169 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Typing help, one search, and one Stop",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Autocorrect in the keyboard",
+          "icon": "words",
+          "text": "The Verbose keyboard fixes a misspelled word when you type a space. Delete puts it back.",
+          "detail": "It skips your Dictionary words, contacts, and links, and follows each app's field settings. Your text replacements expand too. Turn it off in Settings › Keyboard."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Suggestions as you type",
+          "icon": "words",
+          "text": "Three words above the keys: what you typed, the correction, and a completion.",
+          "detail": "Tap the quoted word to keep it as typed. The strip steps aside for Undo and the Inserted bar."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Accents and more languages",
+          "icon": "language",
+          "text": "Hold a letter for its accents. Spanish adds ñ; French gets AZERTY and German QWERTZ.",
+          "detail": "The keyboard follows the keyboards you added in the Settings app. Switch languages from the keyboard's menu."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Move the cursor with space",
+          "icon": "accessibility",
+          "text": "Hold the space bar, then drag left or right to move the cursor."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "One field to search and ask",
+          "icon": "ask",
+          "text": "Type in the Library's field, then choose Search or Ask under it.",
+          "detail": "The Ask button opens the same field with Ask chosen."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Search and Ask in one place",
+          "icon": "ask",
+          "text": "The toolbar's search field opens the same panel as ⌘K, and the Ask page shows it too.",
+          "detail": "Recordings and matching lines show in the panel, so the Library stays put while you type. ↓ and ↑ choose a result and Return opens it."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Find in Cleaned and Summary",
+          "icon": "summary",
+          "text": "⌘F finds words in the Cleaned and Summary tabs too, without switching to Original.",
+          "detail": "Matches show in butter, and ⌘G and ⇧⌘G step through them."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "A system sidebar in Settings",
+          "icon": "settings",
+          "text": "The Settings window's sidebar is the system's, with ↑ and ↓ to move between panes."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "A new welcome",
+          "icon": "tour",
+          "text": "The welcome tour opens on drawings of Capture, Refine, and Understand.",
+          "detail": "Each color on the ways step keeps one meaning."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac",
+            "watch"
+          ],
+          "head": "One Stop everywhere",
+          "icon": "mic",
+          "text": "Stop is the same persimmon button in the app, on the Lock Screen, and on the watch.",
+          "detail": "Red now only marks Record."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Controls show what's running",
+          "icon": "settings",
+          "text": "Record, Dictate, and New thought in Control Center show when they're on.",
+          "detail": "Turn one off to stop: Record saves, Dictate puts your words in, and New thought adds the thought to today's page."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Widgets show a recording",
+          "icon": "widgets",
+          "text": "The Record widget shows a running recording's time and Stop.",
+          "detail": "The Lock Screen session widget says how long the session has been on."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "watch"
+          ],
+          "head": "Recordings in the Smart Stack",
+          "icon": "widgets",
+          "text": "While your iPhone records, the Watch's Smart Stack shows the time and your voice.",
+          "detail": "It never shows your words."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "watch"
+          ],
+          "head": "Calmer Always On, more slots",
+          "icon": "appearance",
+          "text": "Always On dims a recording with the bars held still. Record fits watch corner slots.",
+          "detail": "Today's thoughts fits inline slots, and tinted faces draw Record clearly."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Home shows where you point",
+          "icon": "home",
+          "text": "Home's Record card, tiles, cards, and recent rows highlight under the pointer.",
+          "detail": "Every shortcut shows as the same keycap, at 12 points or larger."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "One look for icons and sheets",
+          "icon": "appearance",
+          "text": "Menus and toolbars use Verbose's own glyphs, and sheets close with the X at top right.",
+          "detail": "Cards on the older Settings pages take the same rounder corners."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Onboarding fits every step",
+          "icon": "accessibility",
+          "text": "Each welcome tour step scrolls when it's tall, so its buttons stay in reach.",
+          "detail": "Live captions on the Mac open at the height for their text size, on screen."
+        }
+      ]
+    },
+    {
       "build": "309",
       "date": "2026-11-07",
       "version": "1.0 beta",
