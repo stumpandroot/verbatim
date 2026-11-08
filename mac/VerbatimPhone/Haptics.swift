@@ -59,6 +59,6 @@ struct KeyboardTypingHapticsRow: View {
     var body: some View {
         SettingsToggleRow(title: "Typing haptics",
                           subtitle: "A light tap with each key you type. Needs Allow Full Access. Start and Done tap either way while Haptics is on.", isOn: $on)
-            .cardSurface(radius: Radius.row)
+            .cardSurface(radius: RefinedPlatform.radius(.card))
     }
 }

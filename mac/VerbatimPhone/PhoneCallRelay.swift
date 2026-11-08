@@ -75,7 +75,7 @@ struct PhoneCallSheet: View {
                 Button(action: go) {
                     Text(buttonTitle).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.paper)
                         .frame(maxWidth: .infinity, minHeight: 50)
-                        .background(Refined.ink, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Refined.ink, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.card), style: .continuous))
                 }
                 .buttonStyle(RefinedPress())
                 .disabled(way == .mac && !macReady)

@@ -150,7 +150,7 @@ struct PhoneDictationRow: View {
                 HStack(alignment: .top, spacing: 12) {
                     Text(Self.initial(app)).scaledFont(13, weight: .semibold).foregroundStyle(Refined.ink)
                         .frame(width: 22, height: 22)
-                        .background(Refined.neutralSquare, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .background(Refined.neutralSquare, in: RoundedRectangle(cornerRadius: RefinedPlatform.squareRadius(side: 22), style: .continuous))
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(app) · \(Formats.style(date: .none, time: .short).string(from: transcript.createdAt))")

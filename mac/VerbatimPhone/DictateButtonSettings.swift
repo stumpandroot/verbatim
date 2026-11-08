@@ -22,7 +22,7 @@ struct DictateButtonSettings: View {
                 Rectangle().fill(Refined.separator).frame(height: 1).padding(.leading, 14)
                 choiceRow("Style", DictateButton.Style.allCases.map { ($0.rawValue, $0.title) }, $style)
             }
-            .cardSurface(radius: Radius.row)
+            .cardSurface(radius: RefinedPlatform.radius(.card))
             Text("Large makes the keyboard 16 pt taller. Position also moves Tap to talk and Done.")
                 .scaledFont(13).foregroundStyle(Refined.mute)
                 .fixedSize(horizontal: false, vertical: true)
@@ -68,7 +68,7 @@ struct DictateButtonPreview: View {
         .frame(maxWidth: .infinity)
         .background(Refined.side)
         .overlay(alignment: .bottom) { Rectangle().fill(Refined.separator).frame(height: 1) }
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: Radius.row, topTrailingRadius: Radius.row, style: .continuous))
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: RefinedPlatform.radius(.card), topTrailingRadius: RefinedPlatform.radius(.card), style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Preview: \(look.size.title), \(look.position.title.lowercased()), \(look.style.title.lowercased()) dictate button")
     }

@@ -1104,8 +1104,8 @@ struct PhoneLinkCard: View {
     private var card: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Refined.neutralSquare)
-                if let f = info.thumbnailFile { StillImage(file: f, maxPixel: 240).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)) }
+                RoundedRectangle(cornerRadius: RefinedPlatform.radius(.square), style: .continuous).fill(Refined.neutralSquare)
+                if let f = info.thumbnailFile { StillImage(file: f, maxPixel: 240).clipShape(RoundedRectangle(cornerRadius: RefinedPlatform.radius(.square), style: .continuous)) }
                 else { IconGlyph(art: .iconPlay, size: 18, color: Refined.mute) }
             }
             .frame(width: 72, height: 42)

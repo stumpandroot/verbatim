@@ -1,6 +1,16 @@
 import SwiftUI
 import UIKit
 
+// MARK: - Radii
+
+extension RefinedPlatform {
+    /// An icon square's corner at another side than `IconSquare`'s 30 pt, in the same proportion (IP-24): the kit's
+    /// `.square` radius scaled by `side / 30`, so a 22 pt number badge gets about 6 and a 34 pt square about 9.
+    static func squareRadius(side: CGFloat) -> CGFloat {
+        radius(.square) * side / CGFloat(RefinedRules.squareSize(mac: mac).side)
+    }
+}
+
 // MARK: - Share sheet
 
 struct ShareSheet: UIViewControllerRepresentable {

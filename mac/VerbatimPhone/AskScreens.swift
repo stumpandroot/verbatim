@@ -309,7 +309,7 @@ struct PhoneAskCitations: View {
         let parts = s.title.components(separatedBy: " · ")
         return HStack(spacing: 12) {
             Text("\(s.number)").scaledFont(13, weight: .semibold).monospacedDigit().foregroundStyle(Refined.accentText)
-                .frame(width: 22, height: 22).background(Refined.persimmonTint, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .frame(width: 22, height: 22).background(Refined.persimmonTint, in: RoundedRectangle(cornerRadius: RefinedPlatform.squareRadius(side: 22), style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
                 Text(parts.first ?? s.title).refinedFont(.rowTitle).foregroundStyle(Refined.ink).lineLimit(1)
                 if parts.count > 1 {

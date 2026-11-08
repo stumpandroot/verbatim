@@ -173,7 +173,7 @@ private struct StepCard<Footer: View>: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: Radius.row)
+        .cardSurface(radius: RefinedPlatform.radius(.card))
     }
 }
 
@@ -193,7 +193,7 @@ private struct SiriCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: Radius.row)
+        .cardSurface(radius: RefinedPlatform.radius(.card))
         .accessibilityElement(children: .combine)
     }
 }
