@@ -107,9 +107,28 @@ struct PageFindMatch: Equatable {
     var range: NSRange
 }
 
-/// Find in the open transcript (MAC-22): ⌘F opens the bar, matches are the query anywhere in a line, ignoring case and
-/// accents, ⌘G and ⇧⌘G step through them and wrap at the ends, and Esc closes.
+/// Where the find bar looks: the transcript's tab on screen (Views/TranscriptFind.swift). Original searches its lines;
+/// Cleaned searches its text as one line; Summary searches the overview, then each key point.
+enum FindScope: Equatable {
+    case original, cleaned, summary
+}
+
+/// Find in the open transcript (MAC-22): ⌘F opens the bar on the tab you're reading, matches are the query anywhere in
+/// a line, ignoring case and accents, ⌘G and ⇧⌘G step through them and wrap at the ends, and Esc closes.
 enum PageFind {
+    /// The field's prompt, naming the tab by its name on screen.
+    static func prompt(_ scope: FindScope) -> String {
+        switch scope {
+        case .original: return "Find in transcript"
+        case .cleaned: return "Find in Cleaned"
+        case .summary: return "Find in Summary"
+        }
+    }
+
+    /// The Summary's searchable lines, in the order the tab shows them: the overview (line 0, even when empty, so the
+    /// key points keep their numbers), then each key point (line 1 on).
+    static func summaryLines(overview: String, keyPoints: [String]) -> [String] { [overview] + keyPoints }
+
     static func matches(in lines: [String], query: String) -> [PageFindMatch] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
@@ -139,6 +158,30 @@ enum PageFind {
         if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "" }
         guard count > 0 else { return "No matches" }
         return "\((current ?? 0) + 1) of \(count)"
+    }
+}
+
+// MARK: - Search passages from the keyboard
+
+/// The matching passages above the Library's table, from the keyboard (MAC-23 follow-up): ↓ in the toolbar's search
+/// field moves to the first passage, as ↓ in Mail's or Finder's search field moves into the results; ↓ and ↑ move
+/// between passages; ↓ past the last moves to the table's first row, and ↑ above the first goes back to the field.
+/// Return or Space opens the passage, and Esc goes back to the field. Tab keeps its usual order.
+enum PassageCursor {
+    enum Move: Equatable { case passage(Int), table, searchField }
+
+    /// Where ↓ (`down`) or ↑ goes from passage `index` (nil: from the search field) among `count` passages.
+    static func step(from index: Int?, count: Int, down: Bool) -> Move {
+        guard count > 0 else { return down ? .table : .searchField }
+        guard let i = index, i >= 0, i < count else { return down ? .passage(0) : .searchField }
+        if down { return i + 1 < count ? .passage(i + 1) : .table }
+        return i > 0 ? .passage(i - 1) : .searchField
+    }
+
+    /// Whether a key in the search field moves into the passages: ↓ with no modifier (⇧ selects text, ⌘ and ⌥ move the
+    /// insertion point), while passages show.
+    static func entersFromField(keyCode: UInt16, mods: RecallMods, passages: Int) -> Bool {
+        keyCode == 125 && mods.isEmpty && passages > 0
     }
 }
 

@@ -8,8 +8,8 @@ import AppKit
 //   another app's audio records, whatever screen is showing (`RecordingMenuState`).
 // - Dictation: Dictate, New Thought (⌃⌥P), and Recent Dictations (⌥⌘V, or the shortcut Settings › Dictation picks).
 // - View: Bigger Text (⌘=), Smaller Text (⌘−), and Mark This Moment (B) on an open transcript.
-// - Edit: Copy Text (⇧⌘C) and Copy for AI (⌥⇧⌘C) on an open transcript; Find… (⌘F) finds in the open transcript, and
-//   elsewhere opens Search or ask; Find Next (⌘G) and Find Previous (⇧⌘G); Search or Ask… (⌘K) everywhere.
+// - Edit: Copy Text (⇧⌘C) and Copy for AI (⌥⇧⌘C) on an open transcript; Find… (⌘F) finds in the open transcript's tab
+//   (Original, Cleaned, or Summary), and elsewhere opens Search or ask; Find Next (⌘G) and Find Previous (⇧⌘G); Search or Ask… (⌘K) everywhere.
 //
 // The SwiftUI items observe their own objects (as `MeetingCaptureCommands` and `CheckForUpdatesButton` do). The
 // transcript's items depend on the screen, which no observable object the menu bar could follow publishes, so they're
@@ -35,13 +35,19 @@ enum AppCommands {
         app.captureMode = "dictate"
     }
 
-    /// Find…: on a transcript, the find bar over its Original lines; anywhere else, the Search or ask panel on Search.
+    /// Find…: on a transcript, the find bar over the tab you're reading (Original, Cleaned, or Summary; Review and a
+    /// template's result find in Original); anywhere else, the Search or ask panel on Search.
     static func find(_ app: AppState) {
         app.mainWindow?.makeKeyAndOrderFront(nil)
         if let id = app.screen.transcriptID, let t = app.store.transcript(id), t.status == .ready, !t.showsAudioDetail,
            WindowNav.shared.stillViewer == nil {
-            if WindowNav.shared.mode != .original { WindowNav.shared.mode = .original }
-            TranscriptFind.shared.show()
+            let nav = WindowNav.shared
+            if let scope = nav.mode.findScope {
+                TranscriptFind.shared.show(in: scope)
+            } else {
+                nav.mode = .original
+                TranscriptFind.shared.show(in: .original)
+            }
         } else {
             AskNav.shared.open(mode: .search)
         }

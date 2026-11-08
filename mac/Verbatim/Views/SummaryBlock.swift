@@ -10,15 +10,21 @@ struct SummaryBlock: View {
     var onSummarize: (_ replacingEdits: Bool) -> Void
     /// Saves the person's edit; nil removes the summary.
     var onSave: (TranscriptSummary?) -> Void
+    /// The Mac's find bar on this tab (Views/TranscriptFind.swift): matches in butter, the current one underlined.
+    var find: SummaryFindMarks? = nil
 
     @ObservedObject private var center = SummaryCenter.shared
     @State private var editing = false
     @State private var draft = ""
     @State private var confirmReplace = false
 
-    init(transcript: Transcript, onSummarize: @escaping (_ replacingEdits: Bool) -> Void, onSave: @escaping (TranscriptSummary?) -> Void) {
-        self.transcript = transcript; self.onSummarize = onSummarize; self.onSave = onSave
+    init(transcript: Transcript, onSummarize: @escaping (_ replacingEdits: Bool) -> Void, onSave: @escaping (TranscriptSummary?) -> Void,
+         find: SummaryFindMarks? = nil) {
+        self.transcript = transcript; self.onSummarize = onSummarize; self.onSave = onSave; self.find = find
     }
+
+    /// A summary paragraph's scroll anchor for the find bar's current match: 0 is the overview, then each key point.
+    static func findAnchor(_ line: Int) -> String { "summary-find-\(line)" }
 
     /// Whether there's a summary to show, or one being written or that failed: the Mac's side column and the
     /// iPhone's Summarize action read it.
@@ -57,17 +63,17 @@ struct SummaryBlock: View {
 
     private func summary(_ s: TranscriptSummary) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            if !s.overview.isEmpty { ReadingText(s.overview) }
+            if !s.overview.isEmpty { paragraph(s.overview, line: 0) }
             if !s.keyPoints.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Key points").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
                         .accessibilityAddTraits(.isHeader)
-                    ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { _, p in
+                    ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { i, p in
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Circle().fill(Refined.played).frame(width: 6, height: 6)
                                 .alignmentGuide(.firstTextBaseline) { $0[.bottom] + 4 }
                                 .accessibilityHidden(true)
-                            ReadingText(p)
+                            paragraph(p, line: i + 1)
                         }
                     }
                 }
@@ -92,6 +98,20 @@ struct SummaryBlock: View {
                     link("Regenerate") { if transcript.summaryIsEdited { confirmReplace = true } else { onSummarize(false) } }
                 }
             }
+        }
+    }
+
+    /// A paragraph in the reading text: plain, or with the find bar's matches in butter (ink fixed on them) and the
+    /// current match underlined, so it never depends on color alone. Each has an anchor the find bar scrolls to.
+    @ViewBuilder private func paragraph(_ text: String, line: Int) -> some View {
+        if let find, !find.query.trimmingCharacters(in: .whitespaces).isEmpty {
+            Text(SummaryFindMarks.marked(text, query: find.query, current: find.line == line ? find.range : nil))
+                .readingStyle()
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+                .id(Self.findAnchor(line))
+        } else {
+            ReadingText(text).id(Self.findAnchor(line))
         }
     }
 
@@ -174,4 +194,21 @@ struct GroundingNoteText: View {
 enum SummaryAction {
     static func title(_ t: Transcript) -> String { t.summary == nil ? "Summarize" : "Regenerate summary" }
     static var unavailableReason: String? { Summarizer.available ? nil : Summarizer.unavailableReason }
+}
+
+/// The Mac's find bar on a Summary tab (Views/TranscriptFind.swift): the query to mark, and the current match (its line,
+/// 0 for the overview and then each key point, and its range in that line's text), which is underlined.
+struct SummaryFindMarks: Equatable {
+    var query: String
+    var line: Int?
+    var range: NSRange?
+
+    /// `text` with every match in butter (`ReadingHighlight`, from one letter) and `current` underlined in the ink on it.
+    static func marked(_ text: String, query: String, current: NSRange?) -> AttributedString {
+        var a = ReadingHighlight.marked(AttributedString(text), query: query, minLength: 1)
+        if let current, let r = Range<AttributedString.Index>(current, in: a) {
+            a[r].underlineStyle = Text.LineStyle(pattern: .solid, color: Refined.onFill)
+        }
+        return a
+    }
 }

@@ -134,8 +134,10 @@ check("keys: go records where the navigation came from", state.contains("keyboar
 let keyPaths: [(String, String)] = [
     ("Verbatim/App/NavTrail.swift", "app.fromKeyboard(AppState.handlingKeyPress) { NavTrail.shared.goBack(app) }"),
     ("Verbatim/App/NavTrail.swift", "app.fromKeyboard(AppState.handlingKeyPress) { NavTrail.shared.goForward(app) }"),
-    ("Verbatim/Views/LibraryView.swift", ".onKeyPress(.return) { app.fromKeyboard { openSelected() }"),
-    ("Verbatim/Views/LibraryView.swift", ".onKeyPress(.space) { app.fromKeyboard { playSelected() }"),
+    ("Verbatim/Views/LibraryView.swift", "return app.fromKeyboard { openSelected() } ? .handled : .ignored"),
+    ("Verbatim/Views/LibraryView.swift", "return app.fromKeyboard { playSelected() } ? .handled : .ignored"),
+    // A search passage opens from Return or Space the same way (MAC-23 follow-up).
+    ("Verbatim/Views/LibraryView.swift", "if let c = passageCursor { app.fromKeyboard { openPassage(c) }; return .handled }"),
     ("Verbatim/Views/MacSidebar.swift", ".onKeyPress(.upArrow) { app.fromKeyboard { step(-1) } }"),
     ("Verbatim/Views/MacSidebar.swift", ".onKeyPress(.downArrow) { app.fromKeyboard { step(1) } }"),
     ("Verbatim/Views/AskViews.swift", ".onSubmit { app.fromKeyboard { submit() } }"),
