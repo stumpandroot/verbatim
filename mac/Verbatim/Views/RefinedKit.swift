@@ -1642,8 +1642,8 @@ struct PaperSection<Content: View>: View {
 // MARK: - Titles
 
 /// A screen's large title in the serif (Home's greeting, Library, Settings), with one line above it, as in Verbose
-/// Tasks: the date, a count ("47 recordings"), or both ("By day · 12 days"). On the Mac that line is small capitals,
-/// as in Tasks' Mac pages.
+/// Tasks: the date, a count ("47 recordings"), or both ("By day · 12 days"), in the meta style and sentence case in
+/// `mute`; semibold on the Mac, as `PaperGroup`'s labels (MAC-13; no uppercase, no tracking).
 struct LargeSerifTitle: View {
     var title: String
     var eyebrow: String? = nil
@@ -1662,8 +1662,7 @@ struct LargeSerifTitle: View {
         VStack(alignment: .leading, spacing: RefinedPlatform.mac ? 4 : 2) {
             if let line = Self.line(eyebrow: eyebrow, count: count) {
                 if RefinedPlatform.mac {
-                    Text(line.uppercased()).refinedFont(.caption, weight: .semibold).kerning(0.6)
-                        .foregroundStyle(Refined.mute).accessibilityLabel(line)
+                    Text(line).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
                 } else if let countValue {
                     Text(line).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute).countChange(countValue)
                 } else {
@@ -2012,7 +2011,7 @@ struct PaperSection_Previews: PreviewProvider {
 struct LargeSerifTitle_Previews: PreviewProvider {
     static var previews: some View {
         RefinedPreviewPage {
-            LargeSerifTitle(title: "Good evening, Tim.", eyebrow: "Tuesday, October 27")
+            LargeSerifTitle(title: "Good evening.", eyebrow: "Tuesday, October 27")
             LargeSerifTitle(title: "Library", count: "47 recordings")
         }
     }

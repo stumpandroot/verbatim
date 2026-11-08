@@ -132,7 +132,8 @@ extension EnvironmentValues {
     }
 }
 
-/// A card in a page's side column: a small uppercase label, an optional link on its right, and its content.
+/// A card in a page's side column: its label in the meta style, semibold, in `mute` and sentence case, as `PaperGroup`'s
+/// (MAC-13; no uppercase, no tracking), an optional link on its right, and its content.
 struct MacSideCard<Content: View>: View {
     var title: String
     var link: String? = nil
@@ -142,7 +143,7 @@ struct MacSideCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text(title.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.6).foregroundStyle(Refined.mute)
+                Text(title).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
                 if let link, let action {

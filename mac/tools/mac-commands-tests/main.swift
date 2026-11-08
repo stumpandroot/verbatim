@@ -309,5 +309,13 @@ check("recall: the panel uses RecallKeys and gates hover on a real move",
       recall.contains("RecallKeys.action(keyCode: keyCode, mods: mods)") && recall.contains("model.pointer.hover(at: NSEvent.mouseLocation)")
       && recall.contains("hint(RecallKeys.copyHint, \"Copy\")") && !recall.contains("queryEmpty"))
 
+// The decisions round (Tim, November 8, 2026).
+let columnsSource = read("Verbatim/Views/MacColumns.swift")
+let trackedLabels = macFiles.flatMap { f in codeLines(f.1).filter { $0.contains("Text(") && $0.contains(".uppercased()") && ($0.contains(".tracking(") || $0.contains(".kerning(")) }.map { "\(f.0): \($0)" } }
+check("labels: side cards and the line over a page's title are the meta style in sentence case, no uppercase or tracking (MAC-13)",
+      columnsSource.contains("Text(title).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)") && !columnsSource.contains(".uppercased()")
+      && kit.contains("Text(line).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)") && !kit.contains("line.uppercased()")
+      && trackedLabels.isEmpty, "\(trackedLabels)")
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
