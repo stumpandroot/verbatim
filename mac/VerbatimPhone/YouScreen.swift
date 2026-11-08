@@ -160,7 +160,7 @@ struct YouScreen: View {
             if let saved = timeSaved() { timeSavedCard(saved) }
             PaperCard {
                 Button { commitName(); showCalendar = true } label: {
-                    SettingsRow(hue: RefinedRules.settingsHue(3), art: .iconCalendar, title: "Your words calendar",
+                    SettingsRow(art: .iconCalendar, title: "Your words calendar",
                                 subtitle: "Every day you talked, month by month") {
                         SettingsChevron()
                     }
@@ -173,7 +173,7 @@ struct YouScreen: View {
                         ForEach(FlowSettings.typingSpeeds(flow.typingWPM), id: \.self) { w in Text("\(w) wpm").tag(w) }
                     }
                 } label: {
-                    SettingsRow(hue: RefinedRules.settingsHue(0), art: .iconFeedback, title: "Typing speed",
+                    SettingsRow(art: .iconFeedback, title: "Typing speed",
                                 subtitle: "Time saved compares dictating with typing at this speed") {
                         SettingsValue("\(flow.typingWPM) wpm"); SettingsMenuMark()
                     }
@@ -181,7 +181,7 @@ struct YouScreen: View {
                 .buttonStyle(SettingsRowPress())
                 .accessibilityHint("Shows the speeds")
                 PaperDivider(leading: 56)
-                SettingsRow(hue: RefinedRules.settingsHue(1), art: .iconVoice, title: "Your pace",
+                SettingsRow(art: .iconVoice, title: "Your pace",
                             subtitle: pace == nil ? "After 20 seconds of dictation" : nil) {
                     SettingsValue(pace.map { "\($0) wpm" } ?? "–")
                 }
@@ -312,7 +312,7 @@ struct YouScreen: View {
             SectionTitle("Your voice")
             PaperCard {
                 Button { commitName(); showVoice = true } label: {
-                    SettingsRow(hue: RefinedRules.settingsHue(2), art: .iconVoice, title: known ? "Read more passages" : "Set up your voice",
+                    SettingsRow(art: .iconVoice, title: known ? "Read more passages" : "Set up your voice",
                                 subtitle: voice.line, subtitleLines: nil) {
                         SettingsChevron()
                     }
@@ -339,7 +339,7 @@ struct YouScreen: View {
                 .padding(14)
                 PaperDivider(leading: 14)
                 Button { commitName(); openSettingsRow("cloudCleanup") } label: {
-                    SettingsRow(hue: RefinedRules.settingsHue(3), art: .iconServer, title: "Cloud cleanup",
+                    SettingsRow(art: .iconServer, title: "Cloud cleanup",
                                 subtitle: cloudCleanup ? "On, with your own key" : "Off. Cleanup runs on this iPhone.") {
                         SettingsValue("Settings"); SettingsChevron()
                     }

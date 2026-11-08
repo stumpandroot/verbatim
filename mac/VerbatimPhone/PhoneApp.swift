@@ -82,7 +82,10 @@ struct PhoneRoot: View {
     }
 
     /// A tab and its own navigation stack; the paths live in PhoneState. Every stack can push every screen
-    /// (`phoneRoutes`), so a screen whose tab isn't in the bar opens inside Library or Home.
+    /// (`phoneRoutes`), so a screen whose tab isn't in the bar opens inside Library or Home. Picking a tab shows its
+    /// page at once, opaque from its first frame, with no travel and no fade (DESIGN.md §7 and §16; IP-35, Tim,
+    /// November 8, 2026): switching tabs is one of the most frequent things you do. The tab bar animates its own
+    /// selection.
     private func tabRoot(_ t: PhoneState.Tab) -> some View {
         NavigationStack(path: app.pathBinding(t)) { rootScreen(t).phoneRoutes() }
             .tint(Refined.accentText)
@@ -90,7 +93,6 @@ struct PhoneRoot: View {
             // and the bar before iOS 26 (applied before `miniRecorderInset` for that), clear of Back and More (IP-02).
             .overlay(alignment: .bottom) { if t == app.tab { PhoneToastView() } }
             .miniRecorderInset(t)
-            .modifier(TabEntrance(tab: t, selected: app.tab, tabs: tabBar.bar.tabs))
     }
 
     @ViewBuilder private func rootScreen(_ t: PhoneState.Tab) -> some View {
@@ -439,36 +441,5 @@ struct SettingsSheet: View {
             .tint(Refined.accentText)
             // The unlock sheet opens over Settings: the root can't present over a sheet.
             .unlockSheetHost()
-    }
-}
-
-/// A tab's page arriving (DESIGN.md §7): picking a tab to the right slides its page in `Motion.pageTravel` from the right,
-/// and one to the left from the left, fading in and settling on `Motion.page`, a spring with a slight bounce. The tab bar
-/// animates its own selection. Picking the tab you're on (which goes back to its first screen) doesn't move, and with
-/// Limit animation or Reduce Motion the page only fades in.
-struct TabEntrance: ViewModifier {
-    var tab: PhoneState.Tab
-    var selected: PhoneState.Tab
-    var tabs: [PhoneState.Tab]
-    @Environment(\.limitMotion) private var limited
-    @State private var x: CGFloat = 0
-    @State private var clear = false
-
-    func body(content: Content) -> some View {
-        content
-            .offset(x: x)
-            .opacity(clear ? 0 : 1)
-            .onChange(of: selected) { old, new in
-                guard new == tab, old != tab, let a = tabs.firstIndex(of: old), let b = tabs.firstIndex(of: new) else { return }
-                var start = Transaction()
-                start.disablesAnimations = true
-                withTransaction(start) {
-                    x = limited ? 0 : (b > a ? Motion.pageTravel : -Motion.pageTravel)
-                    clear = true
-                }
-                DispatchQueue.main.async {
-                    withAnimation(limited ? Motion.fade : Motion.page) { x = 0; clear = false }
-                }
-            }
     }
 }

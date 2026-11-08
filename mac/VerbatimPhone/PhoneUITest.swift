@@ -2533,10 +2533,10 @@ enum PhoneUITest {
             if ok { pass += 1 } else { fail += 1 }
             Log.note("UITEST \(ok ? "PASS" : "FAIL") review A: \(name)")
         }
-        // P-01, superseded by the refined look (DESIGN.md §13): Settings' squares take the four hues in turn down a card,
-        // and a destructive row's square is neutral.
-        check("settings squares cycle persimmon, butter, sage, petal (refined, was P-01)",
-              (0..<5).map { RefinedRules.settingsHue($0) } == [.persimmon, .butter, .sage, .petal, .persimmon])
+        // P-01, back to neutral (DESIGN.md §1; IP-36, Tim, November 8, 2026): Settings' squares are the wash with an ink
+        // glyph, never an action hue; a destructive row keeps the wash with the danger glyph.
+        check("settings squares are neutral, with an ink glyph (IP-36, was P-01)",
+              RefinedRules.settingsSquareHue == .neutral && RefinedRules.onBadge(RefinedRules.settingsSquareHue) == RefinedHex.ink)
         // P-04: one switch for haptics, on by default, and searchable.
         let hapticsKey = Haptics.enabledKey
         let hapticsStore = Haptics.store
@@ -2578,6 +2578,17 @@ enum PhoneUITest {
               && RefinedRules.fill(.sage, palette: .full) == RefinedHex.sage
               && RefinedRules.fill(.butter, palette: .soft) == RefinedHex.butterTint)
         check("Live captions is the off-white tile (P-14)", HomeScreen.tileFill(.captions, in: [.dictate, .importMedia, .whatsPlaying, .captions]) == nil)
+        // SF-05 (Tim, November 8, 2026): the keyboard's Start and Tap to talk, and Settings' preview of them, are butter
+        // with ink and the dictate glyph, as Home's Dictate tile is; never persimmon, never white on butter.
+        let filledLook = DictateButton(style: .filled), outlineLook = DictateButton(style: .outline)
+        check("the keyboard's dictate button is butter with ink, or the card with a butter ring (SF-05)",
+              filledLook.fill == .butter && filledLook.ring == nil && filledLook.foreground == .onFill
+              && outlineLook.fill == .card && outlineLook.ring == .butter && outlineLook.foreground == .ink
+              && DictateButton.glyph == "dictate" && UIImage(named: DictateButton.glyph) != nil)
+        let ink = RefinedHex.onFill, butter = RefinedHex.butter
+        check("ink on butter keeps 4.5:1 in light and dark; white on butter wouldn't (SF-05)",
+              RefinedRules.contrast(ink.light, butter.light) >= 4.5 && RefinedRules.contrast(ink.dark, butter.dark) >= 4.5
+              && RefinedRules.contrast(0xFFFFFF, butter.light) < 3)
         // P-15: Recent recordings, newest first by date, no dictations.
         let recent = HomeScreen.recentRecordings(app.store)
         check("Recent recordings run newest first (P-15)", zip(recent, recent.dropFirst()).allSatisfy { $0.createdAt >= $1.createdAt }
@@ -2615,9 +2626,11 @@ enum PhoneUITest {
         check("moments added to a transcript start after it", notes.map { $0.at ?? -1 } == [642, 718])
         check("the Record card is on Home by default", HomeLayout.defaults(.phone).isVisible(.record))
         check("the recorder's clock shows hundredths", RefinedRules.clock(138.5) == "02:18.50")
-        check("Settings' squares take the four hues, never red: red means recording", !RefinedRules.settingsRotation.contains(.neutral)
-              && RefinedRules.settingsHue(0, destructive: true) == .neutral)
-        check("Settings' Appearance square is persimmon, as in the mockup", RefinedRules.settingsHue(0) == .persimmon)
+        check("Settings' squares borrow no action hue: persimmon means Record, butter Dictate (IP-36)",
+              ![RefinedHue.persimmon, .butter, .sage, .petal].contains(RefinedRules.settingsSquareHue))
+        let d = RefinedHex.danger, sq = RefinedHex.neutralSquare
+        check("a destructive row's danger glyph keeps 3:1 on the neutral square, in light, dark, and Increase Contrast",
+              [(d.light, sq.light), (d.dark, sq.dark), (d.hcLight, sq.hcLight), (d.hcDark, sq.hcDark)].allSatisfy { RefinedRules.contrast($0.0, $0.1) >= 3 })
         Log.note("UITEST moment checks: \(pass) passed, \(fail) failed")
     }
 

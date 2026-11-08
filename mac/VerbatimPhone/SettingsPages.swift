@@ -111,7 +111,7 @@ struct SpeakersSettingsScreen: View {
                     .settingsSearchTarget("recognizeVoices", flash: nil)
                 SettingsDivider()
                 Button { confirmClear = true } label: {
-                    SettingsRow(hue: .petal, art: .iconDeleteAll, title: "Clear saved voices",
+                    SettingsRow(art: .iconDeleteAll, title: "Clear saved voices",
                                 subtitle: savedVoices == 0 ? "No saved voices" : "\(savedVoices) saved voice\(savedVoices == 1 ? "" : "s"), on this iPhone only", danger: true) { EmptyView() }
                 }
                 .buttonStyle(SettingsRowPress())
@@ -154,7 +154,7 @@ struct MoreTranscriptionScreen: View {
                         ForEach(AudioTracksPreference.allCases) { Text($0.title).tag($0.rawValue) }
                     }
                 } label: {
-                    SettingsRow(hue: .petal, art: .iconMultitrack, title: "Files with several audio tracks",
+                    SettingsRow(art: .iconMultitrack, title: "Files with several audio tracks",
                                 subtitle: audioTracks == AudioTracksPreference.separate.rawValue
                                     ? "Each track is transcribed on its own as a speaker you can rename"
                                     : "Every track is mixed into one transcript",
@@ -201,7 +201,7 @@ struct WelcomeTourScreen: View {
             SettingsPageGroup(footer: "A short walk through recording, the keyboard, and the Action button.", first: true) {
                 // The tour is a full-screen cover from the root, so Settings' sheet closes first.
                 Button { app.closeSettings { app.showOnboarding = true } } label: {
-                    SettingsRow(hue: .sage, art: .iconTour, title: "Show Tour") { SettingsChevron() }
+                    SettingsRow(art: .iconTour, title: "Show Tour") { SettingsChevron() }
                 }
                 .buttonStyle(SettingsRowPress())
                 .settingsSearchTarget("tour", flash: nil)
@@ -251,7 +251,7 @@ struct WidgetsInfoScreen: View {
         VStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.offset) { i, item in
                 if i > 0 { SettingsDivider() }
-                SettingsRow(hue: .sage, art: art, title: item.0, subtitle: item.1, subtitleLines: nil) { EmptyView() }
+                SettingsRow(art: art, title: item.0, subtitle: item.1, subtitleLines: nil) { EmptyView() }
                     .accessibilityElement(children: .combine)
             }
         }
@@ -277,7 +277,7 @@ struct ShortcutsInfoScreen: View {
                 VStack(spacing: 0) {
                     ForEach(Array(Self.shortcuts.enumerated()), id: \.offset) { i, item in
                         if i > 0 { SettingsDivider() }
-                        SettingsRow(hue: .sage, art: .iconAI, title: item.0, subtitle: item.1, subtitleLines: nil) { EmptyView() }
+                        SettingsRow(art: .iconAI, title: item.0, subtitle: item.1, subtitleLines: nil) { EmptyView() }
                             .accessibilityElement(children: .combine)
                     }
                 }
@@ -285,7 +285,7 @@ struct ShortcutsInfoScreen: View {
             }
             SettingsPageGroup {
                 Button { if let u = URL(string: "shortcuts://") { openURL(u) } } label: {
-                    SettingsRow(hue: .butter, art: .iconLinks, title: "Open Shortcuts") { SettingsChevron() }
+                    SettingsRow(art: .iconLinks, title: "Open Shortcuts") { SettingsChevron() }
                 }
                 .buttonStyle(SettingsRowPress())
             }

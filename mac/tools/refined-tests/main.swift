@@ -256,9 +256,12 @@ check("lengths read aloud", R.spokenTime(72) == "1 minute 12 seconds" && R.spoke
 
 // MARK: - Settings
 
-check("Settings' squares go persimmon, butter, sage, petal down a card, and around again",
-      (0..<6).map { R.settingsHue($0) } == [.persimmon, .butter, .sage, .petal, .persimmon, .butter] && R.settingsHue(-1) == .petal)
-check("a destructive row's square is neutral", R.settingsHue(0, destructive: true) == .neutral)
+check("the iPhone's Settings squares are neutral with an ink glyph, never an action hue (IP-36)",
+      R.settingsSquareHue == .neutral && R.onBadge(R.settingsSquareHue) == H.ink && R.badgeFill(R.settingsSquareHue) == H.neutralSquare)
+for (name, glyph, square) in [("light", H.danger.light, H.neutralSquare.light), ("dark", H.danger.dark, H.neutralSquare.dark),
+                              ("Increase Contrast, light", H.danger.hcLight, H.neutralSquare.hcLight), ("Increase Contrast, dark", H.danger.hcDark, H.neutralSquare.hcDark)] {
+    check("a destructive Settings row's danger glyph keeps 3:1 on the neutral square, \(name)", R.contrast(glyph, square) >= 3, String(format: "%.2f", R.contrast(glyph, square)))
+}
 let paneRaws = ["general", "transcription", "dictate", "floatingButton", "meetings", "watched", "storage", "privacy", "account", "about", "features", "whatsNew"]
 check("every Mac Settings pane's square is neutral, with an ink glyph (IP-36)",
       paneRaws.allSatisfy { R.settingsPaneHue($0) == .neutral } && R.settingsPaneHue("") == .neutral

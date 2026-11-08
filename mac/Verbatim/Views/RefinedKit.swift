@@ -1563,11 +1563,15 @@ struct IconSquare: View {
     var hue: RefinedHue
     @ScaledMetric private var side: CGFloat
 
+    /// The glyph's color when it isn't the square's own (`onBadge`): the `danger` glyph on a destructive Settings row.
+    var glyph: Color? = nil
+
     /// `side` overrides the device's size: the Mac Settings pane's 40 pt square beside its title. The corner and the
     /// glyph keep their proportions.
-    init(art: BrandArt, hue: RefinedHue, side: CGFloat? = nil) {
+    init(art: BrandArt, hue: RefinedHue, side: CGFloat? = nil, glyph: Color? = nil) {
         self.art = art
         self.hue = hue
+        self.glyph = glyph
         _side = ScaledMetric(wrappedValue: side ?? CGFloat(RefinedRules.squareSize(mac: RefinedPlatform.mac).side), relativeTo: .body)
     }
 
@@ -1576,7 +1580,7 @@ struct IconSquare: View {
         RoundedRectangle(cornerRadius: RefinedPlatform.radius(.square) * side / CGFloat(sizes.side), style: .continuous)
             .fill(Refined.badge(hue))
             .frame(width: side, height: side)
-            .overlay(IconGlyph(art: art, size: side * CGFloat(sizes.glyph / sizes.side), color: Refined.onBadge(hue)))
+            .overlay(IconGlyph(art: art, size: side * CGFloat(sizes.glyph / sizes.side), color: glyph ?? Refined.onBadge(hue)))
             .accessibilityHidden(true)
     }
 }

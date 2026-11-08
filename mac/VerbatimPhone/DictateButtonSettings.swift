@@ -90,45 +90,52 @@ struct DictateButtonPreview: View {
     }
 }
 
-/// The dictate button as the keyboard draws it: Standard is the 46 pt pill with Start; Large is the 62 pt disc.
-/// Filled is persimmon with ink on it; Outline is the card with the accent's ring and glyphs. No grain or shadow.
+/// The dictate button as the keyboard draws it: Standard is the 46 pt pill with Start and the dictate glyph (the
+/// waves); Large is the 62 pt disc with the glyph only. Filled is butter with ink on it and a hairline edge; Outline is
+/// the card with a 2 pt butter ring and ink (`DictateButton.Paint`; SF-05). No grain or shadow.
 private struct PreviewDictateButton: View {
     var look: DictateButton
-    private static let bars: [CGFloat] = [9, 16, 20, 12, 17]
 
     var body: some View {
         if look.size == .large {
-            bars(height: 24, width: 3.5)
+            glyph(28)
                 .frame(width: 62, height: 62)
-                .modifier(Surface(filled: look.style == .filled, shape: Circle()))
+                .modifier(Surface(look: look, shape: Circle()))
         } else {
             HStack(spacing: 10) {
-                Text("Start").scaledFont(17, weight: .bold).foregroundStyle(foreground)
-                bars(height: 20, width: 3)
+                Text("Start").scaledFont(17, weight: .bold).foregroundStyle(paint(look.foreground))
+                glyph(22)
             }
             .padding(.leading, 20).padding(.trailing, 16).frame(height: 46)
-            .modifier(Surface(filled: look.style == .filled, shape: Capsule()))
+            .modifier(Surface(look: look, shape: Capsule()))
         }
     }
 
-    private var foreground: Color { look.style == .filled ? Refined.onFill : Refined.accentText }
-
-    private func bars(height: CGFloat, width: CGFloat) -> some View {
-        HStack(spacing: width * 0.85) {
-            ForEach(Self.bars.indices, id: \.self) { i in
-                Capsule().fill(foreground).frame(width: width, height: Self.bars[i] * height / 20)
-            }
-        }
-        .frame(height: height)
+    private func glyph(_ size: CGFloat) -> some View {
+        BrandGlyph(art: .iconDictations, color: paint(look.foreground), minLineWidth: size * 0.09).frame(width: size, height: size)
     }
+
+    /// A `DictateButton.Paint` in the app's colors, as the keyboard maps it.
+    static func paint(_ p: DictateButton.Paint) -> Color {
+        switch p {
+        case .butter: return Refined.butter
+        case .card: return Refined.card
+        case .onFill: return Refined.onFill
+        case .ink: return Refined.ink
+        }
+    }
+    private func paint(_ p: DictateButton.Paint) -> Color { Self.paint(p) }
 
     private struct Surface<S: InsettableShape>: ViewModifier {
-        var filled: Bool
+        var look: DictateButton
         var shape: S
         func body(content: Content) -> some View {
             content
-                .background(shape.fill(filled ? Refined.persimmon : Refined.card))
-                .overlay { if !filled { shape.strokeBorder(Refined.accentText, lineWidth: 1.5) } }
+                .background(shape.fill(PreviewDictateButton.paint(look.fill)))
+                .overlay {
+                    if let ring = look.ring { shape.strokeBorder(PreviewDictateButton.paint(ring), lineWidth: 2) }
+                    else { shape.strokeBorder(Refined.separator, lineWidth: 1) }
+                }
         }
     }
 }

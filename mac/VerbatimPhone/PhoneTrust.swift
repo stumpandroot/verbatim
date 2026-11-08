@@ -19,12 +19,11 @@ extension PhoneState {
 
 /// The row in Settings › Sync and storage that opens Privacy.
 struct PhonePrivacyRow: View {
-    var hue: RefinedHue = .persimmon
     var action: () -> Void
     @ObservedObject private var model = NetworkActivityModel.shared
     var body: some View {
         Button(action: action) {
-            SettingsRow(hue: hue, art: .iconPrivacy, title: "Privacy",
+            SettingsRow(art: .iconPrivacy, title: "Privacy",
                         subtitle: model.localOnly ? "Local Only is on. Nothing leaves this iPhone except iCloud sync." : "No account, no analytics. See what used the network.") {
                 SettingsChevron()
             }

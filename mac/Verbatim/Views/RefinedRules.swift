@@ -117,14 +117,10 @@ enum RefinedRules {
 
     // MARK: Settings
 
-    /// The iPhone's Settings rows take their icon squares' hues in turn down each card (mockup PhoneSettings):
-    /// persimmon, butter, sage, petal, and around again. A destructive row's square is neutral, with a red title.
-    static let settingsRotation: [RefinedHue] = [.persimmon, .butter, .sage, .petal]
-    static func settingsHue(_ index: Int, destructive: Bool = false) -> RefinedHue {
-        if destructive { return .neutral }
-        let n = settingsRotation.count
-        return settingsRotation[((index % n) + n) % n]
-    }
+    /// The iPhone's Settings rows' icon squares are neutral (DESIGN.md §1; IP-36, Tim, November 8, 2026): the wash
+    /// with an ink glyph on every row, never an action hue, since persimmon means Record and butter Dictate. A
+    /// destructive row keeps the wash, with the `danger` glyph beside its red title (`SettingsLabel`).
+    static let settingsSquareHue: RefinedHue = .neutral
 
     /// A Mac Settings pane's square in the sidebar and beside its title, by `SettingsTab` raw value: the neutral square
     /// with an ink glyph for every pane (IP-36, Tim, November 8, 2026; DESIGN.md §1). A pane names no action, so its

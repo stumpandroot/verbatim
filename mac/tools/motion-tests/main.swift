@@ -75,6 +75,14 @@ check("toasts: the iPhone toast's action has a 44 pt target, and VoiceOver gets 
       phoneApp.contains("minHeight: CGFloat(RefinedRules.minTapTarget)") && phoneApp.contains(".accessibilityAction(named: Text(action), run)")
       && phoneApp.contains(".accessibilityAction(.magicTap, run)") && phoneApp.contains(".accessibilityAction(.escape, dismiss)")
       && !phoneApp.contains(".updatesFrequently"))
+// Tabs (IP-35, Tim, November 8, 2026): picking a tab shows its page at once, opaque, with no travel and no fade.
+let tabRoot = block(phoneApp, from: "    private func tabRoot(")
+let animatedTabs = all.flatMap { f in codeLines(f.1).filter { $0.contains("withAnimation") && $0.contains(".tab = ") }.map { "\(f.0): \($0)" } }
+check("tabs: an iPhone tab's page arrives at once, with no slide and no fade (IP-35)",
+      !tabRoot.isEmpty && !codeLines(phoneApp).contains { $0.contains("TabEntrance") }
+      && ![".offset(", ".opacity(", ".transition(", ".animation(", "withAnimation"].contains { tabRoot.contains($0) }
+      && !codeLines(phoneApp).contains { $0.contains(".animation(") && $0.contains("value: app.tab") } && animatedTabs.isEmpty,
+      animatedTabs.joined(separator: "\n"))
 let phone = read("VerbatimPhone/PhoneState.swift")
 check("toasts: the iPhone times its toasts by length with ToastTiming, keeps action toasts for VoiceOver, and announces each one",
       phone.contains("ToastTiming.remaining(") && phone.contains("plain: ToastTiming.plain(for: t.message, floor: ToastTiming.phonePlain)")

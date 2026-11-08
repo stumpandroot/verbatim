@@ -87,7 +87,7 @@ struct ThoughtsSettingsScreen: View {
                     .settingsSearchTarget("thoughtsIslandWords", flash: nil)
                 SettingsDivider()
                 HStack(spacing: 10) {
-                    SettingsLabel(hue: .sage, art: .iconCalendar, title: "New page each day at")
+                    SettingsLabel(art: .iconCalendar, title: "New page each day at")
                     Spacer(minLength: 8)
                     Picker("New page each day at", selection: $newPageHour) {
                         ForEach(DayPages.hours, id: \.self) { h in Text(DayPages.hourLabel(h)).tag(h) }
@@ -135,7 +135,7 @@ struct ThoughtsSettingsScreen: View {
     }
 
     private func wayRow(icon: String, art: BrandArt, title: String, subtitle: String, value: String) -> some View {
-        SettingsRow(hue: .sage, art: art, title: title, subtitle: subtitle) { SettingsValue(value) }
+        SettingsRow(art: art, title: title, subtitle: subtitle) { SettingsValue(value) }
             .accessibilityElement(children: .combine)
     }
 
@@ -156,7 +156,7 @@ private struct StepCard<Footer: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                SettingsLabel(hue: .sage, art: art, title: "")
+                SettingsLabel(art: art, title: "")
                     .fixedSize()
                 Text(title).scaledFont(20, design: .serif).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
@@ -182,7 +182,7 @@ private struct SiriCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                SettingsLabel(hue: .sage, art: .iconSpeak, title: "").fixedSize()
+                SettingsLabel(art: .iconSpeak, title: "").fixedSize()
                 Text("Siri").scaledFont(20, design: .serif).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
             }
