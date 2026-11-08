@@ -159,19 +159,3 @@ struct MacSideCard<Content: View>: View {
         .accessibilityElement(children: .contain)
     }
 }
-
-/// One line in a side card: a label and a quiet value on the right.
-struct MacSideLine: View {
-    var label: String
-    var value: String? = nil
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(label).font(.system(size: 12.5)).foregroundStyle(Refined.ink).lineLimit(1)
-            Spacer(minLength: 8)
-            if let value { Text(value).font(.system(size: 11.5)).foregroundStyle(Refined.mute).monospacedDigit() }
-        }
-        .frame(minHeight: 26)
-        .accessibilityElement(children: .combine)
-    }
-}

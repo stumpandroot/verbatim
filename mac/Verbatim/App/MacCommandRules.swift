@@ -2,8 +2,8 @@ import Foundation
 
 // The Mac's command and small-window rules (DESIGN.md §6.8, §7, §11, the interactions audit of November 7, 2026):
 // what Recent dictations does with a key, when a hover may move its selection, what the Recording menu offers, how
-// Find in the open transcript matches and steps, which Library columns fit a width, and when the inspector closes to
-// make room. Foundation only, so the Linux tests (mac/tools/test-mac-commands.sh) check them; the views and menus read
+// Find in the open transcript matches and steps, which Library columns fit a width, when the inspector closes to
+// make room, and when a page shows its side column. Foundation only, so the Linux tests (mac/tools/test-mac-commands.sh) check them; the views and menus read
 // them and nothing here draws.
 
 // MARK: - Recent dictations keys
@@ -246,6 +246,29 @@ enum InspectorFit {
     /// Whether the inspector shows: what you chose, and only while the content keeps its least width.
     static func shows(chosen: Bool, detailWidth: CGFloat, inspectorWidth: CGFloat) -> Bool {
         chosen && detailWidth - inspectorWidth >= minContent
+    }
+}
+
+// MARK: The side column
+
+/// What a wide Mac page's side column holds, and when a page shows one (MAC-34, Tim, November 8, 2026; DESIGN.md §6, The
+/// Mac's side column). It never repeats the sidebar: Home's Dictations card and the Library's Collections card are
+/// gone. Home's column holds This week, Today's thoughts, and Journal when they're shown; with none of them shown, Home
+/// takes the full width. The Library's holds only the Selected card, which shows while the inspector is closed, so with
+/// the inspector open the table takes the full width.
+enum MacSideColumn {
+    /// Home's sections (`HomeSection` raw values) that move to the side column on a wide window.
+    static let homeSections: Set<String> = ["week", "thoughts", "journal"]
+
+    /// Whether Home splits into two columns: a wide window, Edit Home closed, and something shown that goes beside.
+    static func homeSplits(wide: Bool, editing: Bool, shown: [String]) -> Bool {
+        wide && !editing && shown.contains { homeSections.contains($0) }
+    }
+
+    /// Whether the Library shows its side column: a wide window, the whole Library (not a project), and the inspector
+    /// closed, the only time the Selected card can show there.
+    static func librarySplits(wide: Bool, inProject: Bool, inspectorVisible: Bool) -> Bool {
+        wide && !inProject && !inspectorVisible
     }
 }
 

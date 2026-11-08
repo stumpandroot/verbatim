@@ -135,9 +135,11 @@ struct HomeView: View {
             let _ = NavMarks.mark("home-grid")
             let layout = layouts.layout
             // Two columns on a wide window (mockup "Verbose Mac Columns"): Record, the tiles, and the recordings on the
-            // left; This week, today's thoughts, the journal, and the last dictations on the right. Edit Home keeps one
-            // column, with its panel beside it.
-            let twoCol = MacColumnsMetrics.twoColumns(geo.size.width) && !edit.editing
+            // left; This week, today's thoughts, and the journal on the right. With none of those shown, Home takes the
+            // full width (MAC-34; the side column never repeats the sidebar). Edit Home keeps one column, with its
+            // panel beside it.
+            let twoCol = MacSideColumn.homeSplits(wide: MacColumnsMetrics.twoColumns(geo.size.width), editing: edit.editing,
+                                                  shown: layout.shown.map(\.section.rawValue))
             let width = twoCol ? MacColumnsMetrics.mainWidth(geo.size.width, mainMax: Self.mainMax) : Self.contentWidth(geo.size.width)
             let mainItems = twoCol ? layout.shown.filter { !Self.sideSections.contains($0.section) } : layout.shown
             let sideItems = twoCol ? layout.shown.filter { Self.sideSections.contains($0.section) } : []
@@ -150,7 +152,6 @@ struct HomeView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(sideItems, id: \.section) { item in section(item, layout: layout) }
-                            HomeSideDictations()
                         }
                         .frame(width: MacColumnsMetrics.side, alignment: .topLeading)
                         .padding(.top, MacColumnsMetrics.top + sideTop).padding(.bottom, 40)
@@ -171,8 +172,8 @@ struct HomeView: View {
         }
     }
 
-    /// The sections the side column takes on a wide window.
-    static let sideSections: Set<HomeSection> = [.week, .thoughts, .journal]
+    /// The sections the side column takes on a wide window (`MacSideColumn.homeSections`).
+    static let sideSections: Set<HomeSection> = Set(MacSideColumn.homeSections.compactMap(HomeSection.init(rawValue:)))
     /// The main column's widest in two columns.
     static let mainMax: CGFloat = 900
 
@@ -845,24 +846,5 @@ final class HomeMic: ObservableObject {
         guard uid != lastUID else { return }
         lastUID = uid
         refresh()
-    }
-}
-
-/// Home's side column on a wide window: the last two dictations, with All opening Dictations. Nothing when there are
-/// none.
-struct HomeSideDictations: View {
-    @Environment(AppState.self) var app
-
-    var body: some View {
-        let recent = Array(app.store.live.filter { $0.flow != nil }.sorted { $0.createdAt > $1.createdAt }.prefix(2))
-        if !recent.isEmpty {
-            MacSideCard(title: "Dictations", link: "All", action: { app.go(.dictations) }) {
-                ForEach(recent) { t in
-                    let words = (t.flow?.pasted ?? t.text).split(whereSeparator: \.isWhitespace).count
-                    MacSideLine(label: "\(t.flow?.app ?? "Dictation") · \(words == 1 ? "1 word" : "\(words) words")",
-                                value: Formats.style(date: .none, time: .short).string(from: t.createdAt))
-                }
-            }
-        }
     }
 }

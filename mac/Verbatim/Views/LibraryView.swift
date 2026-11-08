@@ -29,6 +29,8 @@ struct LibraryView: View {
     /// Which column has the keyboard (MAC-25): the selected row shows a leading bar while the table has it, and dims
     /// while the sidebar does.
     @ObservedObject private var columns = ColumnFocus.shared
+    /// Whether the inspector shows: with it open, the side column (which holds only the Selected card) steps aside.
+    @ObservedObject private var nav = WindowNav.shared
 
     /// How many Libraries are on screen, and their rows' order (the self-test).
     static var onScreen = 0
@@ -51,8 +53,10 @@ struct LibraryView: View {
         return VStack(spacing: 0) {
             GeometryReader { geo in
                 // Two columns (mockup "Verbose Mac Columns"): the table takes the width, and a 320 pt side column holds
-                // the collections and the selected recording. Narrow windows keep one column.
-                let wide = MacColumnsMetrics.twoColumns(geo.size.width) && app.projectFilter == nil
+                // the selected recording while the inspector is closed (MAC-34: no Collections card; the sidebar has
+                // them). Narrow windows, a project, and an open inspector keep one column.
+                let wide = MacSideColumn.librarySplits(wide: MacColumnsMetrics.twoColumns(geo.size.width), inProject: app.projectFilter != nil,
+                                                       inspectorVisible: nav.inspectorVisible)
                 let margin = geo.size.width < 760 ? 24 : Self.margin
                 let width = wide ? MacColumnsMetrics.mainWidth(geo.size.width) : max(320, geo.size.width - 2 * margin)
                 HStack(alignment: .top, spacing: wide ? MacColumnsMetrics.gap : 0) {
@@ -138,27 +142,13 @@ struct LibraryView: View {
 
     // MARK: Side column
 
-    /// The collections that used to be separate places, and the one selected recording with Play and Open.
+    /// The one selected recording with Play and Open, the same card the inspector shows (MAC-18), only while the
+    /// inspector is closed. The Collections card (Dictations, Thoughts by day, Journal, Templates, Ask) left: the sidebar
+    /// holds every one of them (MAC-34).
     @ViewBuilder private func sideColumn(order: [UUID]) -> some View {
-        let all = app.store.live
-        let today = all.filter { Calendar.current.isDateInToday($0.createdAt) }
-        MacSideCard(title: "Collections") {
-            sideLink("Dictations", value: "\(today.filter { $0.flow != nil }.count) today") { app.go(.dictations) }
-            sideLink("Thoughts by day", value: "\(today.filter { $0.kind == .idea }.count) today") { app.go(.byDay(.idea)) }
-            sideLink("Journal", value: nil) { app.go(.byDay(.journal)) }
-            sideLink("Templates", value: "\(app.store.allTemplates.count)") { app.go(.templates) }
-            sideLink("Ask", value: nil) { app.go(.ask) }
-        }
-        // The selected recording, the same card the inspector shows (MAC-18), only while the inspector is closed.
         if let t = single {
             SelectedSideCard(transcript: t, onPlay: { _ = playSelected() }, onOpen: { _ = openSelected() })
         }
-    }
-
-    private func sideLink(_ title: String, value: String?, action: @escaping () -> Void) -> some View {
-        Button(action: action) { MacSideLine(label: title, value: value).contentShape(Rectangle()) }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens \(title)")
     }
 
     // MARK: Page

@@ -1799,6 +1799,16 @@ enum UITest {
         check("settings ids are unique", Set(SettingsIndex.all.map(\.id)).count == SettingsIndex.all.count)
         // The welcome tour's steps (OnboardingView.swift), and no Look setting (one look since step 7, DESIGN.md §13).
         check("onboarding: the tour has six steps, permissions after the welcome, the ways in after Try it", OnboardingStep.count == 6 && OnboardingStep.at(1) == .permissions && OnboardingStep.at(3) == .ways)
+        // The side column never repeats the sidebar (MAC-34, November 8, 2026): Home's holds This week, Today's thoughts,
+        // and Journal, and without them Home takes the full width; the Library's holds only Selected, so an open
+        // inspector gives the table the full width.
+        check("side column: Home's default layout splits a wide window, with This week beside",
+              HomeView.sideSections == [.week, .thoughts, .journal]
+              && MacSideColumn.homeSplits(wide: true, editing: false, shown: HomeLayout.defaults(.mac).shown.map(\.section.rawValue)))
+        check("side column: Home with This week, thoughts, and Journal hidden takes the full width",
+              !MacSideColumn.homeSplits(wide: true, editing: false, shown: HomeLayout.defaults(.mac).shown.map(\.section.rawValue).filter { $0 != "week" }))
+        check("side column: the Library's steps aside while the inspector shows",
+              !MacSideColumn.librarySplits(wide: true, inProject: false, inspectorVisible: true) && MacSideColumn.librarySplits(wide: true, inProject: false, inspectorVisible: false))
         check("settings: there's no Look setting, and Palette is searchable",
               !SettingsIndex.all.contains { $0.id == "general.look" } && SettingsIndex.search("palette").map(\.id).contains("general.palette"))
         // What's new: the bundled notes, their rules, when Home's note shows, and where it's found (ReleaseNotes.swift).

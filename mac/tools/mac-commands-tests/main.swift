@@ -133,6 +133,24 @@ check("inspector: closes when the content would be under about 560 pt", !Inspect
       && InspectorFit.minContent == 560)
 check("inspector: stays closed when you closed it", !InspectorFit.shows(chosen: false, detailWidth: 2000, inspectorWidth: 300))
 
+// MARK: The side column
+
+check("side column: Home's holds This week, Today's thoughts, and Journal (MAC-34)", MacSideColumn.homeSections == ["week", "thoughts", "journal"])
+check("side column: Home splits on a wide window with This week shown",
+      MacSideColumn.homeSplits(wide: true, editing: false, shown: ["record", "tiles", "recent", "week"]))
+check("side column: with nothing for the side shown, Home takes the full width",
+      !MacSideColumn.homeSplits(wide: true, editing: false, shown: ["record", "tiles", "recent"])
+      && !MacSideColumn.homeSplits(wide: true, editing: false, shown: []))
+check("side column: Today's thoughts or Journal alone still split Home",
+      MacSideColumn.homeSplits(wide: true, editing: false, shown: ["record", "thoughts"]) && MacSideColumn.homeSplits(wide: true, editing: false, shown: ["journal"]))
+check("side column: a narrow window and Edit Home keep one column",
+      !MacSideColumn.homeSplits(wide: false, editing: false, shown: ["week"]) && !MacSideColumn.homeSplits(wide: true, editing: true, shown: ["week"]))
+check("side column: the Library's shows only while the inspector is closed, in the whole Library, on a wide window",
+      MacSideColumn.librarySplits(wide: true, inProject: false, inspectorVisible: false)
+      && !MacSideColumn.librarySplits(wide: true, inProject: false, inspectorVisible: true)
+      && !MacSideColumn.librarySplits(wide: true, inProject: true, inspectorVisible: false)
+      && !MacSideColumn.librarySplits(wide: false, inProject: false, inspectorVisible: false))
+
 // MARK: Visible focus
 
 check("focus: the column with the keyboard marks its selection; the other dims (MAC-25)",
@@ -316,6 +334,11 @@ check("labels: side cards and the line over a page's title are the meta style in
       columnsSource.contains("Text(title).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)") && !columnsSource.contains(".uppercased()")
       && kit.contains("Text(line).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)") && !kit.contains("line.uppercased()")
       && trackedLabels.isEmpty, "\(trackedLabels)")
+
+check("side column: no Dictations card on Home and no Collections card in the Library; Selected and Ask's cards stay (MAC-34)",
+      !home.contains("HomeSideDictations") && !home.contains("MacSideCard(") && home.contains("MacSideColumn.homeSplits(")
+      && !library.contains("MacSideCard(title: \"Collections\")") && !library.contains("sideLink(") && library.contains("MacSideColumn.librarySplits(")
+      && library.contains("MacSideCard(title: \"Selected\")") && askViews.contains("MacSideCard(title: \"Recent questions\")"))
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
