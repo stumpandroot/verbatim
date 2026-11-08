@@ -2905,7 +2905,66 @@ enum PhoneUITest {
         for r in CloudShareLinkChecks.run() { check("iPhone " + r.name, r.ok) }
         check("cloud links aren't podcast shows", !PhoneLinkFetcher.isShowLink(URL(string: "https://www.dropbox.com/s/abc/feed.mp3?dl=0")!))
         recordingChecks(check)
+        typingHelpChecks(check)
         Log.note("UITEST keyboard checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// Typing help (approved mockup "Corrections, suggestions, and accents"; TypingHelp.swift): Autocorrect and Suggestions
+    /// are on by default in the App Group, the Dictionary's words reach the keyboard, the languages follow the keyboards in
+    /// the Settings app, and Apple's spell checker answers on this iPhone as the keyboard expects. The correction rules
+    /// themselves are checked on Linux (mac/tools/test-typing-correction.sh).
+    static func typingHelpChecks(_ check: (String, Bool) -> Void) {
+        let d = KeyboardBridge.defaults
+        let keys = [TypingHelp.Key.autocorrect, TypingHelp.Key.suggestions, TypingHelp.Key.words]
+        let stored = keys.map { d?.object(forKey: $0) }
+        for k in keys { d?.removeObject(forKey: k) }
+        check("typing: Autocorrect and Suggestions are on by default", TypingHelp.read(d) == TypingHelp(autocorrect: true, suggestions: true))
+        d?.set(false, forKey: TypingHelp.Key.autocorrect)
+        check("typing: the keyboard reads Autocorrect off from the App Group", d != nil && !TypingHelp.read(d).autocorrect && TypingHelp.read(d).suggestions)
+        TypingHelp.writeWords(["Verbose", "Okafor-Lee"], to: d)
+        check("typing: the Dictionary's words reach the keyboard, lowercased", TypingHelp.readWords(d) == ["verbose", "okafor-lee"])
+        for (k, v) in zip(keys, stored) { if let v { d?.set(v, forKey: k) } else { d?.removeObject(forKey: k) } }
+
+        let available = UITextChecker.availableLanguages
+        Log.note("UITEST typing: the spell checker has \(available.count) languages: \(available.sorted().joined(separator: " "))")
+        check("typing: the spell checker has English", available.contains { TypingLanguages.code($0) == "en" })
+        let supported = KeyboardLanguagesMirror.supported
+        check("typing: your keyboards' languages are ones the checker has, once each",
+              supported.allSatisfy(available.contains) && Set(supported).count == supported.count)
+        KeyboardLanguagesMirror.update()
+        check("typing: the languages are in the App Group", (TypingHelp.readLanguages(d) ?? []) == supported)
+        check("typing: Spanish gets ñ, French AZERTY, German QWERTZ",
+              TypingLanguages.layout(for: "es_ES") == .spanish && TypingLanguages.layout(for: "fr_FR") == .azerty
+              && TypingLanguages.layout(for: "de_DE") == .qwertz && TypingLanguages.layout(for: "en_US") == .qwerty)
+        check("typing: long-press e in French leads with é", AccentSets.alternates(for: "e", language: "fr_FR").first == "é")
+
+        // The checker as the keyboard asks it: one word, its guesses, and completions.
+        let checker = UITextChecker()
+        func misspelled(_ word: String, _ lang: String) -> Bool {
+            checker.rangeOfMisspelledWord(in: word, range: NSRange(location: 0, length: (word as NSString).length),
+                                          startingAt: 0, wrap: false, language: lang).location != NSNotFound
+        }
+        func guesses(_ word: String, _ lang: String) -> [String] {
+            checker.guesses(forWordRange: NSRange(location: 0, length: (word as NSString).length), in: word, language: lang) ?? []
+        }
+        if let en = TypingLanguages.match("en_US", available: available) {
+            let start = Date()
+            let teh = misspelled("teh", en)
+            let g = guesses("teh", en)
+            let ms = Date().timeIntervalSince(start) * 1000
+            Log.note("UITEST typing: one check and its guesses took \(String(format: "%.1f", ms)) ms")
+            check("typing: teh is misspelled and the is a guess", teh && g.contains("the"))
+            check("typing: the is spelled right", !misspelled("the", en))
+            let c = checker.completions(forPartialWordRange: NSRange(location: 0, length: 3), in: "hel", language: en) ?? []
+            check("typing: hel completes", !c.isEmpty)
+        }
+        if let es = TypingLanguages.match("es_ES", available: available) {
+            check("typing: Spanish manana guesses mañana", misspelled("manana", es) && guesses("manana", es).contains("mañana"))
+        }
+        check("settings search finds autocorrect, suggestions, and languages",
+              SettingsSearchIndex.search("autocorrect").flatMap(\.entries).contains { $0.id == "keyboardAutocorrect" }
+              && SettingsSearchIndex.search("predictive").flatMap(\.entries).contains { $0.id == "keyboardSuggestions" }
+              && SettingsSearchIndex.search("azerty").flatMap(\.entries).contains { $0.id == "keyboardLanguages" })
     }
 
     /// After a call: when a recording resumes and on which input; and the recording Live Activity's content.
