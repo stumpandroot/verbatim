@@ -883,7 +883,7 @@ enum PhoneUITest {
         await show("p02k-record-meeting\(suffix)")
         check("the recorder is a sheet with a grabber", RecorderSheet.visible)
         check("the recorder shows the picked kind", app.recordingChoice == .kind(.meeting))
-        check("the recorder's stop is system red", RecorderSheet.stopColor.map { sameColor($0, .systemRed) } ?? false)
+        check("the recorder's Stop is persimmon, not system red (SF-04)", RecorderSheet.stopColor.map { sameColor($0, UIColor(Refined.persimmon)) && !sameColor($0, .systemRed) } ?? false)
         app.minimizeRecorder()
         app.recordKind = nil
         app.previewRecording = false
@@ -1729,12 +1729,12 @@ enum PhoneUITest {
                   places == ["library.byDay", "library.templates", "library.ask", "library.projects"])
     }
 
-    /// The recorder draws its sheet once (DESIGN.md §6.10), with the system red stop square, and the minimized
+    /// The recorder draws its sheet once (DESIGN.md §6.10), with Stop's persimmon disc and ink square (SF-04), and the minimized
     /// recorder's rules hold.
     private static func recorderLayoutCheck() {
         let shown = RecorderSheet.onScreen
         layoutCheck("the recorder is one sheet (on screen: \(shown))", RecorderSheet.visible && shown == 1)
-        layoutCheck("the recorder's stop square is system red", RecorderSheet.stopColor.map { sameColor($0, .systemRed) } ?? false)
+        layoutCheck("the recorder's Stop is persimmon with the ink square (SF-04)", RecorderSheet.stopColor.map { sameColor($0, UIColor(Refined.persimmon)) } ?? false)
         let words = RefinedRules.liveWords("The wheels first. Then the wagons in the field.")
         layoutCheck("the recorder's newest sentence is ink, the older words mute", words.older == "The wheels first." && words.newest == "Then the wagons in the field.")
     }

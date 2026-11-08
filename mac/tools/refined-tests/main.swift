@@ -362,7 +362,20 @@ check("a playing turn takes the playing wash, and a marked line the accent mark,
       kit.contains("playing ? Refined.playing") && kit.contains("art: .iconMarked, size: size, color: Refined.accentText"))
 check("the segmented control draws the track token", kit.contains("Refined.track"))
 check("the recorder's clocks are read on request, never announced on every tick", !kit.contains(".updatesFrequently"))
-check("the recorder's Stop is the system red square", kit.contains("struct RecorderStopButton") && kit.contains("fill(Refined.recordRed).frame(width: 30, height: 30)"))
+// SF-04 (November 7): Stop is persimmon everywhere, a persimmon fill with the fill's ink square; the system red is only
+// the record disc's dot.
+check("the recorder's Stop is the persimmon disc with the ink square", kit.contains("struct RecorderStopButton") && kit.contains("else { RefinedStopDisc(size: 60) }")
+      && kit.contains("Circle().fill(Refined.persimmon)") && kit.contains(".fill(Refined.onFill)"))
+check("the minimized recorder's and the toolbar capsule's Stop are the same disc", kit.contains("else { RefinedStopDisc(size: 30) }") && kit.contains("RefinedStopDisc(size: 22)"))
+do {
+    var redStops: [String] = []
+    for f in ["\(views)/RefinedPlayback.swift", "\(views)/HomeView.swift", "\(views)/RecordingStatus.swift", "\(views)/MeetingBanner.swift"] {
+        for (i, line) in read(f).components(separatedBy: "\n").enumerated() where line.contains("RoundedRectangle") && line.contains("recordRed") {
+            redStops.append("\((f as NSString).lastPathComponent):\(i + 1)")
+        }
+    }
+    check("no stop square is system red in the apps", redStops.isEmpty, redStops.joined(separator: ", "))
+}
 
 let tokens = read("\(views)/Tokens.swift")
 let tableNames = Set((try! NSRegularExpression(pattern: #"static let (\w+) = (Tone|Wash)\("#)).matches(in: tokens, range: NSRange(tokens.startIndex..., in: tokens))

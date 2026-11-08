@@ -610,7 +610,8 @@ private struct RecordingWave: View {
 // MARK: - Recording status, small
 
 /// The live timer capsule (mockup MacRecorder's toolbar): the record dot in system red (an outline while paused), the
-/// minutes and seconds in semibold tabular digits, and a round Stop with the ink stop square. The time is read once a
+/// minutes and seconds in semibold tabular digits, and a round Stop: the persimmon disc with the ink stop square
+/// (`RefinedStopDisc`, SF-04). The time is read once a
 /// second, so the toolbar doesn't redraw with the meter. `onCard` draws the capsule's own card where there's no
 /// glass group under it (the previews); in the toolbar, its glass is the capsule.
 struct RecordingTimerCapsule: View {
@@ -635,10 +636,7 @@ struct RecordingTimerCapsule: View {
                     .accessibilityValue(RefinedRules.spokenTime(live.elapsed))
             }
             Button(action: onStop) {
-                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.ink).frame(width: 8, height: 8)
-                    .frame(width: 22, height: 22)
-                    .background(Refined.neutral, in: Circle())
-                    .contentShape(Circle())
+                RefinedStopDisc(size: 22).contentShape(Circle())
             }
             .buttonStyle(RefinedPress())
             .help("\(stopLabel) (⌥⇧.)")
@@ -655,7 +653,7 @@ struct RecordingTimerCapsule: View {
 
 #if os(iOS)
 /// The minimized recorder (the iPhone): the persimmon dot (dimmed while paused), "Recording · 4:12" over
-/// your newest words or the kind, then Pause or Resume and Stop (the red square). A tap on the text opens the recorder.
+/// your newest words or the kind, then Pause or Resume and Stop (the persimmon disc with the ink square, SF-04). A tap on the text opens the recorder.
 /// No background of its own: the tab bar's accessory draws the glass, or the bar's card before iOS 26.
 /// VoiceOver reads one element ("Recording, 4 minutes 12 seconds") with Pause or Resume, Stop, and Open as actions.
 struct MiniRecordingBar<Detail: View>: View {
@@ -711,7 +709,7 @@ struct MiniRecordingBar<Detail: View>: View {
             Button(action: onStop) {
                 Group {
                     if saving { ProgressView().controlSize(.small) }
-                    else { RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Refined.recordRed).frame(width: 15, height: 15) }
+                    else { RefinedStopDisc(size: 30) }
                 }
                 .frame(width: 44, height: 44).contentShape(Rectangle())
             }
@@ -754,8 +752,9 @@ struct RecorderControl<Glyph: View>: View {
     }
 }
 
-/// The recorder's Stop: the system red stop square in a ring (76 pt), with "Stop" under it, or a spinner and
-/// "Saving…" while the recording is saved. Red appears only here and on the record disc (DESIGN.md §13).
+/// The recorder's Stop: the persimmon disc with the ink stop square inside a ring (76 pt), with "Stop" under it, or a
+/// spinner and "Saving…" while the recording is saved. Stop is persimmon everywhere, as on the Lock Screen and the
+/// watch; the system red is only the record disc's dot (DESIGN.md §13, SF-04).
 ///
 /// After a tap on Stop the ring fills slow, then fast, in the recording's color while "Saving…" shows, and the button
 /// bounces a little as it completes (`ring`, DESIGN.md §7, Celebrations); the square stays until the recorder closes.
@@ -778,7 +777,7 @@ struct RecorderStopButton: View {
                             .allowsHitTesting(false)
                     }
                     if saving && !ring.active { ProgressView() }
-                    else { RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Refined.recordRed).frame(width: 30, height: 30) }
+                    else { RefinedStopDisc(size: 60) }
                 }
                 .frame(width: 76, height: 76)
                 .scaleEffect(ring.active ? ring.scale : 1)
@@ -791,6 +790,20 @@ struct RecorderStopButton: View {
     }
 }
 #endif
+
+/// Stop, drawn (SF-04): the persimmon disc with the fill's ink square, the same Stop as the Lock Screen's and the
+/// watch's. Ink on persimmon measures 4.45:1, above the 3:1 a graphic needs, in light and dark (`onFill`). Its name
+/// sits beside or under it on the page, never on the fill.
+struct RefinedStopDisc: View {
+    var size: CGFloat
+    var body: some View {
+        Circle().fill(Refined.persimmon)
+            .overlay(RoundedRectangle(cornerRadius: size * 0.1, style: .continuous).fill(Refined.onFill)
+                .frame(width: size * 0.38, height: size * 0.38))
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
 
 /// Pause, drawn: two rounded bars (no SF Symbol in the recorder's controls).
 struct RecorderPauseGlyph: Shape {

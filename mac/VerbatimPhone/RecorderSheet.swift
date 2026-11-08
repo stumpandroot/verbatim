@@ -26,7 +26,7 @@ struct RecorderSheet: View {
     static var visible = false
     /// How many recorders are on screen (one), for the self-test.
     static var onScreen = 0
-    /// The stop square's color as drawn, for the self-test (it must be the system red).
+    /// Stop's fill as drawn, for the self-test (persimmon, as on the Lock Screen and the watch; SF-04).
     static var stopColor: Color? = nil
     /// Started from the Record as tray: the next recorder appears with no system transition and its page slides up
     /// 12 pt over 150 ms, opaque from its first frame (PhoneState.presentRecorder sets it; never under Limit animation).
@@ -352,7 +352,7 @@ struct RecorderSheet: View {
                 }
                     .accessibilityHint(stopHint)
                     .accessibilityIdentifier("native.recorder.stop")
-                    .onAppear { RecorderSheet.stopColor = Refined.recordRed }
+                    .onAppear { RecorderSheet.stopColor = Refined.persimmon }
                     .frame(maxWidth: .infinity)
                 RecorderControl(label: paused ? "Resume" : "Pause", action: { app.togglePause() }) {
                     if paused { RecorderPlayGlyph().fill(Refined.ink).frame(width: 15, height: 18).offset(x: 2) }

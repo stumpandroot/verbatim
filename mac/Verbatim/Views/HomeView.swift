@@ -725,8 +725,7 @@ struct HomeRecordingCard: View {
                 if capturing { app.stopCapture() } else { app.stopRecording(from: AppState.clickedNow ? .homeCardClick : .keyboard) }
             } label: {
                 HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.recordRed).frame(width: 9, height: 9)
-                        .accessibilityHidden(true)
+                    RefinedStopDisc(size: 14)   // Stop is persimmon with the ink square everywhere (SF-04)
                     Text(starting ? "Cancel" : capturing ? "Stop" : "Stop and transcribe")
                 }
             }
