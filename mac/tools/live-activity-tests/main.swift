@@ -97,7 +97,7 @@ let session = source("VerbatimWidgets/VerbatimWidgets.swift")
 for (name, s) in [("the session's", session), ("the recording's", recording)] {
     check("\(name) Live Activity buttons are capsules", !s.contains("RoundedRectangle(cornerRadius: Radius.row"))
 }
-check("one Stop for a voice note and a thought", !recording.contains("ThoughtStopButton") && recording.contains("StopButton(wide: true, hint: thoughtStopHint)"))
+check("one Stop for a voice note and a thought", !recording.contains("ThoughtStopButton") && recording.contains("StopButton(wide: true, hint: thoughtStopHint"))
 
 // MARK: W-07: Resume on a paused thought
 
@@ -325,6 +325,38 @@ check("the week's day letters are SF Pro 11 semibold, not 8 pt Rounded", source(
 check("the keyboard's notices, lists, and status lines scale, capped short of the accessibility sizes (GPT-07)",
       keyboard.contains(".dynamicTypeSize(...DynamicTypeSize.xxxLarge)") && keyboard.contains("Text(meta).scaledFont(12).monospacedDigit()")
       && keyboard.contains("Text(Self.oneLine(text)).scaledFont(14.5)") && keyboard.contains("Text(i).scaledFont(12.5, weight: .medium)"))
+
+// MARK: SF-14: the Lock Screen's Live Activities on an Always On display
+
+check("Always On: the bars rest at the resting level while dimmed", AlwaysOn.level(0.9, dimmed: true, fallback: 0) == AlwaysOn.restingLevel
+      && AlwaysOn.level(nil, dimmed: true, fallback: 0) == AlwaysOn.restingLevel)
+check("Always On: lit, the bars follow the update's level, clamped, or the fallback", AlwaysOn.level(0.3, dimmed: false, fallback: 0) == 0.3
+      && AlwaysOn.level(4, dimmed: false, fallback: 0) == 1 && AlwaysOn.level(nil, dimmed: false, fallback: 0.5) == 0.5
+      && AlwaysOn.level(.nan, dimmed: false, fallback: 0.5) == 0.5)
+check("Always On: the resting level matches Limit animation's (ActivityLevel.resting)", AlwaysOn.restingLevel == 0.5
+      && source("Verbatim/Model/MotionRules.swift").contains("static let resting: Double = 0.5"))
+check("Always On: Stop and the primary button fill only while lit", AlwaysOn.filled(dimmed: false) && !AlwaysOn.filled(dimmed: true))
+check("the Lock Screen surface reads isLuminanceReduced into the skin", skin.contains("@Environment(\\.isLuminanceReduced) private var dimmed")
+      && skin.contains("ActivitySkin(dark: scheme == .dark, dimmed: dimmed)"))
+check("dimmed, the line under the title takes mute (one step quieter, still 4.5:1 above)", skin.contains("var dim: Color { dimmed ? mute :"))
+for (name, text) in [("RecordingLockScreen", recordingActivity), ("ThoughtLockScreen", recordingActivity)] {
+    let body = structBody(text, name)
+    check("\(name): the bars rest and Stop is outlined while dimmed", body.contains("skin.level(state.level") && body.contains("outlined: skin.fillsPrimary ? nil : skin"))
+}
+let ribbonLock = structBody(sessionActivity, "RibbonLockScreen")
+check("the session's Lock Screen: the bars rest and the primary button is outlined while dimmed",
+      ribbonLock.contains("skin.level(state.level") && ribbonLock.contains("outlinePrimary: !skin.fillsPrimary"))
+check("the outlined Stop draws no fill and rings in the listening mark's color", structBody(recordingActivity, "StopButton").contains("outlined == nil ? Refined.persimmonFixed : Color.clear")
+      && structBody(recordingActivity, "StopButton").contains("strokeBorder(o.mark"))
+/// The Dynamic Island's part of a Live Activity's source: from `dynamicIsland:` to the text after it.
+func island(_ text: String, until end: String) -> String {
+    guard let r = text.range(of: "dynamicIsland:") else { return "" }
+    let rest = text[r.lowerBound...]
+    return String(rest.range(of: end).map { rest[..<$0.lowerBound] } ?? rest)
+}
+let recordingIsland = island(code(recordingActivity), until: "private let recordLink"), sessionIsland = island(code(sessionActivity), until: "private let restartLink")
+check("the Dynamic Island never dims (it doesn't read the skin)", !recordingIsland.isEmpty && !sessionIsland.isEmpty
+      && !recordingIsland.contains("skin.") && !sessionIsland.contains("skin.") && !sessionIsland.contains("outlinePrimary"))
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

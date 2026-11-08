@@ -5,14 +5,20 @@ import WidgetKit
 /// app's (DESIGN.md §13): paper with ink in light, and the app's near-black green (`darkPaperFixed`) with paper text
 /// in dark, so a bright banner never sits on a dark Lock Screen. The persimmon Stop with ink stays the same in both;
 /// the voice bars and the bars mark take `mark`. The Dynamic Island is always black and doesn't use this.
+///
+/// Always On (`dimmed`, SF-14): while the system dims the Lock Screen, the bars rest, Stop and the primary button are
+/// outlined, and the line under the title takes `mute` (`AlwaysOn` in RibbonRules.swift).
 struct ActivitySkin {
     var dark: Bool
+    /// The Always On display has dimmed the Lock Screen (`isLuminanceReduced`).
+    var dimmed = false
 
     var background: Color { dark ? Refined.darkPaperFixed : Refined.paperFixed }
     /// Titles, the timer, and glyphs.
     var ink: Color { dark ? Refined.onBlack : Refined.inkFixed }
-    /// The line under the title (6.3:1 on paper, 6.2:1 on the dark paper).
-    var dim: Color { dark ? Refined.onBlackDim : Refined.inkFixed.opacity(0.8) }
+    /// The line under the title (6.3:1 on paper, 6.2:1 on the dark paper); `mute` while dimmed, one step quieter and
+    /// still 4.5:1 or more.
+    var dim: Color { dimmed ? mute : (dark ? Refined.onBlackDim : Refined.inkFixed.opacity(0.8)) }
     /// Quiet data, such as how long the session has been on.
     var mute: Color { dark ? Refined.muteOnInk : Refined.muteOnPaper }
     /// The marks that carry "listening" (the bars mark, the voice bars): the text-safe persimmon on paper (5.6:1; the
@@ -20,15 +26,21 @@ struct ActivitySkin {
     var mark: Color { dark ? Refined.persimmonFixed : Refined.accentTextOnPaper }
     /// The outlined buttons' ring (Mark, Pause or Resume): full ink on paper, full paper on the dark paper.
     var outline: Color { dark ? Refined.onBlack : Refined.inkFixed }
+    /// Stop and the primary button fill only while the Lock Screen is lit (`AlwaysOn.filled`).
+    var fillsPrimary: Bool { AlwaysOn.filled(dimmed: dimmed) }
+    /// The voice bars' level: the resting shape while dimmed.
+    func level(_ level: Double?, fallback: Double) -> Double { AlwaysOn.level(level, dimmed: dimmed, fallback: fallback) }
 }
 
-/// Reads the Lock Screen's appearance and sets the activity's background and its system dismiss button to match.
+/// Reads the Lock Screen's appearance, and whether the Always On display has dimmed it, and sets the activity's
+/// background and its system dismiss button to match.
 struct ActivityLockSurface<Content: View>: View {
     @ViewBuilder var content: (ActivitySkin) -> Content
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.isLuminanceReduced) private var dimmed
 
     var body: some View {
-        let skin = ActivitySkin(dark: scheme == .dark)
+        let skin = ActivitySkin(dark: scheme == .dark, dimmed: dimmed)
         content(skin)
             // Text grows with Dynamic Type (`scaledFont`, SF-11), within the Lock Screen's height.
             .dynamicTypeSize(...DynamicTypeSize.xxLarge)

@@ -217,7 +217,7 @@ private struct RibbonLockScreen: View {
                 trailing
             }
             if state.shown == .listening {
-                LevelBars(level: state.level, color: skin.mark, count: 34).frame(height: 22)
+                LevelBars(level: skin.level(state.level, fallback: AlwaysOn.restingLevel), color: skin.mark, count: 34).frame(height: 22)
                 Text(state.warming ? Ribbon.gettingReadyLine : Ribbon.lockLine(target: state.target, take: state.takes))
                     .scaledFont(13).foregroundStyle(skin.dim).lineLimit(1).minimumScaleFactor(0.85)
             } else {
@@ -225,7 +225,7 @@ private struct RibbonLockScreen: View {
                     .scaledFont(13).foregroundStyle(skin.dim).lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            RibbonButtons(phase: state.shown, onDark: skin.dark)
+            RibbonButtons(phase: state.shown, onDark: skin.dark, outlinePrimary: !skin.fillsPrimary)
         }
         .padding(14)
     }
@@ -358,6 +358,8 @@ private struct LevelBars: View {
 private struct RibbonButtons: View {
     var phase: Ribbon.Phase
     var onDark: Bool
+    /// The Always On Lock Screen, dimmed (SF-14): the primary button is outlined, not filled.
+    var outlinePrimary = false
 
     var body: some View {
         switch phase {
@@ -365,7 +367,7 @@ private struct RibbonButtons: View {
             HStack(spacing: 8) {
                 RibbonButton(title: "Cancel", primary: false, onDark: onDark, intent: CancelTakeIntent())
                     .accessibilityLabel("Cancel dictation").accessibilityHint(Ribbon.cancelHint)
-                RibbonButton(title: "Done", primary: true, onDark: onDark, intent: FinishTakeIntent())
+                RibbonButton(title: "Done", primary: true, onDark: onDark, outlined: outlinePrimary, intent: FinishTakeIntent())
                     .accessibilityHint(Ribbon.doneHint)
             }
         case .transcribing:
@@ -374,7 +376,7 @@ private struct RibbonButtons: View {
                     .accessibilityHint("Turns off the microphone")
             }
         case .ended:
-            RibbonButton(title: "Restart", primary: true, onDark: onDark, intent: RestartSessionIntent())
+            RibbonButton(title: "Restart", primary: true, onDark: onDark, outlined: outlinePrimary, intent: RestartSessionIntent())
                 .accessibilityLabel("Restart session")
                 .accessibilityHint("Turns the microphone back on")
         case .paused:
@@ -386,7 +388,7 @@ private struct RibbonButtons: View {
             HStack(spacing: 8) {
                 RibbonButton(title: "End session", primary: false, onDark: onDark, intent: EndVerbatimSessionIntent())
                     .accessibilityHint("Turns off the microphone")
-                RibbonButton(title: "Dictate", primary: true, onDark: onDark, intent: DictateIntent())
+                RibbonButton(title: "Dictate", primary: true, onDark: onDark, outlined: outlinePrimary, intent: DictateIntent())
                     .accessibilityHint("Starts listening for a take")
             }
         }
@@ -395,27 +397,32 @@ private struct RibbonButtons: View {
 
 /// A full-width capsule (or one sized to its word, `compact`), like the recording's Mark, Pause, and Stop (DESIGN.md
 /// §5.3). Primary: persimmon with ink text (semibold 14, which passes on persimmon). Secondary: a quiet wash. Opaque
-/// fills only; no text on blur. With no label of its own, VoiceOver and Voice Control use the title.
+/// fills only; no text on blur. With no label of its own, VoiceOver and Voice Control use the title. On a dimmed
+/// Always On Lock Screen (`outlined`, SF-14), the primary is a capsule outlined in the listening mark's color instead.
 private struct RibbonButton<I: AppIntent>: View {
     var title: String
     var primary: Bool
     var onDark: Bool
     /// The expanded Island's listening row: sized to the word, beside "Into Messages".
     var compact = false
+    /// Dimmed Always On: a primary button draws its outline, not its fill.
+    var outlined = false
     var intent: I
 
     var body: some View {
+        let filled = primary && !outlined
         Button(intent: intent) {
             Text(title)
                 .scaledFont(14, weight: .semibold)
-                .foregroundStyle(primary || !onDark ? Refined.inkFixed : Color.white)
+                .foregroundStyle(filled || !onDark ? Refined.inkFixed : Color.white)
                 .lineLimit(1)
                 .frame(maxWidth: compact ? nil : .infinity)
                 .frame(minWidth: compact ? 72 : nil)
                 .padding(.horizontal, compact ? 12 : 0)
                 .padding(.vertical, 8)
-                .background(primary ? Refined.persimmonFixed : (onDark ? Color.white.opacity(0.12) : Refined.inkFixed.opacity(0.08)),
+                .background(filled ? Refined.persimmonFixed : primary ? Color.clear : (onDark ? Color.white.opacity(0.12) : Refined.inkFixed.opacity(0.08)),
                             in: Capsule())
+                .overlay { if primary && outlined { Capsule().strokeBorder(onDark ? Refined.persimmonFixed : Refined.accentTextOnPaper, lineWidth: 1.5) } }
                 .activityTarget(height: 34)
         }
         .buttonStyle(.plain)

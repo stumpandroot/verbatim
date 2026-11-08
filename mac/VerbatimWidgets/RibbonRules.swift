@@ -538,3 +538,25 @@ enum LiveFreshness {
     /// The compact Dynamic Island's word.
     static let compact = "Check"
 }
+
+// MARK: - Always On (SF-14)
+
+/// The Lock Screen's Live Activities on an Always On display (`isLuminanceReduced`): Apple asks for no large areas of
+/// bright color and less going on while the system dims the Lock Screen. So the voice bars hold the resting shape (the
+/// level Limit animation sends, `ActivityLevel.resting`), Stop and the session's primary button are outlined instead
+/// of filled, and the line under the title takes `mute`, one step quieter than `dim` (it still keeps 4.5:1). The
+/// Dynamic Island never dims and doesn't use this.
+enum AlwaysOn {
+    /// The level the bars rest at while dimmed: the same resting shape as Limit animation's (`ActivityLevel.resting`).
+    static let restingLevel: Double = 0.5
+
+    /// The level the bars draw: the resting level while dimmed, else the update's (or `fallback` when it has none).
+    static func level(_ level: Double?, dimmed: Bool, fallback: Double) -> Double {
+        if dimmed { return restingLevel }
+        guard let level, level.isFinite else { return fallback }
+        return min(1, max(0, level))
+    }
+
+    /// Stop and the session's primary button fill only while the Lock Screen is lit.
+    static func filled(dimmed: Bool) -> Bool { !dimmed }
+}
