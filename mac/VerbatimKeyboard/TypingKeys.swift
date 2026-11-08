@@ -1,9 +1,11 @@
 import SwiftUI
 import UIKit
 
-// The typing layout: QWERTY with shift and caps lock, 123 and #+= layers, space, return, delete with repeat, and
-// the globe key. It works without Allow Full Access (App Store guideline 4.4.1): it only uses the text proxy.
-// The layout and the rules are pure (TypingLayout.swift); this file applies them to the field and draws the keys.
+// The typing layout: each language's letters (QWERTY, QWERTY with ñ, AZERTY, or QWERTZ) with shift and caps lock, 123
+// and #+= layers, space, return, delete with repeat, and the globe key; long-press letters, and the space bar's cursor
+// drag. It works without Allow Full Access (App Store guideline 4.4.1): it only uses the text proxy. The layout and the
+// rules are pure (TypingLayout.swift, TypingHelp.swift, TypingCorrection.swift); this file applies them to the field and
+// draws the keys. Corrections and the suggestion strip are `TypingAssist`.
 
 /// Typing state: the layer, shift, the field's traits, and the keys under a finger. Touches arrive from
 /// `KeyTouchView` (multi-touch, so fast two-thumb typing keeps every key).
@@ -18,6 +20,27 @@ final class TypingModel: ObservableObject {
     @Published var showsGlobe = true
     /// The keys a finger is on, for the pressed look and the key popup.
     @Published private(set) var pressed: [KeyID: KeyKind] = [:]
+    /// The language's letter layout (`TypingLanguages.layout`).
+    @Published private(set) var letters: KeyLayout = .qwerty
+    /// The long-press row over a held letter, when it's open.
+    @Published private(set) var accent: AccentPopup?
+    /// True while the space bar drags the cursor: the key labels clear.
+    @Published private(set) var cursorDragging = false
+
+    /// A held letter's alternates and where they sit.
+    struct AccentPopup: Equatable {
+        var key: KeyID
+        var keyFrame: CGRect
+        /// In the case they'd type (capitals with shift or caps lock on).
+        var options: [String]
+        var row: AccentRow
+        var selected = 0
+    }
+
+    /// Autocorrect, text replacements, and the suggestion strip.
+    let assist = TypingAssist()
+    /// The haptic when a cursor drag starts (a selection tick), nil without Full Access or with Haptics off.
+    var dragHaptic: Haptic?
 
     /// Haptics need Allow Full Access; input clicks don't.
     var hasFullAccess = false {
@@ -37,15 +60,21 @@ final class TypingModel: ObservableObject {
         }
     }
 
-    weak var controller: UIInputViewController?
+    weak var controller: UIInputViewController? {
+        didSet { assist.controller = controller }
+    }
     /// Called after each key that changes the text, so the dictation view drops an Undo that no longer applies.
     var onEdit: (() -> Void)?
 
-    var rows: [[RowItem]] { TypingLayout.rows(layer: layer, field: field, showsGlobe: showsGlobe) }
+    var rows: [[RowItem]] { TypingLayout.rows(layer: layer, field: field, showsGlobe: showsGlobe, letters: letters) }
+    /// Letter keys across the widest row, for the key width (11 for QWERTZ's letters).
+    var columns: Int { layer == .letters && field != .numberPad && field != .decimalPad ? letters.columns : 10 }
 
     private struct Touch {
         var key: KeyID
         var kind: KeyKind
+        /// The key's frame in the key area, for the long-press row.
+        var frame: CGRect
         /// Already typed, because a newer key was pressed while this finger was still down (rollover).
         var committed = false
     }
@@ -60,6 +89,17 @@ final class TypingModel: ObservableObject {
     private var repeatTimer: Timer?
     private var impact: UIImpactFeedbackGenerator?
     private var impactWeight: HapticWeight?
+    /// The touch and hold that opens the long-press row (0.4 s) or starts the cursor drag (0.3 s).
+    private enum Hold { case accent, cursor }
+    private var holdTimer: Timer?
+    private var accentTouch: ObjectIdentifier?
+    private var accentOpenX: CGFloat = 0
+    private var accentMoved = false
+    private var drag: CursorDrag?
+    private var dragTouch: ObjectIdentifier?
+    /// Where each finger is, across the key area, and how wide the area is (for the long-press row).
+    private var touchX: [ObjectIdentifier: CGFloat] = [:]
+    private var areaWidth: CGFloat = 0
 
     private var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
 
@@ -76,6 +116,8 @@ final class TypingModel: ObservableObject {
         let r = Self.mapReturn(p.returnKeyType)
         if r != returnKind { returnKind = r }
         autoCap = Self.mapAutoCap(p.autocapitalizationType)
+        assist.setPolicy(TypingFieldPolicy(kind: newField, autocorrection: Self.mapTrait(p.autocorrectionType),
+                                           spellChecking: Self.mapTrait(p.spellCheckingType), contentType: p.safeTextContentType))
         updateReturnEnabled()
         if reset || changedField {
             let l = TypingRules.initialLayer(for: field)
@@ -86,7 +128,18 @@ final class TypingModel: ObservableObject {
         // Auto-capitalize for where the cursor is now, unless you pressed a key a moment ago (that key already did).
         if reset || changedField || Date().timeIntervalSince(lastLocalKey) > 0.4 {
             setShift(TypingRules.shiftAfterInput(shift, capitalizeNext: capitalizeNext))
+            // The cursor moved or the host changed the text: a correction can't be put back from here.
+            assist.forget()
+        } else {
+            assist.setNeedsRefresh()
         }
+    }
+
+    /// The language to type in: its letter layout and the spell checker's language.
+    func setLanguage(_ language: String) {
+        assist.setLanguage(language)
+        let l = TypingLanguages.layout(for: language)
+        if l != letters { letters = l }
     }
 
     private var capitalizeNext: Bool { TypingRules.shouldCapitalize(autoCap, before: proxy?.documentContextBeforeInput) }
@@ -125,6 +178,22 @@ final class TypingModel: ObservableObject {
         }
     }
 
+    static func mapTrait(_ t: UITextAutocorrectionType?) -> FieldTrait {
+        switch t ?? .default {
+        case .no: return .no
+        case .yes: return .yes
+        default: return .default
+        }
+    }
+
+    static func mapTrait(_ t: UITextSpellCheckingType?) -> FieldTrait {
+        switch t ?? .default {
+        case .no: return .no
+        case .yes: return .yes
+        default: return .default
+        }
+    }
+
     static func mapAutoCap(_ t: UITextAutocapitalizationType?) -> AutoCapMode {
         switch t ?? .sentences {
         case .none: return .none
@@ -136,8 +205,14 @@ final class TypingModel: ObservableObject {
 
     // MARK: Touches
 
-    func touchBegan(_ id: ObjectIdentifier, on key: PlacedKey) {
+    func touchBegan(_ id: ObjectIdentifier, on key: PlacedKey, at point: CGPoint, areaWidth width: CGFloat) {
         lastLocalKey = Date()
+        areaWidth = width
+        touchX[id] = point.x
+        // A second finger closes an open long-press row (typing its letter) or ends a cursor drag.
+        if accentTouch != nil { finishAccent(insert: true) }
+        if dragTouch != nil { endDrag() }
+        cancelHold()
         // Rollover: a new character commits the ones still held (fast two-thumb typing).
         if key.kind.isCharacter || key.kind == .space {
             for (other, t) in touches where !t.committed && (t.kind.isCharacter || t.kind == .space) {
@@ -145,28 +220,59 @@ final class TypingModel: ObservableObject {
                 touches[other]?.committed = true
             }
         }
-        touches[id] = Touch(key: key.id, kind: key.kind)
+        touches[id] = Touch(key: key.id, kind: key.kind, frame: key.frame)
         feedback()
         switch key.kind {
         case .shift: tapShift()
         case .delete: deleteOnce(); startRepeat()
+        case .space: startHold(.cursor, id, key: key.id)
+        case .character(let c):
+            if layer == .letters, showsAccents, !AccentSets.alternates(for: c, language: assist.language).isEmpty {
+                startHold(.accent, id, key: key.id)
+            }
         default: break
         }
         publishPressed()
     }
 
-    /// Sliding to another character key moves the press there, as on the system keyboard; it types on release.
-    func touchMoved(_ id: ObjectIdentifier, to key: PlacedKey?) {
+    /// Long-press rows show on letter layouts, not number pads, and not with VoiceOver (as the key popup).
+    private var showsAccents: Bool {
+        field != .numberPad && field != .decimalPad && !UIAccessibility.isVoiceOverRunning
+    }
+
+    /// Sliding to another character key moves the press there, as on the system keyboard; it types on release. With the
+    /// long-press row open, sliding picks a letter in it; while the space bar drags, sliding moves the cursor.
+    func touchMoved(_ id: ObjectIdentifier, to key: PlacedKey?, at point: CGPoint) {
+        touchX[id] = point.x
+        if id == dragTouch, var d = drag {
+            let delta = d.move(to: point.x)
+            drag = d
+            if delta != 0 { proxy?.adjustTextPosition(byCharacterOffset: delta) }
+            return
+        }
+        if id == accentTouch, var a = accent {
+            if !accentMoved, abs(point.x - accentOpenX) >= AccentRow.pickSlop { accentMoved = true }
+            if accentMoved {
+                a.selected = a.row.index(at: point.x)
+                if a != accent { accent = a }
+            }
+            return
+        }
         guard var t = touches[id], !t.committed, t.kind.isCharacter,
               let key, key.kind.isCharacter, key.id != t.key else { return }
         t.key = key.id
         t.kind = key.kind
+        t.frame = key.frame
         touches[id] = t
         publishPressed()
     }
 
     func touchEnded(_ id: ObjectIdentifier) {
+        touchX[id] = nil
+        if id == dragTouch { touches[id] = nil; endDrag(); publishPressed(); return }
+        if id == accentTouch { finishAccent(insert: true); touches[id] = nil; publishPressed(); return }
         guard let t = touches.removeValue(forKey: id) else { return }
+        if touches.isEmpty { cancelHold() }
         switch t.kind {
         case .delete: stopRepeat()
         case .shift, .globe: break
@@ -176,6 +282,9 @@ final class TypingModel: ObservableObject {
     }
 
     func touchCancelled(_ id: ObjectIdentifier) {
+        touchX[id] = nil
+        if id == dragTouch { endDrag() }
+        if id == accentTouch { finishAccent(insert: false) }
         guard let t = touches.removeValue(forKey: id) else { return }
         if t.kind == .delete { stopRepeat() }
         publishPressed()
@@ -184,8 +293,79 @@ final class TypingModel: ObservableObject {
     /// Drops every touch (the keyboard went away mid-press).
     func reset() {
         touches.removeAll()
+        touchX.removeAll()
         stopRepeat()
+        cancelHold()
+        if accentTouch != nil { finishAccent(insert: false) }
+        if dragTouch != nil { endDrag() }
         publishPressed()
+    }
+
+    // MARK: Touch and hold
+
+    private func startHold(_ hold: Hold, _ id: ObjectIdentifier, key: KeyID) {
+        cancelHold()
+        let delay = hold == .accent ? AccentRow.holdDelay : CursorDrag.holdDelay
+        let t = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.holdFired(hold, id, key: key) }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        holdTimer = t
+    }
+
+    private func cancelHold() {
+        holdTimer?.invalidate()
+        holdTimer = nil
+    }
+
+    /// The hold lasted: the finger is still on the same key and it hasn't typed (no rollover).
+    private func holdFired(_ hold: Hold, _ id: ObjectIdentifier, key: KeyID) {
+        holdTimer = nil
+        guard let t = touches[id], !t.committed, t.key == key else { return }
+        switch hold {
+        case .cursor: beginDrag(id)
+        case .accent: openAccent(id, kind: t.kind, key: key, frame: t.frame)
+        }
+    }
+
+    private func openAccent(_ id: ObjectIdentifier, kind: KeyKind, key: KeyID, frame: CGRect) {
+        guard case .character(let c) = kind else { return }
+        var options = AccentSets.alternates(for: c, language: assist.language)
+        if shift != .off { options = AccentSets.capitals(options) }
+        guard !options.isEmpty else { return }
+        let row = AccentRow.layout(keyMinX: frame.minX, keyWidth: frame.width, count: options.count, areaWidth: areaWidth)
+        accentTouch = id
+        accentOpenX = touchX[id] ?? frame.midX
+        accentMoved = false
+        accent = AccentPopup(key: key, keyFrame: frame, options: options, row: row)
+    }
+
+    /// Release with the row open types the chosen letter instead of the key's own.
+    private func finishAccent(insert: Bool) {
+        let chosen = accent.flatMap { $0.options.indices.contains($0.selected) ? $0.options[$0.selected] : nil }
+        if let id = accentTouch { touches[id]?.committed = true }
+        accentTouch = nil
+        accent = nil
+        if insert, let chosen { typeText(chosen); finishKey(after: .character(chosen)) }
+    }
+
+    private func beginDrag(_ id: ObjectIdentifier) {
+        dragTouch = id
+        drag = CursorDrag(startX: touchX[id] ?? 0)
+        cursorDragging = true
+        assist.forget()
+        if hasFullAccess, let h = dragHaptic { HapticPlayer.play(h) }
+    }
+
+    /// The finger lifted after a drag: no space goes in; shift and the strip follow the cursor's new place.
+    private func endDrag() {
+        if let id = dragTouch { touches[id]?.committed = true }
+        dragTouch = nil
+        drag = nil
+        if cursorDragging { cursorDragging = false }
+        setShift(TypingRules.shiftAfterInput(shift, capitalizeNext: capitalizeNext))
+        lastKeyWasSpace = false
+        assist.forget()
     }
 
     /// VoiceOver's double tap on a key.
@@ -211,19 +391,22 @@ final class TypingModel: ObservableObject {
         guard let proxy else { return }
         switch kind {
         case .character(let c):
-            proxy.insertText(TypingRules.text(for: c, layer: layer, shift: shift))
-            lastKeyWasSpace = false
+            typeText(TypingRules.text(for: c, layer: layer, shift: shift))
         case .space:
             if TypingRules.periodShortcut(before: proxy.documentContextBeforeInput, lastKeyWasSpace: lastKeyWasSpace, field: field) {
+                assist.keyTyped()
                 proxy.deleteBackward()
                 proxy.insertText(". ")
                 lastKeyWasSpace = false
             } else {
+                // Space corrects the word before it (or expands a text replacement) first.
+                assist.boundary(trailing: " ")
                 proxy.insertText(" ")
                 lastKeyWasSpace = true
             }
         case .returnKey:
             guard returnEnabled else { return }
+            assist.boundary(trailing: "\n")
             proxy.insertText("\n")
             lastKeyWasSpace = false
         case .layer(let l):
@@ -232,6 +415,18 @@ final class TypingModel: ObservableObject {
         case .shift, .delete, .globe:
             return
         }
+        finishKey(after: kind)
+    }
+
+    /// Inserts a character key's text (or a long-press letter): punctuation corrects the word before it first.
+    private func typeText(_ text: String) {
+        guard let proxy else { return }
+        if TypingCorrection.isBoundary(text) { assist.boundary(trailing: text) } else { assist.keyTyped() }
+        proxy.insertText(text)
+        lastKeyWasSpace = false
+    }
+
+    private func finishKey(after kind: KeyKind) {
         let next = TypingRules.layer(after: kind, in: layer, field: field)
         if next != layer { layer = next }
         afterEdit()
@@ -240,7 +435,17 @@ final class TypingModel: ObservableObject {
     private func afterEdit() {
         setShift(TypingRules.shiftAfterInput(shift, capitalizeNext: capitalizeNext))
         updateReturnEnabled()
+        assist.setNeedsRefresh()
         onEdit?()
+    }
+
+    /// A tap on the suggestion strip: keep the word, use a suggestion, or put a correction back.
+    func tapSuggestion(_ action: SuggestionStrip.Action) {
+        lastLocalKey = Date()
+        feedback()
+        let spaced = assist.tap(action)
+        lastKeyWasSpace = spaced
+        afterEdit()
     }
 
     private func tapShift() {
@@ -250,8 +455,9 @@ final class TypingModel: ObservableObject {
         lastShiftTap = shift == .locked ? nil : now
     }
 
+    /// Delete: first puts back a correction space just made, otherwise deletes one character.
     private func deleteOnce() {
-        proxy?.deleteBackward()
+        if !assist.handleDelete() { proxy?.deleteBackward() }
         lastKeyWasSpace = false
         afterEdit()
     }
@@ -295,18 +501,19 @@ struct TypingKeysView: View {
     var body: some View {
         GeometryReader { geo in
             let rows = typing.rows
-            let keys = TypingLayout.place(rows, in: geo.size, metrics: KeyMetrics.forSize(geo.size, rows: rows.count))
+            let keys = TypingLayout.place(rows, in: geo.size, metrics: KeyMetrics.forSize(geo.size, rows: rows.count), columns: typing.columns)
             ZStack(alignment: .topLeading) {
                 ForEach(keys) { k in
                     KeyCap(kind: k.kind, typing: typing, pressed: typing.pressed[k.id] != nil)
                         .frame(width: k.frame.width, height: k.frame.height)
                         .position(x: k.frame.midX, y: k.frame.midY)
                 }
-                if showsPopups {
-                    ForEach(keys.filter { typing.pressed[$0.id] != nil && $0.kind.isCharacter }) { k in
+                if showsPopups && !typing.cursorDragging {
+                    ForEach(keys.filter { typing.pressed[$0.id] != nil && $0.kind.isCharacter && typing.accent?.key != $0.id }) { k in
                         KeyPopup(kind: k.kind, typing: typing, keyFrame: k.frame, areaWidth: geo.size.width)
                     }
                 }
+                if let a = typing.accent { AccentPopupView(popup: a) }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .transaction { $0.animation = nil }
@@ -346,6 +553,15 @@ private struct KeyCap: View {
     }
 
     @ViewBuilder private var label: some View {
+        // While the space bar drags the cursor, every label clears (the mockup's blank keys); the keys stay.
+        if typing.cursorDragging {
+            EmptyView()
+        } else {
+            keyLabel
+        }
+    }
+
+    @ViewBuilder private var keyLabel: some View {
         switch kind {
         case .character(let c):
             Text(TypingRules.text(for: c, layer: typing.layer, shift: typing.shift))
@@ -376,6 +592,35 @@ private struct KeyCap: View {
         case .layer:
             Text(kind.layerTitle ?? "").font(.system(size: 15)).foregroundStyle(KB.ink)
         }
+    }
+}
+
+/// The long-press row over a held letter: the language's letters first, in the key popup's style (the card with a
+/// hairline), the chosen one in ink with paper text, like the return key. Each slot is a key wide. It appears and goes
+/// at once (DESIGN.md §7: nothing in the keyboard animates for keyboard actions).
+private struct AccentPopupView: View {
+    var popup: TypingModel.AccentPopup
+
+    var body: some View {
+        let h = popup.keyFrame.height + 4
+        let y = popup.keyFrame.minY + 2 - h / 2
+        let shape = RoundedRectangle(cornerRadius: KB.keyRadius, style: .continuous)
+        HStack(spacing: 0) {
+            ForEach(Array(popup.options.enumerated()), id: \.offset) { i, letter in
+                let on = i == popup.selected
+                Text(letter)
+                    .font(.system(size: 24))
+                    .foregroundStyle(on ? KB.paper : KB.ink)
+                    .frame(width: popup.row.slot, height: h - 6)
+                    .background(on ? KB.ink : Color.clear, in: RoundedRectangle(cornerRadius: KB.keyRadius - 2, style: .continuous))
+            }
+        }
+        .frame(width: popup.row.width, height: h)
+        .background(KBKeyFace(fill: KB.key))
+        .overlay(shape.strokeBorder(KB.hairline))
+        .position(x: popup.row.originX + popup.row.width / 2, y: y)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -471,7 +716,7 @@ final class KeyTouchView: UIView {
         for t in touches {
             guard let key = TypingLayout.hit(t.location(in: self), in: keys) else { continue }
             if key.kind == .globe { globeTouches.insert(ObjectIdentifier(t)); globe = true }
-            model?.touchBegan(ObjectIdentifier(t), on: key)
+            model?.touchBegan(ObjectIdentifier(t), on: key, at: t.location(in: self), areaWidth: bounds.width)
         }
         if globe { forwardGlobe(event) }
     }
@@ -482,7 +727,7 @@ final class KeyTouchView: UIView {
             let id = ObjectIdentifier(t)
             if globeTouches.contains(id) { globe = true; continue }
             let key = TypingLayout.hit(t.location(in: self), in: keys)
-            model?.touchMoved(id, to: key)
+            model?.touchMoved(id, to: key, at: t.location(in: self))
         }
         if globe { forwardGlobe(event) }
     }

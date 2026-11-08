@@ -151,6 +151,15 @@ enum SettingsSearchIndex {
         .init(id: "keyboardDictateButton", section: dictation, label: "Dictate button",
               keywords: ["dictate button", "start button", "size", "large", "position", "left", "right", "center", "left-handed", "one-handed", "thumb", "outline", "filled", "butter"],
               description: "Size, position, and style of the keyboard's dictate button", target: .page(.keyboard)),
+        .init(id: "keyboardAutocorrect", section: dictation, label: "Autocorrect",
+              keywords: ["autocorrect", "auto correct", "spelling", "spell check", "typo", "misspelled", "correction", "fix words", "typing"],
+              description: "Fixes a misspelled word when you type a space in the Verbose keyboard", target: .page(.keyboard)),
+        .init(id: "keyboardSuggestions", section: dictation, label: "Suggestions",
+              keywords: ["suggestions", "predictive", "prediction", "completions", "word suggestions", "quicktype", "strip", "typing"],
+              description: "Three words above the Verbose keyboard's keys while you type", target: .page(.keyboard)),
+        .init(id: "keyboardLanguages", section: dictation, label: "Keyboard languages",
+              keywords: ["languages", "language", "spanish", "french", "german", "accents", "azerty", "qwertz", "layout", "bilingual"],
+              description: "The Verbose keyboard follows the keyboards in the Settings app", target: .page(.keyboard)),
         .init(id: "keyboardIslandWords", section: dictation, label: "Show words in the Dynamic Island",
               keywords: ["dynamic island", "live activity", "words", "notch", "live words", "privacy", "lock screen"],
               description: "The expanded Dynamic Island shows your last few words during a take", target: .page(.keyboard)),
@@ -322,6 +331,9 @@ enum SettingsSearchIndex {
         case "keyboardLiveWords": return onOff(KeyboardBridge.liveWords)
         case "keyboardAlwaysCopy": return onOff(KeyboardBridge.alwaysCopy)
         case "keyboardTypingHaptics": return onOff(HapticSettings.typingKeys(in: KeyboardBridge.defaults))
+        case "keyboardAutocorrect": return onOff(TypingHelp.read(KeyboardBridge.defaults).autocorrect)
+        case "keyboardSuggestions": return onOff(TypingHelp.read(KeyboardBridge.defaults).suggestions)
+        case "keyboardLanguages": return KeyboardLanguagesMirror.summary
         case "keyboardDictateButton":
             let b = DictateButton.read(KeyboardBridge.defaults)
             return b.size.title + " · " + b.position.title

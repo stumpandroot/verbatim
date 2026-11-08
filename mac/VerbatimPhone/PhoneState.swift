@@ -160,6 +160,15 @@ final class PhoneState {
         store.snippetsPublisher.sink { list in
             KeyboardBridge.writeSnippets(list.map { KeyboardBridge.Snippet(id: $0.id, trigger: $0.trigger, expansion: $0.expansion) })
         }.store(in: &bag)
+        // Typing help (TypingHelp): the Dictionary's words, which the keyboard's autocorrect leaves alone, and the
+        // languages of the keyboards in the Settings app, now and each time Verbose becomes active.
+        store.dictionaryPublisher.sink { list in
+            TypingHelp.writeWords(list.filter(\.enabled).map(\.preferred), to: KeyboardBridge.defaults)
+        }.store(in: &bag)
+        KeyboardLanguagesMirror.update()
+        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { _ in KeyboardLanguagesMirror.update() }
+            .store(in: &bag)
         // Settings › Limit animation, copied into the App Group so the keyboard follows it too (MotionMirror): now, and
         // whenever the app's defaults change (the copy writes only a change).
         mirrorLimitMotion()

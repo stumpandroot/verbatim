@@ -300,9 +300,13 @@ struct KeyboardView: View {
                 }
             }
         } else {
-            // The menu and the dictate button, in the order the position gives (`DictateButton.typingBar`).
+            // The menu and the dictate button, in the order the position gives (`DictateButton.typingBar`). The
+            // suggestion strip takes the free space between them while you type (split around a centered button); a
+            // notice or "Paused for a call" takes it first.
+            let order = look.typingBar
+            let spacers = order.indices.filter { order[$0] == .spacer }
             bar(height: barHeight) {
-                ForEach(Array(look.typingBar.enumerated()), id: \.offset) { i, slot in
+                ForEach(Array(order.enumerated()), id: \.offset) { i, slot in
                     switch slot {
                     case .menu:
                         if i == 0 {
@@ -312,7 +316,13 @@ struct KeyboardView: View {
                             typingNotice
                             menuButton
                         }
-                    case .spacer: Spacer(minLength: 6)
+                    case .spacer:
+                        if showsStrip {
+                            SuggestionStripView(typing: model.typing, assist: model.typing.assist,
+                                                part: spacers.count < 2 ? .all : (i == spacers.first ? .leading : .trailing))
+                        } else {
+                            Spacer(minLength: 6)
+                        }
                     case .button: startButton
                     case .balance: Color.clear.frame(width: KB.barHeight, height: KB.barHeight).accessibilityHidden(true)
                     }
@@ -320,6 +330,9 @@ struct KeyboardView: View {
             }
         }
     }
+
+    /// The strip shows in the plain Typing bar when nothing else is saying something there.
+    private var showsStrip: Bool { model.notice == nil && model.info == nil && !model.sessionPaused }
 
     /// Typing's and Listening's bar height: 62 pt with the large disc, otherwise 46 pt.
     private var barHeight: CGFloat { CGFloat(look.barHeight) }
@@ -828,6 +841,12 @@ private struct MenuCard: View {
                     }
                 }
             }
+            // With two or more languages: which one you type in (corrections, suggestions, and letters). Tap for the next.
+            if model.typingLanguages.count > 1 {
+                let name = model.languageName(model.typingLanguage)
+                row(.iconLanguage, "globe", "Language", value: name, spoken: ("Language", name),
+                    hint: "Switches the language for corrections, suggestions, and letters", adjustable: true, action: model.cycleLanguage)
+            }
             row(.iconSettings, "gearshape", "Open Verbose", hint: model.hasFullAccess ? "Opens the Verbose app" : "Shows how to turn on dictation",
                 action: model.openVerbose)
         }
@@ -1285,6 +1304,65 @@ private enum LiveSpansMemo {
             spans = SpokenCorrections.liveSpans(full, limit: 160)
         }
         return spans
+    }
+}
+
+/// The suggestion strip (approved mockup "Corrections, suggestions, and accents", section 1): three equal slots in the
+/// Typing bar's free space, split by hairlines. Left, what you typed in quotes (tap to keep it); middle, the correction
+/// space will apply, in semibold; right, a completion. Right after a correction, the quoted word you typed (tap to put it
+/// back). With a centered dictate button, the left side holds the first two slots and the right side the third. It
+/// observes only `TypingAssist`, so a new suggestion redraws the strip alone, and nothing in it animates (DESIGN.md §7).
+private struct SuggestionStripView: View {
+    /// Only for the taps; not observed, so key presses don't redraw the strip.
+    var typing: TypingModel
+    @ObservedObject var assist: TypingAssist
+    var part: SuggestionStrip.Part
+
+    var body: some View {
+        let slots = assist.strip.slots(part)
+        HStack(spacing: 0) {
+            ForEach(Array(slots.enumerated()), id: \.offset) { i, slot in
+                if i > 0 {
+                    Rectangle().fill(slot == nil || slots[i - 1] == nil ? Color.clear : KB.hairline)
+                        .frame(width: 1, height: 22).accessibilityHidden(true)
+                }
+                if let slot {
+                    Button { typing.tapSuggestion(slot.action) } label: {
+                        Text(slot.quoted ? "\u{201C}\(slot.text)\u{201D}" : slot.text)
+                            .scaledFont(15, weight: slot.bold ? .semibold : .regular)
+                            .foregroundStyle(KB.ink)
+                            .lineLimit(1).minimumScaleFactor(0.7).truncationMode(.middle)
+                            .padding(.horizontal, 2)
+                            .frame(maxWidth: .infinity, minHeight: CGFloat(KB.minTarget))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PressFade())
+                    .accessibilityLabel(Self.spoken(slot))
+                    .accessibilityHint(Self.hint(slot))
+                } else {
+                    Color.clear.frame(maxWidth: .infinity).accessibilityHidden(true)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .transaction { $0.animation = nil }
+        .accessibilityElement(children: .contain)
+    }
+
+    static func spoken(_ slot: SuggestionStrip.Slot) -> String {
+        switch slot.action {
+        case .keep: return "Keep \(slot.text)"
+        case .revert: return "Put back \(slot.text)"
+        case .use: return slot.text
+        }
+    }
+
+    static func hint(_ slot: SuggestionStrip.Slot) -> String {
+        switch slot.action {
+        case .keep: return "Keeps the word as you typed it"
+        case .revert: return "Puts back the word you typed"
+        case .use: return slot.bold ? "Space applies this correction" : "Replaces the word"
+        }
     }
 }
 

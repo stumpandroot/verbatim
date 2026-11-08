@@ -121,9 +121,7 @@ struct KeyMetrics: Equatable {
 enum TypingLayout {
     // MARK: Rows
 
-    static let lettersRow1 = ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"]
-    static let lettersRow2 = ["a", "s", "d", "f", "g", "h", "j", "k", "l"]
-    static let lettersRow3 = ["z", "x", "c", "v", "b", "n", "m"]
+    // The letter rows are each language's (`KeyLayout.letterRows` in TypingHelp.swift).
     static let numbersRow1 = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
     static let numbersRow2 = ["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""]
     static let symbolsRow1 = ["[", "]", "{", "}", "#", "%", "^", "*", "+", "="]
@@ -135,18 +133,25 @@ enum TypingLayout {
     static let returnWidth = 2.25
     static let globeWidth = 1.1
 
-    /// The rows for a layer and a field. `showsGlobe` follows `needsInputModeSwitchKey`.
-    static func rows(layer: TypingLayer, field: FieldKind, showsGlobe: Bool) -> [[RowItem]] {
+    /// The rows for a layer and a field. `showsGlobe` follows `needsInputModeSwitchKey`; `letters` is the language's
+    /// letter layout (`TypingLanguages.layout`): QWERTY, QWERTY with ñ, AZERTY, or QWERTZ.
+    static func rows(layer: TypingLayer, field: FieldKind, showsGlobe: Bool, letters: KeyLayout = .qwerty) -> [[RowItem]] {
         if field == .numberPad || field == .decimalPad {
             return numberPad(decimal: field == .decimalPad, showsGlobe: showsGlobe)
         }
         var rows: [[RowItem]]
         switch layer {
         case .letters:
+            let l = letters.letterRows
+            let full = letters.columns
+            // A row as wide as the layout fills it; a shorter one is centered between two half-key spacers.
+            func middle(_ keys: [String]) -> [RowItem] {
+                keys.count >= full ? keys.map { .char($0) } : [.spacer(1)] + keys.map { .char($0) } + [.spacer(1)]
+            }
             rows = [
-                lettersRow1.map { .char($0) },
-                [.spacer(1)] + lettersRow2.map { .char($0) } + [.spacer(1)],
-                [.key(.shift, .units(modifierWidth)), .spacer(1)] + lettersRow3.map { .char($0) }
+                middle(l[0]),
+                middle(l[1]),
+                [.key(.shift, .units(modifierWidth)), .spacer(1)] + l[2].map { .char($0) }
                     + [.spacer(1), .key(.delete, .units(modifierWidth))],
             ]
         case .numbers:
@@ -195,15 +200,17 @@ enum TypingLayout {
 
     // MARK: Frames
 
-    /// Width of one letter key: ten keys and nine gaps fill the row (number pads have three columns instead).
-    static func unit(width: CGFloat, metrics m: KeyMetrics) -> CGFloat {
-        max(0, (width - 2 * m.sideMargin - 9 * m.keyGap) / 10)
+    /// Width of one letter key: ten keys and nine gaps fill the row (eleven for QWERTZ; number pads have three columns
+    /// instead).
+    static func unit(width: CGFloat, metrics m: KeyMetrics, columns: Int = 10) -> CGFloat {
+        let n = CGFloat(max(1, columns))
+        return max(0, (width - 2 * m.sideMargin - (n - 1) * m.keyGap) / n)
     }
 
     /// Every key's frame, row by row, in a key area of `size`. Keys in a row are `keyGap` apart; spacers take
     /// what's left with no gaps beside them; flexible keys share what's left with spacers by weight.
-    static func place(_ rows: [[RowItem]], in size: CGSize, metrics m: KeyMetrics) -> [PlacedKey] {
-        let u = unit(width: size.width, metrics: m)
+    static func place(_ rows: [[RowItem]], in size: CGSize, metrics m: KeyMetrics, columns: Int = 10) -> [PlacedKey] {
+        let u = unit(width: size.width, metrics: m, columns: columns)
         let h = m.keyHeight(in: size.height, rows: rows.count)
         var out: [PlacedKey] = []
         for (r, row) in rows.enumerated() {

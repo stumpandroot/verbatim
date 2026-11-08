@@ -325,6 +325,10 @@ struct KeyboardSetupScreen: View {
                 DictateButtonSettings()
                     .padding(.top, 6)
 
+                // Typing help: Autocorrect, Suggestions, and Languages (TypingHelp, read by the keyboard).
+                KeyboardTypingHelpCard()
+                    .padding(.top, 6)
+
                 SettingsPageLabel(text: "Add the keyboard").padding(.top, 6)
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
