@@ -756,9 +756,9 @@ struct SupportSettingsPane: View {
                 HStack(spacing: 10) {
                     BarsMark(color: Refined.persimmon).frame(width: 22, height: 23)
                     Text("\(Text("verbose").foregroundStyle(Refined.ink))\(Text(".").foregroundStyle(Refined.accentText))")
-                        .font(.system(size: 28, design: .serif))
+                        .font(Refined.serif(28))
                 }
-                Text(Refined.tagline).font(.system(size: 17, design: .serif)).foregroundStyle(Refined.dim)
+                Text(Refined.tagline).font(Refined.serif(17)).foregroundStyle(Refined.dim)
             }
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose. \(Refined.tagline)")
             SettingsGroup {

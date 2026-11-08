@@ -391,7 +391,7 @@ struct SettingsPaneHeader: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
                 if let art { IconSquare(art: art, hue: hue, side: 40) }
-                Text(title).font(.system(size: 30, weight: .regular, design: .serif)).foregroundStyle(Refined.ink)
+                Text(title).font(Refined.serif(30, weight: .regular)).foregroundStyle(Refined.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
                     .accessibilityAddTraits(.isHeader)
             }
@@ -490,7 +490,7 @@ struct SettingsAnchor: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(Refined.persimmonTint.opacity(model.flashID == id ? 1 : 0), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .animation(.easeOut(duration: 0.6), value: model.flashID == id)
+            .animation(Motion.flash, value: model.flashID == id)
             .id(id)
             .onAppear { model.anchorAppeared(id) }
             .onDisappear { model.anchorDisappeared(id) }

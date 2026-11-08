@@ -440,13 +440,11 @@ struct RecallPanelView: View {
         .padding(.horizontal, 16).frame(height: 36)
     }
 
+    /// A key and what it does: the raised keycap and its word, both at 12 pt (data text, DESIGN.md §2; MAC-26).
     private func hint(_ key: String, _ label: String) -> some View {
         HStack(spacing: 5) {
-            Text(key).font(Refined.mono(10.5, weight: .medium)).foregroundStyle(Refined.dim)
-                .padding(.horizontal, 5).padding(.vertical, 1)
-                .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Refined.card))
-                .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(Refined.separator))
-            Text(label).font(.system(size: 11)).foregroundStyle(Refined.mute)
+            Keycap(keys: key, style: .raised).foregroundStyle(Refined.dim)
+            Text(label).refinedFont(.chip).foregroundStyle(Refined.mute)
         }
         .lineLimit(1).fixedSize()
     }
@@ -465,19 +463,18 @@ private struct RecallRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             // ⌘ and the number copy it (digits alone type into search).
-            Text(Recall.keyLabel(index).map { "⌘" + $0 } ?? "")
-                .font(Refined.mono(12, weight: .medium))
-                .foregroundStyle(selected ? Refined.accentText : Refined.mute)
-                .lineLimit(1).fixedSize()
-                .frame(minWidth: 30, minHeight: 22)
-                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Refined.card))
-                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Refined.separator))
-                .accessibilityHidden(true)
+            Group {
+                if let k = Recall.keyLabel(index) { Keycap(keys: "⌘" + k, style: .raised) } else { Color.clear.frame(height: 1) }
+            }
+            .foregroundStyle(selected ? Refined.accentText : Refined.mute)
+            .frame(minWidth: 30, alignment: .leading)
+            .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(Recall.when(item.date)).font(.system(size: 11)).monospacedDigit().foregroundStyle(Refined.mute)
+                    // The time is data, 12 pt at least (MAC-26); the app or site beside it in the meta style.
+                    Text(Recall.when(item.date)).refinedFont(.chip).monospacedDigit().foregroundStyle(Refined.mute)
                     if !item.source.isEmpty {
-                        Text(item.source).font(.system(size: 11.5)).foregroundStyle(Refined.mute).lineLimit(1)
+                        Text(item.source).refinedFont(.chip).foregroundStyle(Refined.mute).lineLimit(1)
                     }
                 }
                 Text(Recall.preview(item.text))

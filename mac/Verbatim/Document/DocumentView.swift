@@ -16,6 +16,9 @@ struct DocumentView: View {
     /// The window's: ⌘Z (Edit › Undo) undoes the last Clean up, Tone, fix, or Reset, and ⇧⌘Z redoes it (MAC-01). Typing in
     /// the editor goes on the same stack (NSTextView's own undo), so ⌘Z walks back through both in order.
     @Environment(\.undoManager) private var undoManager
+    /// ⌘F's find bar on this tab (Views/TranscriptFind.swift): it finds in the text below, and the editor marks the
+    /// matches (MAC-22 follow-up).
+    @ObservedObject private var find = TranscriptFind.shared
 
     private var text: String { transcript.documentText }
     /// Lints computed for exactly this text. After Clean up, Accept all, Undo, or typing, the old lints are
@@ -39,8 +42,13 @@ struct DocumentView: View {
                 .frame(maxWidth: 720, alignment: .leading)
             }
             DocumentEditor(text: text, speakers: DocumentText.labelNames(transcript), lints: proofread ? current : [],
+                           find: find.shows(on: .cleaned) ? findMarks : nil,
                            onEdit: { new in commit(new, history: false) }, onAccept: accept, onIgnore: ignore)
                 .frame(maxWidth: 720)
+        }
+        // The find bar searches the text as it stands, and again as you type.
+        .onChange(of: find.shows(on: .cleaned) ? text : nil, initial: true) { _, t in
+            if let t { find.setTexts([t]) }
         }
         .onAppear(perform: relint)
         .onChange(of: transcript.document) { _, _ in relint() }
@@ -51,6 +59,11 @@ struct DocumentView: View {
         } message: {
             Text("Re-running Clean up replaces your edits to the Cleaned text. Undo brings them back.")
         }
+    }
+
+    /// The find bar's matches in the text, and the current one.
+    private var findMarks: DocumentEditor.FindMarks {
+        DocumentEditor.FindMarks(matches: find.matches.map(\.range), current: find.currentMatch?.range)
     }
 
     // MARK: Toolbar
@@ -301,7 +314,15 @@ struct DocumentEditor: NSViewRepresentable {
     /// The speaker names paragraphs can start with (`DocumentText.labelNames`). Only these are styled as labels.
     var speakers: [String] = []
     var lints: [Harper.Lint]
+    /// ⌘F's matches, drawn as marks over the text (the layout manager's temporary attributes, so they never touch the
+    /// text, its undo, or its lints): butter with ink on it, and the current one underlined and scrolled into view.
+    var find: FindMarks? = nil
     var onEdit: (String) -> Void
+
+    struct FindMarks: Equatable {
+        var matches: [NSRange]
+        var current: NSRange?
+    }
     var onAccept: (Harper.Lint) -> Void
     var onIgnore: (Harper.Lint) -> Void
 
@@ -326,12 +347,14 @@ struct DocumentEditor: NSViewRepresentable {
         tv.textContainer?.widthTracksTextView = true
         context.coordinator.textView = tv
         context.coordinator.apply(text: text, lints: lints)
+        context.coordinator.applyFind(find)
         return sv
     }
 
     func updateNSView(_ sv: NSScrollView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.apply(text: text, lints: lints)
+        context.coordinator.applyFind(find)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {
@@ -350,7 +373,37 @@ struct DocumentEditor: NSViewRepresentable {
         var lints: [Harper.Lint] = []
         private var editing = false
         private var popover: NSPopover?
+        /// The find marks last drawn, and the match last scrolled to; nil after the text is replaced, so they draw again.
+        private var drawnFind: FindMarks?
+        private var revealed: NSRange?
         init(_ p: DocumentEditor) { parent = p }
+
+        /// Draws the find bar's marks: every match in butter with ink on it, the current one underlined (never color
+        /// alone), as temporary attributes; scrolls to the current match when it changes. Clears them when the bar
+        /// closes. Positions are the text's, so nothing draws while the editor's text differs from it (mid-typing).
+        func applyFind(_ find: FindMarks?) {
+            guard let tv = textView, let lm = tv.layoutManager else { return }
+            guard find != drawnFind else { return }
+            let length = (tv.string as NSString).length
+            let all = NSRange(location: 0, length: length)
+            for key in [NSAttributedString.Key.backgroundColor, .foregroundColor, .underlineStyle, .underlineColor] {
+                lm.removeTemporaryAttribute(key, forCharacterRange: all)
+            }
+            guard let find else { drawnFind = nil; revealed = nil; return }
+            // Mid-typing the editor runs ahead of the text the matches came from: draw once they agree.
+            guard tv.string == parent.text else { drawnFind = nil; return }
+            drawnFind = find
+            let fill = NSColor(Refined.badge(.butter)), ink = NSColor(Refined.onFill)
+            for r in find.matches where NSMaxRange(r) <= length {
+                lm.addTemporaryAttributes([.backgroundColor: fill, .foregroundColor: ink], forCharacterRange: r)
+            }
+            if let c = find.current, NSMaxRange(c) <= length {
+                lm.addTemporaryAttributes([.underlineStyle: NSUnderlineStyle.thick.rawValue, .underlineColor: ink], forCharacterRange: c)
+                if c != revealed { revealed = c; (tv as? LintTextView)?.reveal(c) }
+            } else {
+                revealed = nil
+            }
+        }
 
         func apply(text: String, lints: [Harper.Lint]) {
             guard let tv = textView else { return }
@@ -393,6 +446,7 @@ struct DocumentEditor: NSViewRepresentable {
             tv.textStorage?.setAttributedString(attr)
             tv.selectedRanges = sel
             tv.invalidateIntrinsicContentSize()
+            drawnFind = nil   // the find marks go with the old text; they draw again on the new one
         }
 
         func textDidChange(_ n: Notification) {
@@ -432,13 +486,21 @@ final class LintTextView: NSTextView {
     /// push the header (title and Original / Cleaned / Review) under the toolbar. Only scroll while the person is
     /// typing here.
     private var editingHere: Bool { window?.firstResponder === self }
+    /// The find bar's current match is being brought into view (its field has the focus, not the editor).
+    private var revealing = false
     override func scrollRangeToVisible(_ range: NSRange) {
-        guard editingHere else { return }
+        guard editingHere || revealing else { return }
         super.scrollRangeToVisible(range)
     }
     override func scrollToVisible(_ rect: NSRect) -> Bool {
-        guard editingHere else { return false }
+        guard editingHere || revealing else { return false }
         return super.scrollToVisible(rect)
+    }
+    /// Scrolls the transcript so `range` shows: the find bar's current match (⌘G is a key, so it doesn't animate).
+    func reveal(_ range: NSRange) {
+        revealing = true
+        defer { revealing = false }
+        scrollRangeToVisible(range)
     }
     override var intrinsicContentSize: NSSize {
         guard let lm = layoutManager, let tc = textContainer else { return super.intrinsicContentSize }

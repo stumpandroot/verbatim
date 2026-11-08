@@ -249,8 +249,9 @@ struct ThoughtBubbleView: View {
             }
         }
         .frame(width: s, height: s)
-        .overlay(Circle().strokeBorder(recording ? Refined.inkFixed : Refined.paperFixed.opacity(0.9), lineWidth: 1.5).padding(-1.5))
-        .background(Circle().fill(Refined.inkFixed).offset(x: 3, y: 4))
+        // A `separator` hairline sets it apart on a busy wallpaper, as the floating cards' edge does; no ink outline
+        // and no hard offset shadow (DESIGN.md §13, What retires; MAC-27).
+        .overlay(Circle().strokeBorder(Refined.separator, lineWidth: 1))
     }
 
     /// Beside the disc: the hint on hover, the recording card, the saved line, or a notice.
@@ -290,7 +291,7 @@ struct ThoughtBubbleView: View {
                     BubbleCard(compact: true) {
                         HStack(spacing: 8) {
                             Text("New thought").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.ink)
-                            BubbleKeycap(keys: Thoughts.hotkey)
+                            Keycap(keys: Thoughts.hotkey).foregroundStyle(Refined.ink)
                         }
                     }
                     .surfaceFrame(in: Self.space)
@@ -309,18 +310,6 @@ private struct BubbleCard<Content: View>: View {
             .padding(.horizontal, compact ? 10 : 13).padding(.vertical, compact ? 6 : 9)
             .foregroundStyle(Refined.ink)
             .modifier(FloatingCard())
-    }
-}
-
-private struct BubbleKeycap: View {
-    var keys: String
-    var color: Color = Refined.ink
-    var body: some View {
-        Text(keys).font(.system(size: 12, weight: .medium)).monospacedDigit().foregroundStyle(color)
-            .lineLimit(1).fixedSize()
-            .padding(.horizontal, 5).padding(.vertical, 1)
-            .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(color.opacity(0.6), lineWidth: 1))
-            .accessibilityLabel(Keycap.spoken(keys))
     }
 }
 
@@ -352,7 +341,7 @@ private struct BubbleRecordingCard: View {
                         + Text((d.settled.isEmpty ? "" : " ") + [d.volatile, d.newest].filter { !$0.isEmpty }.joined(separator: " ")).italic()
                 }
             }
-            .font(.system(size: 15, design: .serif))
+            .font(Refined.serif(15))
             .lineLimit(2).truncationMode(.head)
             .frame(width: 250, alignment: .leading)
             .accessibilityHidden(true)
@@ -361,7 +350,7 @@ private struct BubbleRecordingCard: View {
             Spacer(minLength: 12)
             HStack(spacing: 6) {
                 Text(Self.stopHint + (stopKeys == nil ? "" : " \u{00B7}")).refinedFont(.meta).lineLimit(1).fixedSize()
-                if let stopKeys { BubbleKeycap(keys: stopKeys, color: ink) }
+                if let stopKeys { Keycap(keys: stopKeys).foregroundStyle(ink) }
             }
             .fixedSize()
         }
@@ -380,7 +369,7 @@ private struct BubbleMarkPill: View {
         HStack(spacing: 6) {
             IconGlyph(art: .iconMark, size: 13, color: ink)
             Text("Mark").refinedFont(.meta, weight: .semibold).foregroundStyle(ink).lineLimit(1).fixedSize()
-            BubbleKeycap(keys: keys, color: ink)
+            Keycap(keys: keys).foregroundStyle(ink)
         }
         .fixedSize()
         .padding(.leading, 9).padding(.trailing, 6)

@@ -172,32 +172,17 @@ private struct DesktopHills: Shape {
 
 // MARK: - Dictation › Hotkey
 
-/// A key as a keycap (SF Pro on the card with a hairline edge), as on the hotkey picker.
+/// A key as a keycap on the hotkey picker and wherever a key you set is shown.
 struct KeyChip: View {
     var text: String
     var ghost = false
     var big = false
 
+    /// The one keycap (`Keycap`, MAC-32): raised on the card for a key you can pick, 15 pt for the big preview; "Not set"
+    /// as a plain outline in `mute`.
     var body: some View {
-        HStack(spacing: 4) {
-            Text(text).font(.system(size: big ? 15 : 12.5, weight: .medium))
-            if text == "fn" { Image(systemName: "globe").font(.system(size: big ? 14 : 12)) }
-        }
-        .foregroundStyle(ghost ? Refined.mute : Refined.ink)
-        .padding(.horizontal, 8)
-        .frame(minWidth: big ? 38 : 30, minHeight: big ? 34 : 28)
-        .background {
-            if ghost {
-                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Refined.separator, lineWidth: 1)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Refined.card)
-                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Refined.separator, lineWidth: 1)
-                }
-            }
-        }
-        .fixedSize()
-        .accessibilityLabel(Keycap.spoken(text))
+        Keycap(keys: text, size: big ? 15 : 12.5, style: ghost ? .outline : .raised)
+            .foregroundStyle(ghost ? Refined.mute : Refined.ink)
     }
 }
 
@@ -461,7 +446,7 @@ private struct RecordedCard: View {
                 if let t = taken { Text("That one belongs to \(t.owner)") }
                 else { Text("Your shortcut is \(combo.title)") }
             }
-            .font(.system(size: 22, design: .serif)).foregroundStyle(Refined.ink).padding(.top, 4)
+            .font(Refined.serif(22)).foregroundStyle(Refined.ink).padding(.top, 4)
             HStack(spacing: 6) { ForEach(combo.keycaps, id: \.self) { KeyChip(text: $0, big: true) } }
                 .frame(maxWidth: .infinity, minHeight: 64)
                 .background(Refined.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
@@ -510,7 +495,7 @@ private struct MouseWaitCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Mouse button").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
-            Text("Press the button you want").font(.system(size: 22, design: .serif)).foregroundStyle(Refined.ink).padding(.top, 4)
+            Text("Press the button you want").font(Refined.serif(22)).foregroundStyle(Refined.ink).padding(.top, 4)
             ZStack {
                 BrandGlyph(art: Self.shell, color: Refined.card)
                 BrandGlyph(art: Self.side, color: Refined.butter)

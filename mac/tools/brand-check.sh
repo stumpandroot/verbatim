@@ -9,6 +9,10 @@
 #   5. Fixed text sizes on iPhone (§13 Type 3): `.font(.system(size:` in VerbatimPhone/ only for an Image (an SF Symbol
 #      glyph), or on a line marked `// type: fixed (why)` or `// type: scaled (@ScaledMetric)`. Text uses `refinedFont`
 #      or `scaledFont`, which scale with Dynamic Type.
+#   6. Literal type, radii, and curves in the Mac app (§5.3, §7, §13; MAC-31): the serif goes through `Refined.serif`
+#      (or a kit role), never `.system(size:design: .serif)`, and the counts of literal `.system(size:` fonts, literal
+#      `cornerRadius:` numbers, and literal animation curves may only go down. Use `refinedFont`, `RefinedRules.radius`
+#      or `Radius`, and the `Motion` tokens; when you remove some, lower the baseline here to the new count.
 # Run from anywhere: bash mac/tools/brand-check.sh   (exit 1 lists each problem as file:line)
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -37,6 +41,21 @@ mark=$(grep -rnE --include=*.swift 'BrandArt\.mark\b|art: *\.mark\b' $SRC | grep
 
 fixed=$(grep -rn --include=*.swift '\.font(\.system(size:' VerbatimPhone | grep -v '// type: ' | awk '{ i = index($0, ".font(.system(size:"); if (index(substr($0, 1, i), "Image(") == 0) print }' | cut -d: -f1,2)
 [ -n "$fixed" ] && report "Fixed text sizes on iPhone (use refinedFont or scaledFont, or mark '// type: fixed (why)'):" "$fixed"
+
+# 6. Literal tokens in the Mac app may only go down (the baselines are the counts on November 7, 2026).
+mac_count() { grep -rnE --include=*.swift "$1" Verbatim | grep -vE 'Views/Tokens.swift|Views/MacAppearance.swift|Model/MotionRules.swift' | wc -l | tr -d ' '; }
+ratchet() {  # name, pattern, baseline
+  local n; n=$(mac_count "$2")
+  if [ "$n" -gt "$3" ]; then
+    report "$1: $n in the Mac app, more than the $3 allowed (use the tokens; see DESIGN.md §5.3, §7, §13):" "$(grep -rnE --include=*.swift "$2" Verbatim | grep -vE 'Views/Tokens.swift|Views/MacAppearance.swift|Model/MotionRules.swift' | cut -d: -f1,2 | tail -5)"
+  elif [ "$n" -lt "$3" ]; then
+    echo "brand-check: note: $1 went down to $n (baseline $3); lower the baseline in tools/brand-check.sh"
+  fi
+}
+ratchet "Literal serif fonts (use Refined.serif or a kit role)" 'design: \.serif\)' 2
+ratchet "Literal font sizes (use refinedFont)" '\.system\(size:' 321
+ratchet "Literal corner radii (use RefinedRules.radius or Radius)" 'cornerRadius: [0-9]' 41
+ratchet "Literal animation curves (use the Motion tokens)" '\.(easeOut|easeIn|easeInOut|linear|smooth|snappy|bouncy)\(duration: [0-9]|\.spring\((duration|response): [0-9]' 14
 
 [ $fail -eq 0 ] && echo "brand-check: OK"
 exit $fail

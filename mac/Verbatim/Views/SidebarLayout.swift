@@ -201,7 +201,7 @@ struct CustomizeSidebarSheet: View {
                     row(id)
                 }
                 .onMove { from, to in
-                    withAnimation(limitMotion ? nil : .smooth(duration: 0.3)) { layout.move(fromOffsets: from, toOffset: to) }
+                    withAnimation(limitMotion ? nil : Motion.settle) { layout.move(fromOffsets: from, toOffset: to) }
                 }
             }
             .listStyle(.plain)
@@ -210,7 +210,7 @@ struct CustomizeSidebarSheet: View {
             .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
             HStack {
                 Button("Restore default order") {
-                    withAnimation(limitMotion ? nil : .smooth(duration: 0.3)) { layout.restoreDefault() }
+                    withAnimation(limitMotion ? nil : Motion.settle) { layout.restoreDefault() }
                 }
                 .disabled(layout.isDefault)
                 Spacer()

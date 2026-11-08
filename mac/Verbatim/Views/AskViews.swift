@@ -418,7 +418,7 @@ struct AskAnswerText: View {
             ForEach(Array(answer.blocks.enumerated()), id: \.offset) { _, b in
                 switch b {
                 case .heading(let h):
-                    Text(h).font(.system(size: size + 3, design: .serif)).foregroundStyle(Refined.ink)
+                    Text(h).font(Refined.serif(size + 3)).foregroundStyle(Refined.ink)
                         .padding(.top, 4).accessibilityAddTraits(.isHeader)
                 case .paragraph(let s):
                     Text(attributed(s)).font(.system(size: size)).foregroundStyle(Refined.ink).lineSpacing(4).fixedSize(horizontal: false, vertical: true)

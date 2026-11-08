@@ -37,9 +37,9 @@ struct MacSidebar: View {
                     ForEach(shownItems) { id in
                         mainItem(id, library: counts.library)
                             .onDrag { layout.itemProvider(id) }
-                            .onDrop(of: [SidebarLayout.dragType], delegate: SidebarReorderDrop(target: id, layout: layout, animation: limitMotion ? nil : .smooth(duration: 0.3)))
+                            .onDrop(of: [SidebarLayout.dragType], delegate: SidebarReorderDrop(target: id, layout: layout, animation: limitMotion ? nil : Motion.settle))
                             .contextMenu {
-                                Button("Hide from Sidebar") { withAnimation(limitMotion ? nil : .smooth(duration: 0.3)) { layout.setHidden(id, true) } }
+                                Button("Hide from Sidebar") { withAnimation(limitMotion ? nil : Motion.settle) { layout.setHidden(id, true) } }
                                     .disabled(!layout.canHide(id))
                                 Button("Customize Sidebar…") { customizing = true }
                             }

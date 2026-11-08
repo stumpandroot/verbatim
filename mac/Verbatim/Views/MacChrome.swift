@@ -414,15 +414,20 @@ enum ToolbarSearchPrompt {
 
     static func apply(to window: NSWindow?) {
         guard let window else { return }
-        var fields = (window.toolbar?.items ?? []).compactMap { ($0 as? NSSearchToolbarItem)?.searchField }
-        if fields.isEmpty, let frame = window.contentView?.superview {
-            fields = searchFields(in: frame, skipping: window.contentView, depth: 0)
-        }
-        for f in fields where !styled(f) {
+        for f in fields(in: window) where !styled(f) {
             var attrs: [NSAttributedString.Key: Any] = [.foregroundColor: color]
             if let font = f.font { attrs[.font] = font }
             f.placeholderAttributedString = NSAttributedString(string: prompt, attributes: attrs)
         }
+    }
+
+    /// The toolbar's search field (the toolbar item's, or found in the window's frame outside its content). Also how
+    /// ↓ in it reaches the Library's passages (Views/PassageKeys.swift).
+    static func fields(in window: NSWindow) -> [NSSearchField] {
+        let items = (window.toolbar?.items ?? []).compactMap { ($0 as? NSSearchToolbarItem)?.searchField }
+        if !items.isEmpty { return items }
+        guard let frame = window.contentView?.superview else { return [] }
+        return searchFields(in: frame, skipping: window.contentView, depth: 0)
     }
 
     /// True when the field already shows the prompt in `color`.

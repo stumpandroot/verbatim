@@ -718,7 +718,7 @@ struct AboutMeSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("You").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
-                Text("About me").font(.system(size: 30, design: .serif)).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
+                Text("About me").font(Refined.serif(30)).foregroundStyle(Refined.ink).accessibilityAddTraits(.isHeader)
                 Text("A few lines about you and your work. Verbose uses this to spell names correctly and to write titles and summaries. It stays on this Mac.")
                     .font(.system(size: 13)).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
             }

@@ -672,7 +672,7 @@ struct TemplateTryOnSheet: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .done:
                     ScrollView {
-                        TemplateResultBody(text: preview.text, heading: .system(size: 18, design: .serif), textFont: .system(size: 13.5),
+                        TemplateResultBody(text: preview.text, heading: Refined.serif(18), textFont: .system(size: 13.5),
                                            ink: AnyShapeStyle(Refined.ink), dim: AnyShapeStyle(Refined.mute))
                             .padding(14)
                     }

@@ -28,10 +28,16 @@ struct LibraryView: View {
     /// Which column has the keyboard (MAC-25): the selected row shows a leading bar while the table has it, and dims
     /// while the sidebar does.
     @ObservedObject private var columns = ColumnFocus.shared
+    /// ↓ from the toolbar's search field into the passages (MAC-23 follow-up, Views/PassageKeys.swift).
+    @ObservedObject private var passageKeys = PassageKeys.shared
+    /// The passage the arrow keys are on, while the table has the keyboard; nil when they move the rows.
+    @State private var passageCursor: PassageKey? = nil
 
     /// How many Libraries are on screen, and their rows' order (the self-test).
     static var onScreen = 0
     static var shownOrder: [UUID] = []
+    /// The passage the arrow keys are on (the self-test).
+    static var shownPassage: PassageKey?
 
     private static let margin: CGFloat = 40
 
@@ -46,7 +52,10 @@ struct LibraryView: View {
         let lists = app.libraryLists(kind: app.libraryKind)
         let rows = ordered(lists.list)
         let order = rows.map(\.id)
-        if UITest.enabled { Self.shownOrder = order }
+        if UITest.enabled { Self.shownOrder = order; Self.shownPassage = passageCursor }
+        // The search passages over the table (two letters or more), worked out once per render.
+        let passages = app.search.trimmingCharacters(in: .whitespaces).count >= 2 ? PassageResults.hits(query: app.search, list: lists.list) : []
+        let passageOrder = PassageResults.order(passages)
         return VStack(spacing: 0) {
             GeometryReader { geo in
                 // Two columns (mockup "Verbose Mac Columns"): the table takes the width, and a 320 pt side column holds
@@ -57,7 +66,7 @@ struct LibraryView: View {
                 HStack(alignment: .top, spacing: wide ? MacColumnsMetrics.gap : 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        page(lists: lists, rows: rows, order: order, width: width)
+                        page(lists: lists, rows: rows, order: order, passages: passages, width: width)
                             .frame(width: width, alignment: .leading)
                             .coordinateSpace(name: MacColumnsMetrics.space)
                             .padding(.leading, wide ? MacColumnsMetrics.leading : margin)
@@ -73,13 +82,35 @@ struct LibraryView: View {
                     .focused($focused)
                     // No blue ring around the table; the selected row's leading bar shows it has the keyboard.
                     .focusEffectDisabled()
-                    .onChange(of: focused) { _, on in columns.set(.library, on) }
-                    .onKeyPress(.downArrow) { step(1, order, proxy); return .handled }
-                    .onKeyPress(.upArrow) { step(-1, order, proxy); return .handled }
-                    // Return and Space open from the keyboard: the transcript shows at once (DESIGN.md §7).
-                    .onKeyPress(.return) { app.fromKeyboard { openSelected() } ? .handled : .ignored }
-                    .onKeyPress(.space) { app.fromKeyboard { playSelected() } ? .handled : .ignored }
+                    .onChange(of: focused) { _, on in
+                        columns.set(.library, on)
+                        if !on { passageCursor = nil }
+                    }
+                    // In the passages the arrows move between them (`PassageCursor`); otherwise they move the rows.
+                    .onKeyPress(.downArrow) {
+                        if passageCursor != nil { movePassage(down: true, passageOrder, order, proxy) } else { step(1, order, proxy) }
+                        return .handled
+                    }
+                    .onKeyPress(.upArrow) {
+                        if passageCursor != nil { movePassage(down: false, passageOrder, order, proxy) } else { step(-1, order, proxy) }
+                        return .handled
+                    }
+                    // Return and Space open from the keyboard: the transcript shows at once (DESIGN.md §7). On a passage,
+                    // both open its transcript at that line.
+                    .onKeyPress(.return) {
+                        if let c = passageCursor { app.fromKeyboard { openPassage(c) }; return .handled }
+                        return app.fromKeyboard { openSelected() } ? .handled : .ignored
+                    }
+                    .onKeyPress(.space) {
+                        if let c = passageCursor { app.fromKeyboard { openPassage(c) }; return .handled }
+                        return app.fromKeyboard { playSelected() } ? .handled : .ignored
+                    }
                     .onKeyPress(.escape) {
+                        if passageCursor != nil {
+                            passageCursor = nil
+                            PassageKeys.focusSearchField(app.mainWindow)
+                            return .handled
+                        }
                         guard !selection.isEmpty else { return .ignored }
                         selection = []; anchor = nil
                         return .handled
@@ -88,6 +119,17 @@ struct LibraryView: View {
                         guard press.modifiers.contains(.command) else { return .ignored }
                         selection = Set(order)
                         return .handled
+                    }
+                    // ↓ in the search field: the table takes the keyboard on the first passage.
+                    .onChange(of: passageKeys.enterToken) { _, _ in
+                        guard let first = passageOrder.first else { return }
+                        passageCursor = first
+                        focused = true
+                        proxy.scrollTo(first)
+                    }
+                    .onChange(of: passageOrder, initial: true) { _, o in
+                        PassageKeys.shared.setOrder(o)
+                        if let c = passageCursor, !o.contains(c) { passageCursor = nil }
                     }
                 }
                 .frame(width: wide ? width + MacColumnsMetrics.leading : geo.size.width)
@@ -128,7 +170,10 @@ struct LibraryView: View {
                 selection = [s]; anchor = s
             }
         }
-        .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
+        .onDisappear {
+            Self.onScreen = max(0, Self.onScreen - 1)
+            PassageKeys.shared.setOrder([])
+        }
     }
 
     // MARK: Side column
@@ -144,20 +189,9 @@ struct LibraryView: View {
             sideLink("Templates", value: "\(app.store.allTemplates.count)") { app.go(.templates) }
             sideLink("Ask", value: nil) { app.go(.ask) }
         }
+        // The selected recording, the same card the inspector shows (MAC-18), only while the inspector is closed.
         if let t = single {
-            MacSideCard(title: "Selected") {
-                Text(t.title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Refined.ink).lineLimit(2)
-                Text(selectedMeta(t)).font(.system(size: 12)).foregroundStyle(Refined.dim).lineLimit(2)
-                if let first = t.segments.first?.text, !first.isEmpty {
-                    Text("\u{201C}\(first.prefix(140))\u{201D}").font(.system(size: 12)).foregroundStyle(Refined.dim).lineLimit(3)
-                }
-                HStack(spacing: 8) {
-                    if t.audioFileName != nil, t.status == .ready {
-                        Button("Play") { _ = playSelected() }.buttonStyle(RefinedActionStyle())
-                    }
-                    Button("Open") { _ = openSelected() }.buttonStyle(RefinedActionStyle(kind: .strong))
-                }
-            }
+            SelectedSideCard(transcript: t, onPlay: { _ = playSelected() }, onOpen: { _ = openSelected() })
         }
     }
 
@@ -167,18 +201,9 @@ struct LibraryView: View {
             .accessibilityHint("Opens \(title)")
     }
 
-    private func selectedMeta(_ t: Transcript) -> String {
-        var parts: [String] = [t.kind?.label ?? "Recording"]
-        if t.duration > 0 { parts.append(RefinedRules.time(t.duration)) }
-        if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
-        let moments = t.notes.filter { $0.at != nil }.count
-        if moments > 0 { parts.append(moments == 1 ? "1 moment" : "\(moments) moments") }
-        return parts.joined(separator: " · ")
-    }
-
     // MARK: Page
 
-    @ViewBuilder private func page(lists: AppState.LibraryLists, rows: [Transcript], order: [UUID], width: CGFloat) -> some View {
+    @ViewBuilder private func page(lists: AppState.LibraryLists, rows: [Transcript], order: [UUID], passages: [PassageResults.Hit], width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             titleRow(count: lists.list.count)
             chipsRow.padding(.top, 14)
@@ -197,7 +222,7 @@ struct LibraryView: View {
             }
             Group {
                 if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
-                    PassageResults(query: app.search, list: lists.list).macColumnsTop().padding(.top, 16)
+                    PassageResults(query: app.search, hits: passages, cursor: passageCursor).macColumnsTop().padding(.top, 16)
                 }
                 if rows.isEmpty {
                     emptyState.macColumnsTop().padding(.top, 16)
@@ -381,7 +406,8 @@ struct LibraryView: View {
 
     private func table(_ rows: [Transcript], order: [UUID], columns: LibraryColumns) -> some View {
         let projects = app.store.projectsByID
-        let look = SelectionLook.of(.library, focus: self.columns.focus)
+        // While the arrows are in the passages, the table's selection dims, as it does while the sidebar has them.
+        let look = passageCursor != nil ? SelectionLook.dimmed : SelectionLook.of(.library, focus: self.columns.focus)
         return PaperTable {
             header(columns)
         } rows: {
@@ -436,6 +462,7 @@ struct LibraryView: View {
     /// second click within the double-click time opens it.
     private func clicked(_ id: UUID, order: [UUID]) {
         focused = true
+        passageCursor = nil
         let flags = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
         if flags.contains(.shift), let a = anchor ?? selection.first, let i = order.firstIndex(of: a), let j = order.firstIndex(of: id) {
             selection = Set(order[min(i, j)...max(i, j)])
@@ -456,6 +483,29 @@ struct LibraryView: View {
         let next = order[current.map { max(0, min(order.count - 1, $0 + by)) } ?? 0]
         selection = [next]; anchor = next
         proxy.scrollTo(next)
+    }
+
+    /// ↓ or ↑ in the passages: the next passage, the table's first row past the last, or the search field above the first.
+    private func movePassage(down: Bool, _ passages: [PassageKey], _ order: [UUID], _ proxy: ScrollViewProxy) {
+        let i = passageCursor.flatMap { passages.firstIndex(of: $0) }
+        switch PassageCursor.step(from: i, count: passages.count, down: down) {
+        case .passage(let n):
+            passageCursor = passages[n]
+            proxy.scrollTo(passages[n])
+        case .table:
+            passageCursor = nil
+            if let first = order.first { selection = [first]; anchor = first; proxy.scrollTo(first) }
+        case .searchField:
+            passageCursor = nil
+            PassageKeys.focusSearchField(app.mainWindow)
+        }
+    }
+
+    /// Return or Space on a passage: its transcript, at that line.
+    private func openPassage(_ p: PassageKey) {
+        passageCursor = nil
+        app.focusSegment = p.segment
+        app.go(.transcript(p.transcript))
     }
 
     private var single: Transcript? {
@@ -740,16 +790,22 @@ extension View {
 // MARK: - Passages
 
 /// Search that finds the moment, not just the file: each matching line with its speaker and time, grouped by
-/// transcript in a card. Click a line (or Tab to it and press Space) to open the transcript there.
+/// transcript in a card. Click a line (or Tab to it and press Space) to open the transcript there; ↓ from the toolbar's
+/// search field moves into the lines, and the line the arrows are on takes the selection's tint and leading bar.
 struct PassageResults: View {
     var query: String
-    /// The library's filtered transcripts, worked out once by the caller.
-    var list: [Transcript]
+    /// The matches, worked out once by the Library (`hits(query:list:)`).
+    var hits: [Hit]
+    /// The line the arrow keys are on, if any.
+    var cursor: PassageKey? = nil
 
-    /// Per transcript: up to six matching lines to show, and how many lines match in all.
-    private var hits: [(Transcript, [Segment], Int)] {
+    /// One transcript's matches: up to six lines to show, and how many lines match in all.
+    typealias Hit = (transcript: Transcript, segments: [Segment], count: Int)
+
+    /// Per transcript in the Library's filtered `list`: up to six matching lines to show, and how many match in all.
+    static func hits(query: String, list: [Transcript]) -> [Hit] {
         let q = query.trimmingCharacters(in: .whitespaces)
-        var out: [(Transcript, [Segment], Int)] = []
+        var out: [Hit] = []
         var total = 0
         for t in list where t.status == .ready {
             let segs = t.segments.filter { $0.text.range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
@@ -763,15 +819,19 @@ struct PassageResults: View {
         return out
     }
 
+    /// The lines shown, in reading order: the order the arrow keys move through them.
+    static func order(_ hits: [Hit]) -> [PassageKey] {
+        hits.flatMap { h in h.segments.map { PassageKey(transcript: h.transcript.id, segment: $0.id) } }
+    }
+
     var body: some View {
-        let results = hits
         VStack(alignment: .leading, spacing: 10) {
-            if results.isEmpty {
+            if hits.isEmpty {
                 Text("No passages match \u{201C}\(query)\u{201D}").refinedFont(.meta).foregroundStyle(Refined.mute)
             } else {
                 SectionTitle("Passages")
             }
-            ForEach(results, id: \.0.id) { t, segs, n in
+            ForEach(hits, id: \.transcript.id) { t, segs, n in
                 PaperCard {
                     HStack(spacing: 8) {
                         Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
@@ -780,7 +840,10 @@ struct PassageResults: View {
                         Text(HomeCounts.countLabel(n, "match", "matches")).refinedFont(.meta).foregroundStyle(Refined.mute)
                     }
                     .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 6)
-                    ForEach(segs) { s in PassageLine(transcript: t, segment: s, query: query) }
+                    ForEach(segs) { s in
+                        let key = PassageKey(transcript: t.id, segment: s.id)
+                        PassageLine(transcript: t, segment: s, query: query, selected: cursor == key).id(key)
+                    }
                 }
                 .padding(.bottom, 2)
             }
@@ -793,6 +856,8 @@ struct PassageLine: View {
     var transcript: Transcript
     var segment: Segment
     var query: String
+    /// The arrow keys are on this line: the selection's tint with the focused column's leading bar (MAC-25).
+    var selected = false
     @State private var hover = false
     /// A Button (MAC-23): Tab reaches it with Full Keyboard Access, Space or Return opens it, and VoiceOver reads it as
     /// one button. The video link beside it is its own button, never nested inside.
@@ -822,8 +887,10 @@ struct PassageLine: View {
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 7)
-        .background(hover ? Refined.stripe : .clear)
+        .background(selected ? Refined.persimmonTint : hover ? Refined.stripe : .clear)
+        .overlay(alignment: .leading) { if selected { FocusBar() } }
         .onHover { hover = $0 }
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func open() { app.focusSegment = segment.id; app.go(.transcript(transcript.id)) }
@@ -843,9 +910,8 @@ struct PassageLine: View {
 
 // MARK: - Preview
 
-/// The Library's preview in the window's inspector: the selected recording (or the newest) with its kind, day, length,
-/// and people, its title, the summary, its first line, and Play, Open Transcript, and ⋯. Plain text on the inspector,
-/// as the transcript's inspector lists its parts; Apple draws the inspector.
+/// The Library's preview in the window's inspector: the selected recording (or the newest) as `LibrarySelectionCard`,
+/// the same card the side column shows while the inspector is closed (MAC-18).
 struct LibraryPreview: View {
     @Environment(AppState.self) var app
     @ObservedObject var nav: WindowNav
@@ -856,95 +922,135 @@ struct LibraryPreview: View {
         let chosen = nav.librarySelection.flatMap { id in list.first { $0.id == id } } ?? list.max { $0.createdAt < $1.createdAt }
         ScrollView {
             if let t = chosen {
-                card(t).padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 24)
+                LibrarySelectionCard(transcript: t, full: true, onPlay: { nav.play(t, app: app) }, onOpen: { app.go(.transcript(t.id)) })
+                    .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 24)
             } else {
                 Text("Select a recording to see its summary.")
-                    .font(.system(size: 13)).foregroundStyle(.secondary)
+                    .refinedFont(.body).foregroundStyle(Refined.mute)
                     .frame(maxWidth: .infinity).padding(.top, 60)
             }
         }
         .scrollIndicators(.never)
     }
+}
 
-    private func card(_ t: Transcript) -> some View {
+/// The side column's Selected card: the selection card in a side card, only while the inspector is closed, so the
+/// selection is previewed once (MAC-18).
+private struct SelectedSideCard: View {
+    var transcript: Transcript
+    var onPlay: () -> Void
+    var onOpen: () -> Void
+    @ObservedObject private var nav = WindowNav.shared
+
+    var body: some View {
+        if !nav.inspectorVisible {
+            MacSideCard(title: "Selected") {
+                LibrarySelectionCard(transcript: transcript, full: false, onPlay: onPlay, onOpen: onOpen)
+            }
+        }
+    }
+}
+
+/// The selected recording, one design wherever the Library previews it (MAC-18; DESIGN.md §13): the title in the row
+/// title's size, semibold; its kind, day, length, and people in the meta style; a quiet Play with the kit's play glyph
+/// (DESIGN.md §3) and a strong Open; then the first line. The inspector's (`full`) adds More, the summary, and a longer
+/// first line. Kit type and tokens only, on whatever surface holds it.
+struct LibrarySelectionCard: View {
+    @Environment(AppState.self) var app
+    var transcript: Transcript
+    var full: Bool
+    var onPlay: () -> Void
+    var onOpen: () -> Void
+
+    var body: some View {
+        let t = transcript
         VStack(alignment: .leading, spacing: 0) {
-            Text(t.title).font(.system(size: 17, weight: .bold)).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+            Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                .lineLimit(full ? 3 : 2).fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-            Text(meta(t)).font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary).lineLimit(2)
-                .padding(.top, 3)
+            Text(Self.meta(t, projects: app.store.projectsByID)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.dim)
+                .lineLimit(2).padding(.top, 3)
             HStack(spacing: 8) {
                 if t.audioFileName != nil && t.status == .ready {
-                    // The kit's Play glyph, not an SF Symbol: the inspector isn't a system surface (MAC-40; DESIGN.md §3).
-                    Button { nav.play(t, app: app) } label: { Label { Text("Play") } icon: { IconGlyph(art: .iconPlay, size: 13, color: .white) } }   // white: the prominent button's own label color
-                        .buttonStyle(.borderedProminent)
-                        .help("Open and play (Space)")
+                    Button(action: onPlay) {
+                        HStack(spacing: 6) {
+                            IconGlyph(art: .iconPlay, size: 12, color: Refined.ink)
+                            Text("Play")
+                        }
+                    }
+                    .buttonStyle(RefinedActionStyle())
+                    .help("Open and play (Space)")
                 }
-                Button("Open Transcript") { app.go(.transcript(t.id)) }
-                    .buttonStyle(.bordered)
+                Button("Open", action: onOpen)
+                    .buttonStyle(RefinedActionStyle(kind: .strong))
                     .help("Open the transcript (Return)")
-                    .uiWindowTarget("lib-open")
-                Menu { RowMenu(transcript: t) } label: { Image(systemName: "ellipsis.circle") }
-                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                    .accessibilityLabel("More for \(t.title)")
+                    .accessibilityLabel("Open transcript")
+                    .modifier(OpenTarget(full: full))
+                if full {
+                    Menu { RowMenu(transcript: t) } label: { Image(systemName: "ellipsis.circle") }
+                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                        .accessibilityLabel("More for \(t.title)")
+                }
             }
-            .controlSize(.regular)
-            .padding(.top, 12)
-            if let s = t.summary, !s.isEmpty {
-                Divider().padding(.vertical, 14)
-                InspectorSummary(summary: s, byModel: t.summaryByModel)
+            .padding(.top, 10)
+            if full, let s = t.summary, !s.isEmpty {
+                summary(s, byModel: t.summaryByModel).padding(.top, 16)
             }
             if let line = t.visibleSegments(hideFiller: true).first?.text, !line.isEmpty {
-                Divider().padding(.vertical, 14)
-                Text("“\(line)”").font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(3).lineLimit(5)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text("\u{201C}\(full ? line : String(line.prefix(140)))\u{201D}").refinedFont(.meta).foregroundStyle(Refined.dim)
+                    .lineSpacing(2).lineLimit(full ? 5 : 3).fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, full ? 16 : 10)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// "Meeting · Thu Oct 22 · 1:04:12 · Anika, Marcus".
-    private func meta(_ t: Transcript) -> String {
-        var parts = [RecordingKind.refinedName(t.refinedKind), Formats.pattern("EEE MMM d").string(from: t.createdAt)]
-        if t.duration > 0 && !RowStatus.isTextOnly(t) { parts.append(HomeRecentStyle.length(t.duration)) }
-        let people = LibraryView.people(t, projects: app.store.projectsByID)
-        if !people.isEmpty { parts.append(people) }
-        return parts.joined(separator: " · ")
-    }
-}
-
-/// A transcript's summary in the Library's inspector, as plain text the way the inspector lists everything else: the
-/// overview, the first key points, and "Made by Apple Intelligence" in secondary.
-private struct InspectorSummary: View {
-    var summary: TranscriptSummary
-    var byModel: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Summary").font(.system(size: 13, weight: .semibold)).accessibilityAddTraits(.isHeader)
-            if !summary.overview.isEmpty {
-                Text(summary.overview).font(.system(size: 13)).lineSpacing(2)
+    /// The overview, the first three key points with the summary's sage dots, and Apple Intelligence's note, as the
+    /// Summary tab draws them at the body size.
+    private func summary(_ s: TranscriptSummary, byModel: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Summary").refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute).accessibilityAddTraits(.isHeader)
+            if !s.overview.isEmpty {
+                Text(s.overview).refinedFont(.body).foregroundStyle(Refined.ink)
                     .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-                    .padding(.top, 6)
             }
-            if !summary.keyPoints.isEmpty {
+            if !s.keyPoints.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(summary.keyPoints.prefix(3).enumerated()), id: \.offset) { _, p in
-                        HStack(alignment: .firstTextBaseline, spacing: 7) {
-                            Text("•").font(.system(size: 13)).foregroundStyle(.secondary)
-                            Text(p).font(.system(size: 13)).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                    ForEach(Array(s.keyPoints.prefix(3).enumerated()), id: \.offset) { _, p in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Circle().fill(Refined.played).frame(width: 5, height: 5)
+                                .alignmentGuide(.firstTextBaseline) { $0[.bottom] + 3 }
+                                .accessibilityHidden(true)
+                            Text(p).refinedFont(.body).foregroundStyle(Refined.ink)
+                                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                         }
                     }
                 }
-                .padding(.top, 8)
+                .padding(.top, 2)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Key points")
             }
             if byModel {
-                Text(AIGeneratedNote.summary).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(AIGeneratedNote.summary).refinedFont(.meta).foregroundStyle(Refined.mute)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 8)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// "Meeting · Thu Oct 22 · 1:04:12 · Anika, Marcus".
+    static func meta(_ t: Transcript, projects: [UUID: Project]) -> String {
+        var parts = [RecordingKind.refinedName(t.refinedKind), Formats.pattern("EEE MMM d").string(from: t.createdAt)]
+        if t.duration > 0 && !RowStatus.isTextOnly(t) { parts.append(HomeRecentStyle.length(t.duration)) }
+        let people = LibraryView.people(t, projects: projects)
+        if !people.isEmpty { parts.append(people) }
+        return parts.joined(separator: " · ")
+    }
+
+    /// The inspector's Open is the self-test's "lib-open" (the inspector's frames are the window's).
+    private struct OpenTarget: ViewModifier {
+        var full: Bool
+        @ViewBuilder func body(content: Content) -> some View {
+            if full { content.uiWindowTarget("lib-open") } else { content }
+        }
     }
 }

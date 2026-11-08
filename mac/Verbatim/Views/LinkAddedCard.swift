@@ -339,7 +339,7 @@ struct LinkAddedCard: View {
     @ViewBuilder private var title: some View {
         if let t = imp.title, !t.isEmpty {
             Text(t)
-                .font(.system(size: metrics.titleSize, design: .serif)).foregroundStyle(Refined.ink)
+                .font(Refined.serif(metrics.titleSize)).foregroundStyle(Refined.ink)
                 .lineLimit(3).lineSpacing(0)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)

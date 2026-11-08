@@ -86,7 +86,11 @@ enum RefinedHex {
     /// Reader white in both modes: the ready chip's lift on the Record card.
     static let lift = Tone(0xFFFDF9, 0xFFFDF9)
 
-    // Fills (the Full palette): the Record card, tiles, kind badges, speaker and kind chips, and icon squares.
+    // Fills (the Full palette): the Record card, tiles, kind badges, speaker and kind chips, and icon squares. Each hue
+    // has a meaning within a role (DESIGN.md §1, Roles; GPT-29): a capture action (persimmon Record, butter Dictate,
+    // sage Import, petal App audio), a kind, telling speakers or projects apart, or decoration that carries no meaning.
+    // Persimmon text and tints (`accentText`, `persimmonTint`) mean "chosen" or "a link"; butter also marks what a search
+    // found, and sage what's playing. The word or glyph beside a hue always carries the meaning.
     static let persimmon = Tone(0xFB7350, 0xF27A57)
     static let butter = Tone(0xF4C76B, 0xDDB563)
     static let sage = Tone(0xAFC398, 0x9DB088)
@@ -121,8 +125,10 @@ enum RefinedHex {
     static let separator = Wash(ink, 0.10, 0.12, hc: (0.40, 0.30))
     /// Quiet buttons and chips at rest (filter chips, the recorder's Mark and Pause).
     static let neutral = Wash(ink, 0.07, 0.08, hc: (0.12, 0.14))
-    /// Every other row of a table in a card (the Mac Library), so a long row reads across.
+    /// Every other row of a table in a card (the Mac Library), so a long row reads across; a row under the pointer.
     static let stripe = Wash(ink, 0.025, 0.03, hc: (0.05, 0.06))
+    /// A card, tile, or the Record card under the pointer (the Mac's Home, MAC-20): ink at 4% over its fill.
+    static let hoverWash = Wash(ink, 0.04, 0.05, hc: (0.08, 0.09))
     /// The line being played.
     static let playing = Wash(Tone(0xAFC398, 0x93A87C), 0.32, 0.20, hc: (0.45, 0.30))
     /// The Record card's rings on a Full fill, and on a Soft tint.
@@ -186,6 +192,7 @@ enum Refined {
     static let separator = color(RefinedHex.separator)
     static let neutral = color(RefinedHex.neutral)
     static let stripe = color(RefinedHex.stripe)
+    static let hoverWash = color(RefinedHex.hoverWash)
     static let playing = color(RefinedHex.playing)
     static let glassFallback = color(RefinedHex.glassFallback)
     /// The record disc's dot and the stop square: the system's red (it adapts to dark mode and Increase Contrast),
@@ -407,6 +414,8 @@ enum Motion {
     static let snap = Animation.smooth(duration: 0.24)
     /// What replaces movement when motion is limited: a short crossfade.
     static let fade = Animation.easeOut(duration: 0.2)
+    /// A row that flashes to show where something landed (a Settings search result), then fades back slowly.
+    static let flash = Animation.easeOut(duration: 0.6)
     /// A view switch in place (a transcript's Original, Cleaned, and Summary; a list's filter): 150 ms.
     static let crossfade = Animation.easeOut(duration: 0.15)
     /// The Ribbon's and the notch's shape between states, one curve for both (DESIGN.md §12, `SurfaceMotion`): 0.3 s, no

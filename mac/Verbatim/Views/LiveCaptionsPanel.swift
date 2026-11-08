@@ -29,6 +29,10 @@ final class LiveCaptionsPanel {
         p.backgroundColor = NSColor(Refined.paper)
         p.title = "Live captions"
         let host = CaptionsHostingView(rootView: LiveCaptionsView(controller: controller, feed: controller.feed).limitMotionRoot())
+        // The panel's size is ours (the height follows the text size), never the content's: left to the default, the
+        // hosting view sets the window's size limits from the SwiftUI layout, which let a saved frame open about
+        // 700 pt tall with only the header in view (MAC-42). Every other panel does the same.
+        host.sizingOptions = []
         p.contentView = host
         panel = p
         Self.applyBehavior(p, above: lastAbove)
@@ -46,7 +50,26 @@ final class LiveCaptionsPanel {
         }
     }
 
-    func show() { panel.orderFrontRegardless() }
+    func show() {
+        // Back to the height for the text size and onto a screen before it shows, whatever frame was saved (MAC-42).
+        Self.applyHeight(panel, height: Self.height(CaptionSize.saved))
+        Self.keepOnScreen(panel)
+        panel.orderFrontRegardless()
+    }
+
+    /// The panel's height now (the self-test checks it matches its text size).
+    var frameHeight: CGFloat { panel.frame.height }
+
+    /// A saved frame from another display, or wider than this one, comes back inside the visible screen.
+    private static func keepOnScreen(_ p: NSPanel) {
+        guard let screen = p.screen ?? NSScreen.main else { return }
+        let v = screen.visibleFrame
+        var f = p.frame
+        f.size.width = min(f.width, v.width - 20)
+        f.origin.x = min(max(f.minX, v.minX + 10), v.maxX - 10 - f.width)
+        f.origin.y = min(max(f.minY, v.minY), v.maxY - f.height)
+        if f != p.frame { p.setFrame(f, display: false) }
+    }
     func hide() { panel.orderOut(nil) }
 
     private func preferencesChanged() {
@@ -208,7 +231,7 @@ struct LiveCaptionsView: View {
             if feed.history.isEmpty && feed.current.isEmpty {
                 // Never a blank panel: what it's listening to and where the words will go, or why it isn't listening.
                 Text(controller.status ?? Self.waitingLine(controller.source, open: controller.isOpen))
-                    .font(.system(size: size.mac * 0.77, design: .serif)).foregroundStyle(Refined.mute)
+                    .font(Refined.serif(size.mac * 0.77)).foregroundStyle(Refined.mute)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .uiTarget("captions-waiting")

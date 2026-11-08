@@ -23,7 +23,7 @@ struct VoiceProfileSection: View {
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 6) {
                             Text("How well it knows you").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
-                            Text(status.line).font(.system(size: 24, design: .serif)).tracking(-0.3).foregroundStyle(Refined.ink)
+                            Text(status.line).font(Refined.serif(24)).tracking(-0.3).foregroundStyle(Refined.ink)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .accessibilityElement(children: .combine)
@@ -44,7 +44,7 @@ struct VoiceProfileSection: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Your voice").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.mute)
-                    Text("Teach Verbose your voice.").font(.system(size: 24, design: .serif)).tracking(-0.3).foregroundStyle(Refined.ink)
+                    Text("Teach Verbose your voice.").font(Refined.serif(24)).tracking(-0.3).foregroundStyle(Refined.ink)
                         .accessibilityAddTraits(.isHeader)
                     Text("Read three short passages aloud, about 30 seconds in all. Verbose can then keep only your voice in dictation and mark your lines as “You” in transcripts. Your voice profile stays on this Mac.")
                         .font(.system(size: 13.5)).lineSpacing(2).foregroundStyle(Refined.dim)
@@ -249,7 +249,7 @@ struct VoiceEnrollmentView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Your voice · step \(model.step.number) of 3")
                     .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Refined.mute)
-                Text(title).font(.system(size: 40, design: .serif)).foregroundStyle(Refined.ink)
+                Text(title).font(Refined.serif(40)).foregroundStyle(Refined.ink)
                     .accessibilityAddTraits(.isHeader)
                 if let detail {
                     Text(detail).font(.system(size: 14)).foregroundStyle(Refined.dim)

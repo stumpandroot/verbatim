@@ -34,7 +34,7 @@ struct TranscriptView: View {
     @Environment(\.limitMotion) private var limitMotion
     /// The transcript finishing while it's open (DESIGN.md §7, Celebrations).
     @ObservedObject private var celebrations = CelebrationCenter.shared
-    /// ⌘F's find bar over the Original lines (Views/TranscriptFind.swift).
+    /// ⌘F's find bar over the tab you're reading: Original, Cleaned, or Summary (Views/TranscriptFind.swift).
     @ObservedObject private var find = TranscriptFind.shared
 
     /// This transcript finishing on its own screen: the processing card stays until its celebration ends, then the text
@@ -143,9 +143,12 @@ struct TranscriptView: View {
                 if let raw = n.object as? String, let m = Mode(rawValue: raw) { nav.mode = m }
             }
             .onChange(of: selectedSegment) { _, v in if nav.selectedSegment != v { nav.selectedSegment = v } }
-            // The find bar's current match: the selected line, brought into view. Another tab closes the bar.
+            // The find bar's current match on Original: the selected line, brought into view. Another tab keeps the
+            // bar and its words and finds there; a tab with no find (Review, a result) closes it.
             .onChange(of: find.currentLine) { _, line in if let line { selectedSegment = line; scrollTarget = line } }
-            .onChange(of: nav.mode) { _, m in if m != .original { find.close() } }
+            .onChange(of: nav.mode) { _, m in
+                if let scope = m.findScope { if find.open { find.retarget(scope) } } else { find.close() }
+            }
             .onChange(of: t.corrections.isEmpty) { _, none in if none, nav.mode == .review { nav.mode = .original } }
         } else {
             Text("This transcript was deleted.").refinedFont(.body).foregroundStyle(Refined.mute)
@@ -184,10 +187,16 @@ struct TranscriptView: View {
                 DispatchQueue.main.async { proxy.scrollTo(target, anchor: .center) }
                 scrollTarget = nil
             }
+            // The find bar's current match on Summary: its paragraph, brought into view at once (⌘G is a key, so it
+            // doesn't scroll smoothly). Cleaned's editor scrolls to its own match (DocumentEditor).
+            .onChange(of: find.currentMatch) { _, m in
+                guard find.shows(on: .summary), view == .summary, let m else { return }
+                proxy.scrollTo(SummaryBlock.findAnchor(m.line), anchor: .center)
+            }
         }
         .overlay(alignment: .top) {
-            // ⌘F: the find bar at the top of the column, at once (it opens from a key).
-            if find.open, view == .original {
+            // ⌘F: the find bar at the top of the column, at once (it opens from a key), on the tab it finds in.
+            if find.open, view.findScope == find.scope {
                 TranscriptFindBar(find: find).padding(.horizontal, 32).padding(.top, 8)
             }
         }
@@ -356,19 +365,25 @@ struct TranscriptView: View {
             case .original: original(t)
             case .document: DocumentView(transcript: t)
             case .summary:
+                // ⌘F finds in the overview and key points: matches in butter, the current one underlined.
+                let summaryLines = PageFind.summaryLines(overview: t.summary?.overview ?? "", keyPoints: t.summary?.keyPoints ?? [])
                 VStack(alignment: .leading, spacing: 24) {
                     SummaryBlock(transcript: t,
                                  onSummarize: { replacing in
                                      if let why = SummaryAction.unavailableReason { nav.summaryUnavailable = why; return }
                                      SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: replacing)
                                  },
-                                 onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
+                                 onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } },
+                                 find: find.shows(on: .summary) ? SummaryFindMarks(query: find.query, line: find.currentMatch?.line, range: find.currentMatch?.range) : nil)
                     // Make notes, a plan, or a draft from it; the result gets a tab of its own.
                     // Not when Apple Intelligence can't run: templates need it too, so it would be a dead end (critique).
                     if t.shownTemplateResults.isEmpty, TemplateCenter.shared.busyTemplate(t.id) == nil, TemplateCenter.unavailableReason == nil {
                         RunTemplateMenu(transcript: t, title: "Run a template", templates: app.store.allTemplates)
                             .uiTarget("transcript-run-template")
                     }
+                }
+                .onChange(of: find.shows(on: .summary) ? summaryLines : nil, initial: true) { _, lines in
+                    if let lines { find.setTexts(lines) }
                 }
             case .review: review(t)
             case .result: TemplateResultsSection(transcript: t, inline: true, runRow: true, showsOffers: false)

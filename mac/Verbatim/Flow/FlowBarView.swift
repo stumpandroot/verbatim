@@ -229,7 +229,8 @@ struct FlowBarView: View {
                             .frame(width: 26, height: 26)
                             .opacity(pressed ? 0.85 : 1)
                         }
-                        Text(elapsed).font(.system(size: 11, design: .monospaced)).foregroundStyle(RibbonInk.muted).monospacedDigit()
+                        // A running timer is data: 12 pt, as the notch's (MAC-26); the tab grows with it.
+                        Text(elapsed).font(SurfaceFont.mono(12)).foregroundStyle(RibbonInk.muted)
                     }
                     if model.handsFree {
                         RibbonControl(id: "ribbon-cancel", label: "Cancel dictation", help: "Cancel (Esc)", action: controller.cancel) { pressed in

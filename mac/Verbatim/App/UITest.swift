@@ -582,6 +582,11 @@ enum UITest {
         // Live captions with made-up lines (no speech or audio in UI test mode).
         app.toggleLiveCaptions()
         await show("04c-live-captions")
+        // The panel is the height for its text size, whatever frame was saved (MAC-42).
+        if let h = LiveCaptions.shared.panelHeight {
+            check("captions: the panel is \(Int(h)) pt tall, its text size's height, never a saved frame's",
+                  abs(h - LiveCaptionsPanel.height(CaptionSize.saved)) < 1)
+        }
         LiveCaptions.shared.close(force: true)
         // The meeting banner's call prompt on the refined kit (DESIGN.md §6.10).
         await meetingPromptShot("04d-meeting-prompt")
@@ -1155,7 +1160,8 @@ enum UITest {
         nav.inspector = false
         nav.toggleInspector()
         try? await Task.sleep(nanoseconds: 700_000_000)
-        await step("\(tag): Open Transcript in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
+        // One selection card in the inspector and the side column (MAC-18): its strong Open opens the transcript.
+        await step("\(tag): Open in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
         try? await Task.sleep(nanoseconds: 500_000_000)
         let missingOnTranscript = chromeIDs.filter { id in (windowFrames[id]?() ?? frames[id]) == nil }
         Log.note("UITEST chrome on a transcript with the inspector open: missing \(missingOnTranscript.isEmpty ? "nothing" : missingOnTranscript.joined(separator: ", "))")
@@ -3648,6 +3654,9 @@ extension UITest {
         check("commands: Edit has Copy Text, Copy for AI, Find…, Find Next, Find Previous, and Search or Ask…",
               TranscriptMenuItems.editTitles.allSatisfy(edit.contains) && ["Find…", "Find Next", "Find Previous", "Search or Ask…"].allSatisfy(edit.contains))
         check("commands: File says Record Voice Note", menu("File")?.items.contains { $0.title == "Record Voice Note" } ?? false)
+        // Shortcuts are one keycap, never under 12 pt (MAC-26, MAC-32).
+        check("keycaps: one Keycap, at 12 pt or larger whatever size is asked",
+              Keycap(keys: "⌘K", size: 10.5).size == Keycap.minSize && Keycap(keys: "⌥⇧R").size == 12 && Keycap(keys: "fn", size: 15).size == 15)
 
         // Find in the open transcript.
         guard let t = app.store.live.first(where: { $0.status == .ready && !$0.showsAudioDetail && $0.segments.count >= 2 }) else {
@@ -3667,6 +3676,38 @@ extension UITest {
         check("find: ⌘G steps to the next match, and ⇧⌘G back", find.matches.count == 1 ? find.current == 0 : find.current != first)
         find.previous()
         check("find: and back again", find.current == first)
+
+        // ⌘F on Cleaned and Summary finds in that tab, with the same bar (MAC-22 follow-up).
+        let nav = WindowNav.shared
+        nav.mode = .document
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        check("find: switching to Cleaned keeps the bar and its words, and finds in the Cleaned text",
+              find.open && find.scope == .cleaned && find.query == word && nav.mode == .document && find.prompt == "Find in Cleaned")
+        find.close()
+        AppCommands.find(app)
+        let cleanedWord = app.store.transcript(t.id)?.documentText.split(separator: " ").first.map(String.init) ?? word
+        find.query = cleanedWord
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        check("find: ⌘F on Cleaned stays on Cleaned and counts its matches (\(find.countLabel))",
+              find.open && nav.mode == .document && find.scope == .cleaned && !find.matches.isEmpty && find.currentMatch != nil && find.currentLine == nil)
+        let cleanedFirst = find.current
+        find.next()
+        check("find: ⌘G steps through Cleaned's matches", find.matches.count == 1 ? find.current == 0 : find.current != cleanedFirst)
+        nav.mode = .summary
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        let summaryLines = PageFind.summaryLines(overview: t.summary?.overview ?? "", keyPoints: t.summary?.keyPoints ?? [])
+        check("find: on Summary the bar finds in the overview and key points",
+              find.open && find.scope == .summary && find.prompt == "Find in Summary"
+              && find.matches.count == PageFind.matches(in: summaryLines, query: cleanedWord).count)
+        nav.mode = .review
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        check("find: a tab with no find closes the bar", !find.open)
+        nav.mode = .summary
+        AppCommands.find(app)
+        check("find: ⌘F on Summary doesn't switch to Original", nav.mode == .summary && find.open && find.scope == .summary)
+        nav.mode = .original
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        check("find: back on Original the bar finds in its lines again", find.open && find.scope == .original)
         find.close()
         check("find: Esc or Done closes it and clears the query", !find.open && find.query.isEmpty && find.matches.isEmpty)
         app.go(.library)
@@ -3675,6 +3716,24 @@ extension UITest {
         try? await Task.sleep(nanoseconds: 300_000_000)
         check("find: elsewhere ⌘F opens Search or ask", AskNav.shared.panelOpen && !find.open)
         AskNav.shared.close()
+
+        // ↓ from the toolbar's search field moves into the search passages (MAC-23 follow-up). The key monitor acts
+        // only while the field is being typed in, so the step calls what ↓ calls.
+        app.search = word
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        let passages = PassageKeys.shared.order
+        check("passages: the Library lists its search passages in order for the arrow keys (\(passages.count))", !passages.isEmpty)
+        if let firstPassage = passages.first {
+            PassageKeys.shared.enter()
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            check("passages: ↓ in the search field puts the arrows on the first passage, with the table's keyboard",
+                  LibraryView.shownPassage == firstPassage && ColumnFocus.shared.focus == .library)
+            check("passages: ↓ and ↑ move between passages, past the last to the table, above the first to the field",
+                  PassageCursor.step(from: 0, count: passages.count, down: true) == (passages.count > 1 ? .passage(1) : .table)
+                  && PassageCursor.step(from: 0, count: passages.count, down: false) == .searchField)
+        }
+        app.search = ""
+        try? await Task.sleep(nanoseconds: 300_000_000)
 
         // The Cleaned tab's Undo and Redo through the window's UndoManager (MAC-01).
         if let um = window.undoManager, let id = app.store.live.first(where: { $0.status == .ready })?.id {
@@ -3692,7 +3751,6 @@ extension UITest {
         }
 
         // The inspector follows its room (MAC-05).
-        let nav = WindowNav.shared
         check("inspector: it has room only with about 560 pt of content beside it (\(Int(nav.detailWidth)) pt wide)",
               nav.inspectorHasRoom == (nav.detailWidth - WindowNav.inspectorRoomWidth >= InspectorFit.minContent))
         app.go(.home)

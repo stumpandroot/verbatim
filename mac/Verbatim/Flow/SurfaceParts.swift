@@ -120,23 +120,6 @@ struct SurfaceSpinner: View {
     }
 }
 
-/// A keycap on a dark surface (the notch, the ink pills): mono 12 inside a hairline outline.
-struct DarkKeycap: View {
-    var text: String
-    var color: Color = Refined.onBlack
-    var edge: Color = Refined.onBlackHair
-    var body: some View {
-        HStack(spacing: 3) {
-            Text(text).font(SurfaceFont.mono(12)).foregroundStyle(color)
-            if text == "fn" { Image(systemName: "globe").font(.system(size: 11)).foregroundStyle(color) }
-        }
-        .padding(.horizontal, 6).padding(.vertical, 4)
-        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(edge, lineWidth: 1))
-        .fixedSize()
-        .accessibilityLabel(Keycap.spoken(text))
-    }
-}
-
 extension BrandArt {
     /// Attention: a circle with a line and a dot (errors pair it with a word, never color alone).
     static let webAttention = BrandArt(box: iconGrid, strokes: [.circle(12, 12, 8.5), .path("M12 7V13")], fills: [.circle(12, 16.3, 1.1)], strokeWidth: 1.6)

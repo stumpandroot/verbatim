@@ -1,11 +1,26 @@
 import SwiftUI
 import AppKit
 
-// Find in the open transcript (MAC-22; DESIGN.md §6.9 and §11): ⌘F on a transcript opens a find bar over its Original
-// lines, as the iPhone's Find does. Matches are in butter (`ReadingHighlight`), the current one is the selected line
-// and scrolls into view, ⌘G and ⇧⌘G (or Return in the field, or the bar's arrows) step through them and wrap,
-// and Esc or Done closes. Elsewhere ⌘F opens Search or ask, and ⌘K opens that panel on every screen
-// (App/AppCommands.swift). The rules are `PageFind` (App/MacCommandRules.swift).
+// Find in the open transcript (MAC-22; DESIGN.md §6.9 and §11): ⌘F on a transcript opens a find bar over the tab you're
+// reading, as the iPhone's Find does: Original's lines, the Cleaned text, or the Summary. Matches are in butter
+// (`ReadingHighlight` on Original and Summary, the editor's own marks on Cleaned), the current one is the selected line
+// on Original and underlined on Cleaned and Summary, and it scrolls into view; ⌘G and ⇧⌘G (or Return in the field, or
+// the bar's arrows) step through them and wrap, and Esc or Done closes. Switching tabs keeps the bar and its words and
+// finds in the new tab; Review and a template's result have no find, so ⌘F there finds in Original. Elsewhere ⌘F opens
+// Search or ask, and ⌘K opens that panel on every screen (App/AppCommands.swift). The rules are `PageFind`
+// (App/MacCommandRules.swift).
+
+extension TranscriptView.Mode {
+    /// The find bar's scope on this tab, or nil where ⌘F finds in Original instead (Review, a template's result).
+    var findScope: FindScope? {
+        switch self {
+        case .original: return .original
+        case .document: return .cleaned
+        case .summary: return .summary
+        case .review, .result: return nil
+        }
+    }
+}
 
 /// The find bar's state for the transcript on screen. One per app, as the window is.
 @MainActor
@@ -13,25 +28,50 @@ final class TranscriptFind: ObservableObject {
     static let shared = TranscriptFind()
 
     @Published private(set) var open = false
+    /// The tab the bar finds in.
+    @Published private(set) var scope: FindScope = .original
     @Published var query = "" { didSet { if query != oldValue { recompute(keepCurrent: false) } } }
     @Published private(set) var matches: [PageFindMatch] = []
     @Published private(set) var current: Int?
     /// Changes each time ⌘F is pressed, so the field takes focus again even while the bar is open.
     @Published private(set) var focusToken = 0
-    /// The lines searched, in reading order (set by the transcript as its lines change).
-    private var lines: [(id: UUID, text: String)] = []
+    /// The text searched, in reading order (set by the tab as its text changes): Original's lines, the Cleaned text as
+    /// one line, or the Summary's overview and then each key point.
+    private var lines: [String] = []
+    /// Original's line IDs, beside `lines`; empty on Cleaned and Summary.
+    private var lineIDs: [UUID] = []
 
     /// Find Next and Find Previous have somewhere to go.
     var canStep: Bool { open && !matches.isEmpty }
-    /// The line the current match is on.
-    var currentLine: UUID? { current.flatMap { c in matches.indices.contains(c) ? lines[safe: matches[c].line]?.id : nil } }
+    /// The current match: its line in `lines` and its range in that line's text.
+    var currentMatch: PageFindMatch? { current.flatMap { c in matches.indices.contains(c) ? matches[c] : nil } }
+    /// The Original line the current match is on (nil on Cleaned and Summary).
+    var currentLine: UUID? {
+        guard scope == .original, let m = currentMatch else { return nil }
+        return lineIDs[safe: m.line]
+    }
+    /// The bar is open on this tab.
+    func shows(on scope: FindScope) -> Bool { open && self.scope == scope }
     var countLabel: String { PageFind.countLabel(current: current, count: matches.count, query: query) }
+    /// The field's prompt, naming the tab: "Find in transcript", "Find in Cleaned", or "Find in Summary".
+    var prompt: String { PageFind.prompt(scope) }
     /// The query the lines mark, while the bar is open.
     var highlight: String? { open && !query.trimmingCharacters(in: .whitespaces).isEmpty ? query : nil }
 
-    func show() {
+    /// ⌘F: opens the bar on `scope` (or moves it there), and puts the focus in its field.
+    func show(in scope: FindScope = .original) {
+        if self.scope != scope { retarget(scope) }
         if !open { open = true }
         focusToken += 1
+    }
+
+    /// Another tab: the bar keeps its words and finds in the new tab, which sets its text as it draws.
+    func retarget(_ scope: FindScope) {
+        guard self.scope != scope else { return }
+        self.scope = scope
+        lines = []; lineIDs = []
+        matches = []
+        current = nil
     }
 
     func close() {
@@ -53,14 +93,22 @@ final class TranscriptFind: ObservableObject {
     /// The transcript's lines changed (opened, edited, another tab of words): match again, keeping the current match
     /// where it still exists.
     func setLines(_ new: [(id: UUID, text: String)]) {
-        let same = new.count == lines.count && zip(new, lines).allSatisfy { $0.id == $1.id && $0.text == $1.text }
-        guard !same else { return }
-        lines = new
+        let texts = new.map(\.text), ids = new.map(\.id)
+        guard texts != lines || ids != lineIDs else { return }
+        lines = texts; lineIDs = ids
+        recompute(keepCurrent: true)
+    }
+
+    /// The Cleaned text (one line) or the Summary's lines changed: match again, keeping the current match where it
+    /// still exists.
+    func setTexts(_ texts: [String]) {
+        guard texts != lines || !lineIDs.isEmpty else { return }
+        lines = texts; lineIDs = []
         recompute(keepCurrent: true)
     }
 
     private func recompute(keepCurrent: Bool) {
-        let found = PageFind.matches(in: lines.map(\.text), query: query)
+        let found = PageFind.matches(in: lines, query: query)
         let old = keepCurrent ? current : nil
         matches = found
         if found.isEmpty { current = nil }
@@ -84,13 +132,13 @@ struct TranscriptFindBar: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .medium)).foregroundStyle(Refined.mute)
                 .accessibilityHidden(true)
-            TextField("Find in transcript", text: $find.query)
+            TextField(find.prompt, text: $find.query)
                 .textFieldStyle(.plain)
                 .refinedFont(.body)
                 .foregroundStyle(Refined.ink)
                 .focused($focused)
                 .onSubmit { find.next() }
-                .accessibilityLabel("Find in transcript")
+                .accessibilityLabel(find.prompt)
             Text(find.countLabel).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
                 .lineLimit(1).fixedSize()
                 .accessibilityLabel(find.countLabel)
@@ -118,7 +166,7 @@ struct TranscriptFindBar: View {
         .onAppear { focused = true }
         .onChange(of: find.focusToken) { _, _ in focused = true }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Find in transcript")
+        .accessibilityLabel(find.prompt)
         .uiTarget("transcript-find")
     }
 }

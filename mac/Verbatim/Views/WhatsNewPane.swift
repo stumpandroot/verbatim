@@ -58,7 +58,7 @@ struct WhatsNewVersionHeader: View {
                     .rotationEffect(.degrees(open ? 90 : 0))
                     .frame(width: 12)
                 Text(version.heading)
-                    .font(.system(size: 22, design: .serif))
+                    .font(Refined.serif(22))
                     .foregroundStyle(Refined.ink)
                 Text("\(version.notes.count) build\(version.notes.count == 1 ? "" : "s")")
                     .font(.system(size: 12.5)).foregroundStyle(Refined.mute)
@@ -124,7 +124,7 @@ struct WhatsNewCard: View {
         return VStack(alignment: .leading, spacing: newest ? 12 : 9) {
             if title {
                 Text(note.title)
-                    .font(.system(size: 20, design: .serif))
+                    .font(Refined.serif(20))
                     .foregroundStyle(Refined.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)

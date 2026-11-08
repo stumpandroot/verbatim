@@ -320,7 +320,7 @@ struct HomeView: View {
     private func recordCard(compact: Bool) -> some View {
         // "Saved" on the chip after a recording stopped from here with a click, for 1.6 s (DESIGN.md §7, Celebrations).
         CelebrationBurst(ticket: celebrations.saved, script: .saved) { saved in
-            RecordCard(status: recordStatus, hint: "Click for a voice note, right-click for a call, a thought, and more · ⌥⇧R",
+            RecordCard(status: recordStatus, hint: "Click for a voice note, right-click for a call, a thought, and more", keys: "⌥⇧R",
                        accessibilityHint: "Starts a voice note. Shortcut: Option Shift R. Right-click for more ways to record.",
                        compact: compact,
                        actions: recordAs.visible.map { c in RecordCardAction(name: c.actionName) { app.startRecordChoice(c) } },
@@ -464,7 +464,8 @@ struct HomeView: View {
                     }
                 }
         }
-        .buttonStyle(RefinedPress())
+        // The pointer over a tile shows before the click (MAC-20), as the Library's rows do.
+        .buttonStyle(RefinedPress(hover: .fill(radius: RefinedPlatform.radius(.tile))))
         .accessibilityLabel(t.title)
         // The detail, then a shortcut's keys; a state is said once, and its hint says what it means.
         .accessibilityValue(trailing?.value(detail: tileDetail(t), spokenKeys: Keycap.spoken) ?? tileDetail(t))
@@ -540,7 +541,7 @@ struct HomeView: View {
                 // A word milestone sweeps the card (DESIGN.md §7, Celebrations).
                 .milestoneOverlay(celebrations.milestone, radius: RefinedPlatform.radius(.card))
         }
-        .buttonStyle(RefinedPress())
+        .buttonStyle(RefinedPress(hover: .fill(radius: RefinedPlatform.radius(.card))))
         .celebrationTapSkips(celebrations.milestone?.id)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(recordings), \(saved) saved typing\(total.map { ", \($0)" } ?? ""), \(HomeCounts.countLabel(n.moments, "moment", "moments")).")
@@ -621,7 +622,8 @@ struct HomeView: View {
     private func recentRow(_ t: Transcript) -> some View {
         let fillers = RowStatus.cachedFillers(t)
         return HStack(spacing: 0) {
-            Button { app.go(.transcript(t.id)) } label: {
+            // A row you open: `stripe` under the pointer and a dim while pressed, as the Library's rows (MAC-20).
+            PaperRowButton(action: { app.go(.transcript(t.id)) }) {
                 // The live progress (StageClock) while it transcribes: only this row re-renders on a tick.
                 LiveStage(t) { t in
                     PaperRow(kind: t.refinedKind, title: t.title, meta: Self.recentMeta(t)) {
@@ -630,7 +632,6 @@ struct HomeView: View {
                     }
                 }
             }
-            .buttonStyle(RefinedPress())
             .accessibilityHint("Opens the transcript.")
             if fillers > 0 {
                 // A compact accent text action beside the row (RefinedTextActionStyle), never inside its button.

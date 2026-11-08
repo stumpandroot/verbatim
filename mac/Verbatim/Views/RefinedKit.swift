@@ -143,14 +143,48 @@ extension View {
 
 // MARK: - Surfaces and presses
 
-/// A press that lands fast and lets go smoothly: scale 0.98, or a dim under Limit animation.
+/// A press that lands fast and lets go smoothly: scale 0.98, or a dim under Limit animation. With `hover` (the Mac's
+/// Home, MAC-20), the pointer over it shows first, as the Library's rows do: a row takes the `stripe` wash, and a fill
+/// (the Record card, a tile, a card) the `hoverWash` over its shape. Both are only an opacity change, easing out on
+/// `Motion.touch`, so Limit animation keeps them.
 struct RefinedPress: ButtonStyle {
+    enum Hover: Equatable {
+        case none
+        /// A row in a card: `stripe` behind it.
+        case row
+        /// A filled shape with this corner radius: `hoverWash` over it.
+        case fill(radius: CGFloat)
+    }
+    var hover: Hover = .none
     @Environment(\.limitMotion) private var limitMotion
+
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !limitMotion ? 0.98 : 1)
-            .opacity(configuration.isPressed && limitMotion ? 0.8 : 1)
-            .animation(limitMotion ? Motion.fade : Motion.press, value: configuration.isPressed)
+        PressBody(configuration: configuration, hover: hover, limitMotion: limitMotion)
+    }
+
+    private struct PressBody: View {
+        let configuration: ButtonStyleConfiguration
+        let hover: Hover
+        let limitMotion: Bool
+        @State private var over = false
+
+        var body: some View {
+            configuration.label
+                .background {
+                    if hover == .row { Rectangle().fill(Refined.stripe).opacity(over ? 1 : 0).allowsHitTesting(false) }
+                }
+                .overlay {
+                    if case .fill(let r) = hover {
+                        RoundedRectangle(cornerRadius: r, style: .continuous).fill(Refined.hoverWash)
+                            .opacity(over ? 1 : 0).allowsHitTesting(false)
+                    }
+                }
+                .scaleEffect(configuration.isPressed && !limitMotion ? 0.98 : 1)
+                .opacity(configuration.isPressed && limitMotion ? 0.8 : 1)
+                .animation(limitMotion ? Motion.fade : Motion.press, value: configuration.isPressed)
+                .animation(Motion.touch, value: over)
+                .onHover { h in if hover != .none, h != over { over = h } }
+        }
     }
 }
 
@@ -190,6 +224,8 @@ struct RecordCardAction: Identifiable {
 struct RecordCard: View {
     var status: String
     var hint: String
+    /// The shortcut after the hint, as a keycap (the Mac's ⌥⇧R; MAC-32).
+    var keys: String? = nil
     var title = "Record"
     var accessibilityHint: String? = nil
     var compact = false
@@ -199,8 +235,9 @@ struct RecordCard: View {
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) { RecordCardFace(status: status, title: title, hint: hint, compact: compact, saved: saved) }
-            .buttonStyle(RefinedPress())
+        Button(action: action) { RecordCardFace(status: status, title: title, hint: hint, keys: keys, compact: compact, saved: saved) }
+            // The Mac shows the pointer over it first (MAC-20).
+            .buttonStyle(RefinedPress(hover: RefinedPlatform.mac ? .fill(radius: RefinedPlatform.radius(.record)) : .none))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)
             .accessibilityValue(status)
@@ -218,6 +255,8 @@ struct RecordCardFace: View {
     var status: String
     var title = "Record"
     var hint: String
+    /// The shortcut after the hint, as a keycap in the fill's ink (MAC-32).
+    var keys: String? = nil
     var compact = false
     /// "Saved" on the chip after a recording, with the small bounce, for 1.6 s (DESIGN.md §7, Celebrations): an ink
     /// pill over the chip, which gives way under it; nothing moves around it.
@@ -226,8 +265,8 @@ struct RecordCardFace: View {
     private let mac = RefinedPlatform.mac
 
     /// Spelled out: the palette's wrapper is private, which would keep the synthesized one to this file.
-    init(status: String, title: String = "Record", hint: String, compact: Bool = false, saved: BurstState = .idle) {
-        self.status = status; self.title = title; self.hint = hint; self.compact = compact; self.saved = saved
+    init(status: String, title: String = "Record", hint: String, keys: String? = nil, compact: Bool = false, saved: BurstState = .idle) {
+        self.status = status; self.title = title; self.hint = hint; self.keys = keys; self.compact = compact; self.saved = saved
     }
 
     /// The status line or chip, with "Saved" over it while it shows.
@@ -268,7 +307,10 @@ struct RecordCardFace: View {
                         VStack(alignment: .leading, spacing: mac ? 3 : 2) {
                             Text(title).refinedFont(.recordTitle)
                             // Full ink, not the mockup's 80%: ink at 80% on the fill measures 3.6:1.
-                            Text(hint).refinedFont(.hint).fixedSize(horizontal: false, vertical: true)
+                            HStack(alignment: .lastTextBaseline, spacing: 6) {
+                                Text(hint).refinedFont(.hint).fixedSize(horizontal: false, vertical: true)
+                                if let keys { Keycap(keys: keys) }
+                            }
                         }
                         Spacer(minLength: 8)
                         // The text stops short of the disc (the mockup's 90 pt), at every text size.
@@ -394,7 +436,7 @@ struct ColorTile: View {
 
     var body: some View {
         Button(action: action) { ColorTileFace(title: title, art: art, hue: hue, pattern: pattern, trailing: trailing, compact: compact) }
-            .buttonStyle(RefinedPress())
+            .buttonStyle(RefinedPress(hover: RefinedPlatform.mac ? .fill(radius: RefinedPlatform.radius(.tile)) : .none))
             .accessibilityLabel(title)
             // "Shortcut: Command O" for a shortcut; a state speaks as a state.
             .accessibilityHint(trailing?.hint(spokenKeys: Keycap.spoken) ?? "")
@@ -446,9 +488,14 @@ struct ColorTileFace: View {
             .lineLimit(mac ? 1 : 2).minimumScaleFactor(mac ? 0.85 : (compact ? 0.8 : 1))
     }
 
-    /// The trailing text on one line: it shrinks a little before it would wrap, and never breaks a word.
-    private func trailingText(_ t: RefinedRules.TileTrailing) -> some View {
-        Text(t.text).refinedFont(.caption).lineLimit(1).minimumScaleFactor(0.8).accessibilityHidden(true)
+    /// The trailing text on one line: it shrinks a little before it would wrap, and never breaks a word. A shortcut
+    /// on the Mac is a keycap in the tile's ink (MAC-32; DESIGN.md §2.3), never plain text.
+    @ViewBuilder private func trailingText(_ t: RefinedRules.TileTrailing) -> some View {
+        if mac, case .shortcut(let k) = t {
+            Keycap(keys: k).accessibilityHidden(true)
+        } else {
+            Text(t.text).refinedFont(.caption).lineLimit(1).minimumScaleFactor(0.8).accessibilityHidden(true)
+        }
     }
 
     /// The name, and a shortcut beside it when both fit on one line; a state, or a shortcut that doesn't fit, on its
@@ -463,7 +510,7 @@ struct ColorTileFace: View {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(title).refinedFont(.tileName, weight: .semibold).lineLimit(1).fixedSize()
                         Spacer(minLength: 4)
-                        Text(trailing.text).refinedFont(.caption).lineLimit(1).fixedSize().accessibilityHidden(true)
+                        trailingText(trailing).fixedSize()
                     }
                     below
                 }
