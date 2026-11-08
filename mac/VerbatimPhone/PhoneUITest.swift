@@ -130,6 +130,7 @@ enum PhoneUITest {
         ribbonChecks(app)             // The recording ribbon: routing, takes, timeouts, and the session's take API.
         libraryChecks()
         polishChecks(app)             // The polish round's iPhone fixes: kind chips, glyphs, and radii.
+        redesignChecks(app)           // One field for search and Ask (IP-39), and the Watch's Smart Stack rows (SF-33).
         // What's new: the bundled notes, their rules, and when Home's note shows (ReleaseNotes.swift).
         ReleaseNotes.selfTest(app: .phone) { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)") }
         homeChecks()
@@ -1151,9 +1152,9 @@ enum PhoneUITest {
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
-    /// Library › Ask with the mockup's answer, a real question answered by a stand-in for Apple's model (it never runs
-    /// here), nothing relevant, and Recipes: the three suggestions, then the recipes with a digest. The mockup's
-    /// recordings and the recipes are taken out afterward.
+    /// Ask in the Library's field (IP-39) with the mockup's answer, a real question answered by a stand-in for Apple's
+    /// model (it never runs here), nothing relevant, and Recipes: the three suggestions, then the recipes with a digest.
+    /// The mockup's recordings and the recipes are taken out afterward, and the field goes back to Search.
     private static func askTour(_ app: PhoneState, prefix: String, suffix: String, checks: Bool) async {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") ask\(suffix): \(name)") }
         let center = AskCenter.shared, recipes = AskRecipeCenter.shared
@@ -1167,25 +1168,31 @@ enum PhoneUITest {
         app.libraryPath = NavigationPath()
         try? await Task.sleep(nanoseconds: 400_000_000)
         center.show(AskChecks.sampleResult(app.store.live, scope: AskScope(range: .thisWeek), device: "iPhone"))
-        app.libraryPath.append(AskRoute())
+        // The Ask place's way in: the Library's own field with Ask chosen, showing the answer with its question.
+        app.openAsk()
         await show("\(prefix)04n-ask\(suffix)")
         if checks {
-            check("Library › Ask shows the answer with its three citations", center.result?.answer?.citations.count == 3)
+            check("Ask shows the answer with its three citations", center.result?.answer?.citations.count == 3)
+            check("Ask opens the Library's own field with Ask chosen, not a page of its own (IP-39)",
+                  app.tab == .library && app.libraryPath.isEmpty && LibraryScreen.onScreen == 1 && LibraryScreen.shownMode == .ask)
+            check("with nothing typed, Ask's field shows the question of the answer on screen (IP-39)",
+                  LibraryScreen.shownQuery == center.result?.question && PhoneAskPanel.shown == .answered)
             // The made-up number is past the most passages Ask ever gives the model (`AskRanker.limit`). Ask about … asks
             // All, and in the tour's library All can give seven passages or more, so the [7] it used to cite could be real.
             let invented = AskRanker.limit + 1
             center.responder = { _ in "Alex asked for a shorter headline [1]. Invented [\(invented)]." }
-            var path = NavigationPath()
-            path.append(AskRoute(query: "What did Alex want changed on the homepage?"))
-            app.libraryPath = NavigationPath()
             PhoneAskResult.footerShown = nil
+            PhoneAskPanel.shown = nil
             try? await Task.sleep(nanoseconds: 400_000_000)
-            app.libraryPath = path
-            for _ in 0..<24 where !(center.phase == .done && AskScreen.shown != nil) { try? await Task.sleep(nanoseconds: 250_000_000) }
+            // A link's or intent's words: the field takes them and asks at once.
+            app.openAsk(query: "What did Alex want changed on the homepage?")
+            for _ in 0..<24 where !(center.phase == .done && PhoneAskPanel.shown != nil) { try? await Task.sleep(nanoseconds: 250_000_000) }
             let asked = center.result
-            check("Ask about … asks at once and keeps only valid citations", asked?.state == .answered && asked?.answer?.citations.count == 1
+            check("Ask from the field asks at once and keeps only valid citations", asked?.state == .answered && asked?.answer?.citations.count == 1
                   && asked?.answer?.plainText.contains("Invented") == false)
-            if let a = asked { Log.note("UITEST ask: Ask about … gave \(a.state) from \(a.passageCount) passages, \(a.answer?.citations.count ?? 0) citation(s)") }
+            check("the asked words are in the Library's field, with Ask chosen (IP-39)",
+                  LibraryScreen.shownMode == .ask && LibraryScreen.shownQuery == "What did Alex want changed on the homepage?" && LibraryScreen.onScreen == 1)
+            if let a = asked { Log.note("UITEST ask: the field's question gave \(a.state) from \(a.passageCount) passages, \(a.answer?.citations.count ?? 0) citation(s)") }
             check("the footer says it answered on this iPhone", center.result?.footer(short: true).hasSuffix("answered on this iPhone.") == true)
             try? await Task.sleep(nanoseconds: 400_000_000)
             check("the answer card shows the footer line (\(PhoneAskResult.footerShown ?? "none"))",
@@ -1198,7 +1205,7 @@ enum PhoneUITest {
         app.libraryPath = NavigationPath()
         try? await Task.sleep(nanoseconds: 400_000_000)
         if app.store.recipes.isEmpty {
-            var path = NavigationPath(); path.append(AskRoute()); path.append(RecipesRoute())
+            var path = NavigationPath(); path.append(RecipesRoute())
             app.libraryPath = path
             await show("\(prefix)04o-recipes-empty\(suffix)")
             if checks { check("Recipes starts empty, with three suggestions", RecipesScreen.shown == 0) }
@@ -1209,7 +1216,7 @@ enum PhoneUITest {
         if let r = added.dropFirst().first, let result = AskChecks.sampleDigest(app.store.live, question: r.question, scope: r.scope, device: "iPhone") {
             recipes.keep(AskDigest(recipeId: r.id, ranAt: Date(), scheduled: true, result: result))
         }
-        var path = NavigationPath(); path.append(AskRoute()); path.append(RecipesRoute())
+        var path = NavigationPath(); path.append(RecipesRoute())
         app.libraryPath = path
         await show("\(prefix)04p-recipes\(suffix)")
         if checks {
@@ -1255,7 +1262,10 @@ enum PhoneUITest {
         center.clear()
         for id in seeded { if let t = app.store.transcript(id) { app.store.delete(t) } }
         if seeded.count == 3 { app.store.projects.removeAll { $0.id == project } }
+        // A filter asks for recordings: Ask's question leaves the field and Search comes back (IP-39).
+        app.libraryFilterRequest = "all"
         try? await Task.sleep(nanoseconds: 500_000_000)
+        if checks { check("a filter request puts the field back on Search with the question gone (IP-39)", LibraryScreen.shownMode == .search && LibraryScreen.shownQuery.isEmpty) }
     }
 
     /// New thought with simulated audio (no microphone in the simulator): the recording is filed as a thought, on
@@ -2751,6 +2761,34 @@ enum PhoneUITest {
               RefinedPlatform.squareRadius(side: 30) == RefinedPlatform.radius(.square)
               && abs(RefinedPlatform.squareRadius(side: 22) - 5.87) < 0.01 && abs(RefinedPlatform.squareRadius(side: 34) - 9.07) < 0.01)
         check("Settings cards share the refined card radius (IP-24)", RefinedPlatform.radius(.card) == 14)
+    }
+
+    /// The approved redesigns (November 7, 2026, mockup "Verbose redesigns", sections 3 and 4): the Library's "Search or
+    /// ask" field is the one way into search and Ask (IP-39), and an iPhone recording or session has its own Smart Stack
+    /// row on the Apple Watch (SF-33). The tour checks the field on screen (`askTour`); these check the rules on device.
+    static func redesignChecks(_ app: PhoneState) {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") redesign: \(name)") }
+        check("the Library's field reads Search or ask, and Ask's prompt with Ask chosen (IP-39)",
+              SearchOrAsk.prompt(.search) == "Search or ask" && SearchOrAsk.prompt(.ask) == "Ask about your recordings")
+        check("typing shows the Search | Ask switch; Ask keeps it with the field empty (IP-39)",
+              SearchOrAsk.showsSwitch(query: "folding", mode: .search) && !SearchOrAsk.showsSwitch(query: "", mode: .search)
+              && SearchOrAsk.showsSwitch(query: "", mode: .ask))
+        check("Search shows matches and Ask shows Ask, in the same Library (IP-39)",
+              SearchOrAsk.content(query: "folding", mode: .search) == .search && SearchOrAsk.content(query: "folding", mode: .ask) == .ask
+              && SearchOrAsk.content(query: "", mode: .search) == .library)
+        check("the Ask place with nothing asked puts the keyboard up in the field (IP-39)",
+              SearchOrAsk.enter(query: "", requested: nil, lastQuestion: nil, answered: false).focus)
+        check("switching back to Ask never asks the answered question again (IP-39)",
+              !SearchOrAsk.enter(query: "folding", requested: nil, lastQuestion: "folding", answered: true).ask)
+        check("the Ask place keeps its identifier in the places row", LibraryScreen.placeRows(todayThoughts: 0, templates: 0, recipes: 0, projects: 0)
+              .contains { $0.id == "library.ask" && $0.title == "Ask" })
+        check("the Smart Stack reads Recording or Paused before the timer (SF-33)",
+              SmartStack.recordingLead(paused: false) == "Recording · " && SmartStack.recordingLead(paused: true) == "Paused · ")
+        check("a keyboard session in the Smart Stack reads On with its takes and Keyboard session (SF-33)",
+              SmartStack.sessionLine(.ready, takes: 4, words: 0, gettingReady: false, hasStart: false) == "On · 4 takes"
+              && SmartStack.sessionTitle == "Keyboard session" && SmartStack.sessionGlyph(.ready, stale: false) == .dot)
+        check("Always On quiets the Smart Stack's first line (SF-33)", !SmartStack.accentLine(active: true, dimmed: true)
+              && SmartStack.accentLine(active: true, dimmed: false))
     }
 
     static func libraryChecks() {

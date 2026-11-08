@@ -272,6 +272,37 @@ scheduledDraft.timeOfDay = Calendar.current.date(bySettingHour: 17, minute: 45, 
 check("draft: the time picker sets the hour and minute", scheduledDraft.hour == 17 && scheduledDraft.minute == 45
       && Calendar.current.component(.hour, from: scheduledDraft.timeOfDay) == 17)
 
+// MARK: One field for Search and Ask (IP-39)
+
+check("search or ask: the switch's segments and the field's prompts", SearchOrAsk.allCases.map(\.title) == ["Search", "Ask"]
+      && SearchOrAsk.prompt(.search) == "Search or ask" && SearchOrAsk.prompt(.ask) == "Ask about your recordings")
+check("search or ask: the switch shows while typing, and while Ask is chosen even with the field empty",
+      !SearchOrAsk.showsSwitch(query: "", mode: .search) && !SearchOrAsk.showsSwitch(query: "   ", mode: .search)
+      && SearchOrAsk.showsSwitch(query: "folding", mode: .search) && SearchOrAsk.showsSwitch(query: "", mode: .ask))
+check("search or ask: the page shows the Library, the matches, or Ask",
+      SearchOrAsk.content(query: "", mode: .search) == .library && SearchOrAsk.content(query: " \n", mode: .search) == .library
+      && SearchOrAsk.content(query: "folding", mode: .search) == .search
+      && SearchOrAsk.content(query: "", mode: .ask) == .ask && SearchOrAsk.content(query: "folding", mode: .ask) == .ask)
+check("search or ask: a link's words fill the field and ask at once",
+      SearchOrAsk.enter(query: "", requested: "What changed?", lastQuestion: nil, answered: false) == .init(fill: "What changed?", focus: false, ask: true)
+      && SearchOrAsk.enter(query: "folding", requested: " What changed? ", lastQuestion: "What changed?", answered: true)
+         == .init(fill: "What changed?", focus: false, ask: true))
+check("search or ask: typed words are asked, unless they're the answer already on screen",
+      SearchOrAsk.enter(query: "folding", requested: nil, lastQuestion: nil, answered: false) == .init(fill: nil, focus: false, ask: true)
+      && SearchOrAsk.enter(query: "folding ", requested: nil, lastQuestion: "folding", answered: true) == .init(fill: nil, focus: false, ask: false)
+      && SearchOrAsk.enter(query: "folding", requested: "", lastQuestion: "folding", answered: false) == .init(fill: nil, focus: false, ask: true)
+      && SearchOrAsk.enter(query: "homepage", requested: nil, lastQuestion: "folding", answered: true) == .init(fill: nil, focus: false, ask: true))
+check("search or ask: an empty field shows the last answer with its question, or puts the keyboard up",
+      SearchOrAsk.enter(query: "", requested: nil, lastQuestion: "What changed?", answered: true) == .init(fill: "What changed?", focus: false, ask: false)
+      && SearchOrAsk.enter(query: "", requested: nil, lastQuestion: nil, answered: false) == .init(fill: nil, focus: true, ask: false)
+      && SearchOrAsk.enter(query: " ", requested: "  ", lastQuestion: "", answered: true) == .init(fill: nil, focus: true, ask: false))
+check("search or ask: Return asks only with Ask chosen and words in the field",
+      SearchOrAsk.submitAsks(query: "folding", mode: .ask) && !SearchOrAsk.submitAsks(query: "  ", mode: .ask)
+      && !SearchOrAsk.submitAsks(query: "folding", mode: .search))
+for w in SearchOrAsk.allCases.map(\.title) + SearchOrAsk.allCases.map(SearchOrAsk.prompt) {
+    check("search or ask: words follow the copy rules: \(w)", !w.contains("\u{2014}") && !w.contains("!") && w.first?.isUppercase == true)
+}
+
 // The iPhone's answer card says what the answer read under its privacy line (review fix 8; it ran only in tests after
 // step 6 of the refined look). Reads the sources from the mac/ folder given as the first argument.
 if CommandLine.arguments.count > 1, let phoneAsk = try? String(contentsOfFile: CommandLine.arguments[1] + "/VerbatimPhone/AskScreens.swift", encoding: .utf8) {

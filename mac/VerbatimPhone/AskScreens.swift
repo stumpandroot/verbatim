@@ -1,157 +1,46 @@
 import SwiftUI
 import UIKit
 
-// Ask your library on the iPhone (mockup "Library features", sections 2b and 2c): Library › Ask (from the Library's
-// card, or "Ask about …" under the Library's search field), with the question, the scope chips, and the answer with its
-// citations above the matching passages; and Ask › Recipes, saved questions you run now or weekly, with their digests.
-// A citation opens the transcript at that line and plays it. On the refined kit (DESIGN.md §13)
-// : the large serif title, the question in the kit's field, the kit's chips, and the answer on a card.
+// Ask your library on the iPhone (mockup "Library features", sections 2b and 2c; one field since IP-39, mockup "Verbose
+// redesigns", section 3): the Library's "Search or ask" field is the one way in. With Ask chosen in the switch under it
+// (or from the Ask place), the Library shows the scope chips, then the answer with its citations above the matching
+// passages (`PhoneAskPanel`), and its More menu adds Ask's actions (`PhoneAskMenuItems`). Ask › Recipes holds saved
+// questions you run now or weekly, with their digests. A citation opens the transcript at that line and plays it. On the
+// refined kit (DESIGN.md §13): the kit's chips and the answer on a card.
 
+/// Opens the Library's field with Ask chosen (`PhoneState.openAsk`), asking `query` at once when it has words. Pushed on
+/// a stack, it's a Library with Ask chosen.
 struct AskRoute: Hashable { var query: String? = nil }
 struct RecipesRoute: Hashable {}
 struct RecipeRoute: Hashable { var id: UUID }
 
-/// "Ask about “…”" under the Library's search field (DESIGN.md §6.8): a row of the Library's card that opens Ask with
-/// what you typed. A button that pushes, so the list adds no chevron of its own.
-struct AskAboutRow: View {
-    @Environment(PhoneState.self) var app
-    var query: String
-    var body: some View {
-        Button { app.pushHere(AskRoute(query: query)) } label: {
-            IconSquareRow(art: .iconAsk, hue: .neutral, title: "Ask about \u{201C}\(query)\u{201D}")
+extension PhoneState {
+    /// Ask, from anywhere (a link, an intent, the self-test): the Library tab back at its root with Ask chosen in its
+    /// field, asking `query` at once when it has words. Without a Library tab, a Library with Ask chosen is pushed on
+    /// Home.
+    func openAsk(query: String? = nil) {
+        closeSettings()
+        let route = AskRoute(query: query)
+        if tabBar.contains(.library) {
+            libraryPath = NavigationPath()
+            askRequest = route
+            tab = .library
+        } else {
+            push(route, on: .home)
+            tab = .home
         }
-        .buttonStyle(RefinedPress())
-        .accessibilityIdentifier("library.askAbout")
-        .accessibilityHint("Answers from your recordings, with the passages it used")
     }
 }
 
-// MARK: - Ask
+// MARK: - Ask in the Library
 
-struct AskScreen: View {
+/// Where Ask looks: All, This week, Thoughts, Meetings, and each project, as the kit's chips. This week combines with one
+/// source; All clears both (DESIGN.md §19).
+struct PhoneAskScopeChips: View {
     @Environment(PhoneState.self) var app
-    @ObservedObject private var center = AskCenter.shared
-    var route = AskRoute()
-    @State private var query = ""
-    @State private var scope = AskScope.all
-    /// Recipes are hidden until you show them, or while you have one (consolidation, `RecipesSetting`).
-    @AppStorage(RecipesSetting.key) private var showRecipes = false
-    @State private var editing: RecipeDraft? = nil
-    @State private var applied = false
-    @FocusState private var focused: Bool
-    /// What the screen showed last, for the self-test.
-    static var shown: AskResult.State? = nil
+    @Binding var scope: AskScope
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                LargeSerifTitle(title: "Ask", eyebrow: "Library")
-                    .padding(.top, 8)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityAddTraits(.isHeader)
-                field
-                chips
-                resultArea
-                if let r = center.result, center.phase == .done, r.state == .answered {
-                    passages(r)
-                }
-                if RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty) {
-                    PaperCard {
-                        NavigationLink(value: RecipesRoute()) {
-                            HStack(spacing: 12) {
-                                IconSquare(art: .iconCalendar, hue: .sage)
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text("Recipes").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
-                                    Text("Questions you ask again").refinedFont(.meta).foregroundStyle(Refined.mute)
-                                }
-                                Spacer(minLength: 6)
-                                if !app.store.recipes.isEmpty {
-                                    Text("\(app.store.recipes.count)").refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
-                                }
-                                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.faint)
-                            }
-                            .padding(.horizontal, 14).frame(minHeight: 56)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(RefinedRowPress())
-                        .accessibilityIdentifier("ask.recipes")
-                    }
-                    .padding(.top, 8)
-                }
-            }
-            .padding(.horizontal, 20).padding(.bottom, 40)
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .background(Refined.paper.ignoresSafeArea())
-        .navigationTitle("Ask")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            // The serif title sits on the page; the bar keeps only Apple's buttons.
-            ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    let recipesShown = RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty)
-                    if let r = center.result, center.phase == .done {
-                        Button { UIPasteboard.general.string = r.copyText; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", menuArt: .iconCopy, key: "copy") }
-                        if recipesShown {
-                            Button { editing = RecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as recipe", systemImage: "plus.circle") }
-                        }
-                    }
-                    if recipesShown {
-                        Button { app.pushHere(RecipesRoute()) } label: { Label("Recipes", menuArt: .iconAsk, key: "ask") }   // Our glyphs, as Home and Thoughts use (IP-25).
-                    }
-                    Toggle("Show Recipes", isOn: $showRecipes).disabled(!app.store.recipes.isEmpty)
-                    if !center.history.isEmpty {
-                        Menu("Recent questions") {
-                            ForEach(center.history) { h in Button(h.question) { query = h.question; scope = h.scope; center.show(h) } }
-                        }
-                    }
-                } label: { Image(systemName: "ellipsis") }
-                .accessibilityLabel("More")
-            }
-        }
-        .sheet(item: $editing) { d in PhoneRecipeEditor(draft: d).phoneState(app) }
-        .onAppear {
-            guard !applied else { return }
-            applied = true
-            if let q = route.query, !q.trimmingCharacters(in: .whitespaces).isEmpty {
-                query = q
-                ask()
-            } else if center.result == nil {
-                focused = true
-            }
-        }
-        .onChange(of: center.phase) { _, p in if p == .done { Self.shown = center.result?.state } }
-    }
-
-    private func ask() {
-        focused = false
-        center.ask(query, scope: scope)
-    }
-
-    /// The question in the kit's field: the field wash (an edge under Increase Contrast), the Ask glyph, and up to four
-    /// lines. Return asks.
-    private var field: some View {
-        HStack(alignment: .top, spacing: 10) {
-            IconGlyph(art: .iconAsk, size: 19, color: Refined.mute).padding(.top, 1)
-            TextField("Ask about your recordings", text: $query, axis: .vertical)
-                .refinedFont(.body).foregroundStyle(Refined.ink)
-                .lineLimit(1...4)
-                .focused($focused)
-                .submitLabel(.go)
-                .onSubmit { ask() }
-                .onChange(of: query) { _, q in
-                    // Return in a multi-line field adds a line: treat it as Ask.
-                    if q.hasSuffix("\n") { query = String(q.dropLast()); ask() }
-                }
-                .accessibilityIdentifier("ask.field")
-        }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .frame(minHeight: CGFloat(RefinedRules.minTapTarget))
-        .refinedFieldBox()
-    }
-
-    private var chips: some View {
         RefinedChipRow(label: "Where to look", margin: 20) {
             RefinedChip(title: "All", selected: scope.isAll) { scope.tapAll() }
             RefinedChip(title: "This week", selected: scope.range == .thisWeek) { scope.tapWeek() }
@@ -159,8 +48,54 @@ struct AskScreen: View {
             RefinedChip(title: "Meetings", selected: scope.source == .meetings) { scope.tap(.meetings) }
             ForEach(app.store.projects) { p in RefinedChip(title: p.name, selected: scope.source == .project(p.id)) { scope.tap(.project(p.id)) } }
         }
-        .padding(.horizontal, -20)
-        .onChange(of: scope) { _, _ in if center.result != nil, !query.isEmpty { ask() } }
+    }
+}
+
+/// Under the scope chips with Ask chosen: the hint before the first question, the progress while it finds and answers,
+/// then the answer card (citations, the grounding note, and the footer), the other passages it read, and Recipes when
+/// they're shown.
+struct PhoneAskPanel: View {
+    @Environment(PhoneState.self) var app
+    @ObservedObject private var center = AskCenter.shared
+    /// Recipes are hidden until you show them, or while you have one (consolidation, `RecipesSetting`).
+    @AppStorage(RecipesSetting.key) private var showRecipes = false
+    /// What the panel showed last, for the self-test.
+    static var shown: AskResult.State? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            resultArea
+            if let r = center.result, center.phase == .done, r.state == .answered {
+                passages(r)
+            }
+            if RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty) {
+                PaperCard {
+                    // A button that pushes, not a NavigationLink: the panel is a row of the Library's list.
+                    Button { app.pushHere(RecipesRoute()) } label: {
+                        HStack(spacing: 12) {
+                            IconSquare(art: .iconCalendar, hue: .sage)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Recipes").refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink)
+                                Text("Questions you ask again").refinedFont(.meta).foregroundStyle(Refined.mute)
+                            }
+                            Spacer(minLength: 6)
+                            if !app.store.recipes.isEmpty {
+                                Text("\(app.store.recipes.count)").refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.mute)
+                            }
+                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Refined.faint)
+                        }
+                        .padding(.horizontal, 14).frame(minHeight: 56)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(RefinedRowPress())
+                    .accessibilityIdentifier("ask.recipes")
+                }
+                .padding(.top, 8)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { if center.phase == .done { Self.shown = center.result?.state } }
+        .onChange(of: center.phase) { _, p in if p == .done { Self.shown = center.result?.state } }
     }
 
     @ViewBuilder private var resultArea: some View {
@@ -191,6 +126,36 @@ struct AskScreen: View {
                 }
             }
             .padding(.top, 8)
+        }
+    }
+}
+
+/// Ask's actions in the Library's More menu while Ask is chosen: Copy and Save as recipe for the answer on screen, Recipes,
+/// Show Recipes, and Recent questions (which puts the question back in the field and shows its answer).
+struct PhoneAskMenuItems: View {
+    @Environment(PhoneState.self) var app
+    @ObservedObject private var center = AskCenter.shared
+    @AppStorage(RecipesSetting.key) private var showRecipes = false
+    /// Puts a recent question back in the field, with its scope.
+    var recall: (AskResult) -> Void
+    @Binding var editing: RecipeDraft?
+
+    var body: some View {
+        let recipesShown = RecipesSetting.shows(stored: showRecipes, hasRecipes: !app.store.recipes.isEmpty)
+        if let r = center.result, center.phase == .done {
+            Button { UIPasteboard.general.string = r.copyText; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", menuArt: .iconCopy, key: "copy") }
+            if recipesShown {
+                Button { editing = RecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as recipe", systemImage: "plus.circle") }
+            }
+        }
+        if recipesShown {
+            Button { app.pushHere(RecipesRoute()) } label: { Label("Recipes", menuArt: .iconAsk, key: "ask") }   // Our glyphs, as Home and Thoughts use (IP-25).
+        }
+        Toggle("Show Recipes", isOn: $showRecipes).disabled(!app.store.recipes.isEmpty)
+        if !center.history.isEmpty {
+            Menu("Recent questions") {
+                ForEach(center.history) { h in Button(h.question) { recall(h); center.show(h) } }
+            }
         }
     }
 }

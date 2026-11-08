@@ -838,3 +838,69 @@ enum AskCleanup {
         digests.map { d in var x = d; x.result = pruned(d.result, removing: ids); return x }
     }
 }
+
+// MARK: - One field for Search and Ask (IP-39)
+
+/// The iPhone Library's "Search or ask" field is the one way into search and Ask (mockup "Verbose redesigns", section 3;
+/// DESIGN.md §19): typing shows a Search | Ask switch under the field. Search lists the matching recordings and passages;
+/// Ask answers the field's words with the Ask engine, its scope chips, and its citations. The Ask place (and a link or
+/// intent that opens Ask) chooses Ask in the same field instead of pushing a page with a field of its own. Dictations and
+/// Add from Library keep their own fields, since they search only their own lists.
+enum SearchOrAsk: String, CaseIterable, Hashable {
+    case search, ask
+
+    /// The switch's segment.
+    var title: String { self == .search ? "Search" : "Ask" }
+
+    /// The field's prompt: "Search or ask", or what Ask wants while it's chosen.
+    static func prompt(_ mode: SearchOrAsk) -> String { mode == .ask ? "Ask about your recordings" : "Search or ask" }
+
+    /// The switch shows while there's something in the field, and while Ask is chosen (so an empty field can go back to
+    /// Search).
+    static func showsSwitch(query: String, mode: SearchOrAsk) -> Bool {
+        mode == .ask || !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// What the page shows under the field.
+    enum Content: Equatable {
+        /// The Library: the Dictations card, the places, the chips, and every day's recordings.
+        case library
+        /// The matching recordings and passages, under the chips.
+        case search
+        /// Ask: its scope chips, then the answer with its citations (or the hint before the first question).
+        case ask
+    }
+
+    static func content(query: String, mode: SearchOrAsk) -> Content {
+        if mode == .ask { return .ask }
+        return query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .library : .search
+    }
+
+    /// What choosing Ask does to the field.
+    struct Entry: Equatable {
+        /// Words to put in the field, or nil to leave it.
+        var fill: String?
+        /// Put the keyboard up.
+        var focus: Bool
+        /// Ask at once.
+        var ask: Bool
+    }
+
+    /// Choosing Ask: with `requested` words (a link, an intent, or the self-test), fill the field and ask at once. With
+    /// words already typed, ask them, unless they're the question already answered on screen (switching back and forth
+    /// never asks again). With an empty field, show the last answer with its question when there is one, and otherwise
+    /// put the keyboard up for a question.
+    static func enter(query: String, requested: String?, lastQuestion: String?, answered: Bool) -> Entry {
+        let clean = { (s: String?) in (s ?? "").trimmingCharacters(in: .whitespacesAndNewlines) }
+        let asked = clean(requested), typed = clean(query), last = clean(lastQuestion)
+        if !asked.isEmpty { return Entry(fill: asked, focus: false, ask: true) }
+        if !typed.isEmpty { return Entry(fill: nil, focus: false, ask: !(answered && typed == last)) }
+        if answered, !last.isEmpty { return Entry(fill: last, focus: false, ask: false) }
+        return Entry(fill: nil, focus: true, ask: false)
+    }
+
+    /// Return in the field: Ask asks what's there; Search only puts the keyboard away (the list already shows the matches).
+    static func submitAsks(query: String, mode: SearchOrAsk) -> Bool {
+        mode == .ask && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}

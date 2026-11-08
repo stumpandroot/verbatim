@@ -430,5 +430,66 @@ for w in [Ribbon.startSessionTitle, Ribbon.sessionOnTitle, "Recording a thought"
     check("switch words follow the copy rules: \(w)", !w.contains("\u{2014}") && !w.contains("!") && w.first?.isUppercase == true)
 }
 
+// MARK: SF-33: the Watch's Smart Stack (the small activity family)
+
+check("Smart Stack: a recording's first line is Recording or Paused before its timer",
+      SmartStack.recordingLead(paused: false) == "Recording · " && SmartStack.recordingLead(paused: true) == "Paused · ")
+check("Smart Stack: a recording leads with the bars, the pause glyph, a check once saved, still bars when stale",
+      SmartStack.recordingGlyph(paused: false, saved: false, stale: false) == .bars
+      && SmartStack.recordingGlyph(paused: true, saved: false, stale: false) == .pause
+      && SmartStack.recordingGlyph(paused: true, saved: true, stale: false) == .check
+      && SmartStack.recordingGlyph(paused: false, saved: false, stale: true) == .still
+      && SmartStack.recordingGlyph(paused: true, saved: false, stale: true) == .still)
+check("Smart Stack: takes read 1 take, 4 takes, never a negative count",
+      SmartStack.takesLabel(1) == "1 take" && SmartStack.takesLabel(4) == "4 takes" && SmartStack.takesLabel(0) == "0 takes"
+      && SmartStack.takesLabel(-2) == "0 takes")
+check("Smart Stack: a session between takes reads On · 4 takes, or On before the first",
+      SmartStack.sessionLine(.ready, takes: 4, words: 0, gettingReady: false, hasStart: false) == "On · 4 takes"
+      && SmartStack.sessionLine(.ready, takes: 1, words: 0, gettingReady: false, hasStart: false) == "On · 1 take"
+      && SmartStack.sessionLine(.ready, takes: 0, words: 0, gettingReady: false, hasStart: false) == "On")
+check("Smart Stack: a listening take reads Listening before its timer, or Getting ready with no timer",
+      SmartStack.sessionLine(.listening, takes: 3, words: 0, gettingReady: false, hasStart: true) == "Listening · "
+      && SmartStack.sessionTimes(.listening, gettingReady: false, hasStart: true)
+      && SmartStack.sessionLine(.listening, takes: 3, words: 0, gettingReady: false, hasStart: false) == "Listening"
+      && !SmartStack.sessionTimes(.listening, gettingReady: false, hasStart: false)
+      && SmartStack.sessionLine(.listening, takes: 1, words: 0, gettingReady: true, hasStart: true) == Ribbon.gettingReadyTitle
+      && !SmartStack.sessionTimes(.listening, gettingReady: true, hasStart: true)
+      && !SmartStack.sessionTimes(.ready, gettingReady: false, hasStart: true))
+check("Smart Stack: other session states read the Lock Screen's headline (a count, never words)",
+      SmartStack.sessionLine(.copied, takes: 2, words: 42, gettingReady: false, hasStart: false) == "Copied · 42 words"
+      && SmartStack.sessionLine(.paused, takes: 2, words: 0, gettingReady: false, hasStart: false) == "Paused for a call"
+      && SmartStack.sessionLine(.ended, takes: 2, words: 0, gettingReady: false, hasStart: false) == "Session ended"
+      && SmartStack.sessionLine(.transcribing, takes: 2, words: 0, gettingReady: false, hasStart: false) == "Writing it down")
+check("Smart Stack: a session leads with a neutral dot between takes, the bars while listening",
+      SmartStack.sessionGlyph(.ready, stale: false) == .dot && SmartStack.sessionGlyph(.listening, stale: false) == .bars
+      && SmartStack.sessionGlyph(.paused, stale: false) == .pause && SmartStack.sessionGlyph(.copied, stale: false) == .check
+      && SmartStack.sessionGlyph(.inserted, stale: false) == .check && SmartStack.sessionGlyph(.ended, stale: false) == .dot
+      && SmartStack.sessionGlyph(.listening, stale: true) == .still)
+check("Smart Stack: the first line takes the listening color only while active and lit (Always On quiets it)",
+      SmartStack.accentLine(active: true, dimmed: false) && !SmartStack.accentLine(active: true, dimmed: true)
+      && !SmartStack.accentLine(active: false, dimmed: false) && !SmartStack.accentLine(active: false, dimmed: true))
+for w in [SmartStack.sessionTitle, SmartStack.staleLine, SmartStack.recordingLead(paused: false), SmartStack.recordingLead(paused: true),
+          SmartStack.sessionLine(.ready, takes: 4, words: 0, gettingReady: false, hasStart: false)] {
+    check("Smart Stack words follow the copy rules: \(w)", !w.contains("\u{2014}") && !w.contains("!") && w.first?.isUppercase == true
+          && !w.lowercased().contains("stopped"))
+}
+check("both Live Activities add the small family through the iOS 18 guard",
+      code(recordingActivity).contains(".smartStackFamily()") && code(sessionActivity).contains(".smartStackFamily()")
+      && skin.contains("if #available(iOS 18.0, *) {\n            return supplementalActivityFamilies([.small])")
+      && skin.contains("@Environment(\\.activityFamily) private var family") && skin.contains("if family == .small { small() } else { full() }"))
+let recordingSmall = code(structBody(recordingActivity, "RecordingSmallView")), sessionSmall = code(structBody(sessionActivity, "SessionSmallView"))
+check("the small layouts are drawn inside the Lock Screen surface, so they read Always On",
+      recordingActivity.contains("ActivityFamilySwitch {\n                    // The Watch's Smart Stack") && recordingActivity.contains("RecordingSmallView(attributes:")
+      && sessionActivity.contains("ActivityFamilySwitch {\n                    // The Watch's Smart Stack") && sessionActivity.contains("SessionSmallView(state:"))
+check("the small layouts never read words", !recordingSmall.isEmpty && !sessionSmall.isEmpty
+      && !recordingSmall.contains(".words") && !sessionSmall.contains("liveWords") && !sessionSmall.contains(".message"))
+check("the small layouts' bars follow the mic and rest while dimmed", recordingSmall.contains("skin.level(state.level")
+      && sessionSmall.contains("skin.level(state.level, fallback: AlwaysOn.restingLevel)"))
+check("the small layouts' first line uses the rule's color, with a self-counting timer", recordingSmall.contains("skin.smartStackLine(active: active)")
+      && sessionSmall.contains("skin.smartStackLine(active: active)") && recordingSmall.contains("RecordingTimer(state: state)")
+      && sessionSmall.contains("TakeTimer(start: start)") && skin.contains("SmartStack.accentLine(active: active, dimmed: dimmed) ? mark : mute"))
+check("the small layouts scale their text", fixedText(recordingSmall).isEmpty && fixedText(sessionSmall).isEmpty,
+      (fixedText(recordingSmall) + fixedText(sessionSmall)).joined(separator: " | "))
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

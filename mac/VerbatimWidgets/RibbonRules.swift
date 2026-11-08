@@ -576,3 +576,76 @@ enum AlwaysOn {
     /// Stop and the session's primary button fill only while the Lock Screen is lit.
     static func filled(dimmed: Bool) -> Bool { !dimmed }
 }
+
+// MARK: - The Watch's Smart Stack (SF-33)
+
+/// The small activity family (`.supplementalActivityFamilies([.small])`): how an iPhone recording or keyboard session
+/// shows in the Apple Watch's Smart Stack (watchOS 11 and later) and on CarPlay, in place of the compact Island's dot
+/// and timer. A 30 pt circle leads (the voice bars following the mic while recording, the pause glyph while paused, a
+/// neutral dot for a session that's on), then two lines: the state with its time ("Recording · 2:14", in the listening
+/// color, the time counting on its own) and what's running ("Voice note", "Keyboard session"). Never any words: the
+/// Smart Stack is as public as the Lock Screen. On Always On the bars hold the resting level and the first line takes
+/// `mute`, the Lock Screen's rules (`AlwaysOn`).
+enum SmartStack {
+    /// What the circle holds.
+    enum Lead: Equatable {
+        /// The voice bars, following the mic level (resting while dimmed).
+        case bars
+        /// The pause glyph.
+        case pause
+        /// A check: saved, copied, or inserted.
+        case check
+        /// A neutral dot: a session that's on between takes, writing, or ended.
+        case dot
+        /// Still bars: no update in a while (`LiveFreshness`), so no level it can trust.
+        case still
+    }
+
+    /// The session's second line.
+    static let sessionTitle = "Keyboard session"
+    /// The first line when updates stopped coming. It never says the recording stopped.
+    static let staleLine = "Open Verbose to check"
+
+    /// "Recording · " or "Paused · ", before the recording's self-counting timer.
+    static func recordingLead(paused: Bool) -> String { (paused ? "Paused" : "Recording") + " · " }
+
+    static func recordingGlyph(paused: Bool, saved: Bool, stale: Bool) -> Lead {
+        if stale { return .still }
+        if saved { return .check }
+        return paused ? .pause : .bars
+    }
+
+    /// "1 take", "4 takes": takes started this session, the word the Lock Screen uses ("take 3 of this session").
+    static func takesLabel(_ n: Int) -> String { n == 1 ? "1 take" : "\(max(0, n)) takes" }
+
+    /// Whether the take's timer follows the session's first line: only while a take listens and the model is ready.
+    static func sessionTimes(_ phase: Ribbon.Phase, gettingReady: Bool, hasStart: Bool) -> Bool {
+        phase == .listening && !gettingReady && hasStart
+    }
+
+    /// The session's first line: "On · 4 takes" (or "On" before the first), "Listening · " before the take's timer,
+    /// "Getting ready", and otherwise the Lock Screen's headline ("Copied · 42 words", "Paused for a call").
+    static func sessionLine(_ phase: Ribbon.Phase, takes: Int, words: Int, gettingReady: Bool, hasStart: Bool) -> String {
+        switch phase {
+        case .ready: return takes > 0 ? "On · " + takesLabel(takes) : "On"
+        case .listening:
+            if gettingReady { return Ribbon.gettingReadyTitle }
+            return sessionTimes(phase, gettingReady: gettingReady, hasStart: hasStart) ? "Listening · " : "Listening"
+        default: return Ribbon.headline(phase, words: words)
+        }
+    }
+
+    static func sessionGlyph(_ phase: Ribbon.Phase, stale: Bool) -> Lead {
+        if stale { return .still }
+        switch phase {
+        case .listening: return .bars
+        case .paused: return .pause
+        case .copied, .inserted: return .check
+        default: return .dot
+        }
+    }
+
+    /// The first line takes the listening color while something records or listens and the screen is lit; dimmed, or
+    /// for a session between takes, it's quiet.
+    static func accentLine(active: Bool, dimmed: Bool) -> Bool { active && !dimmed }
+}

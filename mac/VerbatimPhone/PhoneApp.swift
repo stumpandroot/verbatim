@@ -360,6 +360,9 @@ extension View {
 enum LibraryKeep {
     static var librarySearch = ""
     static var libraryFilter: LibraryScreen.Filter = .all
+    /// Search or Ask in the field's switch, and where Ask looks (IP-39).
+    static var libraryMode: SearchOrAsk = .search
+    static var libraryAskScope = AskScope.all
 }
 
 /// "Session ended" after a call or another app's audio ended the session, with Restart session. Under the start

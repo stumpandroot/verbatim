@@ -26,13 +26,19 @@ struct RecordingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: VerbatimRecordingAttributes.self) { context in
             ActivityLockSurface { skin in
-                // Updates stopped coming (LiveFreshness): no running clock, no Stop, and never "stopped".
-                if LiveFreshness.showsStale(isStale: context.isStale, final: context.state.saved) {
-                    StaleLockScreen(title: LiveFreshness.recordingTitle, skin: skin)
-                } else if context.attributes.isThought {
-                    ThoughtLockScreen(page: context.attributes.page, state: context.state, skin: skin)
-                } else {
-                    RecordingLockScreen(title: context.attributes.title, state: context.state, skin: skin)
+                ActivityFamilySwitch {
+                    // The Watch's Smart Stack and CarPlay (SF-33): the state, its time, and what's recording.
+                    RecordingSmallView(attributes: context.attributes, state: context.state,
+                                       stale: LiveFreshness.showsStale(isStale: context.isStale, final: context.state.saved), skin: skin)
+                } full: {
+                    // Updates stopped coming (LiveFreshness): no running clock, no Stop, and never "stopped".
+                    if LiveFreshness.showsStale(isStale: context.isStale, final: context.state.saved) {
+                        StaleLockScreen(title: LiveFreshness.recordingTitle, skin: skin)
+                    } else if context.attributes.isThought {
+                        ThoughtLockScreen(page: context.attributes.page, state: context.state, skin: skin)
+                    } else {
+                        RecordingLockScreen(title: context.attributes.title, state: context.state, skin: skin)
+                    }
                 }
             }
             .widgetURL(recordLink)
@@ -160,6 +166,7 @@ struct RecordingLiveActivity: Widget {
             .keylineTint(Refined.persimmon)
             .widgetURL(recordLink)
         }
+        .smartStackFamily()
     }
 }
 
@@ -330,6 +337,53 @@ private struct RecordingTimer: View {
         Text(timerInterval: state.startDate...state.startDate.addingTimeInterval(60 * 60 * 24), pauseTime: state.pauseTime, countsDown: false, showsHours: true)
             .monospacedDigit()
             .lineLimit(1)
+    }
+}
+
+// MARK: - The Watch's Smart Stack (SF-33)
+
+/// The small family (the Apple Watch's Smart Stack and CarPlay; mockup "Verbose redesigns", section 4): the voice bars
+/// following the mic in a persimmon-tinted circle (the pause glyph while paused), "Recording · 2:14" (or "Paused · 2:14")
+/// in the listening color with the timer counting on its own, and what's recording ("Voice note", "New thought").
+/// Saved: a check, "Saved" (or "Added to Thoughts"). Stale: still bars and "Open Verbose to check", never "stopped".
+/// Always On: the bars rest and the first line is quiet (`SmartStack.accentLine`). Never reads `state.words`.
+private struct RecordingSmallView: View {
+    var attributes: VerbatimRecordingAttributes
+    var state: VerbatimRecordingAttributes.ContentState
+    var stale: Bool
+    var skin: ActivitySkin
+
+    var body: some View {
+        let lead = SmartStack.recordingGlyph(paused: state.isPaused, saved: state.saved, stale: stale)
+        let active = !state.saved && !stale
+        SmartStackRow(title: attributes.title, skin: skin, wash: skin.smartStackWash(active: active)) {
+            switch lead {
+            case .bars:
+                ThoughtVoiceBars(level: skin.level(state.level, fallback: attributes.isThought ? 0 : 0.5), color: skin.mark, count: 4)
+                    .frame(width: 16, height: 14)
+            case .pause:
+                Image(systemName: "pause.fill").font(.system(size: 11, weight: .bold)).foregroundStyle(skin.mark)   // brand: system surface
+                    .accessibilityHidden(true)
+            case .check:
+                Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(skin.ink)
+                    .accessibilityHidden(true)
+            case .dot, .still:
+                StaleBars(color: skin.mute, count: 4).frame(width: 16, height: 14)
+            }
+        } line: {
+            if stale {
+                Text(SmartStack.staleLine).scaledFont(13, weight: .medium).foregroundStyle(skin.mute)
+            } else if state.saved {
+                Text(attributes.isThought ? ThoughtRules.savedTitle : "Saved").scaledFont(13, weight: .medium).foregroundStyle(skin.ink)
+            } else {
+                HStack(spacing: 0) {
+                    Text(SmartStack.recordingLead(paused: state.isPaused))
+                    RecordingTimer(state: state).frame(width: RecordingTimer.width(13), alignment: .leading)
+                }
+                .scaledFont(13, weight: .medium).monospacedDigit()
+                .foregroundStyle(skin.smartStackLine(active: active))
+            }
+        }
     }
 }
 
