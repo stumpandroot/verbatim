@@ -2533,10 +2533,10 @@ enum PhoneUITest {
             if ok { pass += 1 } else { fail += 1 }
             Log.note("UITEST \(ok ? "PASS" : "FAIL") review A: \(name)")
         }
-        // P-01, superseded by the refined look (DESIGN.md §13): Settings' squares take the four hues in turn down a card,
-        // and a destructive row's square is neutral.
-        check("settings squares cycle persimmon, butter, sage, petal (refined, was P-01)",
-              (0..<5).map { RefinedRules.settingsHue($0) } == [.persimmon, .butter, .sage, .petal, .persimmon])
+        // P-01, back to neutral (DESIGN.md §1; IP-36, Tim, November 8, 2026): Settings' squares are the wash with an ink
+        // glyph, never an action hue; a destructive row keeps the wash with the danger glyph.
+        check("settings squares are neutral, with an ink glyph (IP-36, was P-01)",
+              RefinedRules.settingsSquareHue == .neutral && RefinedRules.onBadge(RefinedRules.settingsSquareHue) == RefinedHex.ink)
         // P-04: one switch for haptics, on by default, and searchable.
         let hapticsKey = Haptics.enabledKey
         let hapticsStore = Haptics.store
@@ -2615,9 +2615,11 @@ enum PhoneUITest {
         check("moments added to a transcript start after it", notes.map { $0.at ?? -1 } == [642, 718])
         check("the Record card is on Home by default", HomeLayout.defaults(.phone).isVisible(.record))
         check("the recorder's clock shows hundredths", RefinedRules.clock(138.5) == "02:18.50")
-        check("Settings' squares take the four hues, never red: red means recording", !RefinedRules.settingsRotation.contains(.neutral)
-              && RefinedRules.settingsHue(0, destructive: true) == .neutral)
-        check("Settings' Appearance square is persimmon, as in the mockup", RefinedRules.settingsHue(0) == .persimmon)
+        check("Settings' squares borrow no action hue: persimmon means Record, butter Dictate (IP-36)",
+              ![RefinedHue.persimmon, .butter, .sage, .petal].contains(RefinedRules.settingsSquareHue))
+        let d = RefinedHex.danger, sq = RefinedHex.neutralSquare
+        check("a destructive row's danger glyph keeps 3:1 on the neutral square, in light, dark, and Increase Contrast",
+              [(d.light, sq.light), (d.dark, sq.dark), (d.hcLight, sq.hcLight), (d.hcDark, sq.hcDark)].allSatisfy { RefinedRules.contrast($0.0, $0.1) >= 3 })
         Log.note("UITEST moment checks: \(pass) passed, \(fail) failed")
     }
 

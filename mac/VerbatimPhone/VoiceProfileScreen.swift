@@ -149,7 +149,7 @@ struct VoiceProfileScreen: View {
                 SettingsDivider()
                 // The system's destructive confirmation, red Delete and all (IP-40): it's permanent, so it asks.
                 Button { confirmingDelete = true } label: {
-                    SettingsRow(hue: .persimmon, art: .iconDeleteAll, title: "Delete voice profile", danger: true) { EmptyView() }
+                    SettingsRow(art: .iconDeleteAll, title: "Delete voice profile", danger: true) { EmptyView() }
                 }
                 .buttonStyle(SettingsRowPress())
                 .confirmationDialog("Delete your voice profile from this iPhone?", isPresented: $confirmingDelete, titleVisibility: .visible) {

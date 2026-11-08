@@ -16,10 +16,10 @@ extension Notification.Name {
 /// Settings (DESIGN.md §13; mockup "Verbose Refined Look", PhoneSettings): the large serif "Settings", the system search field, the You card (your initial on persimmon, your name,
 /// and what's inside; it opens the You page, YouScreen.swift) under Verbose Unlock's row (UnlockViews.swift: the
 /// trial, its days left, or the thank-you row), then the seven groups of PhoneSettingsMap, each a label
-/// over cards: the rows that open a page, run something, or choose from a menu, each with its colored icon square
-/// (persimmon, butter, sage, petal down the card, `RefinedRules.settingsHue`), its value in `mute`, and a chevron;
-/// then the group's switches in a card of their own, with no squares, in the system's green. A destructive row has a
-/// neutral square and a red title, in a card of its own. Rarely changed switches sit one level down on a page
+/// over cards: the rows that open a page, run something, or choose from a menu, each with its neutral icon square
+/// (the wash with an ink glyph, `RefinedRules.settingsSquareHue`; IP-36), its value in `mute`, and a chevron;
+/// then the group's switches in a card of their own, with no squares, in the system's green. A destructive row keeps
+/// the neutral square with the `danger` glyph and a red title, in a card of its own. Rarely changed switches sit one level down on a page
 /// (SettingsPages.swift). The version sits at the foot; tapping it opens What's new (WhatsNewScreen.swift). Apple
 /// draws the chrome: the pages push on the system's navigation bar, and the menus, alerts, and switches are the
 /// system's.
@@ -272,9 +272,9 @@ struct SettingsScreen: View {
     // MARK: Rows
 
     /// A root row that opens a page: its square, the title, the value, and a chevron.
-    private func pageRow(_ id: String, _ p: SettingsSubpage, _ index: Int, art: BrandArt, title: String, value: String? = nil) -> some View {
+    private func pageRow(_ id: String, _ p: SettingsSubpage, art: BrandArt, title: String, value: String? = nil) -> some View {
         Button { open(p) } label: {
-            SettingsRow(hue: RefinedRules.settingsHue(index), art: art, title: title) {
+            SettingsRow(art: art, title: title) {
                 if let value { SettingsValue(value) }
                 SettingsChevron()
             }
@@ -285,10 +285,10 @@ struct SettingsScreen: View {
     }
 
     /// A root row that runs an action or opens a link: its square, the title, and a chevron.
-    private func actionRow(_ id: String, _ index: Int, art: BrandArt, title: String, value: String? = nil, hint: String? = nil,
+    private func actionRow(_ id: String, art: BrandArt, title: String, value: String? = nil, hint: String? = nil,
                            action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            SettingsRow(hue: RefinedRules.settingsHue(index), art: art, title: title) {
+            SettingsRow(art: art, title: title) {
                 if let value { SettingsValue(value) }
                 SettingsChevron()
             }
@@ -299,11 +299,11 @@ struct SettingsScreen: View {
     }
 
     /// A root row that chooses from a menu (Quality, Cleanup): its square, the title, the choice, and the menu mark.
-    private func menuRow<Choices: View>(_ id: String, _ index: Int, art: BrandArt, title: String, value: String,
+    private func menuRow<Choices: View>(_ id: String, art: BrandArt, title: String, value: String,
                                         @ViewBuilder choices: () -> Choices) -> some View {
         let menu = choices()
         return Menu { menu } label: {
-            SettingsRow(hue: RefinedRules.settingsHue(index), art: art, title: title) {
+            SettingsRow(art: art, title: title) {
                 SettingsValue(value); SettingsMenuMark()
             }
         }
@@ -319,22 +319,22 @@ struct SettingsScreen: View {
 
     @ViewBuilder private var personalization: some View {
         PaperCard {
-            pageRow("appearanceRow", .appearance, 0, art: .iconAppearance, title: "Appearance", value: Self.appearanceLabel(app.appearance))
+            pageRow("appearanceRow", .appearance, art: .iconAppearance, title: "Appearance", value: Self.appearanceLabel(app.appearance))
             // Customize Home (the Edit Home branch): off the root until its screen lands (CustomizeHomeEntry).
             if CustomizeHomeEntry.isAvailable {
                 squareDivider
-                pageRow("customizeHomeRow", .customizeHome, 1, art: .iconHome, title: "Customize Home")
+                pageRow("customizeHomeRow", .customizeHome, art: .iconHome, title: "Customize Home")
             }
             squareDivider
-            pageRow("tabBarRow", .tabBar, 2, art: .iconTabBar, title: "Tab bar", value: tabBarValue)
+            pageRow("tabBarRow", .tabBar, art: .iconTabBar, title: "Tab bar", value: tabBarValue)
             squareDivider
-            pageRow("aboutMeRow", .aboutMe, 3, art: .iconAboutMe, title: "About me", value: aboutMe.isEmpty ? "Add" : "Added")
+            pageRow("aboutMeRow", .aboutMe, art: .iconAboutMe, title: "About me", value: aboutMe.isEmpty ? "Add" : "Added")
             squareDivider
-            actionRow("voice", 4, art: .iconVoice, title: "Your voice", value: voice.isEnrolled ? "On" : "Set up", hint: "Opens Your voice") {
+            actionRow("voice", art: .iconVoice, title: "Your voice", value: voice.isEnrolled ? "On" : "Set up", hint: "Opens Your voice") {
                 voicePreview = false; showVoice = true
             }
             squareDivider
-            pageRow("dictionaryRow", .dictionary, 5, art: .iconDictionary, title: "Dictionary",
+            pageRow("dictionaryRow", .dictionary, art: .iconDictionary, title: "Dictionary",
                     value: app.store.dictionary.count == 1 ? "1 word" : "\(app.store.dictionary.count) words")
         }
         PaperCard {
@@ -356,15 +356,15 @@ struct SettingsScreen: View {
 
     @ViewBuilder private var recording: some View {
         PaperCard {
-            menuRow("quality", 0, art: .iconQuality, title: "Quality", value: app.preset.title) {
+            menuRow("quality", art: .iconQuality, title: "Quality", value: app.preset.title) {
                 Picker("Quality", selection: Bindable(app).presetRaw) {
                     ForEach(QualityPreset.allCases.filter { $0 != .advanced }) { p in Text(p.title).tag(p.rawValue) }
                 }
             }
             squareDivider
-            pageRow("speakersRow", .speakers, 1, art: .iconSpeakers, title: "Speakers", value: app.identifySpeakers ? "Identify" : "Off")
+            pageRow("speakersRow", .speakers, art: .iconSpeakers, title: "Speakers", value: app.identifySpeakers ? "Identify" : "Off")
             squareDivider
-            pageRow("moreTranscriptionRow", .moreTranscription, 2, art: .iconMultitrack, title: "More transcription options")
+            pageRow("moreTranscriptionRow", .moreTranscription, art: .iconMultitrack, title: "More transcription options")
         }
         PaperCard {
             SettingsToggleRow(title: "Summaries", subtitle: Summarizer.unavailableReason, isOn: $autoSummary)
@@ -380,22 +380,22 @@ struct SettingsScreen: View {
 
     @ViewBuilder private var dictation: some View {
         PaperCard {
-            pageRow("keyboardRow", .keyboard, 0, art: .iconDictations, title: "Keyboard", value: "Set up")
+            pageRow("keyboardRow", .keyboard, art: .iconDictations, title: "Keyboard", value: "Set up")
             squareDivider
-            pageRow("actionButtonRow", .actionButton, 1, art: .iconActionButton, title: "Action button",
+            pageRow("actionButtonRow", .actionButton, art: .iconActionButton, title: "Action button",
                     value: Ribbon.actionChoice(actionChoice).shortTitle)
             squareDivider
-            menuRow("cleanup", 2, art: .refine, title: "Cleanup", value: flow.cleanup.title) {
+            menuRow("cleanup", art: .refine, title: "Cleanup", value: flow.cleanup.title) {
                 Picker("Cleanup", selection: $flow.cleanup) {
                     ForEach(CleanupLevel.allCases) { l in Text(l.title).tag(l) }
                 }
             }
             squareDivider
-            pageRow("snippetsRow", .snippets, 3, art: .iconQuote, title: "Snippets", value: "\(app.store.snippets.count)")
+            pageRow("snippetsRow", .snippets, art: .iconQuote, title: "Snippets", value: "\(app.store.snippets.count)")
             squareDivider
-            pageRow("specialtyWordsRow", .specialtyWords, 4, art: .iconDictionary, title: "Specialty words", value: specialtyWordsValue)
+            pageRow("specialtyWordsRow", .specialtyWords, art: .iconDictionary, title: "Specialty words", value: specialtyWordsValue)
             squareDivider
-            pageRow("cloudCleanupRow", .cloudCleanup, 5, art: .iconServer, title: "Cloud cleanup", value: cloudCleanupOn ? "On" : "Off")
+            pageRow("cloudCleanupRow", .cloudCleanup, art: .iconServer, title: "Cloud cleanup", value: cloudCleanupOn ? "On" : "Off")
         }
         PaperCard {
             SettingsToggleRow(title: "Spoken corrections", isOn: $spokenCorrections)
@@ -406,7 +406,7 @@ struct SettingsScreen: View {
     @ViewBuilder private var syncAndStorage: some View {
         PaperCard {
             // Local Only, Network activity, and what leaves this iPhone (PhoneTrust.swift).
-            PhonePrivacyRow(hue: RefinedRules.settingsHue(0)) { open(.privacy) }
+            PhonePrivacyRow { open(.privacy) }
                 .settingsSearchTarget("privacyRow", flash: searchFlash)
             squareDivider
             Button {
@@ -416,7 +416,7 @@ struct SettingsScreen: View {
                     exporting = false
                 }
             } label: {
-                SettingsRow(hue: RefinedRules.settingsHue(1), art: .iconExport, title: "Export everything") {
+                SettingsRow(art: .iconExport, title: "Export everything") {
                     if exporting { ProgressView().controlSize(.small) } else { SettingsValue("Zip"); SettingsChevron() }
                 }
             }
@@ -433,7 +433,7 @@ struct SettingsScreen: View {
                 .disabled(copyingDown)
                 .settingsSearchTarget("sync", flash: searchFlash)
             } else {
-                SettingsRow(hue: .neutral, art: .iconSyncOff, title: "iCloud is off",
+                SettingsRow(art: .iconSyncOff, title: "iCloud is off",
                             subtitle: "Sign in to iCloud in the Settings app to sync with your Mac. Until then, everything stays on this iPhone.",
                             subtitleLines: nil) { EmptyView() }
                     .accessibilityElement(children: .combine)
@@ -442,7 +442,7 @@ struct SettingsScreen: View {
         }
         PaperCard {
             Button { confirmDelete = true } label: {
-                SettingsRow(hue: RefinedRules.settingsHue(0, destructive: true), art: .iconDeleteAll, title: "Delete all data", danger: true) { EmptyView() }
+                SettingsRow(art: .iconDeleteAll, title: "Delete all data", danger: true) { EmptyView() }
             }
             .buttonStyle(SettingsRowPress())
             .accessibilityHint("Asks twice before it deletes anything")
@@ -454,11 +454,11 @@ struct SettingsScreen: View {
         // Verbose has no account; your name is shown here and edited in About me.
         let name = profileName.trimmingCharacters(in: .whitespacesAndNewlines)
         PaperCard {
-            pageRow("yourNameRow", .aboutMe, 0, art: .iconAboutMe, title: "Your name", value: name.isEmpty ? "Add" : name)
+            pageRow("yourNameRow", .aboutMe, art: .iconAboutMe, title: "Your name", value: name.isEmpty ? "Add" : name)
             if !UnlockStore.betaUnlocked {
             squareDivider
             // Restore Purchases (guideline 3.1.1): for a new iPhone or a reinstall. The unlock sheet has it too.
-            actionRow("restorePurchases", 1, art: .iconRestore, title: UnlockCopy.restore, value: unlock.busy == .restore ? "Restoring\u{2026}" : nil,
+            actionRow("restorePurchases", art: .iconRestore, title: UnlockCopy.restore, value: unlock.busy == .restore ? "Restoring\u{2026}" : nil,
                       hint: "Asks the App Store for your purchases again") {
                 Task { let line = await unlock.restore(); if !line.isEmpty { app.say(line) } }
             }
@@ -511,34 +511,34 @@ struct SettingsScreen: View {
 
     @ViewBuilder private var support: some View {
         PaperCard {
-            actionRow("support", 0, art: .iconSupport, title: "Contact support", hint: "Writes an email to support") {
+            actionRow("support", art: .iconSupport, title: "Contact support", hint: "Writes an email to support") {
                 if let u = Links.mail(subject: "Verbose support") { openURL(u) }
             }
             squareDivider
-            actionRow("feedback", 1, art: .iconFeedback, title: "Share feedback", hint: "Writes an email with your feedback") {
+            actionRow("feedback", art: .iconFeedback, title: "Share feedback", hint: "Writes an email with your feedback") {
                 if let u = Links.mail(subject: "Verbose feedback") { openURL(u) }
             }
             squareDivider
             ShareLink(item: Log.file, subject: Text("Verbose diagnostic log"),
                       message: Text("Send to \(Links.supportEmail)")) {
-                SettingsRow(hue: RefinedRules.settingsHue(2), art: .iconDiagnosticLog, title: "Send diagnostic log") { SettingsChevron() }
+                SettingsRow(art: .iconDiagnosticLog, title: "Send diagnostic log") { SettingsChevron() }
             }
             .buttonStyle(SettingsRowPress())
             .simultaneousGesture(TapGesture().onEnded { Log.trimNow() })
             .accessibilityHint("7 days of app events, without links or folder names")
             .settingsSearchTarget("log", flash: searchFlash)
             squareDivider
-            actionRow("privacy", 3, art: .iconPrivacy, title: "Privacy policy", hint: "Opens the privacy policy") { openURL(Links.privacy) }
+            actionRow("privacy", art: .iconPrivacy, title: "Privacy policy", hint: "Opens the privacy policy") { openURL(Links.privacy) }
             squareDivider
-            actionRow("terms", 4, art: .iconTerms, title: "Terms of use", hint: "Opens the terms of use") { openURL(Links.terms) }
+            actionRow("terms", art: .iconTerms, title: "Terms of use", hint: "Opens the terms of use") { openURL(Links.terms) }
             squareDivider
             ShareLink(item: Links.base) {
-                SettingsRow(hue: RefinedRules.settingsHue(5), art: .iconShare, title: "Share Verbose") { SettingsChevron() }
+                SettingsRow(art: .iconShare, title: "Share Verbose") { SettingsChevron() }
             }
             .buttonStyle(SettingsRowPress())
             .settingsSearchTarget("share", flash: searchFlash)
             squareDivider
-            actionRow("acknowledgements", 6, art: .iconDetails, title: "Acknowledgements", hint: "Open-source software in Verbose and its licenses") {
+            actionRow("acknowledgements", art: .iconDetails, title: "Acknowledgements", hint: "Open-source software in Verbose and its licenses") {
                 showAcknowledgements = true
             }
         }
@@ -546,17 +546,17 @@ struct SettingsScreen: View {
 
     @ViewBuilder private var features: some View {
         PaperCard {
-            pageRow("thoughtsRow", .thoughts, 0, art: .iconThought, title: "Thoughts",
+            pageRow("thoughtsRow", .thoughts, art: .iconThought, title: "Thoughts",
                     value: Self.thoughtsValue(app.store.todaysThoughts().count))
             squareDivider
-            pageRow("templatesRow", .templates, 1, art: .iconSummaries, title: "Templates",
+            pageRow("templatesRow", .templates, art: .iconSummaries, title: "Templates",
                     value: Self.templatesValue(TemplateSettingsModel.shared.settings.assignedCount))
             squareDivider
-            pageRow("widgetsRow", .widgets, 2, art: .iconHome, title: "Widgets and controls")
+            pageRow("widgetsRow", .widgets, art: .iconHome, title: "Widgets and controls")
             squareDivider
-            pageRow("shortcutsRow", .shortcuts, 3, art: .iconAI, title: "Shortcuts and Siri")
+            pageRow("shortcutsRow", .shortcuts, art: .iconAI, title: "Shortcuts and Siri")
             squareDivider
-            pageRow("tourRow", .tour, 4, art: .iconTour, title: "Welcome tour")
+            pageRow("tourRow", .tour, art: .iconTour, title: "Welcome tour")
         }
     }
 
@@ -672,10 +672,10 @@ struct SettingsScreen: View {
 
 // MARK: - Rows
 
-/// A settings row's square and text (the refined kit's `IconSquare`): the colored square with its glyph, the title,
-/// and an optional line under it. A destructive row has a neutral square and a red title (`Refined.danger`).
+/// A settings row's square and text (the refined kit's `IconSquare`): the neutral square with its ink glyph, the
+/// title, and an optional line under it. Settings' squares never take an action hue (DESIGN.md §1; IP-36, Tim,
+/// November 8, 2026). A destructive row keeps the neutral square with the `danger` glyph and a red title.
 struct SettingsLabel: View {
-    var hue: RefinedHue = .neutral
     var art: BrandArt? = nil
     var title: String
     var subtitle: String? = nil
@@ -684,7 +684,7 @@ struct SettingsLabel: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            IconSquare(art: art ?? .iconDetails, hue: danger ? .neutral : hue)
+            IconSquare(art: art ?? .iconDetails, hue: RefinedRules.settingsSquareHue, glyph: danger ? Refined.danger : nil)
             if !title.isEmpty || subtitle != nil {
                 SettingsRowText(title: title, subtitle: subtitle, subtitleLines: subtitleLines, danger: danger)
             }
@@ -716,7 +716,6 @@ struct SettingsRowText: View {
 /// or control. At least 52 pt tall (44 pt to tap, as the mockup's rows). VoiceOver reads the title, the line, and
 /// the value as one element.
 struct SettingsRow<Trailing: View>: View {
-    var hue: RefinedHue = .neutral
     var art: BrandArt? = nil
     var title: String
     var subtitle: String? = nil
@@ -726,7 +725,7 @@ struct SettingsRow<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            SettingsLabel(hue: hue, art: art, title: title, subtitle: subtitle, subtitleLines: subtitleLines, danger: danger)
+            SettingsLabel(art: art, title: title, subtitle: subtitle, subtitleLines: subtitleLines, danger: danger)
             Spacer(minLength: 8)
             trailing()
         }

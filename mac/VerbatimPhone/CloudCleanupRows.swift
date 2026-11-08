@@ -47,7 +47,7 @@ struct CloudCleanupRows: View {
                     ForEach(CloudCleanup.Provider.allCases) { p in Text(p.title).tag(p.rawValue) }
                 }
             } label: {
-                SettingsRow(hue: .sage, art: .iconServer, title: "Provider") {
+                SettingsRow(art: .iconServer, title: "Provider") {
                     SettingsValue(provider.title); SettingsMenuMark()
                 }
             }

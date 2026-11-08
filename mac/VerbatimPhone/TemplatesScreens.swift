@@ -36,7 +36,7 @@ struct TemplatesScreen: View {
                 .padding(.top, 14)
             SettingsPageGroup(first: true) {
                 NavigationLink(value: TemplatesAutoRoute()) {
-                    SettingsRow(hue: .sage, art: .iconRecent, title: "Run automatically",
+                    SettingsRow(art: .iconRecent, title: "Run automatically",
                                 subtitle: "A template for each kind, when a recording finishes") {
                         SettingsValue("\(settings.assignedCount) of \(AutoRunSettings.kinds.count)")
                         SettingsChevron()
@@ -75,7 +75,7 @@ struct TemplatesScreen: View {
 
     private func row(_ t: TranscriptTemplate, _ s: AutoRunSettings) -> some View {
         let kinds = s.kinds(for: t.id)
-        return SettingsRow(hue: .neutral, art: t.art, title: t.name, subtitle: TemplateLibrary.summaryLine(t), subtitleLines: 1) {
+        return SettingsRow(art: t.art, title: t.name, subtitle: TemplateLibrary.summaryLine(t), subtitleLines: 1) {
             if !kinds.isEmpty { Text("Auto").scaledFont(14).foregroundStyle(Refined.mute) }
             SettingsChevron()
         }
@@ -145,7 +145,7 @@ struct TemplateDetailScreen: View {
                     if recent.isEmpty { Text("No recordings yet") }
                     ForEach(Array(recent)) { r in Button(r.title) { if FeatureGate.allowsTemplate(t.id, ask: true) { tryOn = TemplateTryOn(template: t, transcript: r.id) } } }
                 } label: {
-                    SettingsRow(hue: .sage, art: .iconPlay, title: "Try on a recording", subtitle: "See the result; nothing is saved") {
+                    SettingsRow(art: .iconPlay, title: "Try on a recording", subtitle: "See the result; nothing is saved") {
                         SettingsMenuMark()
                     }
                 }
@@ -153,19 +153,19 @@ struct TemplateDetailScreen: View {
                 Button {
                     editingIsNew = true; editing = TemplateLibrary.duplicate(t)
                 } label: {
-                    SettingsRow(hue: .butter, art: .iconCopy, title: t.isEditable ? "Duplicate" : "Duplicate and edit") { SettingsChevron() }
+                    SettingsRow(art: .iconCopy, title: t.isEditable ? "Duplicate" : "Duplicate and edit") { SettingsChevron() }
                 }
                 .buttonStyle(SettingsRowPress())
                 .accessibilityIdentifier("template.duplicate")
                 if t.isEditable {
                     SettingsDivider()
                     Button { editingIsNew = false; editing = t } label: {
-                        SettingsRow(hue: .butter, art: .iconNotes, title: "Edit") { SettingsChevron() }
+                        SettingsRow(art: .iconNotes, title: "Edit") { SettingsChevron() }
                     }
                     .buttonStyle(SettingsRowPress())
                     SettingsDivider()
                     Button { confirmDelete = true } label: {
-                        SettingsRow(hue: .petal, art: .iconDeleteAll, title: "Delete template", danger: true) { EmptyView() }
+                        SettingsRow(art: .iconDeleteAll, title: "Delete template", danger: true) { EmptyView() }
                     }
                     .buttonStyle(SettingsRowPress())
                 }
@@ -215,7 +215,7 @@ struct TemplatesAutoScreen: View {
                 }
                 // Audio only has no transcript, so no template can run on it: listed with no picker.
                 SettingsDivider()
-                SettingsRow(hue: .neutral, art: RecordingKind.audio.art, title: RecordingKind.audio.label, subtitle: AudioOnlyCopy.noTemplate) {
+                SettingsRow(art: RecordingKind.audio.art, title: RecordingKind.audio.label, subtitle: AudioOnlyCopy.noTemplate) {
                     EmptyView()
                 }
                 .accessibilityIdentifier("templates.auto.audio")
@@ -257,7 +257,7 @@ struct TemplatesAutoScreen: View {
                 ForEach(others) { t in choice(t, k, current) }
             }
         } label: {
-            SettingsRow(hue: .neutral, art: k.art, title: k.label) {
+            SettingsRow(art: k.art, title: k.label) {
                 SettingsValue(current?.name ?? "Off")
                 SettingsMenuMark()
             }
@@ -324,7 +324,7 @@ struct PhoneTemplateEditor: View {
                         }
                         SettingsDivider()
                         Button { draft.sections.append(TemplateSection("", .bullets)) } label: {
-                            SettingsRow(hue: .sage, art: nil, title: "Add a section") { EmptyView() }
+                            SettingsRow(art: nil, title: "Add a section") { EmptyView() }
                         }
                         .buttonStyle(SettingsRowPress())
                     }
