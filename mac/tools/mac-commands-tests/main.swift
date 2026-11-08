@@ -73,6 +73,28 @@ check("find: nothing to step without matches", PageFind.step(from: 0, count: 0, 
 check("find: the count reads 3 of 12, No matches, or nothing", PageFind.countLabel(current: 2, count: 12, query: "x") == "3 of 12"
       && PageFind.countLabel(current: nil, count: 0, query: "x") == "No matches" && PageFind.countLabel(current: nil, count: 0, query: " ") == "")
 
+check("find: the field names the tab it finds in", PageFind.prompt(.original) == "Find in transcript"
+      && PageFind.prompt(.cleaned) == "Find in Cleaned" && PageFind.prompt(.summary) == "Find in Summary")
+let sLines = PageFind.summaryLines(overview: "", keyPoints: ["Fold the wagon.", "Ship on Friday."])
+check("find: Summary's lines keep the key points' numbers when there's no overview", sLines.count == 3 && sLines[0].isEmpty
+      && PageFind.matches(in: sLines, query: "fold").map(\.line) == [1])
+let cleaned = PageFind.matches(in: ["Speaker 1: fold it.\n\nSpeaker 2: Fold twice."], query: "fold")
+check("find: Cleaned is one line, so a match's range is its place in the editor's text",
+      cleaned.count == 2 && cleaned.allSatisfy { $0.line == 0 } && cleaned[0].range.location == 11 && cleaned[1].range.location == 32, "\(cleaned)")
+
+// MARK: Search passages from the keyboard
+
+check("passages: ↓ in the field goes to the first passage", PassageCursor.step(from: nil, count: 3, down: true) == .passage(0))
+check("passages: ↓ and ↑ move between passages", PassageCursor.step(from: 0, count: 3, down: true) == .passage(1)
+      && PassageCursor.step(from: 2, count: 3, down: false) == .passage(1))
+check("passages: ↓ past the last goes to the table, ↑ above the first to the field",
+      PassageCursor.step(from: 2, count: 3, down: true) == .table && PassageCursor.step(from: 0, count: 3, down: false) == .searchField)
+check("passages: with none, ↓ goes to the table", PassageCursor.step(from: nil, count: 0, down: true) == .table)
+check("passages: only a plain ↓ with passages showing leaves the field",
+      PassageCursor.entersFromField(keyCode: 125, mods: [], passages: 2) && !PassageCursor.entersFromField(keyCode: 125, mods: [.shift], passages: 2)
+      && !PassageCursor.entersFromField(keyCode: 125, mods: [.command], passages: 2) && !PassageCursor.entersFromField(keyCode: 125, mods: [], passages: 0)
+      && !PassageCursor.entersFromField(keyCode: 126, mods: [], passages: 2) && !PassageCursor.entersFromField(keyCode: 48, mods: [], passages: 2))
+
 // MARK: The Library at small widths
 
 func total(_ p: LibraryColumnPlan) -> CGFloat {
@@ -121,6 +143,7 @@ check("focus: the bar is 2 pt", SelectionLook.barWidth == 2)
 
 let mac = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : ".")
 func read(_ path: String) -> String { (try? String(contentsOf: mac.appendingPathComponent(path), encoding: .utf8)) ?? "" }
+func recallSource() -> String { read("Verbatim/Flow/Recall.swift") }
 func codeLines(_ text: String) -> [String] {
     text.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
 }
@@ -148,12 +171,28 @@ check("menus: Bigger Text, Smaller Text, Mark This Moment, Copy Text, and Copy f
       commands.contains("\"Bigger Text\", \"=\"") && commands.contains("\"Smaller Text\", \"-\"") && commands.contains("\"Mark This Moment\", \"b\"")
       && commands.contains("func validateMenuItem") && read("Verbatim/App/NavTrail.swift").contains("TranscriptMenuItems.shared.install(app)"))
 check("menus: File says Record Voice Note (MAC-30)", app.contains("Button(\"Record Voice Note\")") && !app.contains("Voice Memo"))
-check("find: ⌘F finds in the open transcript, ⌘G and ⇧⌘G step, ⌘K opens the panel",
-      commands.contains("TranscriptFind.shared.show()") && commands.contains(".keyboardShortcut(\"g\", modifiers: .command)")
+check("find: ⌘F finds in the open transcript's tab, ⌘G and ⇧⌘G step, ⌘K opens the panel",
+      commands.contains("TranscriptFind.shared.show(in: scope)") && commands.contains("if let scope = nav.mode.findScope") && commands.contains(".keyboardShortcut(\"g\", modifiers: .command)")
       && commands.contains(".keyboardShortcut(\"g\", modifiers: [.command, .shift])") && commands.contains(".keyboardShortcut(\"k\", modifiers: .command)"))
 let transcriptView = read("Verbatim/Views/TranscriptView.swift")
 check("find: the transcript shows the bar and marks its matches", transcriptView.contains("TranscriptFindBar(find: find)")
       && transcriptView.contains(".environment(\\.pageFindQuery, find.highlight)") && read("Verbatim/Views/SegmentLine.swift").contains("query: findQuery ?? app.search"))
+
+let findView = read("Verbatim/Views/TranscriptFind.swift"), summaryBlock = read("Verbatim/Views/SummaryBlock.swift")
+check("find: Cleaned and Summary have the same bar; another tab keeps it, Review closes it (MAC-22 follow-up)",
+      transcriptView.contains("if find.open, view.findScope == find.scope") && transcriptView.contains("find.retarget(scope)")
+      && findView.contains("case .review, .result: return nil") && !transcriptView.contains("if m != .original { find.close() }"))
+check("find: the Cleaned editor marks matches without touching its text, and scrolls to the current one",
+      read("Verbatim/Document/DocumentView.swift").contains("lm.addTemporaryAttributes([.backgroundColor: fill, .foregroundColor: ink]")
+      && read("Verbatim/Document/DocumentView.swift").contains("if let t { find.setTexts([t]) }")
+      && read("Verbatim/Document/DocumentView.swift").contains("(tv as? LintTextView)?.reveal(c)"))
+check("find: Summary marks matches in butter and underlines the current one",
+      summaryBlock.contains("ReadingHighlight.marked(AttributedString(text), query: query, minLength: 1)")
+      && summaryBlock.contains("underlineStyle = Text.LineStyle(") && transcriptView.contains("find.setTexts(lines)"))
+let passageKeys = read("Verbatim/Views/PassageKeys.swift")
+check("passages: ↓ is taken only while the toolbar's search field is typed in on the Library (MAC-23 follow-up)",
+      passageKeys.contains("app.screen == .library") && passageKeys.contains("Self.typingInToolbarSearch(w)")
+      && passageKeys.contains("PassageCursor.entersFromField(") && read("Verbatim/Views/ContentView.swift").contains("PassageKeys.shared.install(app)"))
 
 // Hidden shortcut buttons: a zero-size Button("") with a shortcut is gone wherever a menu now carries it.
 for p in ["Verbatim/Views/TranscriptView.swift", "Verbatim/Document/DocumentView.swift"] {
@@ -221,6 +260,37 @@ check("labels: the kind picker starts with its word; the type-apps remove button
       && read("Verbatim/Flow/Paster.swift").contains(".accessibilityLabel(\"Remove \\(Self.name(for: id))\")"))
 check("glyphs: no SF person or play on the toolbar or inspector (MAC-40)",
       !chrome.contains("person.crop.circle") && !library.contains("systemImage: \"play.fill\""))
+
+// The polish round (November 7, 2026).
+check("selection: one card in the inspector and the side column, kit type and the kit's play glyph (MAC-18)",
+      library.components(separatedBy: "LibrarySelectionCard(transcript:").count == 3 && !library.contains(".borderedProminent")
+      && !library.contains("Button(\"Open Transcript\")") && library.contains("if !nav.inspectorVisible") && !library.contains(".foregroundStyle(.secondary)"))
+let kit = read("Verbatim/Views/RefinedKit.swift"), home = read("Verbatim/Views/HomeView.swift"), homeMac = read("Verbatim/Views/HomeSectionsMac.swift")
+check("hover: Home's cards and tiles show the pointer, and Recent rows are PaperRowButtons (MAC-20)",
+      kit.contains("case fill(radius: CGFloat)") && kit.contains(".fill(Refined.hoverWash)") && home.contains("PaperRowButton(action: { app.go(.transcript(t.id)) })")
+      && !home.contains(".buttonStyle(RefinedPress())") && !homeMac.contains(".buttonStyle(RefinedPress())"))
+let brand = read("Verbatim/Views/Brand.swift")
+check("data: the Ribbon's timer, Recall's times and keys, and the panels' keycaps are 12 pt or larger (MAC-26)",
+      read("Verbatim/Flow/FlowBarView.swift").contains("Text(elapsed).font(SurfaceFont.mono(12))") && brand.contains("self.size = max(Self.minSize, size)")
+      && !recallSource().contains("size: 11)") && !recallSource().contains("mono(10.5") && !read("Verbatim/Flow/FlowMenu.swift").contains("Keycap(keys: keys, size: 10.5)"))
+check("bubble: the disc has a hairline, no ink outline or offset shadow (MAC-27)",
+      !bubble.contains(".offset(x: 3, y: 4)") && bubble.contains("Circle().strokeBorder(Refined.separator, lineWidth: 1)"))
+let keycapDrawings = macFiles.filter { f in ["struct DarkKeycap", "struct BubbleKeycap"].contains { f.1.contains($0) } }.map(\.0)
+check("keycaps: one Keycap with outline, raised, and on-black styles, used for every shortcut (MAC-32)",
+      keycapDrawings.isEmpty && brand.contains("enum Style { case outline, raised, onBlack }")
+      && read("Verbatim/Views/DictationSurfaceSettings.swift").contains("Keycap(keys: text, size: big ? 15 : 12.5")
+      && read("Verbatim/Views/OnboardingView.swift").contains("Keycap(keys: keys).foregroundStyle(ink)")
+      && kit.contains("if mac, case .shortcut(let k) = t {") && home.contains("keys: \"⌥⇧R\""), "\(keycapDrawings)")
+check("captions: the panel's size is its own, clamped to its text size and the screen (MAC-42)",
+      read("Verbatim/Views/LiveCaptionsPanel.swift").contains("host.sizingOptions = []") && read("Verbatim/Views/LiveCaptionsPanel.swift").contains("Self.keepOnScreen(panel)"))
+check("onboarding: every step scrolls above a footer that stays (GPT-28)",
+      read("Verbatim/Views/OnboardingView.swift").contains("ScrollView(.vertical) {") && read("Verbatim/Views/OnboardingView.swift").contains(".scrollBounceBehavior(.basedOnSize)"))
+let serifLiterals = macFiles.filter { !$0.0.hasSuffix("Tokens.swift") && !$0.0.hasSuffix("MacAppearance.swift") }
+    .flatMap { f in codeLines(f.1).filter { $0.contains("design: .serif)") }.map { _ in f.0 } }
+check("tokens: the serif goes through Refined.serif outside the two shared kit files (MAC-31)",
+      Set(serifLiterals).isSubset(of: ["Verbatim/Views/RefinedPlayback.swift", "Verbatim/Views/Celebration.swift"]), "\(serifLiterals)")
+check("tokens: the sidebar's reorder and the Settings flash use Motion tokens (MAC-31)",
+      !read("Verbatim/Views/MacSidebar.swift").contains(".smooth(duration: 0.3)") && read("Verbatim/Views/SettingsKit.swift").contains(".animation(Motion.flash"))
 
 let recall = read("Verbatim/Flow/Recall.swift")
 check("recall: the panel uses RecallKeys and gates hover on a real move",
