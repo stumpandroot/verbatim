@@ -96,6 +96,10 @@ struct SettingsView: View {
     /// window controls in it.
     private func configure(_ w: NSWindow) {
         SettingsModel.shared.window = w
+        // The split view can open its sidebar narrower than the column's width (build 311 measured 148 pt in the Settings
+        // window), so hold it to the column's range on the AppKit side too, once the split view exists.
+        DispatchQueue.main.async { Self.holdSidebar(in: w) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { Self.holdSidebar(in: w) }
         guard !w.styleMask.contains(.fullSizeContentView) || w.titleVisibility != .hidden else { return }
         w.styleMask.insert(.fullSizeContentView)
         w.styleMask.insert(.resizable)
@@ -103,6 +107,25 @@ struct SettingsView: View {
         w.titleVisibility = .hidden
         w.title = "Settings"
         w.backgroundColor = NSColor(Refined.paper)
+    }
+
+    /// The sidebar's width range (`navigationSplitViewColumnWidth` above), set on the split view item, and the divider
+    /// moved into it when it opened outside.
+    static let sidebarWidth: ClosedRange<CGFloat> = 240...300
+    static func holdSidebar(in w: NSWindow) {
+        guard let split = w.contentView.flatMap(firstSplitView) else { return }
+        if let controller = split.delegate as? NSSplitViewController, let item = controller.splitViewItems.first {
+            item.minimumThickness = sidebarWidth.lowerBound
+            item.maximumThickness = sidebarWidth.upperBound
+            item.canCollapse = false
+        }
+        let width = split.arrangedSubviews.first?.frame.width ?? 0
+        if !sidebarWidth.contains(width) { split.setPosition(260, ofDividerAt: 0) }
+    }
+    private static func firstSplitView(_ v: NSView) -> NSSplitView? {
+        if let s = v as? NSSplitView { return s }
+        for c in v.subviews { if let s = firstSplitView(c) { return s } }
+        return nil
     }
 }
 
@@ -174,7 +197,12 @@ struct SettingsSidebar: View {
     /// ↑ or ↓ in the pane list: the pane before or after the chosen one. While searching, the arrows are left alone.
     private func step(_ by: Int) -> KeyPress.Result {
         guard !model.isSearching else { return .ignored }
-        if let r = MacSettingsMap.step(from: tab.rawValue, by: by), let t = SettingsTab(rawValue: r), t != tab { tab = t }
+        if let r = MacSettingsMap.step(from: tab.rawValue, by: by), let t = SettingsTab(rawValue: r), t != tab {
+            tab = t
+            // The new pane is built under a new identity and can take the keyboard; give it back to the list so the next
+            // arrow keeps moving (build 311: ↑ after ↓ went nowhere).
+            DispatchQueue.main.async { listFocused = true }
+        }
         return .handled
     }
 

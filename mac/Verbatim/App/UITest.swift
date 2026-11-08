@@ -2886,7 +2886,10 @@ extension UITest {
         }
         await step("ask: Questions goes back", window, target: "ask-pane-questions", check: { nav.pane == .questions })
 
-        // The panel: the switch, Search's library filter, and an answer with checked citations.
+        // The panel: the switch, Search's library filter, and an answer with checked citations. From the Library, since the
+        // Ask page draws the same panel inline and both would answer to the same citation targets (build 311).
+        app.go(.library)
+        try? await Task.sleep(nanoseconds: 700_000_000)
         nav.scope = AskScope(source: .project(seeded.0))
         nav.open(mode: .ask, query: "What did Alex want changed on the homepage?")
         try? await Task.sleep(nanoseconds: 900_000_000)
