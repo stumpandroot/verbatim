@@ -101,7 +101,8 @@ enum RefinedHex {
     static let butterTint = Tone(0xFCF0D2, 0x332E20)
     static let sageTint = Tone(0xE9EFE0, 0x26322A)
     static let petalTint = Tone(0xFAE6EC, 0x33282D)
-    /// An icon square with no hue (Settings rows that aren't one of the four).
+    /// The neutral icon square, under an ink glyph: Settings' rows and the Mac's Settings panes (IP-36; a destructive
+    /// row adds the `danger` glyph and word), templates, and any other square whose glyph names no capture action.
     static let neutralSquare = Tone(0xE6DFD1, 0x2E3B34)
 
     // The words calendar's five shades (WordsCalendar.level): a day with no words, then more and more. Day numbers sit

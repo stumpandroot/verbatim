@@ -126,18 +126,11 @@ enum RefinedRules {
         return settingsRotation[((index % n) + n) % n]
     }
 
-    /// A Mac Settings pane's square in the sidebar and beside its title, by `SettingsTab` raw value (mockup
-    /// MacSettings): Personalization and Recording persimmon, Dictation and Watched folders butter, Ribbon and notch,
-    /// Account, and What's new petal, Meetings, Sync, and Features sage, and Privacy and Support neutral.
-    static func settingsPaneHue(_ raw: String) -> RefinedHue {
-        switch raw {
-        case "general", "transcription": return .persimmon
-        case "dictate", "watched": return .butter
-        case "floatingButton", "account", "whatsNew": return .petal
-        case "meetings", "storage", "features": return .sage
-        default: return .neutral
-        }
-    }
+    /// A Mac Settings pane's square in the sidebar and beside its title, by `SettingsTab` raw value: the neutral square
+    /// with an ink glyph for every pane (IP-36, Tim, November 8, 2026; DESIGN.md §1). A pane names no action, so its
+    /// square borrows no action hue; the glyph and the name tell the panes apart. (The mockup's rotation of persimmon,
+    /// butter, sage, and petal retired.)
+    static func settingsPaneHue(_ raw: String) -> RefinedHue { .neutral }
 
     /// Your initial on the You card and the You page: the first letter of your name, capitalized; nil without a name
     /// (the badge shows a person instead).

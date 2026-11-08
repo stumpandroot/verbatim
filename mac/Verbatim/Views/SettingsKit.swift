@@ -103,7 +103,7 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
         }
     }
 
-    /// The pane's square's hue (`RefinedRules.settingsPaneHue`).
+    /// The pane's square's hue: neutral for every pane (`RefinedRules.settingsPaneHue`, IP-36).
     var hue: RefinedHue { RefinedRules.settingsPaneHue(rawValue) }
 }
 

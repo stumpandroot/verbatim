@@ -260,12 +260,10 @@ check("Settings' squares go persimmon, butter, sage, petal down a card, and arou
       (0..<6).map { R.settingsHue($0) } == [.persimmon, .butter, .sage, .petal, .persimmon, .butter] && R.settingsHue(-1) == .petal)
 check("a destructive row's square is neutral", R.settingsHue(0, destructive: true) == .neutral)
 let paneRaws = ["general", "transcription", "dictate", "floatingButton", "meetings", "watched", "storage", "privacy", "account", "about", "features", "whatsNew"]
-check("the Mac's panes follow the mockup: Personalization and Recording persimmon, Dictation butter, Privacy and Support neutral",
-      R.settingsPaneHue("general") == .persimmon && R.settingsPaneHue("transcription") == .persimmon && R.settingsPaneHue("dictate") == .butter
-      && R.settingsPaneHue("meetings") == .sage && R.settingsPaneHue("watched") == .butter && R.settingsPaneHue("storage") == .sage
-      && R.settingsPaneHue("privacy") == .neutral && R.settingsPaneHue("account") == .petal && R.settingsPaneHue("about") == .neutral)
-check("most of the Mac's panes carry a color", paneRaws.filter { R.settingsPaneHue($0) == .neutral }.count * 4 <= paneRaws.count)
-check("your initial", R.initial(" tim medina") == "T" && R.initial("") == nil && R.initial("  ") == nil && R.initial("élise") == "É")
+check("every Mac Settings pane's square is neutral, with an ink glyph (IP-36)",
+      paneRaws.allSatisfy { R.settingsPaneHue($0) == .neutral } && R.settingsPaneHue("") == .neutral
+      && R.onBadge(R.settingsPaneHue("general")) == RefinedHex.ink && R.badgeFill(R.settingsPaneHue("dictate")) == RefinedHex.neutralSquare)
+check("your initial", R.initial(" sam rivera") == "S" && R.initial("") == nil && R.initial("  ") == nil && R.initial("élise") == "É")
 
 // MARK: - The transcript
 

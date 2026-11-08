@@ -1797,6 +1797,8 @@ enum UITest {
         check("settings search needs every word", SettingsIndex.search("sync iphone").map(\.id) == ["storage.icloud"] && SettingsIndex.search("sync icloud").map(\.id).contains("storage.icloud") && SettingsIndex.search("   ").isEmpty)
         check("every settings pane is searchable", SettingsTab.allCases.allSatisfy { t in SettingsIndex.all.contains { $0.section == t } })
         check("settings ids are unique", Set(SettingsIndex.all.map(\.id)).count == SettingsIndex.all.count)
+        check("settings: every pane's square in the sidebar and beside its title is neutral, with an ink glyph (IP-36)",
+              SettingsTab.allCases.allSatisfy { $0.hue == .neutral } && RefinedRules.onBadge(.neutral) == RefinedHex.ink)
         // The welcome tour's steps (OnboardingView.swift), and no Look setting (one look since step 7, DESIGN.md §13).
         check("onboarding: the tour has six steps, permissions after the welcome, the ways in after Try it", OnboardingStep.count == 6 && OnboardingStep.at(1) == .permissions && OnboardingStep.at(3) == .ways)
         check("onboarding: Return on Continue switches the step at once; a click slides it (MAC-37)",
