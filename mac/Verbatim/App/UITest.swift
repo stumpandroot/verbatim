@@ -137,6 +137,7 @@ enum UITest {
             window.makeKeyAndOrderFront(nil)
             await meetingSteps(main: window)
             recordChoiceChecks()
+            onboardingDiagramChecks()
             // The interactions audit's menus, find in the transcript, the Cleaned tab's Undo, and the inspector's room.
             await macCommandSteps(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
@@ -240,6 +241,7 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 400_000_000)
         await step("settings sidebar opens Watched folders", w, target: "settings-watched", check: { settingsTab == SettingsTab.watched.rawValue })
         await step("settings sidebar opens Account and plan", w, target: "settings-account", check: { settingsTab == SettingsTab.account.rawValue })
+        await settingsSidebarChecks(w)
         await step("settings sidebar's version opens What's new", w, target: "settings-version", check: { settingsTab == SettingsTab.whatsNew.rawValue })
         SettingsModel.shared.query = "timecode"
         try? await Task.sleep(nanoseconds: 700_000_000)
@@ -640,9 +642,12 @@ enum UITest {
             app.go(.transcript(link.id))
             await show("05g-link-kept")
         }
-        app.search = "folding"
+        // The toolbar's field opens Search or ask on Search with recordings and passages (MAC-35); the Library stays.
+        AskNav.shared.scope = .all
+        app.toolbarQuery = "folding"
         await show("05d-search")
-        app.search = ""
+        AskNav.shared.close()
+        app.toolbarQuery = ""
         if let trashMe = app.store.live.first(where: { $0.title == "Self-test memo" }) { app.store.moveToTrash(trashMe.id) }
         app.go(.trash)
         await show("05e-recently-deleted")
@@ -2888,11 +2893,11 @@ extension UITest {
         check("ask: ⌘K's panel opens with its field", nav.panelOpen && frames["ask-field"] != nil)
         if frames["ask-mode-search"] != nil {
             await step("ask: Search switches the panel to Search", window, target: "ask-mode-search", check: { nav.mode == .search })
-            check("ask: Search filters the Library as the search field does", app.search == nav.query)
+            check("ask: Search lists its results in the panel and leaves the Library's search alone (MAC-35)", app.search.isEmpty)
             await step("ask: Ask switches back", window, target: "ask-mode-ask", check: { nav.mode == .ask })
         } else {
             nav.mode = .search; try? await Task.sleep(nanoseconds: 300_000_000)
-            check("ask: Search filters the Library as the search field does", app.search == nav.query)
+            check("ask: Search lists its results in the panel and leaves the Library's search alone (MAC-35)", app.search.isEmpty)
             nav.mode = .ask
         }
         app.search = ""
@@ -3717,23 +3722,7 @@ extension UITest {
         check("find: elsewhere ⌘F opens Search or ask", AskNav.shared.panelOpen && !find.open)
         AskNav.shared.close()
 
-        // ↓ from the toolbar's search field moves into the search passages (MAC-23 follow-up). The key monitor acts
-        // only while the field is being typed in, so the step calls what ↓ calls.
-        app.search = word
-        try? await Task.sleep(nanoseconds: 600_000_000)
-        let passages = PassageKeys.shared.order
-        check("passages: the Library lists its search passages in order for the arrow keys (\(passages.count))", !passages.isEmpty)
-        if let firstPassage = passages.first {
-            PassageKeys.shared.enter()
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            check("passages: ↓ in the search field puts the arrows on the first passage, with the table's keyboard",
-                  LibraryView.shownPassage == firstPassage && ColumnFocus.shared.focus == .library)
-            check("passages: ↓ and ↑ move between passages, past the last to the table, above the first to the field",
-                  PassageCursor.step(from: 0, count: passages.count, down: true) == (passages.count > 1 ? .passage(1) : .table)
-                  && PassageCursor.step(from: 0, count: passages.count, down: false) == .searchField)
-        }
-        app.search = ""
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        await searchPanelSteps(app: app, transcript: t)
 
         // The Cleaned tab's Undo and Redo through the window's UndoManager (MAC-01).
         if let um = window.undoManager, let id = app.store.live.first(where: { $0.status == .ready })?.id {
@@ -3755,6 +3744,116 @@ extension UITest {
               nav.inspectorHasRoom == (nav.detailWidth - WindowNav.inspectorRoomWidth >= InspectorFit.minContent))
         app.go(.home)
         try? await Task.sleep(nanoseconds: 300_000_000)
+    }
+}
+
+// MARK: - One way into search and Ask (MAC-35)
+
+extension UITest {
+    /// The toolbar's search field opens the Search or ask panel instead of filtering the Library; ↓ and ↑ move through its
+    /// recordings and passages (what the key monitor calls), Return opens the chosen one at its line, emptying the field
+    /// closes the panel, Return with nothing found asks instead, Show all in the Library filters it on request with a chip
+    /// to clear, and the Ask page shows the same panel inline with Ask chosen.
+    static func searchPanelSteps(app: AppState, transcript t: Transcript) async {
+        let nav = AskNav.shared
+        let word = t.segments.lazy.flatMap { $0.text.split(separator: " ") }.map { String($0).trimmingCharacters(in: .punctuationCharacters) }
+            .first { $0.count >= 3 } ?? "the"
+        nav.close(); nav.scope = .all; nav.mode = .ask
+        app.search = ""; app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
+        app.go(.library)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        let rowsBefore = LibraryView.shownOrder
+        app.toolbarQuery = word
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        check("search: typing in the toolbar's field opens the panel on Search, from the toolbar",
+              nav.panelOpen && nav.mode == .search && nav.fromToolbar && nav.query == word)
+        check("search: the Library doesn't filter while you type", app.search.isEmpty && app.screen == .library && LibraryView.shownOrder == rowsBefore)
+        let expected = SearchPanelResults.find(word, in: app.store.live.sorted { $0.createdAt > $1.createdAt }).items
+        check("search: the panel lists recordings, then passages, in the order the arrows walk (\(nav.order.count))",
+              !nav.order.isEmpty && nav.order == expected)
+        check("search: the first result is chosen until you move", nav.cursor == 0)
+        nav.move(down: true)
+        check("search: ↓ moves to the next result", nav.cursor == min(1, max(0, nav.order.count - 1)))
+        nav.move(down: false); nav.move(down: false)
+        check("search: ↑ stays on the first result", nav.cursor == 0)
+        // Return opens the chosen result (a passage when there's one, at its line).
+        if let passage = nav.order.firstIndex(where: { $0.segment != nil }) { nav.cursor = passage }
+        let chosen = nav.order.indices.contains(nav.cursor) ? nav.order[nav.cursor] : nil
+        nav.submit(app, fromToolbar: true)
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        check("search: Return opens the chosen result, and the panel and the toolbar's field clear",
+              chosen.map { app.screen == .transcript($0.transcript) && ($0.segment == nil || app.focusSegment == $0.segment || app.focusSegment == nil) } == true
+              && !nav.panelOpen && app.toolbarQuery.isEmpty)
+        // Emptying the toolbar's field closes a panel it opened.
+        app.toolbarQuery = word
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        app.toolbarQuery = ""
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        check("search: emptying the toolbar's field closes the panel", !nav.panelOpen)
+        // Nothing found: Return asks the words instead.
+        nav.open(mode: .search, query: "zqxv wrtpl")
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        check("search: nothing matching lists nothing", nav.order.isEmpty)
+        let responder = AskCenter.shared.responder
+        AskCenter.shared.responder = { _ in "Nothing here [1]." }
+        nav.submit(app)
+        check("search: Return with nothing found switches to Ask and asks", nav.mode == .ask)
+        nav.close(); AskCenter.shared.clear(); AskCenter.shared.responder = responder
+        // Show all in the Library filters it only when asked, with a chip that clears it.
+        nav.open(mode: .search, query: word)
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        nav.showInLibrary(app)
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        check("search: Show all in the Library filters the Library by the words, with its chip",
+              app.screen == .library && app.search == word && !nav.panelOpen && (windowFrames["chip-search"]?() ?? frames["chip-search"]) != nil)
+        app.search = ""
+        // The Ask page: the same panel inline, with Ask chosen.
+        nav.mode = .search
+        app.go(.ask)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        check("search: the Ask page shows the panel inline with Ask chosen, not a field of its own",
+              nav.mode == .ask && frames["ask-inline-field"] != nil && frames["ask-screen-field"] == nil && !nav.panelOpen)
+        nav.query = ""; nav.mode = .ask
+    }
+
+    /// Onboarding's welcome diagrams (MAC-14): Capture, Refine, and Understand in the same 2.8 stroke, Understand's hatch
+    /// clipped to all three circles, drawn at one line weight.
+    static func onboardingDiagramChecks() {
+        let all = [BrandArt.diagramCapture, .diagramRefine, .diagramUnderstand]
+        check("onboarding: the three diagrams share the 2.8 stroke", all.allSatisfy { $0.strokeWidth == 2.8 })
+        check("onboarding: Refine has four strands; Understand hatches only where its three circles meet",
+              BrandArt.diagramRefine.strokes.count == 4 && BrandArt.diagramUnderstand.clip.count == 3
+              && BrandArt.diagramUnderstand.strokes.count == 3 && !BrandArt.diagramUnderstand.clipped.isEmpty)
+        check("onboarding: the diagrams draw at one line weight, above the 1.1 pt floor", OnboardingView.diagramLine > 1.1)
+    }
+
+    /// The Settings window's system sidebar (MAC-24): a split view whose sidebar reaches the full height, and ↑ and ↓
+    /// moving between panes once a row has been clicked.
+    static func settingsSidebarChecks(_ w: NSWindow) async {
+        func splitViews(_ v: NSView) -> [NSSplitView] { (v as? NSSplitView).map { [$0] } ?? v.subviews.flatMap(splitViews) }
+        let split = w.contentView.flatMap { splitViews($0).first }
+        let side = split?.arrangedSubviews.first
+        let contentHeight = w.contentView?.bounds.height ?? 0
+        check("settings: the sidebar is the system's split view, full height (\(Int(side?.frame.width ?? 0)) pt wide)",
+              side.map { $0.frame.width >= 200 && $0.frame.width <= 320 && abs($0.frame.height - contentHeight) <= 2 } == true)
+        check("settings: the window controls sit over the sidebar", w.standardWindowButton(.closeButton).map { b -> Bool in
+            let f = b.convert(b.bounds, to: nil)
+            return f.maxX < (side?.frame.width ?? 0)
+        } == true)
+        check("settings: the sidebar's order is the map's", SettingsTab.sidebar.map(\.rawValue) == MacSettingsMap.sidebar)
+        func arrow(_ down: Bool) {
+            let ch = down ? "\u{F701}" : "\u{F700}"
+            if let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.numericPad, .function], timestamp: ProcessInfo.processInfo.systemUptime,
+                                        windowNumber: w.windowNumber, context: nil, characters: ch, charactersIgnoringModifiers: ch,
+                                        isARepeat: false, keyCode: down ? 125 : 126) { w.sendEvent(e) }
+        }
+        let start = settingsTab
+        arrow(true)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        check("settings: ↓ in the pane list opens the next pane", settingsTab == (MacSettingsMap.step(from: start, by: 1) ?? start))
+        arrow(false)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        check("settings: ↑ goes back", settingsTab == start)
     }
 }
 #endif

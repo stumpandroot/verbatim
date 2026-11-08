@@ -224,8 +224,8 @@ struct MacInspector: View {
 /// their identities as screens change, so AppKit reuses them: the leading item (Back and Forward on every screen, then
 /// Record with its menu of kinds everywhere but a transcript), the center (a transcript's tabs), the screen's own items,
 /// and the inspector button. Search is the window's one system field at the trailing end
-/// (`.searchable(placement: .toolbar)`, "Search or ask"). The leading set never changes, so a screen change doesn't
-/// reshuffle the bar (review M-10).
+/// (`.searchable(placement: .toolbar)`, "Search or ask"), which opens the Search or ask panel as you type (MAC-35). The
+/// leading set never changes, so a screen change doesn't reshuffle the bar (review M-10).
 ///
 /// Record sits in the leading item, beside Back and Forward, so it never goes into the toolbar's overflow: a toolbar
 /// short of room moves its trailing items there first, and in build 239's 1000 pt window the inspector and the search
@@ -422,7 +422,7 @@ enum ToolbarSearchPrompt {
     }
 
     /// The toolbar's search field (the toolbar item's, or found in the window's frame outside its content). Also how
-    /// ↓ in it reaches the Library's passages (Views/PassageKeys.swift).
+    /// ↓ and ↑ in it reach the Search or ask panel's results (Views/SearchPanelKeys.swift).
     static func fields(in window: NSWindow) -> [NSSearchField] {
         let items = (window.toolbar?.items ?? []).compactMap { ($0 as? NSSearchToolbarItem)?.searchField }
         if !items.isEmpty { return items }

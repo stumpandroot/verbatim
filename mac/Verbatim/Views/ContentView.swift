@@ -36,10 +36,9 @@ struct ContentView: View {
         }
         .background(Refined.paper)
         .background(WindowReader { w in if app.mainWindow !== w { app.mainWindow = w } })
-        // Search or ask (⌘K): the panel over the window (Views/AskViews.swift). The toolbar's search field is the
-        // window's one search field; Return there asks.
+        // Search or ask: the panel over the window (Views/AskViews.swift), from ⌘K or from typing in the toolbar's
+        // search field (MAC-35).
         .overlay { AskPanelLayer() }
-        .onChange(of: app.search) { _, v in if !v.isEmpty, app.screen != .library { app.go(.library) } }
         .sheet(isPresented: Bindable(app).showMicSheet) { MicSheet() }
         .sheet(isPresented: Bindable(app).showAppPicker) { AppPickerSheet() }
         .sheet(item: Bindable(app).multitrackDraft) { d in MultitrackSheet(draft: d).appState(app) }
@@ -68,7 +67,7 @@ struct ContentView: View {
             Button("Rename") { rename.commit(app.store) }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
-        .onAppear { LaunchClock.rootAppeared(); UITest.run(app: app); app.installLinkPasteMonitor(); NavTrail.shared.installMonitor(app); ToastUndoKey.shared.install(app); PassageKeys.shared.install(app) }
+        .onAppear { LaunchClock.rootAppeared(); UITest.run(app: app); app.installLinkPasteMonitor(); NavTrail.shared.installMonitor(app); ToastUndoKey.shared.install(app); SearchPanelKeys.shared.install(app) }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }
         // The chrome takes the accent (DESIGN.md §13): toolbar buttons, menus, and selection. Mac switches take
         // `macSwitch` where they're drawn (`refinedSwitchTint()`).
@@ -80,8 +79,12 @@ struct ContentView: View {
     /// the screen's items, and the search field, and one inspector.
     private var main: some View {
         MacWindow(nav: windowNav, columns: $columns) { detail }
-            .searchable(text: Bindable(app).search, placement: .toolbar, prompt: ToolbarSearchPrompt.prompt)
-            .onSubmit(of: .search) { AskNav.shared.open(mode: .ask, query: app.search, askNow: true) }
+            // The toolbar's field opens Search or ask (MAC-35): its words go to the panel, which lists recordings and
+            // passages, so the Library never filters under you while you type. Return opens the chosen result, or
+            // asks; ↓ and ↑ move through the results (Views/SearchPanelKeys.swift).
+            .searchable(text: Bindable(app).toolbarQuery, placement: .toolbar, prompt: ToolbarSearchPrompt.prompt)
+            .onSubmit(of: .search) { AskNav.shared.submit(app, fromToolbar: true) }
+            .onChange(of: app.toolbarQuery) { _, v in AskNav.shared.toolbarChanged(v) }
             // The prompt in `mute` once the toolbar exists, and again after each screen change (MacChrome.swift).
             .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { ToolbarSearchPrompt.apply(to: app.mainWindow) } }
             .onChange(of: app.navCount) { _, _ in DispatchQueue.main.async { ToolbarSearchPrompt.apply(to: app.mainWindow) } }

@@ -82,18 +82,20 @@ let cleaned = PageFind.matches(in: ["Speaker 1: fold it.\n\nSpeaker 2: Fold twic
 check("find: Cleaned is one line, so a match's range is its place in the editor's text",
       cleaned.count == 2 && cleaned.allSatisfy { $0.line == 0 } && cleaned[0].range.location == 11 && cleaned[1].range.location == 32, "\(cleaned)")
 
-// MARK: Search passages from the keyboard
+// MARK: The Search or ask panel from the keyboard (MAC-35)
 
-check("passages: ↓ in the field goes to the first passage", PassageCursor.step(from: nil, count: 3, down: true) == .passage(0))
-check("passages: ↓ and ↑ move between passages", PassageCursor.step(from: 0, count: 3, down: true) == .passage(1)
-      && PassageCursor.step(from: 2, count: 3, down: false) == .passage(1))
-check("passages: ↓ past the last goes to the table, ↑ above the first to the field",
-      PassageCursor.step(from: 2, count: 3, down: true) == .table && PassageCursor.step(from: 0, count: 3, down: false) == .searchField)
-check("passages: with none, ↓ goes to the table", PassageCursor.step(from: nil, count: 0, down: true) == .table)
-check("passages: only a plain ↓ with passages showing leaves the field",
-      PassageCursor.entersFromField(keyCode: 125, mods: [], passages: 2) && !PassageCursor.entersFromField(keyCode: 125, mods: [.shift], passages: 2)
-      && !PassageCursor.entersFromField(keyCode: 125, mods: [.command], passages: 2) && !PassageCursor.entersFromField(keyCode: 125, mods: [], passages: 0)
-      && !PassageCursor.entersFromField(keyCode: 126, mods: [], passages: 2) && !PassageCursor.entersFromField(keyCode: 48, mods: [], passages: 2))
+check("panel: plain ↓, ↑, and Esc are the panel's keys", PanelKeys.key(keyCode: 125, mods: []) == .down
+      && PanelKeys.key(keyCode: 126, mods: []) == .up && PanelKeys.key(keyCode: 53, mods: []) == .close)
+check("panel: ⇧, ⌘, or ⌥ with an arrow, and other keys, stay in the field", PanelKeys.key(keyCode: 125, mods: [.shift]) == nil
+      && PanelKeys.key(keyCode: 126, mods: [.command]) == nil && PanelKeys.key(keyCode: 125, mods: [.option]) == nil
+      && PanelKeys.key(keyCode: 36, mods: []) == nil && PanelKeys.key(keyCode: 48, mods: []) == nil && PanelKeys.key(keyCode: 0, mods: []) == nil)
+check("panel: ↓ and ↑ move through the results", PanelKeys.step(from: 0, count: 4, down: true) == 1 && PanelKeys.step(from: 2, count: 4, down: false) == 1)
+check("panel: the first and last results stay put at the ends", PanelKeys.step(from: 0, count: 4, down: false) == 0
+      && PanelKeys.step(from: 3, count: 4, down: true) == 3)
+check("panel: a cursor past the results comes back in range", PanelKeys.step(from: 9, count: 3, down: false) == 1
+      && PanelKeys.step(from: -2, count: 3, down: true) == 1 && PanelKeys.step(from: 0, count: 0, down: true) == 0)
+check("panel: Return opens the chosen result, the first before you move, nothing with none",
+      PanelKeys.chosen(0, count: 3) == 0 && PanelKeys.chosen(2, count: 3) == 2 && PanelKeys.chosen(5, count: 3) == 2 && PanelKeys.chosen(0, count: 0) == nil)
 
 // MARK: The Library at small widths
 
@@ -189,10 +191,18 @@ check("find: the Cleaned editor marks matches without touching its text, and scr
 check("find: Summary marks matches in butter and underlines the current one",
       summaryBlock.contains("ReadingHighlight.marked(AttributedString(text), query: query, minLength: 1)")
       && summaryBlock.contains("underlineStyle = Text.LineStyle(") && transcriptView.contains("find.setTexts(lines)"))
-let passageKeys = read("Verbatim/Views/PassageKeys.swift")
-check("passages: ↓ is taken only while the toolbar's search field is typed in on the Library (MAC-23 follow-up)",
-      passageKeys.contains("app.screen == .library") && passageKeys.contains("Self.typingInToolbarSearch(w)")
-      && passageKeys.contains("PassageCursor.entersFromField(") && read("Verbatim/Views/ContentView.swift").contains("PassageKeys.shared.install(app)"))
+let panelKeys = read("Verbatim/Views/SearchPanelKeys.swift"), askViews = read("Verbatim/Views/AskViews.swift"), contentView = read("Verbatim/Views/ContentView.swift")
+check("panel: the keys act only while the panel shows Search and a search field is typed in (MAC-35)",
+      panelKeys.contains("nav.mode == .search, !nav.order.isEmpty") && panelKeys.contains("Self.typingInToolbarSearch(w)")
+      && panelKeys.contains("PanelKeys.key(keyCode:") && contentView.contains("SearchPanelKeys.shared.install(app)"))
+check("panel: the toolbar's field opens the panel instead of filtering the Library (MAC-35)",
+      contentView.contains(".searchable(text: Bindable(app).toolbarQuery") && contentView.contains("AskNav.shared.toolbarChanged(v)")
+      && contentView.contains("AskNav.shared.submit(app, fromToolbar: true)") && !contentView.contains(".searchable(text: Bindable(app).search"))
+check("panel: Search lists recordings and passages and never writes the Library's search while you type",
+      askViews.contains("SearchPanelResults.find(") && !askViews.contains("if nav.mode == .search { app.search = q }")
+      && askViews.contains("PanelKeys.chosen(cursor, count: order.count)"))
+check("panel: the Ask page shows the same panel inline, with Ask chosen", askViews.contains("AskPanel(inline: true)")
+      && askViews.contains("nav.mode = .ask") && !askViews.contains("ask-screen-field"))
 
 // Hidden shortcut buttons: a zero-size Button("") with a shortcut is gone wherever a menu now carries it.
 for p in ["Verbatim/Views/TranscriptView.swift", "Verbatim/Document/DocumentView.swift"] {
@@ -214,7 +224,9 @@ check("keyboard: calendar days and arrows, the pad's arrows and mic take focus a
       read("Verbatim/Views/ByDayView.swift").components(separatedBy: ".keyActivation").count == 3
       && read("Verbatim/Flow/ThoughtPad.swift").components(separatedBy: ".keyActivation").count >= 3
       && read("Verbatim/Views/Controls.swift").contains(".focusable(enabled, interactions: .activate)"))
-check("keyboard: a search passage is a Button (MAC-23)", library.contains("Button(action: open)") && !library.contains(".onTapGesture { app.focusSegment = segment.id"))
+check("keyboard: a search result in the panel is a Button (MAC-23, MAC-35)", askViews.contains("struct SearchPanelRow") && askViews.contains("Button(action: open)"))
+check("panel: the Library's inline passages are gone", !library.contains("PassageResults") && !library.contains("passageCursor")
+      && !FileManager.default.fileExists(atPath: mac.appendingPathComponent("Verbatim/Views/PassageKeys.swift").path))
 
 // Small windows (group 5).
 check("small: the Cleaned toolbar fits a row, two rows, or More (MAC-04)",

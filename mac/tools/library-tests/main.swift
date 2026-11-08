@@ -35,5 +35,33 @@ check("chip labels start with a capital and have no em dashes or exclamation poi
       labels.allSatisfy { $0.first?.isUppercase == true && !$0.contains("\u{2014}") && !$0.contains("!") })
 check("only the first word of a chip is capitalized", LibraryChip.allCases.allSatisfy { $0.label.split(separator: " ").dropFirst().allSatisfy { $0.first?.isLowercase == true } })
 
+// The Search or ask panel's Search results (Model/SearchPanel.swift, MAC-35): recordings by title, then lines.
+func rec(_ title: String, _ lines: [String], status: Transcript.Status = .ready) -> Transcript {
+    var t = Transcript(title: title, source: .voiceMemo, sourceLabel: "Voice memo", duration: 60, audioFileName: nil, model: "")
+    t.segments = lines.enumerated().map { Segment(start: Double($0.offset * 5), end: Double($0.offset * 5 + 5), text: $0.element) }
+    t.status = status
+    return t
+}
+let walk = rec("Folding wagon walkthrough", ["This is the folding wagon.", "It folds flat for the truck.", "Nothing here."])
+let call = rec("Catalog call", ["The catalog needs the Folding wagon.", "And the wheel line.", "folding again", "fólding with an accent", "folding five"])
+let busy = rec("Folding notes", ["folding while it transcribes"], status: .processing)
+let found = SearchPanelResults.find("folding", in: [walk, call, busy])
+check("search panel: recordings are the title matches, in the list's order", found.recordings.map(\.title) == ["Folding wagon walkthrough", "Folding notes"])
+check("search panel: lines come from ready recordings only, ignoring case and accents",
+      found.passages.map(\.transcript.title) == ["Folding wagon walkthrough", "Catalog call"] && found.passages[1].count == 4)
+check("search panel: at most three lines from one recording", found.passages.allSatisfy { $0.lines.count <= SearchPanelResults.perRecording }
+      && found.passages[1].lines.count == 3)
+check("search panel: the items walk the recordings, then the lines", found.items.count == 2 + 1 + 3
+      && found.items.first == SearchPanelItem.recording(walk.id) && found.items[2] == SearchPanelItem.passage(transcript: walk.id, segment: walk.segments[0].id))
+check("search panel: an item opens its recording, at its line for a passage", found.items[2].transcript == walk.id && found.items[2].segment == walk.segments[0].id
+      && found.items[0].segment == nil)
+check("search panel: one letter, or spaces, searches nothing", SearchPanelResults.find("f", in: [walk]).isEmpty && SearchPanelResults.find("  ", in: [walk]).isEmpty
+      && !SearchPanelResults.searches(" f ") && SearchPanelResults.searches("fo"))
+let many = (0..<9).map { rec("Folding \($0)", ["folding a", "folding b"]) }
+let capped = SearchPanelResults.find("folding", in: many)
+check("search panel: at most five recordings and eight lines", capped.recordings.count == SearchPanelResults.maxRecordings
+      && capped.passages.reduce(0) { $0 + $1.lines.count } == SearchPanelResults.maxLines)
+check("search panel: nothing matching is empty", SearchPanelResults.find("zebra", in: [walk, call]).isEmpty)
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

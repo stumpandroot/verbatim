@@ -44,7 +44,12 @@ final class AppState: DistinctTracking {
     @ObservationIgnored var navStartedAt = Date()
     /// The open "Navigate" signpost (Perf), from `go` to the new screen's root `onAppear`. Not published.
     @ObservationIgnored private var navInterval: OSSignpostIntervalState?
+    /// The Library's search filter: set only by the Search or ask panel's Show all in the Library, and cleared by the
+    /// Library's search chip (MAC-35).
     @ObservationIgnored @Distinct var search = ""
+    /// The toolbar's search field's words (`.searchable`): typing there opens the Search or ask panel with them
+    /// (`AskNav.toolbarChanged`); they never filter the Library. Distinct, since the field writes back on every update.
+    @ObservationIgnored @Distinct var toolbarQuery = ""
     @ObservationIgnored @Distinct var projectFilter: UUID? = nil
     /// Library › kind chips: nil is All.
     @ObservationIgnored @Distinct var libraryKind: RecordingKind? = nil

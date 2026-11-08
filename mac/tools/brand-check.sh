@@ -62,8 +62,8 @@ ratchet() {  # name, pattern, baseline
   fi
 }
 ratchet "Literal serif fonts (use Refined.serif or a kit role)" 'design: \.serif\)' 2
-ratchet "Literal font sizes (use refinedFont)" '\.system\(size:' 320
-ratchet "Literal corner radii (use RefinedRules.radius or Radius)" 'cornerRadius: [0-9]' 34
+ratchet "Literal font sizes (use refinedFont)" '\.system\(size:' 319
+ratchet "Literal corner radii (use RefinedRules.radius or Radius)" 'cornerRadius: [0-9]' 33
 ratchet "Literal animation curves (use the Motion tokens)" '\.(easeOut|easeIn|easeInOut|linear|smooth|snappy|bouncy)\(duration: [0-9]|\.spring\((duration|response): [0-9]' 14
 # 9. Radius numbers on the widgets, keyboard, and watch.
 radii=$(grep -rnE --include=*.swift 'cornerRadius: *[0-9]' VerbatimWidgets VerbatimMacWidgets VerbatimKeyboard VerbatimWatch VerbatimWatchWidgets 2>/dev/null | cut -d: -f1,2)
