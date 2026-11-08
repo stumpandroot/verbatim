@@ -376,5 +376,11 @@ check("a recording's Lock Screen leads with the recording dot or the Thoughts sy
       !structBody(recordingActivity, "RecordingLockScreen").contains("BarsMark") && !structBody(recordingActivity, "ThoughtLockScreen").contains("BarsMark")
       && structBody(recordingActivity, "ThoughtLockScreen").contains("Image(\"thought\")"))
 
+// MARK: SF-28: rows fade before Record's accessory
+
+check("Home's scroll view has the soft bottom edge under Record's accessory (iOS 26)",
+      source("VerbatimPhone/RecordAccessory.swift").contains("content.scrollEdgeEffectStyle(.soft, for: .bottom)")
+      && source("VerbatimPhone/HomeScreen.swift").contains("ScrollView { content }\n                .modifier(AccessoryScrollEdge())"))
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

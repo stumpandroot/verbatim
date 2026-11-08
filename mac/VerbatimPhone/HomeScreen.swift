@@ -157,6 +157,7 @@ struct HomeScreen: View {
         let content = content()
         return ScrollViewReader { proxy in
             ScrollView { content }
+                .modifier(AccessoryScrollEdge())   // rows fade before Record's accessory (SF-28)
                 .onReceive(NotificationCenter.default.publisher(for: .verbatimHomeScroll)) { note in
                     guard let id = note.object as? String else { return }
                     withAnimation(limitMotion ? nil : Motion.settle) { proxy.scrollTo(id, anchor: .top) }
