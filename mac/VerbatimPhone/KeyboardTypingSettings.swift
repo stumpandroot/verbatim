@@ -6,8 +6,9 @@ import UIKit
 // switches are on by default. The keyboard also follows each app's field settings, so a field that turns off
 // autocorrection gets none.
 
-/// The languages the keyboard types in: the keyboards you added in the Settings app that Apple's on-device spell checker
-/// supports and a Latin layout can type. The app writes the list to the App Group at launch, each time it becomes active,
+/// The languages the keyboard types in: the keyboards you added in the Settings app that a layout here types (Latin-script
+/// languages Apple's on-device spell checker supports, and Russian, Ukrainian, Greek, Arabic, and Hebrew with or without
+/// it; `TypingLanguages.resolve`). The app writes the list to the App Group at launch, each time it becomes active,
 /// and when Settings › Keyboard opens, because only the app can read the keyboards list reliably.
 enum KeyboardLanguagesMirror {
     /// The keyboards' languages as iOS lists them ("en-US", "es-MX", "emoji"). The Verbose keyboard is one of them and
@@ -84,7 +85,7 @@ struct KeyboardLanguagesScreen: View {
     var body: some View {
         SettingsPageScaffold(title: "Languages", inline: true) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Corrections, suggestions, and long-press letters work in every language Apple's spell checker supports on this iPhone. The Verbose keyboard follows the keyboards you added in the Settings app.")
+                Text("The Verbose keyboard follows the keyboards you added in the Settings app. Corrections and suggestions work in each language Apple's spell checker supports on this iPhone; the others type without them.")
                     .scaledFont(16).foregroundStyle(Refined.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 10)
@@ -94,7 +95,7 @@ struct KeyboardLanguagesScreen: View {
                     ForEach(Array(supported.enumerated()), id: \.offset) { i, id in
                         if i > 0 { SettingsDivider() }
                         HStack(spacing: 10) {
-                            SettingsRowText(title: names[i], subtitle: TypingLanguages.layout(for: id).title)
+                            SettingsRowText(title: names[i], subtitle: TypingLanguages.settingsLine(id, available: KeyboardLanguagesMirror.available))
                             Spacer(minLength: 8)
                         }
                         .padding(.horizontal, 14).padding(.vertical, 8)
