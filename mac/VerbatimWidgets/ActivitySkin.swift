@@ -3,8 +3,8 @@ import WidgetKit
 
 /// The Lock Screen's Live Activities (the session's and the recording's) follow the Lock Screen's appearance, not the
 /// app's (DESIGN.md §13): paper with ink in light, and the app's near-black green (`darkPaperFixed`) with paper text
-/// in dark, so a bright banner never sits on a dark Lock Screen. The persimmon Stop with ink stays the same in both;
-/// the voice bars and the bars mark take `mark`. The Dynamic Island is always black and doesn't use this.
+/// in dark, so a bright banner never sits on a dark Lock Screen. The persimmon Stop with ink, and the session's butter
+/// Dictate, Done, and Restart with ink (SF-05), stay the same in both; the voice bars and the bars mark take `mark`. The Dynamic Island is always black and doesn't use this.
 ///
 /// Always On (`dimmed`, SF-14): while the system dims the Lock Screen, the bars rest, Stop and the primary button are
 /// outlined, and the line under the title takes `mute` (`AlwaysOn` in RibbonRules.swift).

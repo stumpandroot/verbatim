@@ -263,6 +263,13 @@ check("segment titles match the mockup", DictateButton.Size.allCases.map(\.title
       && DictateButton.Position.allCases.map(\.title) == ["Left", "Center", "Right"]
       && DictateButton.Style.allCases.map(\.title) == ["Filled", "Outline"])
 check("VoiceOver label", DictateButton.accessibilityLabel == "Start dictation")
+// SF-05 (Tim, November 8, 2026): dictation's butter with ink, and the dictate glyph, in every size and position.
+let looks = DictateButton.Size.allCases.flatMap { s in DictateButton.Position.allCases.map { (s, $0) } }
+check("Filled is butter with the fill's ink and no ring, in every size and position",
+      looks.allSatisfy { let b = DictateButton(size: $0.0, position: $0.1, style: .filled); return b.fill == .butter && b.ring == nil && b.foreground == .onFill })
+check("Outline is the card with a butter ring and the reading ink, in every size and position",
+      looks.allSatisfy { let b = DictateButton(size: $0.0, position: $0.1, style: .outline); return b.fill == .card && b.ring == .butter && b.foreground == .ink })
+check("the glyph is dictate (the waves), the same symbol as the Dictate control", DictateButton.glyph == "dictate")
 
 // MARK: The session as the keyboard sees it, and Home without one (KeyboardHome.swift)
 

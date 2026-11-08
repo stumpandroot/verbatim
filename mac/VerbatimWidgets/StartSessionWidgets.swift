@@ -5,14 +5,16 @@ import AppIntents
 // MARK: - Control Center
 
 // Every control's glyph is one of ours, exported as a custom symbol (Assets' symbol sets, `mac/tools/gen_symbol.py`), so
-// Control Center shows one family: the bars mark (the session), `record` (BrandArt's capture), `dictate` (the
-// Dictations icon), `thought`, `mark`, and `captions`.
+// Control Center shows one family: `dictate` (the Dictations icon: the session and Dictate, both butter, SF-05),
+// `record` (BrandArt's capture), `thought`, `mark`, `captions`, and the bars mark (the app's, for the Action button's
+// control before the app names it).
 
 /// Control Center (and the Lock Screen's control slots and the Action button, iOS 18): "Verbose · Session on", or
 /// "Start a session" while off (`Ribbon.sessionOnTitle`, `Ribbon.startSessionTitle`; SF-16). A switch that shows
 /// whether a session holds the microphone. Turning it on with no session opens Verbose for a
 /// moment and starts one; turning it off ends the session without opening Verbose (`SetSessionIntent`). Keeps the
-/// old Start dictation session control's kind, so a control you already added becomes the switch.
+/// old Start dictation session control's kind, so a control you already added becomes the switch. Dictation's look
+/// (SF-05, Tim, November 8, 2026): the dictate glyph, tinted butter.
 @available(iOS 18.0, *)
 struct StartSessionControl: ControlWidget {
     static let kind = "co.stumpandroot.verbatim.ios.control.startSession"
@@ -20,9 +22,9 @@ struct StartSessionControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind, provider: SessionControlValue()) { isOn in
             ControlWidgetToggle("Verbose", isOn: isOn, action: SetSessionIntent()) { on in
-                Label(on ? Ribbon.sessionOnTitle : Ribbon.startSessionTitle, image: "bars")
+                Label(on ? Ribbon.sessionOnTitle : Ribbon.startSessionTitle, image: "dictate")
             }
-            .tint(Refined.persimmon)
+            .tint(Refined.butter)
         }
         .displayName("Verbose session")
         .description("Turns the microphone on for dictation in any app, or off.")
@@ -95,7 +97,7 @@ struct RecordingSwitchValue: ControlValueProvider {
 /// Control Center (iOS 18): Dictate, a switch for a take (SF-16): on while one listens ("Listening"), its own job beside
 /// the session switch, which turns the microphone on or off. Turned on it starts a take (with no session, Verbose opens
 /// for a moment to start one and listen); turned off it stops and delivers your words (`SetTakeIntent`). Keeps the
-/// button's kind, so a control you already added becomes the switch.
+/// button's kind, so a control you already added becomes the switch. Tinted butter, dictation's hue (SF-05).
 @available(iOS 18.0, *)
 struct DictateControl: ControlWidget {
     static let kind = Ribbon.dictateControlKind
@@ -105,7 +107,7 @@ struct DictateControl: ControlWidget {
             ControlWidgetToggle("Dictate", isOn: isOn, action: SetTakeIntent()) { on in
                 Label(on ? "Listening" : "Dictate", image: "dictate")
             }
-            .tint(Refined.persimmon)
+            .tint(Refined.butter)
         }
         .displayName("Dictate")
         .description("Starts listening, or stops and puts your words in. With no session on, Verbose opens for a moment to start one.")
@@ -152,7 +154,8 @@ struct ThoughtSwitchValue: ControlValueProvider {
 /// A Lock Screen widget (circular, rectangular, or inline): "Start a session", or "Session on · 12 min" while one is on
 /// (SF-30), read from the App Group (`KeyboardBridge.sessionLive`, `sessionStartedAt`). The app reloads it when a
 /// session starts or ends; while one is on, it also looks again every `Ribbon.sessionWidgetRecheck`. A tap opens
-/// `verbatim://session?start=1&from=widget` (with a session on, Verbose opens to it). Keeps its kind.
+/// `verbatim://session?start=1&from=widget` (with a session on, Verbose opens to it). Keeps its kind. Every family
+/// shows the dictate glyph (the waves), dictation's glyph everywhere (SF-05); the Lock Screen draws it in one color.
 struct StartSessionWidget: Widget {
     static let kind = Ribbon.sessionWidgetKind
 
@@ -202,15 +205,15 @@ private struct StartSessionAccessoryView: View {
         case .accessoryCircular:
             ZStack {
                 AccessoryWidgetBackground()
-                BarsMark(color: .white).padding(12).widgetAccentable()
+                SessionGlyph().padding(12).widgetAccentable()
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(entry.on ? Ribbon.sessionOnTitle : Ribbon.startSessionTitle)
         case .accessoryInline:
-            Label(entry.on ? Ribbon.sessionOnTitle : Ribbon.startSessionTitle, image: "bars")
+            Label(entry.on ? Ribbon.sessionOnTitle : Ribbon.startSessionTitle, image: "dictate")
         default:
             HStack(spacing: 8) {
-                BarsMark(color: .white).frame(width: 26, height: 26).widgetAccentable()
+                SessionGlyph().frame(width: 26, height: 26).widgetAccentable()
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Verbose").scaledFont(15, weight: .semibold).widgetAccentable()
                     if let started = entry.startedAt {
@@ -224,5 +227,14 @@ private struct StartSessionAccessoryView: View {
             }
             .accessibilityElement(children: .combine)
         }
+    }
+}
+
+/// The Lock Screen session widget's glyph: the dictate glyph (the waves, `BrandArt.iconDictations`, the `dictate`
+/// symbol), in white for the Lock Screen's one color. Decorative: the widget's label names it.
+private struct SessionGlyph: View {
+    var body: some View {
+        BrandGlyph(art: .iconDictations, color: .white, minLineWidth: 1.6).aspectRatio(1, contentMode: .fit)
+            .accessibilityHidden(true)
     }
 }

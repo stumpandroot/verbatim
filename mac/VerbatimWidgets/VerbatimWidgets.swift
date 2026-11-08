@@ -47,7 +47,8 @@ struct HomeScreenWidgets: WidgetBundle {
 /// Island on); "Into Messages"; and Cancel and Done. Otherwise the state, and End session and Dictate. Lock Screen:
 /// the same states on paper (the dark paper in dark, `ActivitySkin`), with "Into Messages · take 3 of this session"
 /// while listening and never any words. Buttons are capsules, and each one's accessibility label starts with the
-/// word it shows, so Voice Control's "Tap Done" finds it.
+/// word it shows, so Voice Control's "Tap Done" finds it. Dictate, Done, and Restart are butter with ink, Dictate with
+/// the dictate glyph (SF-05): dictation's hue everywhere, since persimmon means Record.
 /// While a take listens before the speech model is ready: "Getting ready" in place of Listening. During a call:
 /// Paused for a call. After a session ends by itself: Session ended with Restart (`RestartSessionIntent`) for 15
 /// minutes; tapping anywhere else opens Verbose's confirmation, as before.
@@ -441,7 +442,7 @@ private struct RibbonButtons: View {
             HStack(spacing: 8) {
                 RibbonButton(title: "End session", primary: false, onDark: onDark, intent: EndVerbatimSessionIntent())
                     .accessibilityHint("Turns off the microphone")
-                RibbonButton(title: "Dictate", primary: true, onDark: onDark, outlined: outlinePrimary, intent: DictateIntent())
+                RibbonButton(title: "Dictate", primary: true, onDark: onDark, outlined: outlinePrimary, art: .iconDictations, intent: DictateIntent())
                     .accessibilityHint("Starts listening for a take")
             }
         }
@@ -449,9 +450,11 @@ private struct RibbonButtons: View {
 }
 
 /// A full-width capsule (or one sized to its word, `compact`), like the recording's Mark, Pause, and Stop (DESIGN.md
-/// §5.3). Primary: persimmon with ink text (semibold 14, which passes on persimmon). Secondary: a quiet wash. Opaque
-/// fills only; no text on blur. With no label of its own, VoiceOver and Voice Control use the title. On a dimmed
-/// Always On Lock Screen (`outlined`, SF-14), the primary is a capsule outlined in the listening mark's color instead.
+/// §5.3). Primary: butter with ink text (8.1:1), dictation's hue (SF-05; persimmon is Record's, and the recording's
+/// Stop keeps it). Secondary: a quiet wash. Opaque fills only; no text on blur. With no label of its own, VoiceOver
+/// and Voice Control use the title. On a dimmed Always On Lock Screen (`outlined`, SF-14), the primary is a capsule
+/// outlined in butter (ink on the light paper, where butter is 1.4:1) instead. `art` leads the word with a glyph in
+/// the word's color: the dictate glyph on Dictate.
 private struct RibbonButton<I: AppIntent>: View {
     var title: String
     var primary: Bool
@@ -460,23 +463,26 @@ private struct RibbonButton<I: AppIntent>: View {
     var compact = false
     /// Dimmed Always On: a primary button draws its outline, not its fill.
     var outlined = false
+    /// A glyph before the word, in its color (Dictate's waves).
+    var art: BrandArt? = nil
     var intent: I
 
     var body: some View {
         let filled = primary && !outlined
+        let ink = filled || !onDark ? Refined.inkFixed : Color.white
         Button(intent: intent) {
-            Text(title)
-                .scaledFont(14, weight: .semibold)
-                .foregroundStyle(filled || !onDark ? Refined.inkFixed : Color.white)
-                .lineLimit(1)
-                .frame(maxWidth: compact ? nil : .infinity)
-                .frame(minWidth: compact ? 72 : nil)
-                .padding(.horizontal, compact ? 12 : 0)
-                .padding(.vertical, 8)
-                .background(filled ? Refined.persimmonFixed : primary ? Color.clear : (onDark ? Color.white.opacity(0.12) : Refined.inkFixed.opacity(0.08)),
-                            in: Capsule())
-                .overlay { if primary && outlined { Capsule().strokeBorder(onDark ? Refined.persimmonFixed : Refined.accentTextOnPaper, lineWidth: 1.5) } }
-                .activityTarget(height: 34)
+            HStack(spacing: 6) {
+                if let art { BrandGlyph(art: art, color: ink, minLineWidth: 1.4).frame(width: 16, height: 16) }
+                Text(title).scaledFont(14, weight: .semibold).foregroundStyle(ink).lineLimit(1)
+            }
+            .frame(maxWidth: compact ? nil : .infinity)
+            .frame(minWidth: compact ? 72 : nil)
+            .padding(.horizontal, compact ? 12 : 0)
+            .padding(.vertical, 8)
+            .background(filled ? Refined.butterFixed : primary ? Color.clear : (onDark ? Color.white.opacity(0.12) : Refined.inkFixed.opacity(0.08)),
+                        in: Capsule())
+            .overlay { if primary && outlined { Capsule().strokeBorder(onDark ? Refined.butterFixed : Refined.inkFixed, lineWidth: 1.5) } }
+            .activityTarget(height: 34)
         }
         .buttonStyle(.plain)
     }

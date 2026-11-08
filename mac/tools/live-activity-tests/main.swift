@@ -51,7 +51,7 @@ func tone(_ name: String) -> (light: UInt32, dark: UInt32)? {
 }
 
 if let paperTone = tone("paper"), let inkTone = tone("ink"), let persimmonTone = tone("persimmon"), let muteTone = tone("mute"),
-   let onFillTone = tone("onFill"),
+   let onFillTone = tone("onFill"), let butterTone = tone("butter"), let cardTone = tone("card"),
    let dimAlpha = matches(#"static let onBlackDim = paperFixed\.opacity\(([0-9.]+)\)"#, in: tokens).first.flatMap({ Double($0[1]) }) {
     let paper = paperTone.light, ink = inkTone.light, persimmon = persimmonTone.light, dark = paperTone.dark
     // The fixed values the Live Activities use are the table's (Tokens.swift, "Fixed values").
@@ -71,9 +71,17 @@ if let paperTone = tone("paper"), let inkTone = tone("ink"), let persimmonTone =
     check("Lock Screen, dark: mute keeps 4.5:1", contrast(muteTone.dark, dark) >= 4.5, ratio(contrast(muteTone.dark, dark)))
     check("Stop: ink on persimmon keeps 4.5:1", contrast(ink, persimmon) >= 4.5, ratio(contrast(ink, persimmon)))
     check("the persimmon Stop stands out from the dark paper", contrast(persimmon, dark) >= 3, ratio(contrast(persimmon, dark)))
-    // W-01: text on the persimmon fill (the keyboard's Start, Tap to talk, Done, and the widgets' New thought pill).
+    // W-01: text on the persimmon fill (the widgets' New thought pill, Record, and Stop).
     check("persimmon fill, light: its ink keeps 4.5:1", contrast(onFillTone.light, persimmonTone.light) >= 4.5, ratio(contrast(onFillTone.light, persimmonTone.light)))
     check("persimmon fill, dark: its ink keeps 4.5:1", contrast(onFillTone.dark, persimmonTone.dark) >= 4.5, ratio(contrast(onFillTone.dark, persimmonTone.dark)))
+    // SF-05: dictation's butter (the keyboard's Start, Tap to talk, and Done; the session's Dictate, Done, and Restart)
+    // takes ink, never white.
+    check("butter fill, light: its ink keeps 4.5:1", contrast(onFillTone.light, butterTone.light) >= 4.5, ratio(contrast(onFillTone.light, butterTone.light)))
+    check("butter fill, dark: its ink keeps 4.5:1", contrast(onFillTone.dark, butterTone.dark) >= 4.5, ratio(contrast(onFillTone.dark, butterTone.dark)))
+    check("white on butter fails, so nothing puts it there", contrast(0xFFFFFF, butterTone.light) < 3, ratio(contrast(0xFFFFFF, butterTone.light)))
+    check("the dimmed Always On Done and Dictate: a butter ring stands out from the dark paper", contrast(butterTone.light, dark) >= 3, ratio(contrast(butterTone.light, dark)))
+    check("the Island's butter Done on black", contrast(butterTone.light, 0x000000) >= 3, ratio(contrast(butterTone.light, 0x000000)))
+    check("the keyboard's outlined dictate button: ink on the card, light and dark", contrast(inkTone.light, cardTone.light) >= 4.5 && contrast(inkTone.dark, cardTone.dark) >= 4.5)
 } else {
     check("Tokens.swift has the colors the Live Activities and the keyboard use", false)
 }
@@ -198,10 +206,18 @@ if let panel = home.range(of: "private struct RecordPanel") {
 } else {
     check("the small Record widget's panel exists", false)
 }
-// The one look (DESIGN.md §13): the keyboard's action, dictation, is the persimmon fill with ink on it (bold 16 or
-// larger, as ink on persimmon is 4.45:1), and the outline style takes the accent's text color.
-check("the keyboard's filled dictate button is ink on persimmon", keyboard.contains("style == .filled ? KB.inkFixed : Refined.accentText")
-      && keyboard.contains("static let dictate = Refined.persimmon") && keyboard.contains("static let inkFixed = Refined.onFill"))
+// The one look (DESIGN.md §1 and §13; SF-05, Tim, November 8, 2026): the keyboard's action, dictation, is butter with
+// ink on it and the dictate glyph, as everywhere; the outline is the card with a butter ring. Never persimmon.
+check("the keyboard's dictate button is ink on butter, drawn from DictateButton's paint", keyboard.contains("static let dictate = Refined.butter")
+      && keyboard.contains("static let inkFixed = Refined.onFill") && keyboard.contains("dictatePaint(DictateButton(style: style).foreground)")
+      && keyboard.contains("case .butter: return KB.dictate") && keyboard.contains("case .onFill: return KB.inkFixed")
+      && !code(keyboard).contains("Refined.persimmon"))
+check("the keyboard's Start and Tap to talk show the dictate glyph, not the bars",
+      keyboard.contains("BrandGlyph(art: .iconDictations") && (structBody("TalkPill", in: keyboard) ?? "").contains("DictateGlyph(")
+      && (structBody("DictateStart", in: keyboard) ?? "").components(separatedBy: "DictateGlyph(").count == 3 && !keyboard.contains("StillBars"))
+let preview = source("VerbatimPhone/DictateButtonSettings.swift")
+check("Settings' preview of the dictate button matches: butter, ink, the dictate glyph", preview.contains("case .butter: return Refined.butter")
+      && preview.contains("BrandGlyph(art: .iconDictations") && !code(preview).contains("Refined.persimmon") && !code(preview).contains("Refined.accentText"))
 if let done = keyboard.range(of: "private struct DictateDone") {
     let body = String(keyboard[done.lowerBound...].prefix(1400))
     check("the keyboard's Done reads as Done to VoiceOver", body.contains(".accessibilityLabel(\"Done\")") && body.contains(".accessibilityHint("))
@@ -418,10 +434,12 @@ check("a mirror left by a recording iOS ended is cleared at launch and by Stop w
 check("the Record widget shows a running recording with Stop, and looks again while one runs",
       homeNow.contains("Button(intent: StopRecordingIntent())") && homeNow.contains("if let r = entry.recording, entry.recordingOn {")
       && homeNow.contains("policy: .after(e.date.addingTimeInterval(RecordingMirror.recheckEvery))") && homeNow.contains("provider: RecordProvider()"))
-check("the Lock Screen session widget shows Session on with its time, and its bars are accentable",
+check("the Lock Screen session widget shows Session on with its time, and its glyph is accentable",
       controlsNow.contains("KeyboardBridge.sessionLive ? (KeyboardBridge.sessionStartedAt ?? now) : nil")
-      && controlsNow.contains("Text(started, style: .relative)") && controlsNow.contains("BarsMark(color: .white).padding(12).widgetAccentable()")
-      && controlsNow.contains("BarsMark(color: .white).frame(width: 26, height: 26).widgetAccentable()")
+      && controlsNow.contains("Text(started, style: .relative)") && controlsNow.contains("SessionGlyph().padding(12).widgetAccentable()")
+      && controlsNow.contains("SessionGlyph().frame(width: 26, height: 26).widgetAccentable()")
+      && (structBody("SessionGlyph", in: controlsNow) ?? "").contains("BrandGlyph(art: .iconDictations")
+      && !code(controlsNow).contains("BarsMark(")
       && controlsNow.contains(".after(entry.date.addingTimeInterval(Ribbon.sessionWidgetRecheck)) : .never"))
 check("the session writes when it started and reloads the Lock Screen widget and the Dictate switch",
       sessionApp.contains("forKey: KeyboardBridge.Key.startedAt)") && sessionApp.contains("reloadTimelines(ofKind: Ribbon.sessionWidgetKind)")
@@ -429,6 +447,21 @@ check("the session writes when it started and reloads the Lock Screen widget and
 for w in [Ribbon.startSessionTitle, Ribbon.sessionOnTitle, "Recording a thought", "Listening", "Recording"] {
     check("switch words follow the copy rules: \(w)", !w.contains("\u{2014}") && !w.contains("!") && w.first?.isUppercase == true)
 }
+
+// MARK: SF-05: dictation is butter on the system surfaces (Tim, November 8, 2026)
+
+let ribbonButton = structBody("RibbonButton<I: AppIntent>", in: session) ?? structBody("RibbonButton", in: session) ?? ""
+check("the session's Dictate, Done, and Restart are butter with ink, never persimmon",
+      ribbonButton.contains("filled ? Refined.butterFixed :") && ribbonButton.contains("filled || !onDark ? Refined.inkFixed : Color.white")
+      && !ribbonButton.contains("persimmon"), ribbonButton)
+check("the dimmed Always On primary is outlined in butter (ink on the light paper)",
+      ribbonButton.contains("strokeBorder(onDark ? Refined.butterFixed : Refined.inkFixed, lineWidth: 1.5)"))
+check("the session's Dictate leads with the dictate glyph", session.contains("RibbonButton(title: \"Dictate\", primary: true, onDark: onDark, outlined: outlinePrimary, art: .iconDictations,"))
+check("the session and Dictate controls show the dictate glyph, tinted butter",
+      controlsNow.contains("Label(on ? Ribbon.sessionOnTitle : Ribbon.startSessionTitle, image: \"dictate\")")
+      && controlsNow.contains("Label(on ? \"Listening\" : \"Dictate\", image: \"dictate\")")
+      && controlsNow.components(separatedBy: ".tint(Refined.butter)").count == 3
+      && controlsNow.contains("Label(entry.on ? Ribbon.sessionOnTitle : Ribbon.startSessionTitle, image: \"dictate\")"))
 
 // MARK: SF-33: the Watch's Smart Stack (the small activity family)
 

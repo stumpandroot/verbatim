@@ -6,11 +6,11 @@ import Foundation
 
 /// The keyboard's dictate button: Typing's Start, Home's Tap to talk, and Listening's Done follow it.
 ///
-/// - Size: Standard keeps the 46 pt pill with the word Start; Large is a 62 pt disc with the voice bars only, and
+/// - Size: Standard keeps the 46 pt pill with the word Start; Large is a 62 pt disc with the dictate glyph only, and
 ///   makes the keyboard 16 pt taller (its top bar grows from 46 to 62 pt).
 /// - Position: left, center, or right, so the button sits under one thumb. The menu button takes the opposite
 ///   corner. Home's Tap to talk and Listening's Done move with it, so the thumb lands in the same place.
-/// - Style: Filled is persimmon with ink; Outline is the card with the accent's ring and the accent's glyphs.
+/// - Style: Filled is butter with ink; Outline is the card with a butter ring and ink (`Paint`, below).
 ///
 /// Every combination keeps the VoiceOver label "Start dictation" and a hit area of at least 46 pt.
 struct DictateButton: Equatable {
@@ -108,4 +108,31 @@ struct DictateButton: Equatable {
 
     /// The VoiceOver label for every combination.
     static let accessibilityLabel = "Start dictation"
+
+    // MARK: Paint (DESIGN.md §1 and §13; SF-05, Tim, November 8, 2026)
+
+    /// What the button is drawn in: dictation's hue, butter, with ink on it, as on Home's Dictate tile, the widgets,
+    /// the session's Live Activity, and Control Center. Never persimmon, which means Record, and never white on
+    /// butter (1.6:1; the fill's ink is 8.1:1, 6.7:1 on the deeper dark butter).
+    enum Paint: String, Equatable {
+        /// `butter`: the filled button, and the outline's ring.
+        case butter
+        /// `card`: the outlined button's face.
+        case card
+        /// `onFill`: the ink fixed on a fill (the fills stay light in dark).
+        case onFill
+        /// `ink`: the reading ink, which turns light in dark, on the card.
+        case ink
+    }
+
+    /// The button's face: butter when Filled, the card when Outline.
+    var fill: Paint { style == .filled ? .butter : .card }
+    /// The outline's 2 pt butter ring; none on Filled.
+    var ring: Paint? { style == .filled ? nil : .butter }
+    /// The word (Start, Tap to talk) and the glyphs: the fill's ink on butter, the reading ink on the card.
+    var foreground: Paint { style == .filled ? .onFill : .ink }
+
+    /// The glyph beside Start and Tap to talk, and alone on the Large disc: dictation's glyph everywhere, the waves
+    /// (the Dictations icon, `BrandArt.iconDictations`, exported as the `dictate` symbol). The bars mark is the app's.
+    static let glyph = "dictate"
 }

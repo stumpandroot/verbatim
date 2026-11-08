@@ -2578,6 +2578,17 @@ enum PhoneUITest {
               && RefinedRules.fill(.sage, palette: .full) == RefinedHex.sage
               && RefinedRules.fill(.butter, palette: .soft) == RefinedHex.butterTint)
         check("Live captions is the off-white tile (P-14)", HomeScreen.tileFill(.captions, in: [.dictate, .importMedia, .whatsPlaying, .captions]) == nil)
+        // SF-05 (Tim, November 8, 2026): the keyboard's Start and Tap to talk, and Settings' preview of them, are butter
+        // with ink and the dictate glyph, as Home's Dictate tile is; never persimmon, never white on butter.
+        let filledLook = DictateButton(style: .filled), outlineLook = DictateButton(style: .outline)
+        check("the keyboard's dictate button is butter with ink, or the card with a butter ring (SF-05)",
+              filledLook.fill == .butter && filledLook.ring == nil && filledLook.foreground == .onFill
+              && outlineLook.fill == .card && outlineLook.ring == .butter && outlineLook.foreground == .ink
+              && DictateButton.glyph == "dictate" && UIImage(named: DictateButton.glyph) != nil)
+        let ink = RefinedHex.onFill, butter = RefinedHex.butter
+        check("ink on butter keeps 4.5:1 in light and dark; white on butter wouldn't (SF-05)",
+              RefinedRules.contrast(ink.light, butter.light) >= 4.5 && RefinedRules.contrast(ink.dark, butter.dark) >= 4.5
+              && RefinedRules.contrast(0xFFFFFF, butter.light) < 3)
         // P-15: Recent recordings, newest first by date, no dictations.
         let recent = HomeScreen.recentRecordings(app.store)
         check("Recent recordings run newest first (P-15)", zip(recent, recent.dropFirst()).allSatisfy { $0.createdAt >= $1.createdAt }

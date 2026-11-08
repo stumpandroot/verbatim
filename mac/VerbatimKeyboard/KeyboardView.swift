@@ -3,7 +3,7 @@ import UIKit
 
 /// The keyboard's palette: the refined tokens (Tokens.swift is in this target, DESIGN.md §13), so it matches the app
 /// in light, dark, and Increase Contrast. Each color follows the keyboard's appearance, which `KeyboardViewController`
-/// sets from the host app. Dictation is the persimmon accent with ink on it; errors are the danger red.
+/// sets from the host app. Dictation is butter with ink on it, as everywhere (SF-05); errors are the danger red.
 ///
 /// There's no panel color: the keyboard's backdrop is Apple's (system chrome stays Apple's). iOS draws the keyboard
 /// container, its rounded top, and the globe and dictation strip below in a neutral gray (about #1F1F1F in dark,
@@ -26,13 +26,13 @@ enum KB {
     /// Metadata: `mute`, a step deeper in light so it holds 4.5:1 on the system's light gray and on `wash`.
     static let muted = Refined.color(RefinedHex.Tone(0x48514A, 0xA1A29A, hc: (0x3E4A43, 0xD4CDC0)))
     static let hairline = Refined.separator
-    /// Text and glyphs on the filled dictate button: ink on persimmon, in both appearances.
+    /// Text and glyphs on the filled dictate button: ink on butter, in both appearances (8.1:1; 6.7:1 in dark).
     static let inkFixed = Refined.onFill
 
     // Keyboard-only colors. The keys and soft surfaces are tuned for Apple's keyboard backdrop rather than the page.
-    /// The keyboard's one action, dictation: Tap to talk, Start, and Listening's done button. Persimmon, the accent
-    /// (DESIGN.md §13), with ink on it.
-    static let dictate = Refined.persimmon
+    /// The keyboard's one action, dictation: Tap to talk, Start, and Listening's done button. Butter, dictation's hue
+    /// everywhere (DESIGN.md §1 and §13; SF-05, Tim, November 8, 2026), with ink on it. Persimmon means Record.
+    static let dictate = Refined.butter
     /// Letter keys and the key popup: the card in light; a raised gray-green in dark, lighter than the system's dark
     /// gray (1.7:1), with ink labels at 8.7:1 (7:1 with Increase Contrast, on a lighter key).
     static let key = Refined.color(RefinedHex.Tone(0xFFFDF9, 0x3A4641, hc: (0xFFFDF9, 0x47544E)))
@@ -70,12 +70,12 @@ enum KB {
 /// Three modes, like Wispr Flow's keyboard, in Verbose's look (the approved mockup, kb2). The dictate button's size,
 /// position, and style follow Settings › Keyboard › Dictate button (`DictateButton`, the notch mockup's section 05):
 /// Typing's Start, Home's Tap to talk, and Listening's done button move and change with it.
-/// - Home: close and ABC (to Typing), Recent, and Settings over your numbers in the serif, with one persimmon Tap to talk.
+/// - Home: close and ABC (to Typing), Recent, and Settings over your numbers in the serif, with one butter Tap to talk.
 ///   With no session, the same layout offers Start a session instead (it opens Verbose straight into one), with
 ///   "Or use Control Center or the Action button" under it; when Verbose couldn't be opened, the other ways.
-/// - Typing: the menu and a persimmon Start over the full keyboard. Words that go in come back here with
+/// - Typing: the menu and a butter Start over the full keyboard. Words that go in come back here with
 ///   "✓ Inserted · 14 words" and Undo for a few seconds.
-/// - Listening: cancel, the cleanup chip, and a persimmon done button over your words, the voice bars, "Listening", and
+/// - Listening: cancel, the cleanup chip, and a butter done button over your words, the voice bars, "Listening", and
 ///   the microphone and time. Starting, writing, and polishing use the same screen.
 /// Typing works without Allow Full Access; Home explains why dictation needs it.
 struct KeyboardView: View {
@@ -675,8 +675,8 @@ private struct StatsPager: View {
     }
 }
 
-/// Home's one big action: Tap to talk with five still voice bars, persimmon (Filled) or the card with the accent's
-/// ring (Outline).
+/// Home's one big action: Tap to talk with the dictate glyph (the waves), butter (Filled) or the card with a butter
+/// ring (Outline), ink on both.
 private struct TalkPill: View {
     var label: String
     var style: DictateButton.Style
@@ -684,7 +684,7 @@ private struct TalkPill: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                StillBars(height: 18, barWidth: 3, color: dictateForeground(style))
+                DictateGlyph(size: 20, color: dictateForeground(style))
                 Text(label).font(.system(size: 16, weight: .bold)).foregroundStyle(dictateForeground(style)).lineLimit(1)
             }
             .padding(.horizontal, 24).frame(height: 50)
@@ -695,21 +695,21 @@ private struct TalkPill: View {
     }
 }
 
-/// Typing's Start (Settings › Keyboard › Dictate button): Standard is the 46 pt pill with the word Start and five
-/// still voice bars (a glyph, not a meter); Large is a 62 pt disc with the bars only. Filled or Outline.
+/// Typing's Start (Settings › Keyboard › Dictate button): Standard is the 46 pt pill with the word Start and the
+/// dictate glyph (the waves); Large is a 62 pt disc with the glyph only. Filled or Outline.
 private struct DictateStart: View {
     var look: DictateButton
     var action: () -> Void
     var body: some View {
         Button(action: action) {
             if look.size == .large {
-                StillBars(height: 24, barWidth: 3.5, color: dictateForeground(look.style))
+                DictateGlyph(size: 28, color: dictateForeground(look.style))
                     .frame(width: CGFloat(DictateButton.disc), height: CGFloat(DictateButton.disc))
                     .dictateSurface(look.style, shape: Circle())
             } else {
                 HStack(spacing: 10) {
                     Text("Start").font(.system(size: 17, weight: .bold)).foregroundStyle(dictateForeground(look.style)).lineLimit(1)
-                    StillBars(height: 20, barWidth: 3, color: dictateForeground(look.style))
+                    DictateGlyph(size: 22, color: dictateForeground(look.style))
                 }
                 .padding(.leading, 20).padding(.trailing, 16).frame(height: KB.barHeight)
                 .dictateSurface(look.style, shape: Capsule())
@@ -740,34 +740,42 @@ private struct DictateDone: View {
     }
 }
 
-/// Five still voice bars (a glyph, not a meter), scaled to `height`.
-private struct StillBars: View {
-    var height: CGFloat
-    var barWidth: CGFloat
+/// Dictation's glyph (the waves, `BrandArt.iconDictations`; `DictateButton.glyph`), bold enough to sit beside the
+/// bold word. Decorative: the button's label carries the meaning.
+private struct DictateGlyph: View {
+    var size: CGFloat
     var color: Color
-    private static let bars: [CGFloat] = [9, 16, 20, 12, 17]
     var body: some View {
-        HStack(spacing: barWidth * 0.85) {
-            ForEach(Self.bars.indices, id: \.self) { i in
-                Capsule().fill(color).frame(width: barWidth, height: Self.bars[i] * height / 20)
-            }
-        }
-        .frame(height: height)
-        .accessibilityHidden(true)
+        BrandGlyph(art: .iconDictations, color: color, minLineWidth: size * 0.09).frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 
-/// Text and glyphs on the dictate button: ink on persimmon (persimmon stays light in dark), the accent on the card.
+/// A `DictateButton.Paint` in the keyboard's colors.
+private func dictatePaint(_ p: DictateButton.Paint) -> Color {
+    switch p {
+    case .butter: return KB.dictate
+    case .card: return KB.card
+    case .onFill: return KB.inkFixed
+    case .ink: return KB.ink
+    }
+}
+
+/// Text and glyphs on the dictate button: ink fixed on butter (butter stays light in dark), the reading ink on the card.
 private func dictateForeground(_ style: DictateButton.Style) -> Color {
-    style == .filled ? KB.inkFixed : Refined.accentText
+    dictatePaint(DictateButton(style: style).foreground)
 }
 
 private extension View {
-    /// The dictate button's surface. Filled: persimmon. Outline: the card with the accent's 1.5 pt ring. No grain and
-    /// no shadow (DESIGN.md §13).
+    /// The dictate button's surface. Filled: butter, with a hairline edge, since butter and the light keyboard's gray
+    /// are close in lightness. Outline: the card with a 2 pt butter ring. No grain and no shadow (DESIGN.md §13).
     func dictateSurface<S: InsettableShape>(_ style: DictateButton.Style, shape: S) -> some View {
-        background(shape.fill(style == .filled ? KB.dictate : KB.card))
-            .overlay { if style != .filled { shape.strokeBorder(Refined.accentText, lineWidth: 1.5) } }
+        let look = DictateButton(style: style)
+        return background(shape.fill(dictatePaint(look.fill)))
+            .overlay {
+                if let ring = look.ring { shape.strokeBorder(dictatePaint(ring), lineWidth: 2) }
+                else { shape.strokeBorder(KB.hairline, lineWidth: 1) }
+            }
             .contentShape(shape)
     }
 }
@@ -1026,7 +1034,7 @@ private struct FullAccessCard: View {
 }
 
 /// Home with no session, in the kb2 Home's place for the numbers: "Start a session *to dictate.*" in the serif
-/// and what Start a session does. The persimmon Start a session pill and the quieter line sit below it, where Tap to
+/// and what Start a session does. The butter Start a session pill and the quieter line sit below it, where Tap to
 /// talk does.
 private struct StartSessionHeadline: View {
     var returnsByItself: Bool
