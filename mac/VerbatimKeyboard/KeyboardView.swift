@@ -51,8 +51,8 @@ enum KB {
     static let voice = Refined.ink
 
     /// Keys use a 7 pt radius, like the system keyboard's keys; cards use the refined card's (14 pt on iPhone).
-    static let keyRadius: CGFloat = 7
-    static let cardRadius: CGFloat = 14
+    static let keyRadius = SurfaceRadius.key
+    static let cardRadius = SurfaceRadius.keyboardCard
     /// The top bar: 46 pt circles and pills, 10 pt from the edges.
     static let barHeight: CGFloat = 46
     static let barInset: CGFloat = 10
@@ -1142,7 +1142,7 @@ private struct CleanupChip: View {
                 }
             }
             .padding(.horizontal, 12).frame(height: 34)
-            .background(KB.wash, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+            .background(KB.wash, in: RoundedRectangle(cornerRadius: SurfaceRadius.keyboardChip, style: .continuous))
             .keyboardTarget(visible: 34)
         }
         .buttonStyle(PressFade())
@@ -1296,7 +1296,7 @@ private struct Chip: View {
         Button(action: action) {
             Text(title).scaledFont(13.5, weight: .semibold).foregroundStyle(KB.ink).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 34)
-                .background(KB.wash, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+                .background(KB.wash, in: RoundedRectangle(cornerRadius: SurfaceRadius.keyboardChip, style: .continuous))
                 .keyboardTarget(visible: 34)
         }
         .buttonStyle(PressFade())

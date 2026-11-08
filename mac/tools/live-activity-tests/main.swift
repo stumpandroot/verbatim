@@ -97,7 +97,7 @@ let session = source("VerbatimWidgets/VerbatimWidgets.swift")
 for (name, s) in [("the session's", session), ("the recording's", recording)] {
     check("\(name) Live Activity buttons are capsules", !s.contains("RoundedRectangle(cornerRadius: Radius.row"))
 }
-check("one Stop for a voice note and a thought", !recording.contains("ThoughtStopButton") && recording.contains("StopButton(wide: true, hint: thoughtStopHint)"))
+check("one Stop for a voice note and a thought", !recording.contains("ThoughtStopButton") && recording.contains("StopButton(wide: true, hint: thoughtStopHint"))
 
 // MARK: W-07: Resume on a paused thought
 
@@ -325,6 +325,110 @@ check("the week's day letters are SF Pro 11 semibold, not 8 pt Rounded", source(
 check("the keyboard's notices, lists, and status lines scale, capped short of the accessibility sizes (GPT-07)",
       keyboard.contains(".dynamicTypeSize(...DynamicTypeSize.xxxLarge)") && keyboard.contains("Text(meta).scaledFont(12).monospacedDigit()")
       && keyboard.contains("Text(Self.oneLine(text)).scaledFont(14.5)") && keyboard.contains("Text(i).scaledFont(12.5, weight: .medium)"))
+
+// MARK: SF-14: the Lock Screen's Live Activities on an Always On display
+
+check("Always On: the bars rest at the resting level while dimmed", AlwaysOn.level(0.9, dimmed: true, fallback: 0) == AlwaysOn.restingLevel
+      && AlwaysOn.level(nil, dimmed: true, fallback: 0) == AlwaysOn.restingLevel)
+check("Always On: lit, the bars follow the update's level, clamped, or the fallback", AlwaysOn.level(0.3, dimmed: false, fallback: 0) == 0.3
+      && AlwaysOn.level(4, dimmed: false, fallback: 0) == 1 && AlwaysOn.level(nil, dimmed: false, fallback: 0.5) == 0.5
+      && AlwaysOn.level(.nan, dimmed: false, fallback: 0.5) == 0.5)
+check("Always On: the resting level matches Limit animation's (ActivityLevel.resting)", AlwaysOn.restingLevel == 0.5
+      && source("Verbatim/Model/MotionRules.swift").contains("static let resting: Double = 0.5"))
+check("Always On: Stop and the primary button fill only while lit", AlwaysOn.filled(dimmed: false) && !AlwaysOn.filled(dimmed: true))
+check("the Lock Screen surface reads isLuminanceReduced into the skin", skin.contains("@Environment(\\.isLuminanceReduced) private var dimmed")
+      && skin.contains("ActivitySkin(dark: scheme == .dark, dimmed: dimmed)"))
+check("dimmed, the line under the title takes mute (one step quieter, still 4.5:1 above)", skin.contains("var dim: Color { dimmed ? mute :"))
+for (name, text) in [("RecordingLockScreen", recordingActivity), ("ThoughtLockScreen", recordingActivity)] {
+    let body = structBody(text, name)
+    check("\(name): the bars rest and Stop is outlined while dimmed", body.contains("skin.level(state.level") && body.contains("outlined: skin.fillsPrimary ? nil : skin"))
+}
+let ribbonLock = structBody(sessionActivity, "RibbonLockScreen")
+check("the session's Lock Screen: the bars rest and the primary button is outlined while dimmed",
+      ribbonLock.contains("skin.level(state.level") && ribbonLock.contains("outlinePrimary: !skin.fillsPrimary"))
+check("the outlined Stop draws no fill and rings in the listening mark's color", structBody(recordingActivity, "StopButton").contains("outlined == nil ? Refined.persimmonFixed : Color.clear")
+      && structBody(recordingActivity, "StopButton").contains("strokeBorder(o.mark"))
+/// The Dynamic Island's part of a Live Activity's source: from `dynamicIsland:` to the text after it.
+func island(_ text: String, until end: String) -> String {
+    guard let r = text.range(of: "dynamicIsland:") else { return "" }
+    let rest = text[r.lowerBound...]
+    return String(rest.range(of: end).map { rest[..<$0.lowerBound] } ?? rest)
+}
+let recordingIsland = island(code(recordingActivity), until: "private let recordLink"), sessionIsland = island(code(sessionActivity), until: "private let restartLink")
+check("the Dynamic Island never dims (it doesn't read the skin)", !recordingIsland.isEmpty && !sessionIsland.isEmpty
+      && !recordingIsland.contains("skin.") && !sessionIsland.contains("skin.") && !sessionIsland.contains("outlinePrimary"))
+
+// MARK: SF-10, SF-13, SF-17: the watch's complications and one Record glyph
+
+let watchWidgets = source("VerbatimWatchWidgets/WatchWidgets.swift"), watchScreens = source("VerbatimWatch/WatchScreens.swift")
+check("the watch's Record is circular or a corner, with its kind unchanged", watchWidgets.contains("kind: \"co.stumpandroot.verbatim.watch.record\"")
+      && watchWidgets.contains(".supportedFamilies([.accessoryCircular, .accessoryCorner])") && watchWidgets.contains(".widgetLabel(\"Record\")"))
+check("the watch's Today's thoughts is rectangular or inline, with its kind unchanged", watchWidgets.contains("kind: \"co.stumpandroot.verbatim.watch.thoughts\"")
+      && watchWidgets.contains(".supportedFamilies([.accessoryRectangular, .accessoryInline])") && watchWidgets.contains("family == .accessoryInline"))
+let watchGlyph = structBody(watchWidgets, "WatchRecordGlyph")
+check("the watch's Record is the record disc, not the bars mark", !watchGlyph.isEmpty && watchGlyph.contains("Circle().fill(Refined.recordRed)")
+      && !structBody(watchWidgets, "WatchRecordView").contains("BarsMark") && !watchGlyph.contains("BarsMark"))
+check("tinted faces draw Record as a white, accentable glyph on the system's plate (SF-17)", watchWidgets.contains("@Environment(\\.widgetRenderingMode)")
+      && watchGlyph.contains("Color.white") && watchGlyph.contains(".widgetAccentable()") && watchWidgets.contains("AccessoryWidgetBackground()"))
+check("the watch app's Record is the record disc too (no capture glyph)", watchScreens.contains("Circle().fill(Refined.recordRed).frame(width: 16, height: 16)")
+      && !watchScreens.contains("art: .capture"))
+check("a recording's Lock Screen leads with the recording dot or the Thoughts symbol, not the session's bars mark",
+      !structBody(recordingActivity, "RecordingLockScreen").contains("BarsMark") && !structBody(recordingActivity, "ThoughtLockScreen").contains("BarsMark")
+      && structBody(recordingActivity, "ThoughtLockScreen").contains("Image(\"thought\")"))
+
+// MARK: SF-28: rows fade before Record's accessory
+
+check("Home's scroll view has the soft bottom edge under Record's accessory (iOS 26)",
+      source("VerbatimPhone/RecordAccessory.swift").contains("content.scrollEdgeEffectStyle(.soft, for: .bottom)")
+      && source("VerbatimPhone/HomeScreen.swift").contains("ScrollView { content }\n                .modifier(AccessoryScrollEdge())"))
+
+// MARK: SF-16, SF-18, SF-30: controls and widgets that show what's running
+
+let controlsNow = source("VerbatimWidgets/StartSessionWidgets.swift"), homeNow = source("VerbatimWidgets/HomeWidgets.swift")
+let snapshotSource = source("VerbatimWidgets/WidgetSnapshot.swift"), thoughtRules = source("VerbatimWidgets/ThoughtRules.swift")
+check("placed widgets and controls keep their kinds", Ribbon.sessionWidgetKind == "co.stumpandroot.verbatim.ios.widget.startSession"
+      && Ribbon.dictateControlKind == "co.stumpandroot.verbatim.ios.control.dictate"
+      && snapshotSource.contains("static let recordWidgetKind = \"co.stumpandroot.verbatim.widget.record\"")
+      && snapshotSource.contains("static let recordControlKind = \"co.stumpandroot.verbatim.ios.control.record\"")
+      && thoughtRules.contains("static let controlKind = \"co.stumpandroot.verbatim.ios.control.thought\"")
+      && controlsNow.contains("static let kind = Ribbon.sessionWidgetKind") && controlsNow.contains("static let kind = RecordingMirror.recordControlKind")
+      && controlsNow.contains("static let kind = Ribbon.dictateControlKind") && controlsNow.contains("static let kind = ThoughtRules.controlKind")
+      && homeNow.contains("static let kind = RecordingMirror.recordWidgetKind"))
+check("one phrase to turn the session on, and one for its state", Ribbon.startSessionTitle == "Start a session" && Ribbon.sessionOnTitle == "Session on"
+      && !controlsNow.contains("Session off") && !controlsNow.contains("\"Start dictating\"") && !controlsNow.contains("\"Start dictation session\"")
+      && !controlsNow.contains("Start a Verbose dictation session"))
+for (name, intent, value) in [("Record voice note", "SetRecordingIntent()", "RecordingSwitchValue()"), ("Dictate", "SetTakeIntent()", "TakeSwitchValue()"),
+                              ("New thought", "SetThoughtIntent()", "ThoughtSwitchValue()")] {
+    check("Control Center's \(name) is a switch that shows what's running", controlsNow.contains("provider: \(value)") && controlsNow.contains("action: \(intent)")
+          && controlsNow.contains("ControlWidgetToggle(\"\(name == "Record voice note" ? "Record" : name)\""))
+}
+check("no control says to press it again: it shows Recording a thought instead", !controlsNow.contains("Press it again") && controlsNow.contains("\"Recording a thought\""))
+let recordIntent = source("VerbatimWidgets/RecordVoiceNoteIntent.swift"), thoughtIntent = source("VerbatimWidgets/NewThoughtIntent.swift"), dictateIntents = source("VerbatimWidgets/DictateIntents.swift")
+check("the Record and New thought switches start in place as audio recording intents, and act only when out of step",
+      recordIntent.contains("extension SetRecordingIntent: AudioRecordingIntent {}") && thoughtIntent.contains("extension SetThoughtIntent: AudioRecordingIntent {}")
+      && recordIntent.contains("RecordingMirror.switchActs(on: on, running: running)") && thoughtIntent.contains("RecordingMirror.switchActs(on: on, running: recording)")
+      && dictateIntents.contains("RecordingMirror.switchActs(on: on, running: listening)"))
+check("the Record switch turned off never stops a thought", recordIntent.contains("RecordingControl.recordingOtherThanThought()")
+      && presence.contains("$0.recorder.isRecording && !$0.recordingThought"))
+check("the app mirrors the recording, refreshes its heartbeat, and reloads what reads it", presence.contains("RecordingMirror.write(m)")
+      && presence.contains("Timer(timeInterval: RecordingMirror.heartbeatEvery") && presence.contains("reloadTimelines(ofKind: RecordingMirror.recordWidgetKind)")
+      && presence.contains("reloadControls(ofKind: RecordingMirror.recordControlKind)") && presence.contains("reloadControls(ofKind: ThoughtRules.controlKind)"))
+check("a mirror left by a recording iOS ended is cleared at launch and by Stop with nothing recording",
+      presence.contains("if !app.recorder.isRecording { Self.clearMirror() }") && source("VerbatimWidgets/RecordingActivity.swift").contains("RecordingPresence.clearMirror()"))
+check("the Record widget shows a running recording with Stop, and looks again while one runs",
+      homeNow.contains("Button(intent: StopRecordingIntent())") && homeNow.contains("if let r = entry.recording, entry.recordingOn {")
+      && homeNow.contains("policy: .after(e.date.addingTimeInterval(RecordingMirror.recheckEvery))") && homeNow.contains("provider: RecordProvider()"))
+check("the Lock Screen session widget shows Session on with its time, and its bars are accentable",
+      controlsNow.contains("KeyboardBridge.sessionLive ? (KeyboardBridge.sessionStartedAt ?? now) : nil")
+      && controlsNow.contains("Text(started, style: .relative)") && controlsNow.contains("BarsMark(color: .white).padding(12).widgetAccentable()")
+      && controlsNow.contains("BarsMark(color: .white).frame(width: 26, height: 26).widgetAccentable()")
+      && controlsNow.contains(".after(entry.date.addingTimeInterval(Ribbon.sessionWidgetRecheck)) : .never"))
+check("the session writes when it started and reloads the Lock Screen widget and the Dictate switch",
+      sessionApp.contains("forKey: KeyboardBridge.Key.startedAt)") && sessionApp.contains("reloadTimelines(ofKind: Ribbon.sessionWidgetKind)")
+      && sessionApp.contains("reloadControls(ofKind: Ribbon.dictateControlKind)") && sessionApp.contains("reloadTakeControl(listening: phase == .listening)"))
+for w in [Ribbon.startSessionTitle, Ribbon.sessionOnTitle, "Recording a thought", "Listening", "Recording"] {
+    check("switch words follow the copy rules: \(w)", !w.contains("\u{2014}") && !w.contains("!") && w.first?.isUppercase == true)
+}
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

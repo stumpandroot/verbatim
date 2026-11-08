@@ -3,7 +3,7 @@ import WidgetKit
 import ActivityKit
 import AppIntents
 
-/// The recording's Live Activity (mockup "Library features", section 3a). Lock Screen, on paper: the bars mark,
+/// The recording's Live Activity (mockup "Library features", section 3a). Lock Screen, on paper: the recording dot,
 /// "Recording · Voice note", a mono timer that runs on its own, your voice, "Marked 4:12 · 3 moments so far" once
 /// you've marked one, and Mark, Pause or Resume, and Stop (the one persimmon fill). Dynamic Island compact: a persimmon
 /// dot (a pause glyph while paused) and the timer, or "Marked 4:12" and the count for two seconds after a mark;
@@ -171,8 +171,8 @@ private func islandLine(_ s: VerbatimRecordingAttributes.ContentState) -> String
     return s.markCount > 0 ? "\(s.marksLabel) marked" : "Saved as you go"
 }
 
-/// A voice note on the Lock Screen (mockup "Library features", section 3a), on paper or the dark paper: the bars mark,
-/// "Recording · Voice note" and the time, your voice, the last mark and the count ("Marked 4:12 · 3 moments so far"),
+/// A voice note on the Lock Screen (mockup "Library features", section 3a), on paper or the dark paper: the recording
+/// dot, "Recording · Voice note" and the time, your voice, the last mark and the count ("Marked 4:12 · 3 moments so far"),
 /// and Mark, Pause, and Stop. Saved: a check and "Saved. Transcribing on this iPhone."
 private struct RecordingLockScreen: View {
     var title: String
@@ -190,14 +190,16 @@ private struct RecordingLockScreen: View {
                 .accessibilityElement(children: .combine)
             } else {
                 HStack(spacing: 8) {
-                    BarsMark(color: skin.mark).frame(width: 18, height: 18)
+                    // The recording dot, as in the Island and the minimized recorder (the bars mark is the session's, SF-13).
+                    Circle().fill(skin.mark).frame(width: 10, height: 10).opacity(state.isPaused ? 0.4 : 1)
+                        .frame(width: 18, height: 18).accessibilityHidden(true)
                     Text(state.isPaused ? (state.pausedReason ?? "Paused") : "Recording · \(title)")
                         .scaledFont(15, weight: .semibold).foregroundStyle(ink).lineLimit(1)
                     Spacer(minLength: 8)
                     RecordingTimer(state: state).font(Refined.mono(15, weight: .medium)).foregroundStyle(ink)
                         .frame(width: RecordingTimer.width(15), alignment: .trailing)
                 }
-                ThoughtVoiceBars(level: state.level ?? 0.5, color: skin.mark, count: 34).frame(height: 22)
+                ThoughtVoiceBars(level: skin.level(state.level, fallback: 0.5), color: skin.mark, count: 34).frame(height: 22)
                 if state.markCount > 0, let at = state.markedAt {
                     HStack(spacing: 6) {
                         Image("marked").font(.system(size: 13, weight: .medium)).accessibilityHidden(true)
@@ -214,7 +216,7 @@ private struct RecordingLockScreen: View {
                 HStack(spacing: 8) {
                     MarkButton(tone: .lock(skin), source: "lockScreen")
                     PauseButton(state: state, tone: .lock(skin))
-                    StopButton(wide: true)
+                    StopButton(wide: true, outlined: skin.fillsPrimary ? nil : skin)
                 }
             }
         }
@@ -261,19 +263,24 @@ private struct PauseButton: View {
 }
 
 /// Stop: the one persimmon fill, with an ink square and "Stop" in ink, in a capsule (a voice note's and a thought's).
+/// On a dimmed Always On Lock Screen (`outlined`, SF-14) it's a capsule outlined in the listening mark's color, with the
+/// skin's ink square and word, so no bright fill stays lit.
 private struct StopButton: View {
     var wide: Bool
     var hint = "Saves the recording and transcribes it"
+    var outlined: ActivitySkin? = nil
     var body: some View {
+        let ink = outlined?.ink ?? Refined.inkFixed
         Button(intent: StopRecordingIntent()) {
             HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.inkFixed).frame(width: 10, height: 10)
-                Text("Stop").scaledFont(15, weight: .bold).foregroundStyle(Refined.inkFixed).lineLimit(1)
+                RoundedRectangle(cornerRadius: SurfaceRadius.stopSquare, style: .continuous).fill(ink).frame(width: 10, height: 10)
+                Text("Stop").scaledFont(15, weight: .bold).foregroundStyle(ink).lineLimit(1)
             }
             .padding(.horizontal, wide ? 0 : 18)
             .frame(maxWidth: wide ? .infinity : nil)
             .frame(height: wide ? 40 : 38)
-            .background(Refined.persimmonFixed, in: Capsule())
+            .background(outlined == nil ? Refined.persimmonFixed : Color.clear, in: Capsule())
+            .overlay { if let o = outlined { Capsule().strokeBorder(o.mark, lineWidth: 1.5) } }
             .activityTarget(height: wide ? 40 : 38)
         }
         .buttonStyle(.plain)
@@ -328,7 +335,7 @@ private struct RecordingTimer: View {
 
 // MARK: - A thought
 
-/// A thought on the Lock Screen, on paper or the dark paper: the bars mark, "Recording a thought" (or why it paused),
+/// A thought on the Lock Screen, on paper or the dark paper: the Thoughts symbol, "Recording a thought" (or why it paused),
 /// the time, your voice, where it goes, and Stop, with Resume beside it while paused. Never reads `state.words`:
 /// anyone can read a Lock Screen. Saved: a check and "Added to Thoughts · 9:41".
 private struct ThoughtLockScreen: View {
@@ -343,20 +350,22 @@ private struct ThoughtLockScreen: View {
                 ThoughtSavedLine(state: state, skin: skin)
             } else {
                 HStack(spacing: 8) {
-                    BarsMark(color: skin.mark).frame(width: 18, height: 18)
+                    // The Thoughts symbol, as in the minimal Island and on the New thought control (SF-13).
+                    Image("thought").font(.system(size: 15, weight: .medium)).foregroundStyle(skin.mark)
+                        .frame(width: 18, height: 18).accessibilityHidden(true)
                     Text(state.isPaused ? (state.pausedReason ?? "Paused") : ThoughtRules.lockTitle)
                         .scaledFont(15, weight: .semibold).foregroundStyle(ink).lineLimit(1)
                     Spacer(minLength: 8)
                     RecordingTimer(state: state).font(Refined.mono(15, weight: .medium)).foregroundStyle(ink)
                         .frame(width: RecordingTimer.width(15), alignment: .trailing)
                 }
-                ThoughtVoiceBars(level: state.level ?? 0, color: skin.mark, count: 34).frame(height: 22)
+                ThoughtVoiceBars(level: skin.level(state.level, fallback: 0), color: skin.mark, count: 34).frame(height: 22)
                 Text(ThoughtRules.intoLine(page ?? "Thoughts")).scaledFont(13).foregroundStyle(skin.dim)
                     .lineLimit(1).minimumScaleFactor(0.85)
                 HStack(spacing: 8) {
                     // An interruption (a call, another app's audio) paused it: Resume, as the voice note offers.
                     if state.isPaused { PauseButton(state: state, tone: .lock(skin)) }
-                    StopButton(wide: true, hint: thoughtStopHint)
+                    StopButton(wide: true, hint: thoughtStopHint, outlined: skin.fillsPrimary ? nil : skin)
                 }
             }
         }

@@ -73,7 +73,7 @@ struct MeetingButton: View {
     var icon: BrandArt? = nil
     /// The record dot before the title (the consent sheet's Record).
     var dot = false
-    /// The red stop square before the title (Stop and save).
+    /// Stop's persimmon disc with the ink square before the title (Stop and save; SF-04).
     var stopSquare = false
     var enabled = true
     var stretch = false
@@ -87,7 +87,7 @@ struct MeetingButton: View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         HStack(spacing: 6) {
             if dot { Circle().fill(Refined.recordRed).frame(width: 7, height: 7).accessibilityHidden(true) }
-            if stopSquare { RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Refined.recordRed).frame(width: 9, height: 9).accessibilityHidden(true) }
+            if stopSquare { RefinedStopDisc(size: 14) }
             if let icon { IconGlyph(art: icon, size: 13, color: text) }
             Text(title).lineLimit(1)
         }

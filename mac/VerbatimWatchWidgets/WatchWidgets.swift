@@ -4,7 +4,8 @@ import SwiftUI
 // The watch's complications and Smart Stack card (mockup "Library features", section 4b; DESIGN.md §20). They draw
 // only, from what the watch app keeps in the App Group (the iPhone's thought count and last capture, and the thoughts
 // still waiting to go), and open the watch app to its recorder. Persimmon means record; tinted faces draw them in one
-// color.
+// color. Record is circular or a corner, Today's thoughts rectangular or inline (SF-10), so the faces whose slots are
+// corners or inline can host them too.
 
 struct WatchEntry: TimelineEntry {
     let date: Date
@@ -60,31 +61,85 @@ private struct WatchCardHeader: View {
     }
 }
 
-// MARK: Record (circular)
+// MARK: Record (circular and corner)
+
+/// The record disc (SF-13), the same Record as Home's card and the iPhone's widgets: in full color, the persimmon
+/// plate with the ink disc and the system red dot; in tinted faces (accented or vibrant), a white ring around a dot,
+/// accentable, so the face's tint draws the glyph and never a dark mark on a tinted plate (SF-17).
+private struct WatchRecordGlyph: View {
+    var full: Bool
+    var body: some View {
+        GeometryReader { g in
+            let d = min(g.size.width, g.size.height)
+            ZStack {
+                if full {
+                    Circle().fill(WatchColor.record)
+                    Circle().fill(WatchColor.onRecord).frame(width: d * 0.62, height: d * 0.62)
+                    Circle().fill(Refined.recordRed).frame(width: d * 0.24, height: d * 0.24)
+                } else {
+                    ZStack {
+                        Circle().strokeBorder(Color.white, lineWidth: max(1.5, d * 0.1))
+                        Circle().fill(Color.white).frame(width: d * 0.4, height: d * 0.4)
+                    }
+                    .widgetAccentable()
+                }
+            }
+            .frame(width: g.size.width, height: g.size.height)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// Circular: the disc on its plate. Corner (SF-10): the disc with "Record" along the face's edge.
+private struct WatchRecordView: View {
+    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var mode
+
+    var body: some View {
+        let full = mode == .fullColor
+        Group {
+            if family == .accessoryCorner {
+                WatchRecordGlyph(full: full).padding(3)
+                    .widgetLabel("Record")
+            } else if full {
+                WatchRecordGlyph(full: true)
+            } else {
+                ZStack {
+                    AccessoryWidgetBackground()
+                    WatchRecordGlyph(full: false).padding(13)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Record")
+    }
+}
 
 struct WatchRecordComplication: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "co.stumpandroot.verbatim.watch.record", provider: WatchProvider()) { _ in
-            ZStack {
-                Circle().fill(WatchColor.record).widgetAccentable()
-                BarsMark(color: WatchColor.onRecord).padding(13)
-            }
-            .accessibilityLabel("Record")
-            .widgetURL(WatchRules.recordLink)
-            .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
-            .containerBackground(WatchColor.card, for: .widget)
+            WatchRecordView()
+                .widgetURL(WatchRules.recordLink)
+                .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
+                .containerBackground(WatchColor.card, for: .widget)
         }
         .configurationDisplayName("Record")
         .description("Start a voice note from your watch face.")
-        .supportedFamilies([.accessoryCircular])
+        .supportedFamilies([.accessoryCircular, .accessoryCorner])
     }
 }
 
-// MARK: Today's thoughts (rectangular)
+// MARK: Today's thoughts (rectangular and inline)
 
-struct WatchThoughtsComplication: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "co.stumpandroot.verbatim.watch.thoughts", provider: WatchProvider()) { entry in
+/// Rectangular: "Verbose", "6 thoughts today", and "Tap to add one". Inline (SF-10): "6 thoughts today" alone.
+private struct WatchThoughtsView: View {
+    var entry: WatchEntry
+    @Environment(\.widgetFamily) private var family
+
+    var body: some View {
+        if family == .accessoryInline {
+            Text(WatchRules.complicationTitle(entry.thoughts)).monospacedDigit()
+        } else {
             VStack(alignment: .leading, spacing: 1) {
                 WatchCardHeader()
                 Text(WatchRules.complicationTitle(entry.thoughts))
@@ -93,13 +148,21 @@ struct WatchThoughtsComplication: Widget {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
-            .widgetURL(WatchRules.thoughtLink)
-            .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
-            .containerBackground(WatchColor.card, for: .widget)
+        }
+    }
+}
+
+struct WatchThoughtsComplication: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "co.stumpandroot.verbatim.watch.thoughts", provider: WatchProvider()) { entry in
+            WatchThoughtsView(entry: entry)
+                .widgetURL(WatchRules.thoughtLink)
+                .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
+                .containerBackground(WatchColor.card, for: .widget)
         }
         .configurationDisplayName("Today's thoughts")
         .description("See how many thoughts you have today, and tap to add one.")
-        .supportedFamilies([.accessoryRectangular])
+        .supportedFamilies([.accessoryRectangular, .accessoryInline])
     }
 }
 

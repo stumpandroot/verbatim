@@ -169,14 +169,21 @@ enum RecordingControl {
     /// nothing else happens then.
     @MainActor static func mark(_ source: String) -> Bool { handler?(.mark(source)) ?? false }
 
+    #if !VERBATIM_WIDGETS
+    /// A recording other than a thought is running (the Record switch's state, read in the app's process). Set by the
+    /// app (RecordingPresence); false before it attaches.
+    @MainActor static var recordingOtherThanThought: () -> Bool = { false }
+    #endif
+
     @MainActor static func fire(_ command: Command) {
         if let handler, handler(command) { return }
         #if !VERBATIM_WIDGETS
         // Nothing is recording (Verbatim was closed mid-recording, and launch recovery keeps the audio): the
-        // activity is out of date, so it goes.
+        // activity is out of date, so it goes, and so does the widgets' mirror of it (SF-18).
         for a in Activity<VerbatimRecordingAttributes>.activities {
             Task { await a.end(nil, dismissalPolicy: .immediate) }
         }
+        RecordingPresence.clearMirror()
         #endif
     }
 }

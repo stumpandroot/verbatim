@@ -16,6 +16,15 @@ import UIKit
 // `PhoneState.startRecordChoice`, which run `requestRecord`), so their haptics and checks are the same. The accessory
 // sits on the system's glass, where Apple puts text (§13's layer rule); its text is the refined ink.
 
+/// The soft scroll edge at the bottom on iOS 26 (SF-28): rows scrolling under the tab bar and Record's accessory fade
+/// before they reach its glass, so the accessory's time, words, and Stop never sit over a row's text. On a tab's scroll
+/// view (Home's, `HomeScreen.scroller`).
+struct AccessoryScrollEdge: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) { content.scrollEdgeEffectStyle(.soft, for: .bottom) } else { content }
+    }
+}
+
 /// The accessory's content: Record at rest, the live recording while one runs.
 struct RecordAccessory: View {
     @Environment(PhoneState.self) var app

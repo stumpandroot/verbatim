@@ -466,6 +466,22 @@ extension Ribbon {
         (size * monoAdvance * Double(showsHours ? 7 : 5)).rounded(.up) + 1
     }
 
+    // MARK: The session's words on system surfaces (SF-16, SF-30)
+
+    /// One verb phrase for turning the session on, wherever it appears: the Control Center switch while off, the Lock
+    /// Screen widget, and the keyboard.
+    static let startSessionTitle = "Start a session"
+    /// And one for the state: the switch while on, and the Lock Screen widget ("Session on · 12 min").
+    static let sessionOnTitle = "Session on"
+    /// The Lock Screen session widget (circular, rectangular, inline). It reads `KeyboardBridge.sessionLive`, and the app
+    /// reloads it when a session starts or ends.
+    static let sessionWidgetKind = "co.stumpandroot.verbatim.ios.widget.startSession"
+    /// Control Center's Dictate, a switch for a take (on while one listens); the app reloads it when that changes.
+    static let dictateControlKind = "co.stumpandroot.verbatim.ios.control.dictate"
+    /// While a session is on, the Lock Screen widget looks again this often, so a session iOS ended doesn't read as on
+    /// for long (the app reloads it whenever a session starts or ends).
+    static let sessionWidgetRecheck: TimeInterval = 15 * 60
+
     /// The Action button's control (iOS 18). The app mirrors Settings › Action button's choice into the App Group
     /// under `actionChoiceKey` and reloads the control, so it's named for what it does.
     static let actionControlKind = "co.stumpandroot.verbatim.ios.control.action"
@@ -537,4 +553,26 @@ enum LiveFreshness {
     static let detail = "Verbose hasn't updated this in a while."
     /// The compact Dynamic Island's word.
     static let compact = "Check"
+}
+
+// MARK: - Always On (SF-14)
+
+/// The Lock Screen's Live Activities on an Always On display (`isLuminanceReduced`): Apple asks for no large areas of
+/// bright color and less going on while the system dims the Lock Screen. So the voice bars hold the resting shape (the
+/// level Limit animation sends, `ActivityLevel.resting`), Stop and the session's primary button are outlined instead
+/// of filled, and the line under the title takes `mute`, one step quieter than `dim` (it still keeps 4.5:1). The
+/// Dynamic Island never dims and doesn't use this.
+enum AlwaysOn {
+    /// The level the bars rest at while dimmed: the same resting shape as Limit animation's (`ActivityLevel.resting`).
+    static let restingLevel: Double = 0.5
+
+    /// The level the bars draw: the resting level while dimmed, else the update's (or `fallback` when it has none).
+    static func level(_ level: Double?, dimmed: Bool, fallback: Double) -> Double {
+        if dimmed { return restingLevel }
+        guard let level, level.isFinite else { return fallback }
+        return min(1, max(0, level))
+    }
+
+    /// Stop and the session's primary button fill only while the Lock Screen is lit.
+    static func filled(dimmed: Bool) -> Bool { !dimmed }
 }

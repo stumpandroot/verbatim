@@ -17,6 +17,8 @@
 #   8. Glyphs exported as custom symbols (§3) never fall back to the SF Symbol in the targets that ship them
 #      (VerbatimPhone, VerbatimWidgets): `bookmark`, `mic`, and `captions.bubble` fail even on a system surface line;
 #      use `mark` or `marked`, `dictate`, or `captions` (`Label(_:image:)`, `Image(_:)`).
+#   9. Radius numbers on the small surfaces (§5.3, SF-24): `cornerRadius:` takes a token (`Radius`, `SurfaceRadius`,
+#      or one derived from a size) in the widgets, the keyboard, and the watch, never a number.
 # Run from anywhere: bash mac/tools/brand-check.sh   (exit 1 lists each problem as file:line)
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -61,8 +63,11 @@ ratchet() {  # name, pattern, baseline
 }
 ratchet "Literal serif fonts (use Refined.serif or a kit role)" 'design: \.serif\)' 2
 ratchet "Literal font sizes (use refinedFont)" '\.system\(size:' 320
-ratchet "Literal corner radii (use RefinedRules.radius or Radius)" 'cornerRadius: [0-9]' 40
+ratchet "Literal corner radii (use RefinedRules.radius or Radius)" 'cornerRadius: [0-9]' 34
 ratchet "Literal animation curves (use the Motion tokens)" '\.(easeOut|easeIn|easeInOut|linear|smooth|snappy|bouncy)\(duration: [0-9]|\.spring\((duration|response): [0-9]' 14
+# 9. Radius numbers on the widgets, keyboard, and watch.
+radii=$(grep -rnE --include=*.swift 'cornerRadius: *[0-9]' VerbatimWidgets VerbatimMacWidgets VerbatimKeyboard VerbatimWatch VerbatimWatchWidgets 2>/dev/null | cut -d: -f1,2)
+[ -n "$radii" ] && report "Radius numbers on the widgets, keyboard, or watch (use Radius or SurfaceRadius, DESIGN.md §5.3):" "$radii"
 
 [ $fail -eq 0 ] && echo "brand-check: OK"
 exit $fail

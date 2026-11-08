@@ -50,6 +50,7 @@ enum KeyboardBridge {
         static let endsAt = "kb.s.endsAt"                 // Double: idle timeout, 0 when it runs until you end it
         static let micName = "kb.s.mic"                   // String: "iPhone microphone"
         static let pausedAt = "kb.s.pausedAt"             // Double: when a call paused the session, 0 when it isn't paused
+        static let startedAt = "kb.s.startedAt"           // Double: when the session started, for the Lock Screen's "Session on · 12 min" (SF-30)
         static let engineReady = "kb.s.engineReady"       // Bool: the speech model is loaded and warm (missing reads as ready)
         static let endReason = "kb.s.endReason"           // String: why the last session ended, when it matters
         // Session request (keyboard writes `request`; the app answers with `requestDone` or `requestFailed`)
@@ -290,6 +291,16 @@ enum KeyboardBridge {
         guard let d = defaults, d.bool(forKey: Key.sessionActive) else { return false }
         return Date().timeIntervalSince1970 - d.double(forKey: Key.heartbeat) < heartbeatStale
     }
+
+    /// When the session that's on started (the Lock Screen widget's "Session on · 12 min", SF-30); nil when none is on
+    /// or the app didn't say.
+    static var sessionStartedAt: Date? {
+        guard sessionLive, let t = defaults?.double(forKey: Key.startedAt), t > 0 else { return nil }
+        return Date(timeIntervalSince1970: t)
+    }
+
+    /// A take is listening in the session that's on (Control Center's Dictate switch, SF-16).
+    static var takeListening: Bool { sessionLive && phase == .listening }
 
     /// False while the app's speech model is still loading for the keyboard's first dictation ("Getting ready").
     /// Missing reads as ready, so an older app never makes the keyboard say it's getting ready.

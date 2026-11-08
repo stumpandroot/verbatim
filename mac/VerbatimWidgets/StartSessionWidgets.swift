@@ -8,8 +8,9 @@ import AppIntents
 // Control Center shows one family: the bars mark (the session), `record` (BrandArt's capture), `dictate` (the
 // Dictations icon), `thought`, `mark`, and `captions`.
 
-/// Control Center (and the Lock Screen's control slots and the Action button, iOS 18): "Verbose · Session on". A
-/// switch that shows whether a session holds the microphone. Turning it on with no session opens Verbose for a
+/// Control Center (and the Lock Screen's control slots and the Action button, iOS 18): "Verbose · Session on", or
+/// "Start a session" while off (`Ribbon.sessionOnTitle`, `Ribbon.startSessionTitle`; SF-16). A switch that shows
+/// whether a session holds the microphone. Turning it on with no session opens Verbose for a
 /// moment and starts one; turning it off ends the session without opening Verbose (`SetSessionIntent`). Keeps the
 /// old Start dictation session control's kind, so a control you already added becomes the switch.
 @available(iOS 18.0, *)
@@ -19,7 +20,7 @@ struct StartSessionControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind, provider: SessionControlValue()) { isOn in
             ControlWidgetToggle("Verbose", isOn: isOn, action: SetSessionIntent()) { on in
-                Label(on ? "Session on" : "Session off", image: "bars")
+                Label(on ? Ribbon.sessionOnTitle : Ribbon.startSessionTitle, image: "bars")
             }
             .tint(Refined.persimmon)
         }
@@ -63,92 +64,137 @@ struct ActionChoiceValue: ControlValueProvider {
     }
 }
 
-/// Control Center (iOS 18): Record voice note. Records in place behind the recording's Live Activity when iOS allows,
-/// else opens Verbose to record (`RecordVoiceNoteIntent`).
+/// Control Center (iOS 18): Record voice note, a switch (SF-18). On while a recording other than a thought runs
+/// ("Recording"), from the App Group mirror (`RecordingMirror`), which the app reloads on start, pause, and stop. Turned
+/// on it records in place behind the recording's Live Activity when iOS allows, else opens Verbose to record; turned
+/// off it stops and saves (`SetRecordingIntent`). Keeps the button's kind, so a control you already added becomes the
+/// switch.
 @available(iOS 18.0, *)
 struct RecordVoiceNoteControl: ControlWidget {
-    static let kind = "co.stumpandroot.verbatim.ios.control.record"
+    static let kind = RecordingMirror.recordControlKind
 
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: Self.kind) {
-            ControlWidgetButton(action: RecordVoiceNoteIntent()) {
-                Label("Record", image: "record")
+        StaticControlConfiguration(kind: Self.kind, provider: RecordingSwitchValue()) { isOn in
+            ControlWidgetToggle("Record", isOn: isOn, action: SetRecordingIntent()) { on in
+                Label(on ? "Recording" : "Voice note", image: "record")
             }
             .tint(Refined.persimmon)
         }
         .displayName("Record voice note")
-        .description("Starts a Verbose voice note, in place when iOS allows it.")
+        .description("Starts a Verbose voice note, in place when iOS allows it. Shows Recording while one runs; turn it off to stop and save.")
     }
 }
 
-/// Control Center (iOS 18): Dictate. Opens Verbose for a moment and turns on the microphone for the Verbose keyboard
-/// (`StartKeyboardSessionIntent`, the same as Shortcuts' Start dictation session).
+/// Whether a recording other than a thought runs, from the App Group mirror.
+@available(iOS 18.0, *)
+struct RecordingSwitchValue: ControlValueProvider {
+    var previewValue: Bool { false }
+    func currentValue() async throws -> Bool { RecordingMirror.recordingOn(RecordingMirror.read()) }
+}
+
+/// Control Center (iOS 18): Dictate, a switch for a take (SF-16): on while one listens ("Listening"), its own job beside
+/// the session switch, which turns the microphone on or off. Turned on it starts a take (with no session, Verbose opens
+/// for a moment to start one and listen); turned off it stops and delivers your words (`SetTakeIntent`). Keeps the
+/// button's kind, so a control you already added becomes the switch.
 @available(iOS 18.0, *)
 struct DictateControl: ControlWidget {
-    static let kind = "co.stumpandroot.verbatim.ios.control.dictate"
+    static let kind = Ribbon.dictateControlKind
 
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: Self.kind) {
-            ControlWidgetButton(action: StartKeyboardSessionIntent()) {
-                Label("Dictate", image: "dictate")
+        StaticControlConfiguration(kind: Self.kind, provider: TakeSwitchValue()) { isOn in
+            ControlWidgetToggle("Dictate", isOn: isOn, action: SetTakeIntent()) { on in
+                Label(on ? "Listening" : "Dictate", image: "dictate")
             }
             .tint(Refined.persimmon)
         }
         .displayName("Dictate")
-        .description("Starts a Verbose dictation session, so you can dictate in any app.")
+        .description("Starts listening, or stops and puts your words in. With no session on, Verbose opens for a moment to start one.")
     }
 }
 
-/// Control Center, the Action button, and the Lock Screen's bottom corners (iOS 18): New thought. Records in place behind
-/// its Live Activity when iOS allows, else opens Verbose to the recorder; pressed again while a thought records, it
-/// stops and saves it (`NewThoughtIntent`). Its glyph is the Thoughts icon, exported as a custom symbol.
+/// Whether a take listens, from the App Group (`KeyboardBridge.takeListening`).
+@available(iOS 18.0, *)
+struct TakeSwitchValue: ControlValueProvider {
+    var previewValue: Bool { false }
+    func currentValue() async throws -> Bool { KeyboardBridge.takeListening }
+}
+
+/// Control Center, the Action button, and the Lock Screen's bottom corners (iOS 18): New thought, a switch (SF-16). On
+/// while a thought records ("Recording a thought"), so you can see that pressing it stops it. Turned on it records in
+/// place behind its Live Activity when iOS allows, else opens Verbose to the recorder; turned off it stops the thought
+/// and adds it to today's page (`SetThoughtIntent`). Its glyph is the Thoughts icon, exported as a custom symbol. Keeps
+/// the button's kind, so a control you already added becomes the switch.
 @available(iOS 18.0, *)
 struct NewThoughtControl: ControlWidget {
     static let kind = ThoughtRules.controlKind
 
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: Self.kind) {
-            ControlWidgetButton(action: NewThoughtIntent()) {
-                Label("New thought", image: "thought")
+        StaticControlConfiguration(kind: Self.kind, provider: ThoughtSwitchValue()) { isOn in
+            ControlWidgetToggle("New thought", isOn: isOn, action: SetThoughtIntent()) { on in
+                Label(on ? "Recording a thought" : "New thought", image: "thought")
             }
             .tint(Refined.persimmon)
         }
         .displayName("New thought")
-        .description("Starts a thought that lands on today's Thoughts page. Press it again to stop.")
+        .description("Starts a thought that lands on today's Thoughts page. Shows Recording a thought while one records; turn it off to stop.")
     }
+}
+
+/// Whether a thought records, from the App Group mirror.
+@available(iOS 18.0, *)
+struct ThoughtSwitchValue: ControlValueProvider {
+    var previewValue: Bool { false }
+    func currentValue() async throws -> Bool { RecordingMirror.thoughtOn(RecordingMirror.read()) }
 }
 
 // MARK: - Lock Screen widget
 
-/// A Lock Screen widget (circular, rectangular, or inline) that opens `verbatim://session?start=1&from=widget`.
+/// A Lock Screen widget (circular, rectangular, or inline): "Start a session", or "Session on · 12 min" while one is on
+/// (SF-30), read from the App Group (`KeyboardBridge.sessionLive`, `sessionStartedAt`). The app reloads it when a
+/// session starts or ends; while one is on, it also looks again every `Ribbon.sessionWidgetRecheck`. A tap opens
+/// `verbatim://session?start=1&from=widget` (with a session on, Verbose opens to it). Keeps its kind.
 struct StartSessionWidget: Widget {
-    static let kind = "co.stumpandroot.verbatim.ios.widget.startSession"
+    static let kind = Ribbon.sessionWidgetKind
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: Self.kind, provider: StartSessionProvider()) { _ in
-            StartSessionAccessoryView()
+        StaticConfiguration(kind: Self.kind, provider: StartSessionProvider()) { entry in
+            StartSessionAccessoryView(entry: entry)
                 .widgetURL(URL(string: "verbatim://session?start=1&from=widget"))
                 .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // text grows with Dynamic Type, within the widget (SF-11)
                 .containerBackground(for: .widget) { Color.clear }
         }
-        .configurationDisplayName("Start dictation session")
-        .description("Opens Verbose and turns on the microphone for the Verbose keyboard.")
+        .configurationDisplayName("Verbose session")
+        .description("Shows whether a session is on, and starts one: the microphone for the Verbose keyboard.")
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
 
-struct StartSessionEntry: TimelineEntry { let date: Date }
+struct StartSessionEntry: TimelineEntry {
+    let date: Date
+    /// When the session that's on started; nil while none is on.
+    var startedAt: Date? = nil
+    var on: Bool { startedAt != nil }
+}
 
-/// One entry that never changes: the widget is a button.
+/// Off: one entry that holds until the app reloads it. On: the session's start, and a look again after
+/// `Ribbon.sessionWidgetRecheck`, so one iOS ended goes back to Start a session.
 struct StartSessionProvider: TimelineProvider {
     func placeholder(in context: Context) -> StartSessionEntry { StartSessionEntry(date: Date()) }
-    func getSnapshot(in context: Context, completion: @escaping (StartSessionEntry) -> Void) { completion(StartSessionEntry(date: Date())) }
+    func getSnapshot(in context: Context, completion: @escaping (StartSessionEntry) -> Void) {
+        completion(context.isPreview ? StartSessionEntry(date: Date()) : Self.current())
+    }
     func getTimeline(in context: Context, completion: @escaping (Timeline<StartSessionEntry>) -> Void) {
-        completion(Timeline(entries: [StartSessionEntry(date: Date())], policy: .never))
+        let entry = Self.current()
+        let policy: TimelineReloadPolicy = entry.on ? .after(entry.date.addingTimeInterval(Ribbon.sessionWidgetRecheck)) : .never
+        completion(Timeline(entries: [entry], policy: policy))
+    }
+    static func current(now: Date = Date()) -> StartSessionEntry {
+        StartSessionEntry(date: now, startedAt: KeyboardBridge.sessionLive ? (KeyboardBridge.sessionStartedAt ?? now) : nil)
     }
 }
 
 private struct StartSessionAccessoryView: View {
+    var entry: StartSessionEntry
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
@@ -156,17 +202,23 @@ private struct StartSessionAccessoryView: View {
         case .accessoryCircular:
             ZStack {
                 AccessoryWidgetBackground()
-                BarsMark(color: .white).padding(12)
+                BarsMark(color: .white).padding(12).widgetAccentable()
             }
-            .accessibilityLabel("Start a Verbose dictation session")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(entry.on ? Ribbon.sessionOnTitle : Ribbon.startSessionTitle)
         case .accessoryInline:
-            Label("Start dictating", image: "dictate")
+            Label(entry.on ? Ribbon.sessionOnTitle : Ribbon.startSessionTitle, image: "bars")
         default:
             HStack(spacing: 8) {
-                BarsMark(color: .white).frame(width: 26, height: 26)
+                BarsMark(color: .white).frame(width: 26, height: 26).widgetAccentable()
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Verbose").scaledFont(15, weight: .semibold).widgetAccentable()
-                    Text("Start dictation session").scaledFont(13).lineLimit(2)
+                    if let started = entry.startedAt {
+                        // "Session on · 12 min", counting on its own.
+                        Text("\(Ribbon.sessionOnTitle) · \(Text(started, style: .relative))").scaledFont(13).monospacedDigit().lineLimit(2)
+                    } else {
+                        Text(Ribbon.startSessionTitle).scaledFont(13).lineLimit(2)
+                    }
                 }
                 Spacer(minLength: 0)
             }

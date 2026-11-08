@@ -223,5 +223,40 @@ check("copied: nothing without a marker, or with a damaged one", WidgetSnapshot.
       && WidgetSnapshot.copied(marker: "nonsense", now: now) == nil && WidgetSnapshot.copied(marker: "\(copiedID.uuidString) soon", now: now) == nil)
 check("copied: a marker from the future (a clock change) is ignored", WidgetSnapshot.copied(marker: marker, now: now.addingTimeInterval(-60)) == nil)
 
+// MARK: The running recording's mirror (SF-16, SF-18)
+
+do {
+    let t = Date(timeIntervalSince1970: 1_800_000_000)
+    let m = RecordingMirror.make(elapsed: 134, paused: false, thought: false, label: "Voice note", now: t)
+    check("mirror: the timer's start is the write's time minus the seconds recorded", m.since == t.addingTimeInterval(-134) && m.pausedAt == nil && m.heartbeat == t)
+    let p = RecordingMirror.make(elapsed: 134, paused: true, thought: false, label: "Voice note", now: t)
+    check("mirror: paused, the timer holds at the write", p.pausedAt == t && p.since == t.addingTimeInterval(-134))
+    check("mirror: a bad elapsed reads as 0", RecordingMirror.make(elapsed: .nan, paused: false, thought: false, label: "x", now: t).since == t
+          && RecordingMirror.make(elapsed: -5, paused: false, thought: false, label: "x", now: t).since == t)
+    check("mirror: live while the heartbeat is recent", m.live(at: t.addingTimeInterval(RecordingMirror.heartbeatEvery + 30)))
+    check("mirror: stale once the app stops writing", !m.live(at: t.addingTimeInterval(RecordingMirror.staleAfter)))
+    check("mirror: a heartbeat from the future (a clock change) isn't live", !m.live(at: t.addingTimeInterval(-120)))
+    check("mirror: the heartbeat refresh comes well inside the stale window", RecordingMirror.heartbeatEvery * 2 < RecordingMirror.staleAfter)
+    check("mirror: a running recording turns the Record switch on, not New thought's", RecordingMirror.recordingOn(m, now: t) && !RecordingMirror.thoughtOn(m, now: t))
+    let th = RecordingMirror.make(elapsed: 12, paused: false, thought: true, label: "Thought", now: t)
+    check("mirror: a thought turns New thought's switch on, not Record's", RecordingMirror.thoughtOn(th, now: t) && !RecordingMirror.recordingOn(th, now: t))
+    check("mirror: nothing mirrored, or stale, reads as off", !RecordingMirror.recordingOn(nil) && !RecordingMirror.thoughtOn(nil)
+          && !RecordingMirror.recordingOn(m, now: t.addingTimeInterval(3600)))
+    check("mirror: round trip", RecordingMirror.decode(m.encoded() ?? Data()) == m && RecordingMirror.decode(p.encoded() ?? Data()) == p)
+    check("mirror: no words travel, only times, a kind's name, and the thought flag",
+          Set((try? JSONSerialization.jsonObject(with: m.encoded() ?? Data()) as? [String: Any])?.keys.map { $0 } ?? []) == ["since", "thought", "label", "heartbeat"])
+    let later = RecordingMirror.make(elapsed: 194, paused: false, thought: false, label: "Voice note", now: t.addingTimeInterval(60))
+    check("mirror: a heartbeat refresh shows the same thing (no reload)", later.sameShown(as: m))
+    check("mirror: a pause, a kind change, or a thought shows something new", !p.sameShown(as: m)
+          && !RecordingMirror.make(elapsed: 134, paused: false, thought: false, label: "Meeting", now: t).sameShown(as: m) && !th.sameShown(as: m) && !m.sameShown(as: nil))
+    check("switch: acts only when asked for something other than what's running", RecordingMirror.switchActs(on: true, running: false)
+          && RecordingMirror.switchActs(on: false, running: true) && !RecordingMirror.switchActs(on: true, running: true) && !RecordingMirror.switchActs(on: false, running: false))
+    let d = UserDefaults(suiteName: "widget-tests-\(UUID().uuidString)")!
+    RecordingMirror.write(m, to: d)
+    check("mirror: written and read back from the App Group", RecordingMirror.read(d) == m)
+    RecordingMirror.write(nil, to: d)
+    check("mirror: cleared", RecordingMirror.read(d) == nil)
+}
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
