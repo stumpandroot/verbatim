@@ -1,10 +1,13 @@
 import SwiftUI
 import AppKit
 
-/// The Settings window (DESIGN.md §13; mockup "Verbose Refined Look", MacSettings): a sidebar on the field color (the search field on top, then the panes of MacSettingsMap, each
-/// with its colored icon square, the chosen one on the persimmon tint, and the version with What's new at the foot)
-/// beside the chosen pane on paper. Typing in search swaps the sidebar for the panes with matches and shows every
-/// matching setting; a result opens its pane and flashes the row. ⌘F focuses search; Esc clears it.
+/// The Settings window (DESIGN.md §13; mockup "Verbose Refined Look", MacSettings; redesign MAC-24): the system sidebar
+/// (a NavigationSplitView, as the main window has: the column reaches the full height with the window controls in it,
+/// the glass panel on macOS 26) with the search field on top, then the panes of MacSettingsMap, each with its colored
+/// icon square, the chosen one on the persimmon tint, and the version with What's new at the foot; the chosen pane on
+/// paper beside it. ↑ and ↓ move between panes while the pane list has the keyboard. Typing in search swaps the list for
+/// the panes with matches and shows every matching setting; a result opens its pane and flashes the row. ⌘F focuses
+/// search; Esc clears it.
 struct SettingsView: View {
     @AppStorage("settingsTab") private var tab: SettingsTab = .personalization
     @ObservedObject private var model = SettingsModel.shared
@@ -41,9 +44,13 @@ struct SettingsView: View {
     }
 
     private var window: some View {
-        HStack(spacing: 0) {
+        // Always both columns: there's no sidebar button, and the pane list is the only way between panes.
+        NavigationSplitView(columnVisibility: .constant(.all)) {
             SettingsSidebar(tab: $tab, searchFocused: $searchFocused)
-                .frame(width: 260)
+                .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 300)
+                .toolbar(removing: .sidebarToggle)
+        } detail: {
+            // The pages are as they were: on paper, from the window's top edge under the transparent title bar.
             Group {
                 if model.isSearching {
                     SettingsSearchResults()
@@ -52,9 +59,10 @@ struct SettingsView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Refined.paper)
+            .ignoresSafeArea(.container, edges: .top)
         }
         .background(Refined.paper)
-        .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: 820, idealWidth: 1000, maxWidth: .infinity, minHeight: 560, idealHeight: 720, maxHeight: .infinity)
         .foregroundStyle(Refined.ink)
         .tint(Refined.accentText)
@@ -84,7 +92,8 @@ struct SettingsView: View {
         }
     }
 
-    /// The page runs under a transparent title bar, like the main window, so the sidebar reaches the top edge.
+    /// The page runs under a transparent title bar, like the main window, so the sidebar reaches the top edge with the
+    /// window controls in it.
     private func configure(_ w: NSWindow) {
         SettingsModel.shared.window = w
         guard !w.styleMask.contains(.fullSizeContentView) || w.titleVisibility != .hidden else { return }
@@ -99,16 +108,45 @@ struct SettingsView: View {
 
 // MARK: - Sidebar
 
-/// The sidebar (mockup): the search field, then each pane's row with its square, or while searching, the panes with
-/// matches and how many; the version and What's new at the foot.
+/// The sidebar column (mockup; MAC-24): the search field, then each pane's row with its square, or while searching, the
+/// panes with matches and how many; the version and What's new at the foot. It sits on the system's sidebar surface
+/// (`macSidebarSurface`). With the pane list focused, ↑ and ↓ open the pane before or after (`MacSettingsMap.step`), and
+/// the chosen row shows the focus bar (MAC-25); there's no blue ring around the column.
 struct SettingsSidebar: View {
     @Binding var tab: SettingsTab
     var searchFocused: FocusState<Bool>.Binding
     @ObservedObject private var model = SettingsModel.shared
+    @FocusState private var listFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             searchField.padding(.bottom, 10)
+            ScrollView(.vertical, showsIndicators: false) {
+                rows.frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
+            .focusable()
+            .focused($listFocused)
+            .focusEffectDisabled()
+            .onKeyPress(.upArrow) { step(-1) }
+            .onKeyPress(.downArrow) { step(1) }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Settings panes")
+            if model.isSearching {
+                Text("Press Esc to clear the search.").font(.system(size: 12)).foregroundStyle(Refined.mute).padding(.horizontal, 10)
+                    .padding(.top, 8)
+            } else {
+                SettingsVersionFooter { tab = .whatsNew }.padding(.top, 8)
+            }
+        }
+        .padding(.horizontal, 10).padding(.top, 8).padding(.bottom, 14)
+        // minHeight 0: the column never reports more height than the window has; the list scrolls instead.
+        .frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
+        .macSidebarSurface()
+    }
+
+    @ViewBuilder private var rows: some View {
+        VStack(alignment: .leading, spacing: 2) {
             if model.isSearching {
                 let results = SettingsIndex.search(model.query)
                 let counts = SettingsIndex.sectionCounts(results)
@@ -122,22 +160,22 @@ struct SettingsSidebar: View {
                     SettingsSideItem(tab: c.tab, count: c.count, selected: i == 0) {
                         if let first = results.first(where: { $0.section == c.tab }) { model.open(first) }
                     }
-                    .uiTarget("settings-match-\(c.tab.rawValue)")
+                    .uiWindowTarget("settings-match-\(c.tab.rawValue)").uiTarget("settings-match-\(c.tab.rawValue)")
                 }
-                Spacer(minLength: 12)
-                Text("Press Esc to clear the search.").font(.system(size: 12)).foregroundStyle(Refined.mute).padding(.horizontal, 10)
             } else {
                 ForEach(SettingsTab.sidebar) { t in
-                    SettingsSideItem(tab: t, selected: tab == t) { tab = t }
-                        .uiTarget("settings-\(t.rawValue)")
+                    SettingsSideItem(tab: t, selected: tab == t, focused: listFocused) { tab = t; listFocused = true }
+                        .uiWindowTarget("settings-\(t.rawValue)").uiTarget("settings-\(t.rawValue)")
                 }
-                Spacer(minLength: 12)
-                SettingsVersionFooter { tab = .whatsNew }
             }
         }
-        .padding(.horizontal, 10).padding(.top, 44).padding(.bottom, 14)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(Refined.field)
+    }
+
+    /// ↑ or ↓ in the pane list: the pane before or after the chosen one. While searching, the arrows are left alone.
+    private func step(_ by: Int) -> KeyPress.Result {
+        guard !model.isSearching else { return .ignored }
+        if let r = MacSettingsMap.step(from: tab.rawValue, by: by), let t = SettingsTab(rawValue: r), t != tab { tab = t }
+        return .handled
     }
 
     /// The search field on the sidebar (mockup): a quiet wash, the magnifying glass, and a clear button while you type.
@@ -158,7 +196,7 @@ struct SettingsSidebar: View {
         }
         .padding(.horizontal, 8).frame(height: 28)
         .background(Refined.neutral, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.field), style: .continuous))
-        .uiTarget("settings-search")
+        .uiWindowTarget("settings-search").uiTarget("settings-search")
     }
 }
 
@@ -167,6 +205,8 @@ struct SettingsSideItem: View {
     var tab: SettingsTab
     var count: Int? = nil
     var selected: Bool
+    /// The pane list has the keyboard: the chosen row shows the focus bar (MAC-25), as the main sidebar's does.
+    var focused = false
     var action: () -> Void
     @State private var hover = false
 
@@ -184,6 +224,7 @@ struct SettingsSideItem: View {
         .background {
             if selected { shape.fill(Refined.persimmonTint) } else { shape.fill(Refined.neutral).opacity(hover ? 1 : 0) }
         }
+        .overlay(alignment: .leading) { if selected && focused { FocusBar() } }
         .contentShape(shape)
         .onHover { hover = $0 }
         .tapArea(action)
@@ -213,7 +254,7 @@ struct SettingsVersionFooter: View {
         .accessibilityLabel("Version \(AppVersion.spoken). What's new")
         .accessibilityAddTraits(.isButton)
         .help("What each build of Verbose added")
-        .uiTarget("settings-version")
+        .uiWindowTarget("settings-version").uiTarget("settings-version")
     }
 }
 
@@ -245,6 +286,7 @@ struct SettingsSearchResults: View {
                     SettingsGroup(title: c.tab.title) {
                         ForEach(results.filter { $0.section == c.tab }) { e in
                             SettingsResultRow(entry: e, terms: terms) { model.open(e) }
+                                .uiWindowTarget("settings-result-\(results.firstIndex(of: e) ?? 0)")
                                 .uiTarget("settings-result-\(results.firstIndex(of: e) ?? 0)")
                         }
                     }
