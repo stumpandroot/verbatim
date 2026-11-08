@@ -42,7 +42,9 @@ final class TypingAssist: ObservableObject {
 
     /// The languages Apple's spell checker has on this iPhone, read once.
     static let availableLanguages: [String] = UITextChecker.availableLanguages
-    private var checkerReady: Bool { Self.availableLanguages.contains(language) }
+    /// Corrections and the strip's words only where the checker has the language (`TypingLanguages.hasCorrections`);
+    /// Russian, Ukrainian, Greek, Arabic, and Hebrew type without it.
+    private var checkerReady: Bool { TypingLanguages.hasCorrections(language, available: Self.availableLanguages) }
 
     // MARK: Setup
 
@@ -193,12 +195,14 @@ final class TypingAssist: ObservableObject {
             publish(SuggestionStrip.make(word: "", correction: nil, misspelled: false, guesses: [], completions: [], pending: pending))
             return
         }
-        guard TypingCorrection.tokenIsPlain(w) else { publish(.empty); return }
+        // Without Apple's spell checker for the language (Hebrew or Arabic on some iPhones), typing works with no words in
+        // the strip, though a fixed correction (Greek's final sigma) can still be put back, as above.
+        guard checkerReady, TypingCorrection.tokenIsPlain(w) else { publish(.empty); return }
         let skipped = skip(w.word)
-        let a = checkerReady ? analyze(w.word, completions: true) : Analysis(misspelled: false, guesses: [], completions: [])
+        let a = analyze(w.word, completions: true)
         let correction = help.autocorrect && policy.corrects
             ? TypingCorrection.correction(for: w, misspelled: a.misspelled, guesses: a.guesses, skip: skipped, language: language) : nil
-        let showsGuesses = a.misspelled && policy.corrects && !TypingCorrection.leavesAlone(w, skip: skipped)
+        let showsGuesses = a.misspelled && policy.corrects && !TypingCorrection.leavesAlone(w, skip: skipped, language: language)
         publish(SuggestionStrip.make(word: w.word, correction: correction, misspelled: showsGuesses, guesses: a.guesses,
                                      completions: a.completions ?? [], pending: nil))
     }

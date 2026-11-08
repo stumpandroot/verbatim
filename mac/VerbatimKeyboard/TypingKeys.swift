@@ -1,9 +1,9 @@
 import SwiftUI
 import UIKit
 
-// The typing layout: each language's letters (QWERTY, QWERTY with ñ, AZERTY, or QWERTZ) with shift and caps lock, 123
-// and #+= layers, space, return, delete with repeat, and the globe key; long-press letters, and the space bar's cursor
-// drag. It works without Allow Full Access (App Store guideline 4.4.1): it only uses the text proxy. The layout and the
+// The typing layout: each language's letters (QWERTY, QWERTY with ñ, AZERTY, QWERTZ, ЙЦУКЕН, Greek with its accent key,
+// and Arabic and Hebrew, whose rows read right to left and have no shift) with shift and caps lock, 123 and #+= layers,
+// space, return, delete with repeat, and the globe key; long-press letters, and the space bar's cursor drag. It works without Allow Full Access (App Store guideline 4.4.1): it only uses the text proxy. The layout and the
 // rules are pure (TypingLayout.swift, TypingHelp.swift, TypingCorrection.swift); this file applies them to the field and
 // draws the keys. Corrections and the suggestion strip are `TypingAssist`.
 
@@ -26,6 +26,8 @@ final class TypingModel: ObservableObject {
     @Published private(set) var accent: AccentPopup?
     /// True while the space bar drags the cursor: the key labels clear.
     @Published private(set) var cursorDragging = false
+    /// Greek's accent mark waiting for the next letter (`DeadKeys`): the accent key shows as held.
+    @Published private(set) var pendingMark: String?
 
     /// A held letter's alternates and where they sit.
     struct AccentPopup: Equatable {
@@ -123,6 +125,7 @@ final class TypingModel: ObservableObject {
             let l = TypingRules.initialLayer(for: field)
             if l != layer { layer = l }
             lastKeyWasSpace = false
+            clearMark()
             if reset { shift = .off }
         }
         // Auto-capitalize for where the cursor is now, unless you pressed a key a moment ago (that key already did).
@@ -135,12 +138,25 @@ final class TypingModel: ObservableObject {
         }
     }
 
-    /// The language to type in: its letter layout and the spell checker's language.
+    /// The language to type in: its letter layout and the spell checker's language. Arabic and Hebrew have no capitals, so
+    /// shift goes off.
     func setLanguage(_ language: String) {
         assist.setLanguage(language)
         let l = TypingLanguages.layout(for: language)
-        if l != letters { letters = l }
+        if l != letters {
+            letters = l
+            clearMark()
+            setShift(TypingRules.shiftAfterInput(shift, capitalizeNext: capitalizeNext))
+        }
     }
+
+    /// The accent key shows as held while its mark waits.
+    func showsHeld(_ kind: KeyKind) -> Bool {
+        guard pendingMark != nil, case .character(let c) = kind else { return false }
+        return DeadKeys.isDead(c)
+    }
+
+    private func clearMark() { if pendingMark != nil { pendingMark = nil } }
 
     private var capitalizeNext: Bool { TypingRules.shouldCapitalize(autoCap, before: proxy?.documentContextBeforeInput) }
 
@@ -150,7 +166,11 @@ final class TypingModel: ObservableObject {
         if enabled != returnEnabled { returnEnabled = enabled }
     }
 
-    private func setShift(_ s: ShiftState) { if s != shift { shift = s } }
+    /// Shift stays off on layouts without capitals (Arabic, Hebrew).
+    private func setShift(_ s: ShiftState) {
+        let s = letters.hasCase ? s : .off
+        if s != shift { shift = s }
+    }
 
     static func mapField(_ t: UIKeyboardType?) -> FieldKind {
         switch t ?? .default {
@@ -292,6 +312,7 @@ final class TypingModel: ObservableObject {
 
     /// Drops every touch (the keyboard went away mid-press).
     func reset() {
+        clearMark()
         touches.removeAll()
         touchX.removeAll()
         stopRepeat()
@@ -333,7 +354,8 @@ final class TypingModel: ObservableObject {
         var options = AccentSets.alternates(for: c, language: assist.language)
         if shift != .off { options = AccentSets.capitals(options) }
         guard !options.isEmpty else { return }
-        let row = AccentRow.layout(keyMinX: frame.minX, keyWidth: frame.width, count: options.count, areaWidth: areaWidth)
+        let row = AccentRow.layout(keyMinX: frame.minX, keyWidth: frame.width, count: options.count, areaWidth: areaWidth,
+                                   rightToLeft: letters.isRightToLeft)
         accentTouch = id
         accentOpenX = touchX[id] ?? frame.midX
         accentMoved = false
@@ -346,12 +368,16 @@ final class TypingModel: ObservableObject {
         if let id = accentTouch { touches[id]?.committed = true }
         accentTouch = nil
         accent = nil
-        if insert, let chosen { typeText(chosen); finishKey(after: .character(chosen)) }
+        if insert, let chosen { typeCharacter(chosen); finishKey(after: .character(chosen)) }
     }
 
+    /// The drag moves in visual order: in a right-to-left paragraph (Hebrew, Arabic), dragging left moves forward.
     private func beginDrag(_ id: ObjectIdentifier) {
         dragTouch = id
-        drag = CursorDrag(startX: touchX[id] ?? 0)
+        clearMark()
+        let rtl = TypingScripts.paragraphIsRightToLeft(before: proxy?.documentContextBeforeInput, after: proxy?.documentContextAfterInput,
+                                                        fallback: letters.isRightToLeft)
+        drag = CursorDrag(startX: touchX[id] ?? 0, rightToLeft: rtl)
         cursorDragging = true
         assist.forget()
         if hasFullAccess, let h = dragHaptic { HapticPlayer.play(h) }
@@ -391,9 +417,12 @@ final class TypingModel: ObservableObject {
         guard let proxy else { return }
         switch kind {
         case .character(let c):
-            typeText(TypingRules.text(for: c, layer: layer, shift: shift))
+            typeCharacter(TypingRules.text(for: c, layer: layer, shift: shift))
         case .space:
-            if TypingRules.periodShortcut(before: proxy.documentContextBeforeInput, lastKeyWasSpace: lastKeyWasSpace, field: field) {
+            if pendingMark != nil {
+                // Space after the accent key types the mark alone.
+                typeCharacter(" ")
+            } else if TypingRules.periodShortcut(before: proxy.documentContextBeforeInput, lastKeyWasSpace: lastKeyWasSpace, field: field) {
                 assist.keyTyped()
                 proxy.deleteBackward()
                 proxy.insertText(". ")
@@ -406,10 +435,12 @@ final class TypingModel: ObservableObject {
             }
         case .returnKey:
             guard returnEnabled else { return }
+            clearMark()
             assist.boundary(trailing: "\n")
             proxy.insertText("\n")
             lastKeyWasSpace = false
         case .layer(let l):
+            clearMark()
             if l != layer { layer = l }
             return
         case .shift, .delete, .globe:
@@ -418,7 +449,16 @@ final class TypingModel: ObservableObject {
         finishKey(after: kind)
     }
 
-    /// Inserts a character key's text (or a long-press letter): punctuation corrects the word before it first.
+    /// A character key's text or a long-press letter, through Greek's accent key: a mark waits for the next letter, and
+    /// a waiting mark goes on a vowel (`DeadKeys.press`).
+    private func typeCharacter(_ text: String) {
+        guard pendingMark != nil || DeadKeys.isDead(text) else { typeText(text); return }
+        let r = DeadKeys.press(pending: pendingMark, input: text)
+        if r.pending != pendingMark { pendingMark = r.pending }
+        if !r.insert.isEmpty { typeText(r.insert) }
+    }
+
+    /// Inserts text: punctuation corrects the word before it first.
     private func typeText(_ text: String) {
         guard let proxy else { return }
         if TypingCorrection.isBoundary(text) { assist.boundary(trailing: text) } else { assist.keyTyped() }
@@ -443,6 +483,7 @@ final class TypingModel: ObservableObject {
     func tapSuggestion(_ action: SuggestionStrip.Action) {
         lastLocalKey = Date()
         feedback()
+        clearMark()
         let spaced = assist.tap(action)
         lastKeyWasSpace = spaced
         afterEdit()
@@ -455,8 +496,13 @@ final class TypingModel: ObservableObject {
         lastShiftTap = shift == .locked ? nil : now
     }
 
-    /// Delete: first puts back a correction space just made, otherwise deletes one character.
+    /// Delete: first drops a waiting accent mark, then puts back a correction space just made, otherwise deletes one
+    /// character.
     private func deleteOnce() {
+        if pendingMark != nil {
+            pendingMark = nil
+            return
+        }
         if !assist.handleDelete() { proxy?.deleteBackward() }
         lastKeyWasSpace = false
         afterEdit()
@@ -504,7 +550,7 @@ struct TypingKeysView: View {
             let keys = TypingLayout.place(rows, in: geo.size, metrics: KeyMetrics.forSize(geo.size, rows: rows.count), columns: typing.columns)
             ZStack(alignment: .topLeading) {
                 ForEach(keys) { k in
-                    KeyCap(kind: k.kind, typing: typing, pressed: typing.pressed[k.id] != nil)
+                    KeyCap(kind: k.kind, typing: typing, pressed: typing.pressed[k.id] != nil || typing.showsHeld(k.kind))
                         .frame(width: k.frame.width, height: k.frame.height)
                         .position(x: k.frame.midX, y: k.frame.midY)
                 }
@@ -596,8 +642,9 @@ private struct KeyCap: View {
 }
 
 /// The long-press row over a held letter: the language's letters first, in the key popup's style (the card with a
-/// hairline), the chosen one in ink with paper text, like the return key. Each slot is a key wide. It appears and goes
-/// at once (DESIGN.md §7: nothing in the keyboard animates for keyboard actions).
+/// hairline), the chosen one in ink with paper text, like the return key. Each slot is a key wide; on a right-to-left
+/// layout the first letter is the rightmost. It appears and goes at once (DESIGN.md §7: nothing in the keyboard animates
+/// for keyboard actions).
 private struct AccentPopupView: View {
     var popup: TypingModel.AccentPopup
 
@@ -606,9 +653,10 @@ private struct AccentPopupView: View {
         let y = popup.keyFrame.minY + 2 - h / 2
         let shape = RoundedRectangle(cornerRadius: KB.keyRadius, style: .continuous)
         HStack(spacing: 0) {
-            ForEach(Array(popup.options.enumerated()), id: \.offset) { i, letter in
+            ForEach(0..<popup.options.count, id: \.self) { slot in
+                let i = popup.row.option(atSlot: slot)
                 let on = i == popup.selected
-                Text(letter)
+                Text(popup.options[i])
                     .font(.system(size: 24))
                     .foregroundStyle(on ? KB.paper : KB.ink)
                     .frame(width: popup.row.slot, height: h - 6)
@@ -670,7 +718,9 @@ private struct KeyTouchLayer: UIViewRepresentable {
     func updateUIView(_ v: KeyTouchView, context: Context) {
         v.model = typing
         v.update(keys: keys, labels: KeyTouchView.Labels(shift: typing.shift, layer: typing.layer,
-                                                          returnKind: typing.returnKind, returnEnabled: typing.returnEnabled))
+                                                          returnKind: typing.returnKind, returnEnabled: typing.returnEnabled,
+                                                          rightToLeft: typing.layer == .letters && typing.letters.isRightToLeft,
+                                                          markPending: typing.pendingMark != nil))
     }
 
     static func dismantleUIView(_ v: KeyTouchView, coordinator: ()) {
@@ -684,6 +734,10 @@ final class KeyTouchView: UIView {
         var layer: TypingLayer
         var returnKind: ReturnKind
         var returnEnabled: Bool
+        /// Arabic's and Hebrew's letter rows: VoiceOver reads them right to left.
+        var rightToLeft = false
+        /// Greek's accent key is held, waiting for a letter.
+        var markPending = false
     }
 
     weak var model: TypingModel?
@@ -768,7 +822,8 @@ final class KeyTouchView: UIView {
 
     private func rebuildElements() {
         guard let labels else { elements = []; return }
-        elements = keys.map { key in
+        let ordered = TypingLayout.readingOrder(keys, rightToLeftRows: labels.rightToLeft ? [0, 1, 2] : [])
+        elements = ordered.map { key in
             let e = KeyElement(accessibilityContainer: self)
             e.accessibilityLabel = key.kind.spokenLabel(shift: labels.shift, layer: labels.layer, returnKind: labels.returnKind)
             e.accessibilityFrameInContainerSpace = key.frame
@@ -782,6 +837,9 @@ final class KeyTouchView: UIView {
             case .globe:
                 traits = .button
                 e.accessibilityHint = "Switches to your next keyboard"
+            case .character(let c) where DeadKeys.isDead(c):
+                if labels.markPending { traits.insert(.selected) }
+                e.accessibilityHint = "Puts the accent on the next letter"
             default:
                 break
             }
