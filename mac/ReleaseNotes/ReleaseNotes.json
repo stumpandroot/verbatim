@@ -1,6 +1,92 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Five keyboard languages and settled details",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Five more keyboard languages",
+          "icon": "language",
+          "text": "Russian, Ukrainian, Greek, Arabic, and Hebrew layouts, arranged as on Apple's keyboards.",
+          "detail": "Arabic and Hebrew rows read right to left. Hold a letter for ё, ї, ґ, Greek accents, or hamza forms. Corrections and suggestions work where Apple's spell checker has the language."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Greek accent key and final sigma",
+          "icon": "language",
+          "text": "Tap ΄ and then a vowel for ό. A Greek word ending in σ gets ς when you type a space.",
+          "detail": "Hold a vowel for its tonos or diaeresis instead. Delete puts σ back, like any correction."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Cursor drag follows the line",
+          "icon": "accessibility",
+          "text": "In Hebrew and Arabic, dragging the space bar left moves toward the left of the line."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Dictate is butter everywhere",
+          "icon": "mic",
+          "text": "The keyboard, Lock Screen, and Control Center show Dictate in butter with the waves glyph.",
+          "detail": "The keyboard's Start and Tap to talk, the session's Dictate, Done, and Restart, and the session and Dictate controls match Home's Dictate tile. Persimmon means Record."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Instant tabs",
+          "icon": "tabbar",
+          "text": "Switching tabs shows the page at once, with no slide.",
+          "detail": "Tabs used to slide and fade in. Now the page is there at once, as in Apple's apps; only the tab bar animates its selection."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Quieter Settings icons",
+          "icon": "settings",
+          "text": "Settings icons sit on a neutral square with an ink glyph.",
+          "detail": "Settings no longer borrows the capture colors, so persimmon always means Record and butter Dictate. Delete rows keep their red glyph and word."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Labels in sentence case",
+          "icon": "appearance",
+          "text": "Side card labels and the line over each page's title are in sentence case.",
+          "detail": "Today, Recent questions, Selected, and the date over Home's greeting match the rest of the app, in the same small style as Settings' group labels."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "No repeats beside the page",
+          "icon": "home",
+          "text": "Home's side column drops Dictations, and the Library's drops Collections.",
+          "detail": "Both repeated the sidebar. With This week, thoughts, and Journal hidden, Home uses the full width; with the inspector open, so does the Library's table."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Return moves through the tour",
+          "icon": "tour",
+          "text": "In the welcome tour, Return goes to the next step at once. A click still slides."
+        }
+      ]
+    },
+    {
       "build": "313",
       "date": "2026-11-08",
       "version": "1.0 beta",
