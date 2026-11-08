@@ -132,3 +132,81 @@ struct StaleCompactWord: View {
             .accessibilityLabel(title)
     }
 }
+
+// MARK: - The Watch's Smart Stack (SF-33)
+
+extension WidgetConfiguration {
+    /// Adds the small family (iOS 18), so the Apple Watch's Smart Stack and CarPlay draw the activity's own small layout
+    /// instead of building one from the compact Island. Before iOS 18 the configuration is unchanged.
+    func smartStackFamily() -> some WidgetConfiguration {
+        if #available(iOS 18.0, *) {
+            return supplementalActivityFamilies([.small])
+        } else {
+            return self
+        }
+    }
+}
+
+/// The Lock Screen closure's content for each family: `small` in the Smart Stack and on CarPlay (iOS 18), `full`
+/// everywhere else, and always before iOS 18.
+struct ActivityFamilySwitch<Small: View, Full: View>: View {
+    @ViewBuilder var small: () -> Small
+    @ViewBuilder var full: () -> Full
+
+    var body: some View {
+        if #available(iOS 18.0, *) {
+            ActivityFamilyReader(small: small, full: full)
+        } else {
+            full()
+        }
+    }
+}
+
+@available(iOS 18.0, *)
+private struct ActivityFamilyReader<Small: View, Full: View>: View {
+    var small: () -> Small
+    var full: () -> Full
+    @Environment(\.activityFamily) private var family
+
+    var body: some View {
+        if family == .small { small() } else { full() }
+    }
+}
+
+/// The small family's row (`SmartStack`): a 30 pt circle on a quiet wash holding `lead`, then the state line and the
+/// title. Never any words from a recording. VoiceOver reads it as one element.
+struct SmartStackRow<Lead: View, Line: View>: View {
+    var title: String
+    var skin: ActivitySkin
+    /// The circle's wash: the listening color's tint while something records or listens, else neutral.
+    var wash: Color
+    @ViewBuilder var lead: () -> Lead
+    @ViewBuilder var line: () -> Line
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().fill(wash)
+                lead()
+            }
+            .frame(width: 30, height: 30)
+            VStack(alignment: .leading, spacing: 1) {
+                line()
+                    .lineLimit(1)
+                Text(title).scaledFont(13, weight: .semibold).foregroundStyle(skin.dimmed ? skin.dim : skin.ink)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+extension ActivitySkin {
+    /// The small row's circle: the listening color's tint while active, else a neutral wash.
+    func smartStackWash(active: Bool) -> Color { active ? mark.opacity(0.18) : ink.opacity(0.12) }
+    /// The small row's first line: the listening color while active and lit (`SmartStack.accentLine`), else `mute`.
+    func smartStackLine(active: Bool) -> Color { SmartStack.accentLine(active: active, dimmed: dimmed) ? mark : mute }
+}

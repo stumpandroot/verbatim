@@ -57,11 +57,17 @@ struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: VerbatimSessionAttributes.self) { context in
             ActivityLockSurface { skin in
-                // Updates stopped coming (LiveFreshness): no "Listening", no timer, no buttons.
-                if LiveFreshness.showsStale(isStale: context.isStale, final: context.state.shown == .ended) {
-                    StaleLockScreen(title: LiveFreshness.sessionTitle, skin: skin)
-                } else {
-                    RibbonLockScreen(state: context.state, skin: skin)
+                ActivityFamilySwitch {
+                    // The Watch's Smart Stack and CarPlay (SF-33): the session's state and how many takes, never words.
+                    SessionSmallView(state: context.state,
+                                     stale: LiveFreshness.showsStale(isStale: context.isStale, final: context.state.shown == .ended), skin: skin)
+                } full: {
+                    // Updates stopped coming (LiveFreshness): no "Listening", no timer, no buttons.
+                    if LiveFreshness.showsStale(isStale: context.isStale, final: context.state.shown == .ended) {
+                        StaleLockScreen(title: LiveFreshness.sessionTitle, skin: skin)
+                    } else {
+                        RibbonLockScreen(state: context.state, skin: skin)
+                    }
                 }
             }
             .widgetURL(context.state.shown == .ended ? restartLink : nil)
@@ -149,6 +155,7 @@ struct SessionLiveActivity: Widget {
             .keylineTint(Refined.persimmon)
             .widgetURL(s.shown == .ended ? restartLink : nil)
         }
+        .smartStackFamily()
     }
 }
 
@@ -197,6 +204,52 @@ private struct CompactTrailing: View {
         default:
             Circle().fill(Refined.persimmon).frame(width: 8, height: 8)
                 .accessibilityLabel("Session on")
+        }
+    }
+}
+
+/// The small family (the Apple Watch's Smart Stack and CarPlay; mockup "Verbose redesigns", section 4): between takes,
+/// a neutral dot, "On · 4 takes" in `mute`, and "Keyboard session"; while a take listens, the voice bars following the
+/// mic in a persimmon-tinted circle and "Listening · 0:12" in the listening color; otherwise the Lock Screen's headline
+/// ("Copied · 42 words", "Paused for a call"). Stale: still bars and "Open Verbose to check". Always On: the bars rest
+/// and the first line is quiet. Never reads `state.liveWords`.
+private struct SessionSmallView: View {
+    var state: VerbatimSessionAttributes.ContentState
+    var stale: Bool
+    var skin: ActivitySkin
+
+    var body: some View {
+        let phase = state.shown
+        let active = phase == .listening && !stale
+        let times = !stale && SmartStack.sessionTimes(phase, gettingReady: state.warming, hasStart: state.takeStartedAt != nil)
+        SmartStackRow(title: SmartStack.sessionTitle, skin: skin, wash: skin.smartStackWash(active: active)) {
+            switch SmartStack.sessionGlyph(phase, stale: stale) {
+            case .bars:
+                LevelBars(level: skin.level(state.level, fallback: AlwaysOn.restingLevel), color: skin.mark, count: 4)
+                    .frame(width: 16, height: 14)
+            case .pause:
+                Image(systemName: "pause.fill").font(.system(size: 11, weight: .bold)).foregroundStyle(skin.mute)   // brand: system surface
+                    .accessibilityHidden(true)
+            case .check:
+                Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(skin.ink)
+                    .accessibilityHidden(true)
+            case .dot:
+                Circle().fill(skin.mute).frame(width: 8, height: 8)
+                    .accessibilityHidden(true)
+            case .still:
+                StaleBars(color: skin.mute, count: 4).frame(width: 16, height: 14)
+            }
+        } line: {
+            HStack(spacing: 0) {
+                Text(stale ? SmartStack.staleLine
+                     : SmartStack.sessionLine(phase, takes: state.takes, words: state.words, gettingReady: state.warming,
+                                              hasStart: state.takeStartedAt != nil))
+                if times, let start = state.takeStartedAt {
+                    TakeTimer(start: start).frame(width: CGFloat(Ribbon.timerWidth(size: 13, showsHours: false)), alignment: .leading)
+                }
+            }
+            .scaledFont(13, weight: .medium).monospacedDigit()
+            .foregroundStyle(skin.smartStackLine(active: active))
         }
     }
 }
