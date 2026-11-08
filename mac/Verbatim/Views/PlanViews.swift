@@ -44,7 +44,7 @@ struct PlanSections: View {
 
     private func heading(_ sec: DayPlan.Section) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(sec == .top ? "Top three" : sec.title).font(.system(size: headingSize, design: .serif))
+            Text(sec == .top ? "Top three" : sec.title).font(Refined.serif(headingSize))
                 .foregroundStyle(Refined.ink)
             if sec == .tomorrow {
                 Text(DayPlan.tomorrowLabel(recordedAt: recordedAt)).font(.system(size: max(12, textSize - 3))).foregroundStyle(Refined.mute)

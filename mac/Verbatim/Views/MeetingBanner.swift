@@ -505,7 +505,7 @@ struct MeetingConsentView: View {
             if let wait = model.request?.wait {
                 waitSetup(wait)
             } else {
-                Text(MeetingCopy.consentTitle).font(.system(size: 26, design: .serif)).accessibilityAddTraits(.isHeader)
+                Text(MeetingCopy.consentTitle).font(Refined.serif(26)).accessibilityAddTraits(.isHeader)
                 Text(MeetingCopy.consentBody(model.request?.appName)).modifier(ConsentText())
                 if model.request?.stills == true { Text(MeetingCopy.stillsOn).modifier(ConsentText()) }
                 Text(MeetingCopy.consentLaw).modifier(ConsentText())
@@ -534,7 +534,7 @@ struct MeetingConsentView: View {
     /// "Record your next call" (mockup board 3): what happens, which app to wait for, the consent words (you say yes
     /// here, not when the call starts), and the chat notice.
     @ViewBuilder private func waitSetup(_ wait: CallWaitSetup) -> some View {
-        Text(MeetingCopy.waitTitle).font(.system(size: 26, design: .serif)).accessibilityAddTraits(.isHeader)
+        Text(MeetingCopy.waitTitle).font(Refined.serif(26)).accessibilityAddTraits(.isHeader)
         if let title = wait.title {
             Text(title).refinedFont(.rowTitle, weight: .semibold).fixedSize(horizontal: false, vertical: true)
         }

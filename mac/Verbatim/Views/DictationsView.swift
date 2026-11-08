@@ -222,7 +222,7 @@ struct DictationRow: View {
                 if transcript.status == .failed {
                     Text(transcript.error ?? "Transcription failed").refinedFont(.body, weight: .semibold).foregroundStyle(Refined.ink)
                 } else if let instruction = info?.instruction {
-                    Text("\u{201C}\(instruction)\u{201D}").font(.system(size: 15, design: .serif).italic()).foregroundStyle(Refined.dim)
+                    Text("\u{201C}\(instruction)\u{201D}").font(Refined.serif(15).italic()).foregroundStyle(Refined.dim)
                     Text(lit ? pasted : HomeDictationText.oneLine(pasted)).font(.system(size: 15)).foregroundStyle(Refined.ink).lineSpacing(4).lineLimit(lit ? 12 : 3)
                 } else {
                     // At rest the words run on one line of text (a greeting's blank line doesn't take a row); under

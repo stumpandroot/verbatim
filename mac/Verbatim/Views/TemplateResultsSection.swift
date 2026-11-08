@@ -106,7 +106,7 @@ struct TemplateResultsSection: View {
                 // Plan my day: the plan, with Send to Reminders (DayNote.swift's MacRemindersSend).
                 MacPlanResult(transcript: transcript, result: r, inline: inline)
             } else {
-                TemplateResultBody(text: r.text, heading: .system(size: inline ? 19 : 17, design: .serif), textFont: .system(size: 13.5),
+                TemplateResultBody(text: r.text, heading: Refined.serif(inline ? 19 : 17), textFont: .system(size: 13.5),
                                    ink: AnyShapeStyle(Refined.ink), dim: AnyShapeStyle(Refined.mute))
             }
             GroundingNoteText(note: GroundingChecks.resultNote(r, in: transcript, aboutMe: AboutMeContext.text))

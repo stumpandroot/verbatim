@@ -67,7 +67,7 @@ struct WatchedFoldersPane: View {
         HStack(spacing: 16) {
             IconPlate(art: .iconFolder, size: 64, color: Refined.dim)
             VStack(alignment: .leading, spacing: 4) {
-                Text("No folders yet").font(.system(size: 22, design: .serif))
+                Text("No folders yet").font(Refined.serif(22))
                 Text("Add a folder and anything new that lands in it is transcribed: a camera card's dailies, a recorder's sync folder, a shared Dropbox. Files already there are left alone.")
                     .font(.system(size: 12.5)).foregroundStyle(Refined.mute).fixedSize(horizontal: false, vertical: true)
             }

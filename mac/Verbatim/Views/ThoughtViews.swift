@@ -28,7 +28,7 @@ struct ThoughtGlyph: View {
         }
         // While recording, the wave is drawn straight from each level (a meter never animates, DESIGN.md §7); only the
         // return to rest eases.
-        .animation(level == nil ? .easeOut(duration: 0.18) : nil, value: amp)
+        .animation(level == nil ? Motion.touch : nil, value: amp)
         .aspectRatio(1, contentMode: .fit)
         .accessibilityHidden(true)
     }
