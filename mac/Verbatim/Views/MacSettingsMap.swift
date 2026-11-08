@@ -185,4 +185,16 @@ enum MacSettingsMap {
     }
 
     static func title(_ raw: String) -> String? { panes.first { $0.raw == raw }?.title }
+
+    /// The sidebar's panes in order (their raw values); What's new isn't one.
+    static var sidebar: [String] { panes.filter(\.inSidebar).map(\.raw) }
+
+    /// ↑ (`by` -1) or ↓ (+1) in the Settings window's sidebar (MAC-24): the pane before or after `raw`, staying on the
+    /// first and the last. From a pane the sidebar doesn't list (What's new), ↓ goes to the first pane and ↑ to the last.
+    static func step(from raw: String, by: Int) -> String? {
+        let all = sidebar
+        guard !all.isEmpty else { return nil }
+        guard let i = all.firstIndex(of: raw) else { return by > 0 ? all.first : all.last }
+        return all[min(all.count - 1, max(0, i + by))]
+    }
 }

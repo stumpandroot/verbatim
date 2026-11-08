@@ -154,5 +154,20 @@ let unanchored = macIDs.filter { id in
 }
 check("Mac: every setting has a row a search result can scroll to", unanchored.isEmpty, "\(unanchored)")
 
+// The Settings window's system sidebar (MAC-24): ↑ and ↓ walk the panes in sidebar order.
+let side = MacSettingsMap.sidebar
+check("Mac sidebar: the panes in order, without What's new", side.first == "general" && !side.contains("whatsNew") && side.count == MacSettingsMap.panes.count - 1, "\(side)")
+check("Mac sidebar: ↓ and ↑ move to the next and previous pane", MacSettingsMap.step(from: side[0], by: 1) == side[1]
+      && MacSettingsMap.step(from: side[2], by: -1) == side[1])
+check("Mac sidebar: the first and last panes stay put at the ends", MacSettingsMap.step(from: side[0], by: -1) == side[0]
+      && MacSettingsMap.step(from: side[side.count - 1], by: 1) == side[side.count - 1])
+check("Mac sidebar: from What's new, ↓ goes to the first pane and ↑ to the last", MacSettingsMap.step(from: "whatsNew", by: 1) == side.first
+      && MacSettingsMap.step(from: "whatsNew", by: -1) == side.last)
+let settingsView = read("Verbatim/Views/SettingsView.swift")
+check("Mac sidebar: Settings uses the system split view with the arrows on its pane list",
+      settingsView.contains("NavigationSplitView(columnVisibility: .constant(.all))") && settingsView.contains(".toolbar(removing: .sidebarToggle)")
+      && settingsView.contains(".macSidebarSurface()") && settingsView.contains("MacSettingsMap.step(from: tab.rawValue, by: by)")
+      && settingsView.contains(".onKeyPress(.upArrow)") && settingsView.contains(".onKeyPress(.downArrow)") && !settingsView.contains("HStack(spacing: 0) {\n            SettingsSidebar"))
+
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

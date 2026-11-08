@@ -7,7 +7,8 @@ import AppKit
 /// persimmon tint. Every column sorts. A click selects (⌘-click adds, Shift-click a range), a double-click or Return
 /// opens, Space plays, the arrow keys move, and right-click has the row's menu (or the selection's). Rows drag onto a
 /// project in the sidebar. With more than one selected, a bar at the foot moves, exports, or deletes them. The window's
-/// inspector previews the selection, and search is the toolbar's system field (MacChrome.swift). Back and the sidebar bring the Library back scrolled where you left it, with the row you opened selected
+/// inspector previews the selection. Search is the Search or ask panel (AskViews.swift, MAC-35), so typing never filters
+/// the table; the panel's Show all in the Library does, and the search's chip clears it. Back and the sidebar bring the Library back scrolled where you left it, with the row you opened selected
 /// (App/NavTrail.swift). A lazy table: a library of hundreds builds only the rows on screen.
 struct LibraryView: View {
     @Environment(AppState.self) var app
@@ -28,16 +29,10 @@ struct LibraryView: View {
     /// Which column has the keyboard (MAC-25): the selected row shows a leading bar while the table has it, and dims
     /// while the sidebar does.
     @ObservedObject private var columns = ColumnFocus.shared
-    /// ↓ from the toolbar's search field into the passages (MAC-23 follow-up, Views/PassageKeys.swift).
-    @ObservedObject private var passageKeys = PassageKeys.shared
-    /// The passage the arrow keys are on, while the table has the keyboard; nil when they move the rows.
-    @State private var passageCursor: PassageKey? = nil
 
     /// How many Libraries are on screen, and their rows' order (the self-test).
     static var onScreen = 0
     static var shownOrder: [UUID] = []
-    /// The passage the arrow keys are on (the self-test).
-    static var shownPassage: PassageKey?
 
     private static let margin: CGFloat = 40
 
@@ -52,10 +47,7 @@ struct LibraryView: View {
         let lists = app.libraryLists(kind: app.libraryKind)
         let rows = ordered(lists.list)
         let order = rows.map(\.id)
-        if UITest.enabled { Self.shownOrder = order; Self.shownPassage = passageCursor }
-        // The search passages over the table (two letters or more), worked out once per render.
-        let passages = app.search.trimmingCharacters(in: .whitespaces).count >= 2 ? PassageResults.hits(query: app.search, list: lists.list) : []
-        let passageOrder = PassageResults.order(passages)
+        if UITest.enabled { Self.shownOrder = order }
         return VStack(spacing: 0) {
             GeometryReader { geo in
                 // Two columns (mockup "Verbose Mac Columns"): the table takes the width, and a 320 pt side column holds
@@ -66,7 +58,7 @@ struct LibraryView: View {
                 HStack(alignment: .top, spacing: wide ? MacColumnsMetrics.gap : 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        page(lists: lists, rows: rows, order: order, passages: passages, width: width)
+                        page(lists: lists, rows: rows, order: order, width: width)
                             .frame(width: width, alignment: .leading)
                             .coordinateSpace(name: MacColumnsMetrics.space)
                             .padding(.leading, wide ? MacColumnsMetrics.leading : margin)
@@ -82,35 +74,17 @@ struct LibraryView: View {
                     .focused($focused)
                     // No blue ring around the table; the selected row's leading bar shows it has the keyboard.
                     .focusEffectDisabled()
-                    .onChange(of: focused) { _, on in
-                        columns.set(.library, on)
-                        if !on { passageCursor = nil }
-                    }
-                    // In the passages the arrows move between them (`PassageCursor`); otherwise they move the rows.
-                    .onKeyPress(.downArrow) {
-                        if passageCursor != nil { movePassage(down: true, passageOrder, order, proxy) } else { step(1, order, proxy) }
-                        return .handled
-                    }
-                    .onKeyPress(.upArrow) {
-                        if passageCursor != nil { movePassage(down: false, passageOrder, order, proxy) } else { step(-1, order, proxy) }
-                        return .handled
-                    }
-                    // Return and Space open from the keyboard: the transcript shows at once (DESIGN.md §7). On a passage,
-                    // both open its transcript at that line.
+                    .onChange(of: focused) { _, on in columns.set(.library, on) }
+                    .onKeyPress(.downArrow) { step(1, order, proxy); return .handled }
+                    .onKeyPress(.upArrow) { step(-1, order, proxy); return .handled }
+                    // Return and Space open from the keyboard: the transcript shows at once (DESIGN.md §7).
                     .onKeyPress(.return) {
-                        if let c = passageCursor { app.fromKeyboard { openPassage(c) }; return .handled }
                         return app.fromKeyboard { openSelected() } ? .handled : .ignored
                     }
                     .onKeyPress(.space) {
-                        if let c = passageCursor { app.fromKeyboard { openPassage(c) }; return .handled }
                         return app.fromKeyboard { playSelected() } ? .handled : .ignored
                     }
                     .onKeyPress(.escape) {
-                        if passageCursor != nil {
-                            passageCursor = nil
-                            PassageKeys.focusSearchField(app.mainWindow)
-                            return .handled
-                        }
                         guard !selection.isEmpty else { return .ignored }
                         selection = []; anchor = nil
                         return .handled
@@ -119,17 +93,6 @@ struct LibraryView: View {
                         guard press.modifiers.contains(.command) else { return .ignored }
                         selection = Set(order)
                         return .handled
-                    }
-                    // ↓ in the search field: the table takes the keyboard on the first passage.
-                    .onChange(of: passageKeys.enterToken) { _, _ in
-                        guard let first = passageOrder.first else { return }
-                        passageCursor = first
-                        focused = true
-                        proxy.scrollTo(first)
-                    }
-                    .onChange(of: passageOrder, initial: true) { _, o in
-                        PassageKeys.shared.setOrder(o)
-                        if let c = passageCursor, !o.contains(c) { passageCursor = nil }
                     }
                 }
                 .frame(width: wide ? width + MacColumnsMetrics.leading : geo.size.width)
@@ -170,10 +133,7 @@ struct LibraryView: View {
                 selection = [s]; anchor = s
             }
         }
-        .onDisappear {
-            Self.onScreen = max(0, Self.onScreen - 1)
-            PassageKeys.shared.setOrder([])
-        }
+        .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
     }
 
     // MARK: Side column
@@ -203,7 +163,7 @@ struct LibraryView: View {
 
     // MARK: Page
 
-    @ViewBuilder private func page(lists: AppState.LibraryLists, rows: [Transcript], order: [UUID], passages: [PassageResults.Hit], width: CGFloat) -> some View {
+    @ViewBuilder private func page(lists: AppState.LibraryLists, rows: [Transcript], order: [UUID], width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             titleRow(count: lists.list.count)
             chipsRow.padding(.top, 14)
@@ -221,9 +181,6 @@ struct LibraryView: View {
                 .padding(.top, 8)
             }
             Group {
-                if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
-                    PassageResults(query: app.search, hits: passages, cursor: passageCursor).macColumnsTop().padding(.top, 16)
-                }
                 if rows.isEmpty {
                     emptyState.macColumnsTop().padding(.top, 16)
                 } else {
@@ -274,6 +231,13 @@ struct LibraryView: View {
         let other = LibraryChip.otherLabel(app.libraryFilter, kind: app.libraryKind)
         return HStack(spacing: 12) {
             RefinedChipRow(label: "Filter") {
+                // The panel's Show all in the Library (MAC-35): the words, chosen, with a click to clear them.
+                if !app.search.isEmpty {
+                    RefinedChip(title: "\u{201C}\(app.search)\u{201D}", selected: true) { app.search = "" }
+                        .accessibilityLabel("Search: \(app.search)")
+                        .accessibilityHint("Clears the search.")
+                        .libraryTarget("chip-search")
+                }
                 RefinedChip(title: LibraryChip.all.label, selected: current == .all) { choose(.all) }
                     .libraryTarget("kind-all")
                 if let other {
@@ -406,8 +370,7 @@ struct LibraryView: View {
 
     private func table(_ rows: [Transcript], order: [UUID], columns: LibraryColumns) -> some View {
         let projects = app.store.projectsByID
-        // While the arrows are in the passages, the table's selection dims, as it does while the sidebar has them.
-        let look = passageCursor != nil ? SelectionLook.dimmed : SelectionLook.of(.library, focus: self.columns.focus)
+        let look = SelectionLook.of(.library, focus: self.columns.focus)
         return PaperTable {
             header(columns)
         } rows: {
@@ -462,7 +425,6 @@ struct LibraryView: View {
     /// second click within the double-click time opens it.
     private func clicked(_ id: UUID, order: [UUID]) {
         focused = true
-        passageCursor = nil
         let flags = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
         if flags.contains(.shift), let a = anchor ?? selection.first, let i = order.firstIndex(of: a), let j = order.firstIndex(of: id) {
             selection = Set(order[min(i, j)...max(i, j)])
@@ -483,29 +445,6 @@ struct LibraryView: View {
         let next = order[current.map { max(0, min(order.count - 1, $0 + by)) } ?? 0]
         selection = [next]; anchor = next
         proxy.scrollTo(next)
-    }
-
-    /// ↓ or ↑ in the passages: the next passage, the table's first row past the last, or the search field above the first.
-    private func movePassage(down: Bool, _ passages: [PassageKey], _ order: [UUID], _ proxy: ScrollViewProxy) {
-        let i = passageCursor.flatMap { passages.firstIndex(of: $0) }
-        switch PassageCursor.step(from: i, count: passages.count, down: down) {
-        case .passage(let n):
-            passageCursor = passages[n]
-            proxy.scrollTo(passages[n])
-        case .table:
-            passageCursor = nil
-            if let first = order.first { selection = [first]; anchor = first; proxy.scrollTo(first) }
-        case .searchField:
-            passageCursor = nil
-            PassageKeys.focusSearchField(app.mainWindow)
-        }
-    }
-
-    /// Return or Space on a passage: its transcript, at that line.
-    private func openPassage(_ p: PassageKey) {
-        passageCursor = nil
-        app.focusSegment = p.segment
-        app.go(.transcript(p.transcript))
     }
 
     private var single: Transcript? {
@@ -785,127 +724,6 @@ extension View {
     /// The self-test's handle on a Library control, in SwiftUI's frames and the window's (the split view hosts
     /// its detail apart from the window's content, so its clicks use the window's).
     func libraryTarget(_ id: String) -> some View { uiWindowTarget(id).uiTarget(id) }
-}
-
-// MARK: - Passages
-
-/// Search that finds the moment, not just the file: each matching line with its speaker and time, grouped by
-/// transcript in a card. Click a line (or Tab to it and press Space) to open the transcript there; ↓ from the toolbar's
-/// search field moves into the lines, and the line the arrows are on takes the selection's tint and leading bar.
-struct PassageResults: View {
-    var query: String
-    /// The matches, worked out once by the Library (`hits(query:list:)`).
-    var hits: [Hit]
-    /// The line the arrow keys are on, if any.
-    var cursor: PassageKey? = nil
-
-    /// One transcript's matches: up to six lines to show, and how many lines match in all.
-    typealias Hit = (transcript: Transcript, segments: [Segment], count: Int)
-
-    /// Per transcript in the Library's filtered `list`: up to six matching lines to show, and how many match in all.
-    static func hits(query: String, list: [Transcript]) -> [Hit] {
-        let q = query.trimmingCharacters(in: .whitespaces)
-        var out: [Hit] = []
-        var total = 0
-        for t in list where t.status == .ready {
-            let segs = t.segments.filter { $0.text.range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
-            guard !segs.isEmpty else { continue }
-            // The count is matched against the query as typed (untrimmed), as it always was.
-            let matches = q == query ? segs.count : t.segments.filter { $0.text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil }.count
-            out.append((t, Array(segs.prefix(6)), matches))
-            total += segs.count
-            if total > 300 { break }
-        }
-        return out
-    }
-
-    /// The lines shown, in reading order: the order the arrow keys move through them.
-    static func order(_ hits: [Hit]) -> [PassageKey] {
-        hits.flatMap { h in h.segments.map { PassageKey(transcript: h.transcript.id, segment: $0.id) } }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if hits.isEmpty {
-                Text("No passages match \u{201C}\(query)\u{201D}").refinedFont(.meta).foregroundStyle(Refined.mute)
-            } else {
-                SectionTitle("Passages")
-            }
-            ForEach(hits, id: \.transcript.id) { t, segs, n in
-                PaperCard {
-                    HStack(spacing: 8) {
-                        Text(t.title).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.ink).lineLimit(1)
-                        if let site = t.linkInfo?.site { Text(site).refinedFont(.meta).foregroundStyle(Refined.mute) }
-                        Spacer()
-                        Text(HomeCounts.countLabel(n, "match", "matches")).refinedFont(.meta).foregroundStyle(Refined.mute)
-                    }
-                    .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 6)
-                    ForEach(segs) { s in
-                        let key = PassageKey(transcript: t.id, segment: s.id)
-                        PassageLine(transcript: t, segment: s, query: query, selected: cursor == key).id(key)
-                    }
-                }
-                .padding(.bottom, 2)
-            }
-        }
-    }
-}
-
-struct PassageLine: View {
-    @Environment(AppState.self) var app
-    var transcript: Transcript
-    var segment: Segment
-    var query: String
-    /// The arrow keys are on this line: the selection's tint with the focused column's leading bar (MAC-25).
-    var selected = false
-    @State private var hover = false
-    /// A Button (MAC-23): Tab reaches it with Full Keyboard Access, Space or Return opens it, and VoiceOver reads it as
-    /// one button. The video link beside it is its own button, never nested inside.
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Button(action: open) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(segment.start.timecode).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.accentText).frame(width: 52, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 2) {
-                        if transcript.speakers.count >= 2, let sp = transcript.speakerName(segment.speaker) {
-                            Text(sp).refinedFont(.meta, weight: .semibold).foregroundStyle(Refined.mute)
-                        }
-                        Text(marked).refinedFont(.body).foregroundStyle(Refined.ink).lineLimit(3)
-                            .multilineTextAlignment(.leading)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(RefinedRules.spokenTime(segment.start)), \(segment.text)")
-            .accessibilityHint("Opens \(transcript.title) at this line")
-            if let info = transcript.linkInfo, info.supportsTimestamps, hover {
-                Button { if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) } } label: { IconGlyph(art: .iconPlay, size: 15, color: Refined.accentText) }
-                    .buttonStyle(.plain).help("Open the video at \(segment.start.timecode)")
-                    .accessibilityLabel("Open the video at \(segment.start.timecode)")
-            }
-        }
-        .padding(.horizontal, 14).padding(.vertical, 7)
-        .background(selected ? Refined.persimmonTint : hover ? Refined.stripe : .clear)
-        .overlay(alignment: .leading) { if selected { FocusBar() } }
-        .onHover { hover = $0 }
-        .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
-    private func open() { app.focusSegment = segment.id; app.go(.transcript(transcript.id)) }
-
-    /// The query in the line, on the persimmon tint in semibold.
-    private var marked: AttributedString {
-        var a = AttributedString(segment.text)
-        var start = a.startIndex
-        while start < a.endIndex, let r = a[start...].range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) {
-            a[r].backgroundColor = Refined.persimmonTint
-            a[r].inlinePresentationIntent = .stronglyEmphasized
-            start = r.upperBound
-        }
-        return a
-    }
 }
 
 // MARK: - Preview

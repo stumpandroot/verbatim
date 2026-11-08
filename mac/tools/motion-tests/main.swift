@@ -136,8 +136,8 @@ let keyPaths: [(String, String)] = [
     ("Verbatim/App/NavTrail.swift", "app.fromKeyboard(AppState.handlingKeyPress) { NavTrail.shared.goForward(app) }"),
     ("Verbatim/Views/LibraryView.swift", "return app.fromKeyboard { openSelected() } ? .handled : .ignored"),
     ("Verbatim/Views/LibraryView.swift", "return app.fromKeyboard { playSelected() } ? .handled : .ignored"),
-    // A search passage opens from Return or Space the same way (MAC-23 follow-up).
-    ("Verbatim/Views/LibraryView.swift", "if let c = passageCursor { app.fromKeyboard { openPassage(c) }; return .handled }"),
+    // A Search result in the panel opens from Return the same way, from its field or the toolbar's (MAC-35).
+    ("Verbatim/Views/AskViews.swift", "app.fromKeyboard { openResult(item, app: app) }"),
     ("Verbatim/Views/MacSidebar.swift", ".onKeyPress(.upArrow) { app.fromKeyboard { step(-1) } }"),
     ("Verbatim/Views/MacSidebar.swift", ".onKeyPress(.downArrow) { app.fromKeyboard { step(1) } }"),
     ("Verbatim/Views/AskViews.swift", ".onSubmit { app.fromKeyboard { submit() } }"),

@@ -161,27 +161,38 @@ enum PageFind {
     }
 }
 
-// MARK: - Search passages from the keyboard
+// MARK: - The Search or ask panel from the keyboard
 
-/// The matching passages above the Library's table, from the keyboard (MAC-23 follow-up): ↓ in the toolbar's search
-/// field moves to the first passage, as ↓ in Mail's or Finder's search field moves into the results; ↓ and ↑ move
-/// between passages; ↓ past the last moves to the table's first row, and ↑ above the first goes back to the field.
-/// Return or Space opens the passage, and Esc goes back to the field. Tab keeps its usual order.
-enum PassageCursor {
-    enum Move: Equatable { case passage(Int), table, searchField }
+/// The Search or ask panel's results from the keyboard (MAC-35): the toolbar's search field and ⌘K open the same panel,
+/// and while it shows Search, ↓ and ↑ in its field or in the toolbar's field move through the results (recordings, then
+/// passages) without leaving the field, as Spotlight's do; Return opens the chosen one, the first until you move. Esc in
+/// the toolbar's field closes the panel (in the panel's own field, Esc closes it too). Tab keeps its usual order.
+enum PanelKeys {
+    enum Key: Equatable { case down, up, close }
 
-    /// Where ↓ (`down`) or ↑ goes from passage `index` (nil: from the search field) among `count` passages.
-    static func step(from index: Int?, count: Int, down: Bool) -> Move {
-        guard count > 0 else { return down ? .table : .searchField }
-        guard let i = index, i >= 0, i < count else { return down ? .passage(0) : .searchField }
-        if down { return i + 1 < count ? .passage(i + 1) : .table }
-        return i > 0 ? .passage(i - 1) : .searchField
+    /// The key a keyDown in a search field means to the panel: plain ↓, ↑, or Esc (⇧ selects text, ⌘ and ⌥ move the
+    /// insertion point); nil for every other key.
+    static func key(keyCode: UInt16, mods: RecallMods) -> Key? {
+        guard mods.isEmpty else { return nil }
+        switch keyCode {
+        case 125: return .down
+        case 126: return .up
+        case 53: return .close
+        default: return nil
+        }
     }
 
-    /// Whether a key in the search field moves into the passages: ↓ with no modifier (⇧ selects text, ⌘ and ⌥ move the
-    /// insertion point), while passages show.
-    static func entersFromField(keyCode: UInt16, mods: RecallMods, passages: Int) -> Bool {
-        keyCode == 125 && mods.isEmpty && passages > 0
+    /// Where ↓ (`down`) or ↑ moves the chosen result from `index` among `count`: the next or the one before, staying on
+    /// the first and the last.
+    static func step(from index: Int, count: Int, down: Bool) -> Int {
+        guard count > 0 else { return 0 }
+        let i = min(count - 1, max(0, index))
+        return down ? min(count - 1, i + 1) : max(0, i - 1)
+    }
+
+    /// The result Return opens: the chosen one, kept in range (the first before you move); nil with no results.
+    static func chosen(_ index: Int, count: Int) -> Int? {
+        count > 0 ? min(count - 1, max(0, index)) : nil
     }
 }
 
