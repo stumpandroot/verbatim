@@ -1,6 +1,29 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Faster dictation paste",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Faster dictation paste",
+          "icon": "time",
+          "text": "Dictation cleans finished sentences while you talk, so the paste comes sooner.",
+          "detail": "Only the last sentence is cleaned after you let go. It runs on this Mac with Apple Intelligence, never with cloud cleanup, and Esc discards it."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Timing in the log",
+          "icon": "quality",
+          "text": "The log's timing line counts the sentences cleaned ahead, to measure the gain."
+        }
+      ]
+    },
+    {
       "build": "324",
       "date": "2026-11-10",
       "version": "1.0 beta",
