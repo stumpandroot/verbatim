@@ -9,19 +9,33 @@ struct DictionaryView: View {
     @Environment(AppState.self) var app
     @State private var filter = ""
     @State private var adding = false
+    /// The new word's fields, kept while the form closes and opens. Only the form reads them, so typing renders the
+    /// form, not this page.
     @State private var newPreferred = ""
     @State private var newHeard = ""
     /// nil = all words; .some(nil) = words for every transcript; .some(id) = one project's words.
     @State private var scope: UUID?? = nil
     @FocusState private var addFocused: Bool
     @Environment(\.limitMotion) private var limitMotion
+    /// The table's words, kept until the Dictionary, the search, or the scope changes.
+    @State private var listCache = LastValue<EntriesKey, [DictionaryEntry]>()
 
+    private struct EntriesKey: Equatable {
+        var all: [DictionaryEntry]
+        var query: String
+        var scope: UUID??
+    }
+
+    /// The words the search and scope show, newest first: filtered and sorted only when one of them or the Dictionary
+    /// changes, not on every render.
     private var entries: [DictionaryEntry] {
         let q = filter.trimmingCharacters(in: .whitespaces).lowercased()
-        return app.store.dictionary
-            .filter { q.isEmpty || $0.preferred.lowercased().contains(q) || $0.heardAs.joined(separator: " ").lowercased().contains(q) }
-            .filter { e in scope.map { e.projectId == $0 } ?? true }
-            .sorted { $0.createdAt > $1.createdAt }
+        let all = app.store.dictionary, scope = self.scope
+        return listCache.value(for: EntriesKey(all: all, query: q, scope: scope)) {
+            all.filter { q.isEmpty || $0.preferred.lowercased().contains(q) || $0.heardAs.joined(separator: " ").lowercased().contains(q) }
+                .filter { e in scope.map { e.projectId == $0 } ?? true }
+                .sorted { $0.createdAt > $1.createdAt }
+        }
     }
 
     var body: some View {
@@ -48,7 +62,8 @@ struct DictionaryView: View {
                 }
 
                 if adding {
-                    addForm.transition(limitMotion ? .opacity : .asymmetric(insertion: .scale(scale: 0.98).combined(with: .opacity), removal: .identity))
+                    DictionaryAddForm(adding: $adding, newPreferred: $newPreferred, newHeard: $newHeard, scope: scope, focus: $addFocused)
+                        .transition(limitMotion ? .opacity : .asymmetric(insertion: .scale(scale: 0.98).combined(with: .opacity), removal: .identity))
                 }
 
                 if list.isEmpty {
@@ -78,42 +93,6 @@ struct DictionaryView: View {
         } label: { Label("Add word", systemImage: "plus") }
         .buttonStyle(RefinedActionStyle(kind: .strong))
         .help("Add a word Verbose should spell your way")
-    }
-
-    // MARK: Add
-
-    /// The new word: the preferred spelling, how it's heard, then Add (Return) or Cancel.
-    private var addForm: some View {
-        HStack(spacing: 10) {
-            field("Preferred spelling (Lititz)", text: $newPreferred).focused($addFocused)
-            field("Heard as (Lit it's, Lititz's)", text: $newHeard)
-            Button("Add") { add() }
-                .buttonStyle(RefinedActionStyle(kind: .strong))
-                .keyboardShortcut(.defaultAction)
-            Button("Cancel") { adding = false }
-                .buttonStyle(RefinedActionStyle())
-                .keyboardShortcut(.cancelAction)
-        }
-        .padding(.horizontal, 16).padding(.vertical, 14)
-        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
-    }
-
-    private func field(_ prompt: String, text: Binding<String>) -> some View {
-        TextField(prompt, text: text)
-            .textFieldStyle(.plain).refinedFont(.body).foregroundStyle(Refined.ink)
-            .padding(.horizontal, 10).frame(height: 32)
-            .refinedFieldBox()
-            .onSubmit { add() }
-    }
-
-    private func add() {
-        let heard = newHeard.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        let p = newPreferred.trimmingCharacters(in: .whitespaces)
-        guard !p.isEmpty, !heard.isEmpty else { return }
-        // Added while a project is picked: the word belongs to that project.
-        app.store.dictionary.append(DictionaryEntry(preferred: p, heardAs: heard, learnedFrom: "Added by you", projectId: scope ?? nil))
-        newPreferred = ""; newHeard = ""
-        adding = false
     }
 
     // MARK: Table
@@ -157,6 +136,51 @@ struct DictionaryView: View {
             RefinedEmptyState(art: .search, title: "Nothing matches \u{201C}\(filter)\u{201D}",
                               message: "Try another spelling, or add it as a new word.", action: "Clear search") { filter = "" }
         }
+    }
+}
+
+/// The new word: the preferred spelling, how it's heard, then Add (Return) or Cancel. A view of its own, so a keystroke
+/// renders this form, not the Dictionary page.
+private struct DictionaryAddForm: View {
+    @Environment(AppState.self) var app
+    @Binding var adding: Bool
+    @Binding var newPreferred: String
+    @Binding var newHeard: String
+    /// The page's scope: a word added while a project is picked belongs to that project.
+    var scope: UUID??
+    var focus: FocusState<Bool>.Binding
+
+    var body: some View {
+        HStack(spacing: 10) {
+            field("Preferred spelling (Lititz)", text: $newPreferred).focused(focus)
+            field("Heard as (Lit it's, Lititz's)", text: $newHeard)
+            Button("Add") { add() }
+                .buttonStyle(RefinedActionStyle(kind: .strong))
+                .keyboardShortcut(.defaultAction)
+            Button("Cancel") { adding = false }
+                .buttonStyle(RefinedActionStyle())
+                .keyboardShortcut(.cancelAction)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+    }
+
+    private func field(_ prompt: String, text: Binding<String>) -> some View {
+        TextField(prompt, text: text)
+            .textFieldStyle(.plain).refinedFont(.body).foregroundStyle(Refined.ink)
+            .padding(.horizontal, 10).frame(height: 32)
+            .refinedFieldBox()
+            .onSubmit { add() }
+    }
+
+    private func add() {
+        let heard = newHeard.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let p = newPreferred.trimmingCharacters(in: .whitespaces)
+        guard !p.isEmpty, !heard.isEmpty else { return }
+        // Added while a project is picked: the word belongs to that project.
+        app.store.dictionary.append(DictionaryEntry(preferred: p, heardAs: heard, learnedFrom: "Added by you", projectId: scope ?? nil))
+        newPreferred = ""; newHeard = ""
+        adding = false
     }
 }
 

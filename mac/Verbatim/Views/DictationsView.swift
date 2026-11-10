@@ -17,13 +17,28 @@ struct DictationsView: View {
     private var allDictations: [Transcript] {
         app.store.memo("dictations") { app.store.live.filter { $0.source == .dictation }.sorted { $0.createdAt > $1.createdAt } }
     }
-    private func matching(_ all: [Transcript]) -> [Transcript] {
+    /// The dictations the filter and search show, under their days: once per library change, filter, search, and day
+    /// (Store+Memo.swift), not on every render (the page renders again for its side column, and dates are formatted
+    /// for every dictation).
+    private func shownDays(_ all: [Transcript]) -> [(String, [Transcript])] {
         let q = app.search.trimmingCharacters(in: .whitespaces).lowercased()
-        return all.filter { t in
+        let filter = self.filter
+        return app.store.memo("dictation-days|\(filter?.rawValue ?? "-")|\(Store.dayKey())|\(q)") {
+            Self.days(Self.matching(all, filter: filter, query: q))
+        }
+    }
+
+    private static func matching(_ all: [Transcript], filter: AppCategory?, query q: String) -> [Transcript] {
+        all.filter { t in
             if let f = filter, t.flow?.category != f { return false }
             guard !q.isEmpty else { return true }
             return (t.flow?.pasted ?? t.text).lowercased().contains(q) || (t.flow?.raw ?? "").lowercased().contains(q) || (t.flow?.app ?? "").lowercased().contains(q)
         }
+    }
+
+    /// Today's dictations, newest first (the Today card and the one that didn't paste), once per library change and day.
+    private func today(_ all: [Transcript]) -> [Transcript] {
+        app.store.memo("dictation-today|\(Store.dayKey())") { all.filter { Calendar.current.isDateInToday($0.createdAt) } }
     }
     /// "Today · Fri Oct 23", "Yesterday · Thu Oct 22", "Monday, Oct 19".
     private static func days(_ shown: [Transcript]) -> [(String, [Transcript])] {
@@ -44,9 +59,10 @@ struct DictationsView: View {
     private var retentionTitle: String { Self.retention.first { $0.0 == settings.keepDays }?.1 ?? "Keep \(settings.keepDays) days" }
 
     var body: some View {
-        // Filtered and sorted once per render, not once per use.
+        // Filtered, sorted, and grouped once per library change, filter, and search, not on every render.
         let all = allDictations
-        let shown = matching(all)
+        let days = shownDays(all)
+        let today = self.today(all)
         // Two columns (mockup "Verbose Mac Columns"): dictations by day, and beside them today, a dictation that
         // didn't paste, and how long dictations are kept.
         MacColumns {
@@ -58,12 +74,12 @@ struct DictationsView: View {
                     ForEach(AppCategory.allCases) { c in RefinedChip(title: c.title, selected: filter == c) { filter = filter == c ? nil : c } }
                 }
 
-                if shown.isEmpty {
+                if days.isEmpty {
                     emptyState(all.isEmpty).macColumnsTop()
                 } else {
                     // Lazy: only the dictations on screen are built (people keep hundreds).
                     LazyVStack(alignment: .leading, spacing: 16) {
-                        ForEach(Array(Self.days(shown).enumerated()), id: \.element.0) { n, group in
+                        ForEach(Array(days.enumerated()), id: \.element.0) { n, group in
                             let day = group.0
                             let items = group.1
                             VStack(alignment: .leading, spacing: 8) {
@@ -82,8 +98,8 @@ struct DictationsView: View {
                 }
             }
         } side: {
-            todayCard(all)
-            if let missed = all.first(where: { $0.flow?.pastedOK == false && Calendar.current.isDateInToday($0.createdAt) }) {
+            todayCard(today)
+            if let missed = today.first(where: { $0.flow?.pastedOK == false }) {
                 missedCard(missed)
             }
             MacSideCard(title: "Keep dictations") { retentionMenu }
@@ -92,8 +108,7 @@ struct DictationsView: View {
     }
 
     /// Today: words dictated and the apps they went to.
-    private func todayCard(_ all: [Transcript]) -> some View {
-        let today = all.filter { Calendar.current.isDateInToday($0.createdAt) }
+    private func todayCard(_ today: [Transcript]) -> some View {
         let words = today.reduce(0) { $0 + ($1.flow?.pasted ?? $1.text).split(whereSeparator: \.isWhitespace).count }
         var apps: [String] = []
         for t in today { if let a = t.flow?.app, !a.isEmpty, !apps.contains(a) { apps.append(a) } }

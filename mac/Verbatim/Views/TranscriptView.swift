@@ -415,7 +415,9 @@ struct TranscriptView: View {
             }
             // The find bar's matches in butter, and its lines as they're shown.
             .environment(\.pageFindQuery, find.highlight)
-            .onChange(of: find.open ? segs.map(\.text) : [], initial: true) { _, _ in
+            // Watches a hash of the lines (kept until the transcript or what's shown changes), not every line's text
+            // gathered and compared on each render while Find is open.
+            .onChange(of: find.open ? findLinesKey(t, hide: hide) : nil, initial: true) { _, _ in
                 if find.open { find.setLines(segs.map { (id: $0.id, text: $0.text) }) }
             }
             if hideFillerSetting, fillers > 0 {
@@ -427,6 +429,20 @@ struct TranscriptView: View {
                                      onMoveBack: { s in if let main = t.mainSpeaker { app.assign(transcript: t.id, segment: s.id, to: main) } })
                     .padding(.top, 6)
             }
+        }
+    }
+
+    /// The lines Original shows (`hide`: filler hidden), as one number that changes when any line's id or text does:
+    /// what the find bar's lines are refreshed on. Worked out once per transcript change and way of showing it.
+    private func findLinesKey(_ t: Transcript, hide: Bool) -> Int {
+        let mainOnly = mainSpeakerOnly, engine = nav.showEngine
+        return app.store.perTranscript(t.id, "find-lines|\(hide)|\(mainOnly)|\(engine)") {
+            let shown = app.store.displaySegments(t.id, hideFiller: hide, mainOnly: mainOnly)
+            let lines = engine ? (app.store.transcript(t.id)?.engineLines(for: shown) ?? shown) : shown
+            var h = Hasher()
+            h.combine(lines.count)
+            for s in lines { h.combine(s.id); h.combine(s.text) }
+            return h.finalize()
         }
     }
 
@@ -471,7 +487,12 @@ struct TranscriptView: View {
                     .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
             }
         } else {
-            PaperList(t.corrections, id: \.id, inset: 16, trailingInset: 16) { c in
+            // Each fix's line from a lookup kept until the transcript changes, not a search of every line per fix, and the
+            // card built lazily: a transcript can carry hundreds of fixes.
+            let lines = app.store.perTranscript(t.id, "review-lines") {
+                Dictionary((app.store.transcript(t.id)?.segments ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            }
+            LazyPaperList(t.corrections, id: \.id, inset: 16, trailingInset: 16) { c in
                 HStack(alignment: .top, spacing: 12) {
                     IconGlyph(art: c.isNameFix ? .iconSpeakers : c.byDictionary ? .iconDictionary : .iconFeedback, size: 15, color: Refined.ink).frame(width: 18)
                     VStack(alignment: .leading, spacing: 4) {
@@ -481,7 +502,7 @@ struct TranscriptView: View {
                             Text(c.to).fontWeight(.semibold).foregroundStyle(Refined.ink)
                         }
                         .refinedFont(.body)
-                        if let seg = t.segments.first(where: { $0.id == c.segmentId }) {
+                        if let seg = lines[c.segmentId] {
                             Text(seg.text).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)
                             Text(RefinedRules.time(seg.start)).refinedFont(.meta).monospacedDigit().foregroundStyle(Refined.accentText)
                                 .tapArea { app.player.seek(to: seg.start) }
