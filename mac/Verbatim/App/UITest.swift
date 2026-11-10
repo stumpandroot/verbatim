@@ -59,6 +59,7 @@ enum UITest {
             await bigLibrarySteps(app: app)
             // Long and unusual transcripts open without a stall (the November 10 freeze on a transcript's lines).
             await stressTranscriptSteps(app: app)
+            await freezeReplicaSteps(app: app, window: window)
 
             if app.store.transcripts.isEmpty {
                 var t = Transcript(title: "Self-test memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 12, audioFileName: nil, model: "Test")
@@ -2390,6 +2391,114 @@ enum UITest {
         }
         await open("one long line", make("Stress: one long line", lines: 1, every: 900, words: 6_000))
         await open("5,000 short lines", make("Stress: 5,000 short lines", lines: 5_000, every: 0.6, words: 1))
+    }
+
+    /// The November 10 freeze's shape, with invented words: a 113-second MP3 of one speaker in 24 lines (one of them a
+    /// single word, two overlapping by a tenth of a second), opened while it transcribes, then finished, then given a
+    /// title, kind (Note), tags, and summary by Apple Intelligence, as the pipeline does. Then the window steps through
+    /// widths and heights, the audio plays across the overlap, and the heights run again with scroll bars that take
+    /// space (Always). Logs `UITEST FREEZE <step> max-stall=<ms>` and checks no step stalls 2 s.
+    private static func freezeReplicaSteps(app: AppState, window: NSWindow) async {
+        let timing: [(Double, Double, Int)] = [(0, 4.6, 19), (4.6, 9.4, 18), (9.4, 14.5, 28), (14.5, 14.6, 1), (16.2, 21.0, 19),
+            (21.0, 27.0, 27), (26.9, 30.5, 11), (30.5, 34.6, 14), (34.6, 38.6, 10), (38.6, 43.8, 21), (43.8, 46.2, 9),
+            (46.2, 49.8, 15), (49.8, 54, 18), (54, 62.8, 28), (62.8, 67.8, 15), (67.8, 74.3, 23), (74.3, 80.8, 28),
+            (80.8, 88.4, 26), (88.5, 92.4, 11), (92.4, 94.4, 6), (94.4, 98.6, 17), (98.6, 102.8, 16), (102.8, 107.4, 14),
+            (107.4, 111.8, 11)]
+        let vocab = ["honestly", "the", "week", "kept", "getting", "away", "from", "me", "and", "I", "just", "wanted", "to",
+                     "sit", "with", "it", "for", "a", "minute", "before", "anything", "else", "happened"]
+        var n = 0
+        let lines: [Segment] = timing.map { (a, b, count) in
+            var ws: [WordSpan] = []
+            for k in 0..<count {
+                let w = vocab[n % vocab.count]; n += 1
+                let step = (b - a) / Double(count)
+                ws.append(WordSpan(text: k == count - 1 ? w + "." : w, start: a + Double(k) * step, end: a + Double(k + 1) * step, confidence: 0.9))
+            }
+            let text = ws.map(\.text).joined(separator: " ")
+            var s = Segment(start: a, end: b, text: text.prefix(1).uppercased() + text.dropFirst(), speaker: "S1")
+            s.words = ws
+            return s
+        }
+        func measure(_ name: String, _ work: () async -> Void) async {
+            let meter = StallMeter()
+            meter.start()
+            await work()
+            await mainTurn()
+            let stall = meter.stop()
+            Log.note("UITEST FREEZE \(name) max-stall=\(stall)")
+            check("freeze replica: \(name) without a stall of 2 s (\(stall) ms)", stall < 2_000)
+        }
+        let url = app.store.newAudioURL(ext: "wav")
+        writeToneFile(url, seconds: 112.6)
+        var t = Transcript(title: "v12044gd0000self0test0replica0aa", source: .file, sourceLabel: "MP3 file", duration: 112.6,
+                           audioFileName: url.lastPathComponent, model: "Parakeet Ultra")
+        t.engine = "fluid"
+        t.status = .processing
+        t.stage = "Transcribing 40%"
+        t.speakers = [Speaker(id: "S1", name: "Speaker 1")]
+        t.waveform = (0..<120).map { Float(0.25 + 0.5 * abs(sin(Double($0) / 7))) }
+        let id = t.id
+        let saved = window.frame
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        app.store.add(t)
+        WindowNav.shared.mode = .original
+        await measure("open while transcribing") {
+            app.go(.transcript(id))
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+        await measure("finished while open") {
+            app.store.update(id) { t in
+                t.segments = lines; t.original = lines; t.status = .ready; t.stage = nil
+                t.language = "en"; t.unclear = []
+            }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+        }
+        await measure("title, kind, tags, and summary arrive") {
+            app.store.update(id) { t in
+                t.title = "Sitting with a week that got away from me"; t.titleByModel = true
+                t.kind = .note; t.kindIsAuto = true
+                t.tags = ["personal reflection", "slow mornings"]
+                t.summary = TranscriptSummary(overview: "A short spoken reflection on a busy week, the wish to slow down, and what to let go of before the next one starts.",
+                                              keyPoints: ["The week moved faster than planned.", "Slowing down feels hard but needed.",
+                                                          "Small routines help.", "Some plans can wait.", "Next week starts quieter."])
+                t.summaryByModel = true
+            }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+        func sweep(_ name: String) async {
+            await measure("\(name): widths") {
+                for w in stride(from: 760.0, through: 1_700, by: 12) {
+                    window.setFrame(NSRect(x: saved.minX, y: saved.minY, width: w, height: saved.height), display: true)
+                    await mainTurn()
+                }
+            }
+            await measure("\(name): heights") {
+                for h in stride(from: 480.0, through: 1_100, by: 8) {
+                    window.setFrame(NSRect(x: saved.minX, y: saved.maxY - h, width: 1_100, height: h), display: true)
+                    await mainTurn()
+                }
+            }
+            window.setFrame(saved, display: true)
+        }
+        await sweep("overlay scroll bars")
+        await measure("playing across the overlapping lines") {
+            app.player.play(from: 25)
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            if app.player.isPlaying { app.player.toggle() }
+        }
+        // Scroll bars that take space, as with a mouse or Show scroll bars: Always.
+        UserDefaults.standard.set("Always", forKey: "AppleShowScrollBars")
+        NotificationCenter.default.post(name: NSScroller.preferredScrollerStyleDidChangeNotification, object: nil)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        Log.note("UITEST FREEZE scroller style now \(NSScroller.preferredScrollerStyle == .legacy ? "legacy" : "overlay")")
+        await sweep("legacy scroll bars")
+        UserDefaults.standard.removeObject(forKey: "AppleShowScrollBars")
+        NotificationCenter.default.post(name: NSScroller.preferredScrollerStyleDidChangeNotification, object: nil)
+        window.setFrame(saved, display: true)
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        if let gone = app.store.transcript(id) { app.store.delete(gone) }
     }
 
     /// The next turn of the main loop: everything already queued on the main thread, layout included, has run.
