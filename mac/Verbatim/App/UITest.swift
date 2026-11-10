@@ -2320,8 +2320,8 @@ enum UITest {
 
     /// Transcripts shaped to stress the reading lines, each opened on Original while a meter watches the main thread:
     /// many lines, unclear chips and sponsor folds between them, a transcript that finishes while it's open and then
-    /// gets its speakers, one very long line, and thousands of one-word lines (music). Logs
-    /// `UITEST STRESS <case> lines=<n> settled=<ms> max-stall=<ms>` and checks that no stall reaches 2 s.
+    /// gets its speakers, one very long line, thousands of one-word lines (music), and Select text while the playing line
+    /// moves. Logs `UITEST STRESS <case> lines=<n> settled=<ms> max-stall=<ms>` and checks that no stall reaches 2 s.
     /// Each transcript is deleted afterwards.
     private static func stressTranscriptSteps(app: AppState) async {
         let words = ["so", "the", "catalog", "leads", "with", "wheels", "and", "wagons", "out", "in", "the", "field"]
@@ -2384,6 +2384,18 @@ enum UITest {
         }
         await open("one long line", make("Stress: one long line", lines: 1, every: 900, words: 6_000))
         await open("5,000 short lines", make("Stress: 5,000 short lines", lines: 5_000, every: 0.6, words: 1))
+        // Select text: the whole transcript as one text, then the playing line moving through it (the clock stepped by
+        // hand, no audio); each step rewashes only that line (SelectableLines).
+        await open("Select text, playing line moving", make("Stress: Select text", lines: 4_000)) { _ in
+            WindowNav.shared.selecting = true
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            for k in 1...12 {
+                app.player.time = Double(k * 40) * 4 + 1
+                try? await Task.sleep(nanoseconds: 150_000_000)
+            }
+            app.player.time = 0
+            WindowNav.shared.selecting = false
+        }
     }
 
     /// The next turn of the main loop: everything already queued on the main thread, layout included, has run.
