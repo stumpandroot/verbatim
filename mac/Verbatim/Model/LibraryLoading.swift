@@ -102,7 +102,7 @@ enum BigLibrarySeed {
     /// Deletes the seeded transcripts from the library (files included), and waits for the deletes to land.
     @MainActor static func remove(from store: Store) {
         let seeded = store.transcripts.filter { isSeeded($0.id) }
-        for t in seeded { store.delete(t) }
+        store.delete(seeded)
         store.waitForWrites()
         Log.note("UITEST big library: removed \(seeded.count) transcripts")
     }

@@ -71,12 +71,13 @@ struct TrashScreen: View {
     }
 
     private func restoreAll(_ list: [Transcript]) {
-        for t in list { app.store.restore(t.id) }
+        // One change to the library for the lot (Store.restore(_ ids:)).
+        app.store.restore(list.map(\.id))
         app.say(list.count == 1 ? "Restored" : "Restored \(list.count) transcripts")
     }
 
     private func emptyTrash(_ list: [Transcript]) {
-        for t in list { app.purge(t.id) }
+        app.purge(list.map(\.id))
         app.say("Recently Deleted is empty")
     }
     private func daysLeft(_ t: Transcript) -> String {

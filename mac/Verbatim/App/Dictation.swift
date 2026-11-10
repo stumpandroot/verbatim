@@ -1421,10 +1421,10 @@ final class DictationController: ObservableObject {
     func purgeOldDictations() {
         let days = FlowSettings.shared.keepDays
         guard days > 0, let app else { return }
-        let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
-        let old = app.store.live.filter { $0.source == .dictation && $0.createdAt < cutoff && !$0.pinned }.map(\.id)
-        // Straight to Recently Deleted, quietly: this runs at launch, when a toast would only confuse.
-        for id in old { app.store.moveToTrash(id) }
+        let old = BulkChange.oldDictations(app.store.live, keepDays: days)
+        // Straight to Recently Deleted, quietly: this runs at launch, when a toast would only confuse. One change to the
+        // library for the lot, so Keep dictations set to a day doesn't stall on a long history.
+        app.store.moveToTrash(old)
         if !old.isEmpty { Log.note("dictation retention: moved \(old.count) to Recently Deleted") }
     }
 

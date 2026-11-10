@@ -62,6 +62,44 @@ let capped = SearchPanelResults.find("folding", in: many)
 check("search panel: at most five recordings and eight lines", capped.recordings.count == SearchPanelResults.maxRecordings
       && capped.passages.reduce(0) { $0 + $1.lines.count } == SearchPanelResults.maxLines)
 check("search panel: nothing matching is empty", SearchPanelResults.find("zebra", in: [walk, call]).isEmpty)
+let hourA = Date(timeIntervalSinceReferenceDate: 3_600 * 1_000 + 10), hourB = hourA.addingTimeInterval(3_600)
+check("search panel: one query and scope keep one key (the arrow keys don't search again), spaces aside",
+      SearchPanelResults.memoKey("folding", scope: "all|all", movesWithClock: false) == SearchPanelResults.memoKey(" folding ", scope: "all|all", movesWithClock: false))
+check("search panel: another query or scope is another key",
+      SearchPanelResults.memoKey("folding", scope: "all|all", movesWithClock: false) != SearchPanelResults.memoKey("folding w", scope: "all|all", movesWithClock: false)
+      && SearchPanelResults.memoKey("folding", scope: "all|all", movesWithClock: false) != SearchPanelResults.memoKey("folding", scope: "all|thoughts", movesWithClock: false))
+check("search panel: This week's key moves with the hour; All time's doesn't",
+      SearchPanelResults.memoKey("folding", scope: "week|all", movesWithClock: true, now: hourA) != SearchPanelResults.memoKey("folding", scope: "week|all", movesWithClock: true, now: hourB)
+      && SearchPanelResults.memoKey("folding", scope: "all|all", movesWithClock: false, now: hourA) == SearchPanelResults.memoKey("folding", scope: "all|all", movesWithClock: false, now: hourB))
+
+// Bulk changes (Model/BulkChange.swift): which transcripts Empty, the 30-day purge, and dictation retention take, so the
+// Store can make each one change to the library.
+let a = UUID(), b = UUID(), c = UUID()
+check("bulk: ids keep their order, each once", BulkChange.unique([a, b, a, c, b]) == [a, b, c] && BulkChange.unique([UUID]()).isEmpty)
+let twice = rec("Twice", [])
+check("bulk: a transcript passed twice counts once", BulkChange.unique([twice, walk, twice]).map(\.id) == [twice.id, walk.id])
+let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+func gone(_ title: String, daysAgo: Double?) -> Transcript {
+    var t = rec(title, [])
+    t.deletedAt = daysAgo.map { now.addingTimeInterval(-$0 * 86_400) }
+    return t
+}
+let trashList = [gone("Old", daysAgo: 31), gone("Recent", daysAgo: 29), gone("Live", daysAgo: nil), gone("Just over", daysAgo: 30.01)]
+check("bulk: the purge takes what's been in Recently Deleted more than 30 days, never a live one",
+      BulkChange.expired(trashList, days: 30, now: now).map(\.title) == ["Old", "Just over"])
+func dictation(_ title: String, daysAgo: Double, pinned: Bool = false) -> Transcript {
+    var t = Transcript(title: title, source: .dictation, sourceLabel: "Dictation", duration: 5, audioFileName: nil, model: "")
+    t.createdAt = now.addingTimeInterval(-daysAgo * 86_400)
+    t.pinned = pinned
+    return t
+}
+var memo = rec("Old memo", [])
+memo.createdAt = now.addingTimeInterval(-90 * 86_400)
+let history = [dictation("Old", daysAgo: 2), dictation("Today", daysAgo: 0.5), dictation("Pinned", daysAgo: 9, pinned: true), memo, dictation("Older", daysAgo: 40)]
+check("bulk: retention takes dictations older than Keep dictations, in order, never pinned ones or recordings",
+      BulkChange.oldDictations(history, keepDays: 1, now: now) == [history[0].id, history[4].id])
+check("bulk: retention set to keep everything takes nothing", BulkChange.oldDictations(history, keepDays: 0, now: now).isEmpty)
+check("bulk: a month's retention takes only the older one", BulkChange.oldDictations(history, keepDays: 30, now: now) == [history[4].id])
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

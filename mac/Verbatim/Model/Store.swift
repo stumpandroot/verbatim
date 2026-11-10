@@ -980,13 +980,25 @@ final class Store: Observable {
         memo("trash") { transcripts.filter { $0.deletedAt != nil }.sorted { ($0.deletedAt ?? .distantPast) > ($1.deletedAt ?? .distantPast) } }
     }
 
-    func moveToTrash(_ id: UUID) { update(id) { $0.deletedAt = Date(); $0.pinned = false }; onTranscriptsRemoved?([id]) }
-    func restore(_ id: UUID) { update(id) { $0.deletedAt = nil } }
+    func moveToTrash(_ id: UUID) { moveToTrash([id]) }
+    func restore(_ id: UUID) { restore([id]) }
+
+    /// Moves these to Recently Deleted (unpinned), each saved as `update` saves one, in one change to the list: one
+    /// publish and one re-render however many there are (Model/BulkChange.swift). Ask forgets them, once.
+    func moveToTrash(_ ids: [UUID]) {
+        let ids = BulkChange.unique(ids)
+        guard !ids.isEmpty else { return }
+        let at = Date()
+        updateAll(ids) { $0.deletedAt = at; $0.pinned = false }
+        onTranscriptsRemoved?(ids)
+    }
+
+    /// Puts these back from Recently Deleted, in one change to the list (as `moveToTrash(_ ids:)`).
+    func restore(_ ids: [UUID]) { updateAll(BulkChange.unique(ids)) { $0.deletedAt = nil } }
 
     /// Recently Deleted keeps things for `trashDays` (30) days.
     private func purgeExpired() {
-        let cutoff = Date().addingTimeInterval(-Double(Self.trashDays) * 86_400)
-        for t in transcripts where (t.deletedAt ?? .distantFuture) < cutoff { delete(t) }
+        delete(BulkChange.expired(transcripts, days: Self.trashDays))
     }
 
     /// A recording whose app died before it stopped is still in the local recordings folder. Surface it.
@@ -1334,6 +1346,29 @@ final class Store: Observable {
         save(applyChange(change, at: i))
     }
 
+    /// `update` for each of these, as one change to the list: each one's search text is dropped, its live progress
+    /// label folded in, and it's saved, as `update` does, but the list publishes once and views re-render once, and
+    /// nothing that follows the library (Kept media, the widgets) looks at it once per transcript. Every change is
+    /// worked out before the write, so a change closure never overlaps it.
+    private func updateAll(_ ids: [UUID], _ change: (inout Transcript) -> Void) {
+        var changed: [(index: Int, transcript: Transcript)] = []
+        for id in ids {
+            guard let i = index(of: id) else { continue }
+            searchCache[id] = nil
+            var t = _transcripts[i]
+            if let live = StageClock.shared.take(id) { t.stage = live }
+            change(&t)
+            changed.append((i, t))
+        }
+        guard !changed.isEmpty else { return }
+        registrar.withMutation(of: self, keyPath: \.transcripts) {
+            for c in changed where c.index < _transcripts.count && _transcripts[c.index].id == c.transcript.id { _transcripts[c.index] = c.transcript }
+        }
+        transcriptsChanged()
+        for c in changed { revisions[c.transcript.id] = transcriptsGeneration }
+        for c in changed { save(c.transcript) }
+    }
+
     /// Like `update`, but writes to disk a second after the last change: for typing.
     func updateDeferred(_ id: UUID, _ change: (inout Transcript) -> Void) {
         guard let i = index(of: id) else { return }
@@ -1356,9 +1391,22 @@ final class Store: Observable {
     }
 
     /// Permanent: removes the transcript, its audio, and its thumbnail.
-    func delete(_ t: Transcript) {
-        transcripts.removeAll { $0.id == t.id }
-        onTranscriptsRemoved?([t.id])
+    func delete(_ t: Transcript) { delete([t]) }
+
+    /// Permanent, for each of these (Empty, Delete permanently on a selection, the 30-day purge, Delete All Data): one
+    /// change to the list and one word to Ask, then each one's files, as `delete(_ t:)` removes one's.
+    func delete(_ list: [Transcript]) {
+        let list = BulkChange.unique(list)
+        guard !list.isEmpty else { return }
+        let gone = Set(list.map(\.id))
+        transcripts.removeAll { gone.contains($0.id) }
+        onTranscriptsRemoved?(list.map(\.id))
+        for t in list { removeFiles(of: t) }
+    }
+
+    /// A deleted transcript's search text, live progress label, and files: its JSON, audio, continued recording,
+    /// thumbnail, local media, tracks, note stills, and video stills.
+    private func removeFiles(of t: Transcript) {
         searchCache[t.id] = nil
         StageClock.shared.take(t.id)
         var files = [TranscriptFiles.url(t.id)]

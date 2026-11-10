@@ -371,7 +371,7 @@ struct DayPageCard: View {
             Text(DayPages.count(empties.count, "empty thought", "empty thoughts")).refinedFont(.rowTitle).foregroundStyle(Refined.dim)
             Text("·").foregroundStyle(Refined.mute).accessibilityHidden(true)
             Button("Delete") {
-                for t in empties { app.store.moveToTrash(t.id) }
+                app.store.moveToTrash(empties.map(\.id))
                 app.toast = Toast("Moved \(DayPages.count(empties.count, "empty thought", "empty thoughts")) to Recently Deleted")
             }
             .buttonStyle(.plain).refinedFont(.rowTitle, weight: .semibold).foregroundStyle(Refined.accentText)

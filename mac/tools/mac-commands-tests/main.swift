@@ -219,6 +219,9 @@ check("panel: the toolbar's field opens the panel instead of filtering the Libra
 check("panel: Search lists recordings and passages and never writes the Library's search while you type",
       askViews.contains("SearchPanelResults.find(") && !askViews.contains("if nav.mode == .search { app.search = q }")
       && askViews.contains("PanelKeys.chosen(cursor, count: order.count)"))
+check("panel: Search's results are kept per query and scope until the library changes, so ↓ and ↑ never search again",
+      askViews.contains("app.store.memo(SearchPanelResults.memoKey(q, scope: scope.raw")
+      && !askViews.contains("let results = SearchPanelResults.find("))
 check("panel: the Ask page shows the same panel inline, with Ask chosen", askViews.contains("AskPanel(inline: true)")
       && askViews.contains("nav.mode = .ask") && !askViews.contains("ask-screen-field"))
 
@@ -232,6 +235,9 @@ let doc = read("Verbatim/Document/DocumentView.swift")
 check("undo: the Cleaned tab registers its history on the window's UndoManager (MAC-01)",
       doc.contains("@Environment(\\.undoManager) private var undoManager") && doc.contains("um.registerUndo(withTarget: store)")
       && doc.contains("$0.redoDocument(snapshot)"))
+check("cleaned: the editor measures each width's height once per change to its text, and the text is kept per transcript",
+      doc.contains("context.coordinator.measuredHeight(width: w, length: length)") && doc.contains("textVersion &+= 1")
+      && doc.contains("app.store.documentText(transcript.id)") && !doc.contains("all.filter { $0.source == text } }"))
 check("undo: nothing binds ⇧⌘Z to Undo, and the tooltip says ⌘Z", !doc.contains(".keyboardShortcut(\"z\"") && doc.contains("fix (⌘Z)") && !doc.contains("fix (⇧⌘Z)"))
 
 let sidebar = read("Verbatim/Views/MacSidebar.swift"), library = read("Verbatim/Views/LibraryView.swift")

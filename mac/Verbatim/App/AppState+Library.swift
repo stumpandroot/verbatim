@@ -41,21 +41,23 @@ extension AppState {
 
     func delete(_ ids: [UUID]) {
         // Moves to Recently Deleted (kept 30 days). Undo puts them straight back.
-        for id in ids { coordinator.cancelIfActive(id); store.moveToTrash(id) }
+        // One change to the library for the lot (Store.moveToTrash(_ ids:)), however many are selected.
+        for id in ids { coordinator.cancelIfActive(id) }
+        store.moveToTrash(ids)
         if case .transcript(let open) = screen, ids.contains(open) { go(.library) }
         toast = Toast(ids.count == 1 ? "Moved to Recently Deleted" : "Moved \(ids.count) to Recently Deleted", action: "Undo") { [weak self] in
-            ids.forEach { self?.store.restore($0) }
+            self?.store.restore(ids)
         }
     }
 
     func restore(_ ids: [UUID]) {
-        ids.forEach { store.restore($0) }
+        store.restore(ids)
         toast = Toast(ids.count == 1 ? "Restored" : "Restored \(ids.count) transcripts")
     }
 
-    /// Permanent. Only offered from Recently Deleted.
+    /// Permanent. Only offered from Recently Deleted (a row's Delete permanently, and Empty for the lot, in one change).
     func purge(_ ids: [UUID]) {
-        for id in ids { if let t = store.transcript(id) { store.delete(t) } }
+        store.delete(ids.compactMap { store.transcript($0) })
     }
 
     // MARK: Editing
@@ -203,7 +205,7 @@ extension AppState {
         dictation.cancel(quiet: true)
         player.stop()
         coordinator.cancelAll()   // once, so cancelling one job doesn't start the next queued one
-        for t in store.transcripts { store.delete(t) }
+        store.delete(store.transcripts)
         store.projects = []
         store.dictionary = []
         FlowSettings.shared.snippets = []
