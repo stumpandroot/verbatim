@@ -8,9 +8,9 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 dest="$here/Helpers"
 
-PINNED_VERSION="2026.08.19"
-# https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/SHA2-256SUMS, the yt-dlp_macos line.
-PINNED_SHA256="0f192b7ec147ab6288885d6351d9ab67367640029b4377576ef46dd79cf7b202"
+PINNED_VERSION="2026.10.26"
+# https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/SHA2-256SUMS, the yt-dlp_macos line.
+PINNED_SHA256="0f922c15ccc0b83eefa1c8bc9104e434318c4bf16e408e1ee93b7745a6efe0aa"
 
 YTDLP_VERSION="${YTDLP_VERSION:-$PINNED_VERSION}"
 if [ "$YTDLP_VERSION" = "$PINNED_VERSION" ]; then
