@@ -65,11 +65,15 @@ enum DictationTiming {
 
     // MARK: Log
 
-    /// One line per dictation: the time from letting go to the paste, and where it went.
-    static func timingLine(total: Double, tail: Double, transcribe: Double, cleanup: Double, paste: Double, cleaned: Bool, note: String?) -> String {
+    /// One line per dictation: the time from letting go to the paste, and where it went. `preClean` is how many
+    /// parts cleaned while you talked the cleanup reused, of how many there were (Model/PreClean.swift); nil when
+    /// there were none, and the line is then the same as before.
+    static func timingLine(total: Double, tail: Double, transcribe: Double, cleanup: Double, paste: Double, cleaned: Bool, note: String?,
+                           preClean: (reused: Int, sealed: Int)? = nil) -> String {
         func s(_ v: Double) -> String { String(format: "%.2f", v) }
         return "dictation timing: release → paste \(s(total)) s (tail \(s(tail)), transcribe \(s(transcribe)), cleanup \(s(cleanup)), paste \(s(paste)); "
-            + (cleaned ? "model" : "rules") + (note.map { ": " + $0 } ?? "") + ")"
+            + (cleaned ? "model" : "rules") + (note.map { ": " + $0 } ?? "")
+            + (preClean.map { "; pre-clean \($0.reused) of \($0.sealed) reused" } ?? "") + ")"
     }
 }
 
@@ -204,6 +208,14 @@ enum DictationTimingChecks {
               DictationTiming.blocksPaste(secureAtStart: false, secureNow: true) && DictationTiming.blocksPaste(secureAtStart: true, secureNow: nil)
                 && !DictationTiming.blocksPaste(secureAtStart: true, secureNow: false) && !DictationTiming.blocksPaste(secureAtStart: false, secureNow: nil))
         expect("paste: the password field notice", DictationTiming.securePasteNotice, "Verbose doesn't paste into password fields. Copied instead.")
+
+        // The log's timing line
+        expect("timing line: as before without parts cleaned ahead",
+               DictationTiming.timingLine(total: 1.234, tail: 0.2, transcribe: 0.31, cleanup: 0.7, paste: 0.02, cleaned: true, note: nil),
+               "dictation timing: release → paste 1.23 s (tail 0.20, transcribe 0.31, cleanup 0.70, paste 0.02; model)")
+        expect("timing line: parts cleaned while you talked are counted",
+               DictationTiming.timingLine(total: 0.9, tail: 0.2, transcribe: 0.3, cleanup: 0.35, paste: 0.02, cleaned: true, note: nil, preClean: (reused: 2, sealed: 3)),
+               "dictation timing: release → paste 0.90 s (tail 0.20, transcribe 0.30, cleanup 0.35, paste 0.02; model; pre-clean 2 of 3 reused)")
 
         // Ribbon hint line
         expect("hint line: right option", DictationTiming.hintLine("hold right ⌥ or click"), "Click or hold right ⌥ to dictate")

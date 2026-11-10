@@ -57,6 +57,9 @@ enum FlowCleanup {
         /// The text's sentence and paragraph breaks include ones added at long pauses (`PauseBreaks`, Mac); the
         /// prompt tells the model so.
         var pauseHints: Bool = false
+        /// Mac dictation: this dictation's finished sentences, cleaned while you talked (`PreClean`). The model step
+        /// reuses the ones the final text still starts with and cleans only the rest. Nil everywhere else.
+        var preClean: PreCleanSession? = nil
     }
 
     struct Result {
@@ -288,7 +291,7 @@ enum FlowCleanup {
     private static func cleanWithModel(_ r: Request, pre: String) async -> Result {
         let rules = instructions(level: r.level, corrections: r.spokenCorrections)
         // Long hands-free dictations go in parts, so instructions, examples, text, and answer fit the window.
-        let parts = chunkParts(pre, limit: 2_500)
+        let whole = chunkParts(pre, limit: 2_500)
         var limits = r.level == .polished ? MeaningCheck.Limits.polished : MeaningCheck.Limits.clean
         limits.vocabulary = r.vocabulary
         limits.finalPunctuationOptional = r.style == .veryCasual || r.category == .email
@@ -296,51 +299,84 @@ enum FlowCleanup {
         var cleanedAny = false
         var note: String?
         let started = Date()
+        // Sentences already cleaned while you talked, when the final text still starts with them: only the rest
+        // goes to the model. A part still being cleaned is waited for up to 1.5 seconds (it had a head start), and
+        // the wait counts against the budget. With nothing to reuse, everything below runs as it always has.
+        var reused = false
+        var parts = whole
+        if let ahead = r.preClean,
+           let hit = await ahead.reuse(pre: pre, key: preCleanKey(r), wait: min(1.5, (r.timeBudget ?? 4) / 2)) {
+            reused = true
+            text = hit.text
+            cleanedAny = hit.cleanedAny
+            note = hit.note
+            parts = hit.remainder.isEmpty ? [] : chunkParts(hit.remainder, limit: 2_500)
+            if !parts.isEmpty { parts[0].sep = hit.remainderSep }
+        }
         for (i, part) in parts.enumerated() {
+            // The dictation's first part: no break before it, and the app's context in its prompt.
+            let first = i == 0 && !reused
             var seconds = min(15, max(4, Double(part.text.count) / 200))
             if let budget = r.timeBudget {
                 let left = budget - Date().timeIntervalSince(started)
                 if left < 0.05 {
                     // Out of time: this part (and any after it) keeps the rule-based text.
                     note = note ?? "Cleanup took too long; pasted without it"
-                    text += (i == 0 ? "" : part.sep) + part.text
+                    text += (first ? "" : part.sep) + part.text
                     continue
                 }
                 seconds = min(seconds, left)
             }
-            let prompt = userPrompt(r, text: part.text, withContext: i == 0)
+            let prompt = userPrompt(r, text: part.text, withContext: first)
             let warm = i == 0 ? WarmSession.shared.take(key: rules) : nil
-            var piece = part.text
-            switch await respond(rules: rules, prompt: prompt, warm: warm, seconds: seconds) {
-            case .text(let raw):
-                let out = strip(raw)
-                if out == "EMPTY" {
-                    Log.note("cleanup guard: model said EMPTY for words that aren't filler")
-                    note = note ?? "Cleanup returned nothing; pasted without it"
-                } else if let problem = guardProblem(raw: part.text, out: out, r: r) {
-                    Log.note("cleanup guard: \(problem)")
-                    note = note ?? problem
-                } else if let problem = MeaningCheck.problem(raw: part.text, output: out, limits: limits) {
-                    Log.note("cleanup meaning check: \(problem)")
-                    note = note ?? "Kept your words: \(problem)"
-                } else {
-                    piece = out
-                    cleanedAny = true
-                }
-            case .overflow:
-                Log.note("cleanup: part \(i + 1) of \(parts.count) overflowed the model's window; kept as spoken")
-                note = note ?? "Too long to clean in one pass; pasted without cleanup"
-            case .failed(let kind):
-                Log.note("cleanup: model error (\(kind))")
-                note = note ?? "Apple's model couldn't clean this; pasted without cleanup"
-            case .timedOut:
-                Log.note("cleanup: timed out after \(String(format: "%.1f", seconds)) s")
-                note = note ?? "Cleanup took too long; pasted without it"
-            }
-            text += (i == 0 ? "" : part.sep) + piece
+            let reply = await respond(rules: rules, prompt: prompt, warm: warm, seconds: seconds)
+            let o = outcome(of: reply, for: part.text, r: r, limits: limits, seconds: seconds, place: "part \(i + 1) of \(parts.count)", quiet: false)
+            note = note ?? o.note
+            if o.cleaned { cleanedAny = true }
+            text += (first ? "" : part.sep) + o.text
         }
         // The formatter runs on the joined text, whether each part came from the model or the rules.
         return Result(text: layout(text, r), cleaned: cleanedAny, note: note)
+    }
+
+    /// Cleans one finished part of a dictation that's still being spoken (`PreCleanRun`), with the same instructions,
+    /// prompt, and guards as `cleanWithModel` uses for a part. On this device only, on its own session (the
+    /// prewarmed one stays for the release), and nothing is logged. Nil when the model gave no answer to keep
+    /// (cancelled, an error, or too slow): the release cleans that part itself.
+    @available(macOS 26, iOS 26, *)
+    private static func cleanAheadWithModel(_ r: Request, text: String, first: Bool) async -> PreClean.Outcome? {
+        let rules = instructions(level: r.level, corrections: r.spokenCorrections)
+        var limits = r.level == .polished ? MeaningCheck.Limits.polished : MeaningCheck.Limits.clean
+        limits.vocabulary = r.vocabulary
+        limits.finalPunctuationOptional = r.style == .veryCasual || r.category == .email
+        let seconds = min(15, max(4, Double(text.count) / 200))
+        let prompt = userPrompt(r, text: text, withContext: first)
+        // Its own task, so cancelling (Esc, a new dictation, letting go) stops the model instead of waiting it out.
+        let work = Task.detached(priority: .utility) { () -> Reply? in
+            let session = LanguageModelSession(instructions: rules)
+            do {
+                let answer = try await session.respond(to: prompt, options: GenerationOptions(temperature: 0.1))
+                return .text(answer.content)
+            } catch let e as LanguageModelSession.GenerationError {
+                return FlowCleanup.errorReply(e)
+            } catch {
+                return nil   // cancelled, or an error: no answer to keep
+            }
+        }
+        let reply: Reply? = await withTaskCancellationHandler {
+            let out: Reply? = await withTimeout(seconds: seconds) { await work.value }
+            work.cancel()
+            return out
+        } onCancel: {
+            work.cancel()
+        }
+        if Task.isCancelled { return nil }
+        switch reply {
+        case .some(.text), .some(.overflow):
+            return outcome(of: reply ?? .timedOut, for: text, r: r, limits: limits, seconds: seconds, place: "a part", quiet: true)
+        case .some(.failed), .some(.timedOut), .none:
+            return nil
+        }
     }
 
     /// Runs one prompt, on the prewarmed session when it was built for these instructions.
@@ -373,6 +409,70 @@ enum FlowCleanup {
         return .failed("generation error")
     }
     #endif
+
+    /// What one part's reply becomes: the model's text when it passes the guards, else the rule-based text with
+    /// why. `cleanWithModel` and cleaning ahead share it, so a part is judged the same way whenever it was cleaned.
+    /// `quiet` logs nothing (work done while you talk is never logged).
+    private static func outcome(of reply: Reply, for part: String, r: Request, limits: MeaningCheck.Limits, seconds: Double,
+                                place: String, quiet: Bool) -> PreClean.Outcome {
+        func log(_ line: @autoclosure () -> String) { if !quiet { Log.note(line()) } }
+        func kept(_ note: String) -> PreClean.Outcome { PreClean.Outcome(text: part, cleaned: false, note: note) }
+        switch reply {
+        case .text(let raw):
+            let out = strip(raw)
+            if out == "EMPTY" {
+                log("cleanup guard: model said EMPTY for words that aren't filler")
+                return kept("Cleanup returned nothing; pasted without it")
+            } else if let problem = guardProblem(raw: part, out: out, r: r) {
+                log("cleanup guard: \(problem)")
+                return kept(problem)
+            } else if let problem = MeaningCheck.problem(raw: part, output: out, limits: limits) {
+                log("cleanup meaning check: \(problem)")
+                return kept("Kept your words: \(problem)")
+            }
+            return PreClean.Outcome(text: out, cleaned: true, note: nil)
+        case .overflow:
+            log("cleanup: \(place) overflowed the model's window; kept as spoken")
+            return kept("Too long to clean in one pass; pasted without cleanup")
+        case .failed(let kind):
+            log("cleanup: model error (\(kind))")
+            return kept("Apple's model couldn't clean this; pasted without cleanup")
+        case .timedOut:
+            log("cleanup: timed out after \(String(format: "%.1f", seconds)) s")
+            return kept("Cleanup took too long; pasted without it")
+        }
+    }
+
+    // MARK: Cleaning ahead (Mac dictation)
+
+    /// The rule-based text the model step would get for these words, or nil when cleanup wouldn't call the model
+    /// for them (nothing said, a code app, Literal, only fillers). `run` makes the same text the same way.
+    static func preCleanInput(_ r: Request) -> String? {
+        let spoken = r.raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !spoken.isEmpty, r.category != .code, r.level != .literal else { return nil }
+        let pre = CleanupPrepass.clean(spoken, corrections: r.spokenCorrections)
+        return pre.isEmpty || CleanupPrepass.isOnlyFillers(pre) ? nil : pre
+    }
+
+    /// Everything the model step's answer depends on besides the words: the level, the destination, the tone, your
+    /// Dictionary terms, the app's context, and the email settings. Parts cleaned ahead are reused only by a cleanup
+    /// with the same key.
+    static func preCleanKey(_ r: Request) -> String {
+        [r.level.rawValue, r.category.rawValue, r.style.rawValue, r.spokenCorrections ? "corrections" : "as spoken",
+         r.vocabulary.joined(separator: "\u{1}"), userPrompt(r, text: "", withContext: true), userPrompt(r, text: "", withContext: false)]
+            .joined(separator: "\u{2}")
+    }
+
+    /// Cleans one finished part ahead of the release, on this device. Nil without Apple's model or without an
+    /// answer to keep. See `cleanAheadWithModel`.
+    static func cleanAhead(_ r: Request, text: String, first: Bool) async -> PreClean.Outcome? {
+        #if canImport(FoundationModels)
+        if #available(macOS 26, iOS 26, *), available {
+            return await cleanAheadWithModel(r, text: text, first: first)
+        }
+        #endif
+        return nil
+    }
 
     // MARK: Command mode
 

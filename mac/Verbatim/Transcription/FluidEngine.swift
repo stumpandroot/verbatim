@@ -484,33 +484,62 @@ actor FluidEngine: TranscriptionEngine {
     /// then the newest. VAD and boosting failures fall back to the plain transcript: they must never break dictation.
     /// The boost never makes the dictation wait (see `dictation`).
     func transcribeDictation(url: URL, model: String, dictionary: [DictionaryEntry], project: UUID?) async throws -> EngineResult {
-        try await dictation(url: url, model: model, ranked: BoostVocabulary.rank(dictionary, project: project), waitForBoost: false)
+        try await dictation(.file(url), model: model, ranked: BoostVocabulary.rank(dictionary, project: project), waitForBoost: false)
     }
+
+    /// `transcribeDictation` for the start of a dictation that's still being spoken (clean while you talk,
+    /// `PreCleanRun`): the same model, silence trimming, and boost rule on 16 kHz mono samples held in memory, so the
+    /// words match what the release will hear. Nothing is logged and nothing is saved.
+    func transcribeDictationSoFar(samples: [Float], model: String, dictionary: [DictionaryEntry], project: UUID?) async throws -> EngineResult {
+        try await dictation(.soFar(samples), model: model, ranked: BoostVocabulary.rank(dictionary, project: project), waitForBoost: false)
+    }
+
+    /// Where a dictation's audio comes from: its finished file, or the samples heard so far.
+    private enum DictationAudio {
+        case file(URL)
+        case soFar([Float])
+    }
+
+    /// Snapshots being transcribed right now, so a release that has to queue behind one says so in the log.
+    private var snapshotsInFlight = 0
 
     /// Same as `transcribeDictation`, for callers that pass bare terms (oldest first, as the Dictionary stores
     /// them). Empty `terms` is fine: you still get speech detection, just no boosting. Waits for the boost to be
     /// built and to finish rescoring, so the speech bench always measures it.
     func transcribeBoosted(url: URL, model: String, terms: [(text: String, aliases: [String])]) async throws -> EngineResult {
-        try await dictation(url: url, model: model, ranked: BoostVocabulary.rankByPosition(terms), waitForBoost: true)
+        try await dictation(.file(url), model: model, ranked: BoostVocabulary.rankByPosition(terms), waitForBoost: true)
     }
 
-    private func dictation(url: URL, model requested: String, ranked: [(text: String, aliases: [String])], waitForBoost: Bool) async throws -> EngineResult {
+    private func dictation(_ source: DictationAudio, model requested: String, ranked: [(text: String, aliases: [String])], waitForBoost: Bool) async throws -> EngineResult {
         let model = Engines.fluidModel(requested)
         let m = try await prepared(model, progress: { _ in })
         // Don't interleave with a warm-up inference on the same model; it finishes in about a second.
         if let p = prewarming, p.model == model { await p.task.value }
-        UserDefaults.standard.set(!ranked.isEmpty, forKey: Self.boostUsedKey)
+        // A snapshot of a dictation still being spoken: the same steps, with nothing logged or remembered.
+        let quiet: Bool
+        let full: [Float]
+        switch source {
+        case .file(let url):
+            quiet = false
+            UserDefaults.standard.set(!ranked.isEmpty, forKey: Self.boostUsedKey)
+            // One read and resample (16 kHz mono), shared by VAD, the ASR model, and the rescorer.
+            full = try AudioConverter().resampleAudioFile(url)
+            if snapshotsInFlight > 0 { Log.note("dictation: transcription queued behind a pre-clean snapshot") }
+        case .soFar(let held):
+            quiet = true
+            full = held
+        }
         let name = Engines.displayName(engine: "fluid", model: model)
-        // One read and resample (16 kHz mono), shared by VAD, the ASR model, and the rescorer.
-        let full = try AudioConverter().resampleAudioFile(url)
         let fullDuration = Double(full.count) / 16_000
         // VAD seeing no speech at all still transcribes the full audio (the loudness gate already passed): soft or
         // whispered speech can score low, and Parakeet rarely invents words in silence. An empty result is still empty.
         let trimmed = await trimSilence(full)
-        if trimmed == nil { Log.note("VAD: no speech detected; transcribing the full audio anyway") }
+        if trimmed == nil, !quiet { Log.note("VAD: no speech detected; transcribing the full audio anyway") }
         let samples = trimmed?.samples ?? full
         let offset = trimmed?.start ?? 0
         var state = TdtDecoderState.make()
+        if quiet { snapshotsInFlight += 1 }
+        defer { if quiet { snapshotsInFlight -= 1 } }
         let r = try await m.transcribe(samples, decoderState: &state)
         var text = r.text.trimmingCharacters(in: .whitespacesAndNewlines)
         // The boost never holds up a dictation: it runs only with a session already built for these terms (one is
@@ -530,20 +559,20 @@ actor FluidEngine: TranscriptionEngine {
                 }
                 switch out {
                 case .none:
-                    Log.note("vocabulary boost: skipped, took over \(Int(budget * 1000)) ms")
+                    if !quiet { Log.note("vocabulary boost: skipped, took over \(Int(budget * 1000)) ms") }
                 case .some(.none):
                     break
                 case .some(.some(let o)):
-                    if !o.detectedTerms.isEmpty { Log.note("vocabulary boost heard \(o.detectedTerms.count) term(s) in \(Int(Date().timeIntervalSince(t1) * 1000)) ms") }
+                    if !o.detectedTerms.isEmpty, !quiet { Log.note("vocabulary boost heard \(o.detectedTerms.count) term(s) in \(Int(Date().timeIntervalSince(t1) * 1000)) ms") }
                     if o.wasModified {
                         // Keep only swaps that sound like the Dictionary word they bring in (bench 121–123: the rescorer
                         // turned "it to" into "Lititz" and "at all" / "last year." into "Castwell").
                         let guarded = BoostGuard.filter(original: r.text, boosted: o.text, terms: ranked)
-                        if guarded.reverted > 0 { Log.note("vocabulary boost: kept \(guarded.kept), reverted \(guarded.reverted) unlikely swap(s)") }
+                        if guarded.reverted > 0, !quiet { Log.note("vocabulary boost: kept \(guarded.kept), reverted \(guarded.reverted) unlikely swap(s)") }
                         text = guarded.text.trimmingCharacters(in: .whitespacesAndNewlines)
                     }
                 }
-            } else {
+            } else if !quiet {
                 Log.note("vocabulary boost: skipped, vocabulary model not ready yet")
             }
         }
