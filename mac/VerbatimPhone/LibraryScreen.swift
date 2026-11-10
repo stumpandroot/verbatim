@@ -142,6 +142,16 @@ struct LibraryScreen: View {
         return out.filter { !$0.items.isEmpty }
     }
 
+    /// The day sections as the List's rows, one view each (ListRows): a day's title, or a recording that knows whether
+    /// it's its card's first or last. Kept with the lines they come from, so a render doesn't group them again.
+    private func dayRows(_ items: [Transcript]) -> [ListRows.Grouped<String, Transcript>] {
+        app.store.memo("phone.day-rows|\(scopeKey)|\(typeFilter.raw)|\(sort.rawValue)|\(Store.dayKey())|\(items.count)") {
+            let sections: [(title: String?, items: [Transcript])] = Self.daySections(lines(items))
+                .map { (title: $0.label.isEmpty ? nil : $0.label, items: $0.items) }
+            return ListRows.grouped(sections, id: \.id)
+        }
+    }
+
     var body: some View {
         // `scoped` searches every transcript's text; work it out once per render.
         let scoped = self.scoped
@@ -162,8 +172,15 @@ struct LibraryScreen: View {
                     if items.isEmpty {
                         if let k = kindTabKind, !searching, project == nil { kindEmptyState(k) } else { emptyState(project: project) }
                     }
-                    ForEach(Self.daySections(lines(items)), id: \.label) { day in
-                        daySection(day)
+                    // One row each, a day's title or a recording, so the List counts its rows without building every day.
+                    ForEach(dayRows(items)) { r in
+                        switch r.kind {
+                        case .title(let label):
+                            SectionTitle(label)
+                                .modifier(PageRow(top: 22, bottom: 8))
+                        case .item(let t, let first, let last):
+                            row(t, first: first, last: last)
+                        }
                     }
                 }
                 // A chip's change fades the list in as a whole (`fadeList`); each row takes the same opacity, nothing more.
@@ -294,7 +311,8 @@ struct LibraryScreen: View {
             chips
                 .modifier(PageRow(top: 10, bottom: 0, edge: 0))
         }
-        let platforms = typeFilter.platformCounts(scoped, searching: searching)
+        // Once per library change, filter, search, and type, not on every render.
+        let platforms = app.store.memo("phone.platforms|\(scopeKey)|\(typeFilter.raw)") { typeFilter.platformCounts(scoped, searching: searching) }
         if content != .ask, typeFilter.source.hasPlatforms, !platforms.isEmpty {
             RefinedChipRow(label: "Platform", margin: 20) {
                 ForEach(platforms, id: \.0) { p, n in
@@ -647,16 +665,6 @@ struct LibraryScreen: View {
     }
 
     // MARK: Days and rows
-
-    @ViewBuilder private func daySection(_ day: (label: String, items: [Transcript])) -> some View {
-        if !day.label.isEmpty {
-            SectionTitle(day.label)
-                .modifier(PageRow(top: 22, bottom: 8))
-        }
-        ForEach(Array(day.items.enumerated()), id: \.element.id) { i, t in
-            row(t, first: i == 0, last: i == day.items.count - 1)
-        }
-    }
 
     private func row(_ t: Transcript, first: Bool, last: Bool) -> some View {
         LibraryRow(transcript: t, selecting: selecting)

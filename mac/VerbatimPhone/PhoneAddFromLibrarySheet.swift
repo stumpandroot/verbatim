@@ -16,10 +16,36 @@ struct PhoneAddFromLibrarySheet: View {
 
     private var projectName: String { app.store.projects.first { $0.id == project }?.name ?? "Project" }
 
+    /// What the sheet lists for the search and type.
+    private struct Lists {
+        /// Everything the search finds (the chips count these).
+        var candidates: [Transcript]
+        /// The candidates of the chosen type.
+        var shown: [Transcript]
+        /// `shown` under its days, one row each (ListRows): a day's title, or a candidate.
+        var rows: [ListRows.Grouped<Date, Transcript>]
+        /// `shown`'s ids as one number, for the list's animation.
+        var shownKey: Int
+    }
+
+    /// Worked out once per library change, search, type, and day (Store+Memo.swift), not on every tap of a row: the
+    /// search reads every transcript's text.
+    private func lists() -> Lists {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let filter = self.filter, project = self.project
+        return app.store.memo("phone.add-from-library|\(project.uuidString)|\(filter.raw)|\(Store.dayKey())|\(q)") {
+            let candidates = ProjectAdd.candidates(app.store.transcripts, project: project, query: q) { app.store.searchText($0) }
+            let shown = filter.apply(candidates, searching: !q.isEmpty)
+            let days: [(title: Date?, items: [Transcript])] = Self.days(shown).map { (title: $0.day, items: $0.items) }
+            return Lists(candidates: candidates, shown: shown, rows: ListRows.grouped(days, id: \.id),
+                         shownKey: ListRows.fingerprint(shown, id: \.id))
+        }
+    }
+
     var body: some View {
         let searching = !query.trimmingCharacters(in: .whitespaces).isEmpty
-        let candidates = ProjectAdd.candidates(app.store.transcripts, project: project, query: query) { app.store.searchText($0) }
-        let shown = filter.apply(candidates, searching: searching)
+        let lists = self.lists()
+        let candidates = lists.candidates, shown = lists.shown
         let chosen = candidates.filter { selection.contains($0.id) }
         let moving = chosen.filter { $0.projectId != nil }
         NavigationStack {
@@ -36,16 +62,20 @@ struct PhoneAddFromLibrarySheet: View {
                             .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     }
-                    ForEach(Self.days(shown), id: \.day) { group in
-                        SectionTitle(DayLabel.title(group.day))
-                            .padding(.top, 18).padding(.bottom, 8)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        ForEach(Array(group.items.enumerated()), id: \.element.id) { i, t in
-                            row(t)
-                                .overlay(alignment: .top) { if i > 0 { PaperDivider(leading: 92) } }
+                    // One row each, a day's title or a candidate (ListRows), so the List counts its rows without
+                    // building every day.
+                    ForEach(lists.rows) { r in
+                        switch r.kind {
+                        case .title(let day):
+                            SectionTitle(DayLabel.title(day))
+                                .padding(.top, 18).padding(.bottom, 8)
                                 .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-                                .listRowBackground(PaperRowBackground(first: i == 0, last: i == group.items.count - 1))
+                                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        case .item(let t, let first, let last):
+                            row(t)
+                                .overlay(alignment: .top) { if !first { PaperDivider(leading: 92) } }
+                                .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+                                .listRowBackground(PaperRowBackground(first: first, last: last))
                                 .listRowSeparator(.hidden)
                         }
                     }
@@ -55,7 +85,8 @@ struct PhoneAddFromLibrarySheet: View {
             .environment(\.defaultMinListRowHeight, 1)
             .scrollContentBackground(.hidden)
             .background(Refined.paper.ignoresSafeArea())
-            .animation(limitMotion ? Motion.fade : Motion.settle, value: shown.map(\.id))
+            // The rows' ids as one number: the same animation, without comparing a list of every id on each render.
+            .animation(limitMotion ? Motion.fade : Motion.settle, value: lists.shownKey)
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search your library")
             .navigationTitle("Add to \(projectName)")
             .navigationBarTitleDisplayMode(.inline)
