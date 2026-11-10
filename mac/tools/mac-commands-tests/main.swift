@@ -219,6 +219,9 @@ check("panel: the toolbar's field opens the panel instead of filtering the Libra
 check("panel: Search lists recordings and passages and never writes the Library's search while you type",
       askViews.contains("SearchPanelResults.find(") && !askViews.contains("if nav.mode == .search { app.search = q }")
       && askViews.contains("PanelKeys.chosen(cursor, count: order.count)"))
+check("panel: Search's results are kept per query and scope until the library changes, so ↓ and ↑ never search again",
+      askViews.contains("app.store.memo(SearchPanelResults.memoKey(q, scope: scope.raw")
+      && !askViews.contains("let results = SearchPanelResults.find("))
 check("panel: the Ask page shows the same panel inline, with Ask chosen", askViews.contains("AskPanel(inline: true)")
       && askViews.contains("nav.mode = .ask") && !askViews.contains("ask-screen-field"))
 

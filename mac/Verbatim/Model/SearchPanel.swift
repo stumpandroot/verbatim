@@ -24,7 +24,7 @@ enum SearchPanelItem: Hashable {
     }
 }
 
-/// What Search lists for a query, worked out once per render of the panel.
+/// What Search lists for a query, worked out once per query, scope, and library change (`memoKey`).
 struct SearchPanelResults {
     /// A recording's matching lines (up to `perRecording`) and how many of its lines match in all.
     struct Passage {
@@ -51,6 +51,15 @@ struct SearchPanelResults {
 
     /// True when `query` is long enough to search.
     static func searches(_ query: String) -> Bool { query.trimmingCharacters(in: .whitespaces).count >= minLength }
+
+    /// What the panel keeps one query's results under until the library changes (`Store.memo`, which starts over at
+    /// each library change): the query as searched, the scope (`AskScope.raw`), and the hour when the scope is This
+    /// week, whose seven days move with the clock. ↓ and ↑ re-render the panel to move the chosen result; with the
+    /// same key they never search again.
+    static func memoKey(_ query: String, scope: String, movesWithClock: Bool, now: Date = Date()) -> String {
+        let hour = movesWithClock ? Int(now.timeIntervalSinceReferenceDate / 3_600) : 0
+        return "search-panel|\(scope)|\(hour)|" + query.trimmingCharacters(in: .whitespaces)
+    }
 
     /// Recordings whose title holds the query (ignoring case and accents), up to `maxRecordings`, then matching lines
     /// in ready recordings, up to `perRecording` from one and `maxLines` in all. `list` is in the order to show

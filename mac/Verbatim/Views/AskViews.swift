@@ -308,12 +308,23 @@ struct AskPanel: View {
         return list.sorted { $0.createdAt > $1.createdAt }
     }
 
+    /// Search's results for `q`, worked out once per query and scope until the library changes (Store+Memo.swift): ↓ and
+    /// ↑ re-render the panel to move the chosen result and never scan the library again; a change to the library, the
+    /// query, or the scope searches afresh.
+    private func searchResults(_ q: String) -> SearchPanelResults {
+        guard SearchPanelResults.searches(q) else { return SearchPanelResults() }
+        let scope = nav.scope
+        return app.store.memo(SearchPanelResults.memoKey(q, scope: scope.raw, movesWithClock: scope.range == .thisWeek)) {
+            SearchPanelResults.find(q, in: searchList)
+        }
+    }
+
     /// Search (MAC-35): recordings whose title matches, then the matching lines, one list the arrow keys walk
     /// (`SearchPanelResults`); the chosen one, where Return goes, takes the selection's tint and the focus bar. Nothing
     /// here filters the Library; Show all in the Library does, when you ask.
     @ViewBuilder private var searchBody: some View {
         let q = nav.query.trimmingCharacters(in: .whitespaces)
-        let results = SearchPanelResults.find(q, in: SearchPanelResults.searches(q) ? searchList : [])
+        let results = searchResults(q)
         let items = results.items
         Group {
             if !SearchPanelResults.searches(q) {

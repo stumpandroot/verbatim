@@ -62,6 +62,15 @@ let capped = SearchPanelResults.find("folding", in: many)
 check("search panel: at most five recordings and eight lines", capped.recordings.count == SearchPanelResults.maxRecordings
       && capped.passages.reduce(0) { $0 + $1.lines.count } == SearchPanelResults.maxLines)
 check("search panel: nothing matching is empty", SearchPanelResults.find("zebra", in: [walk, call]).isEmpty)
+let hourA = Date(timeIntervalSinceReferenceDate: 3_600 * 1_000 + 10), hourB = hourA.addingTimeInterval(3_600)
+check("search panel: one query and scope keep one key (the arrow keys don't search again), spaces aside",
+      SearchPanelResults.memoKey("folding", scope: "all|all", movesWithClock: false) == SearchPanelResults.memoKey(" folding ", scope: "all|all", movesWithClock: false))
+check("search panel: another query or scope is another key",
+      SearchPanelResults.memoKey("folding", scope: "all|all", movesWithClock: false) != SearchPanelResults.memoKey("folding w", scope: "all|all", movesWithClock: false)
+      && SearchPanelResults.memoKey("folding", scope: "all|all", movesWithClock: false) != SearchPanelResults.memoKey("folding", scope: "all|thoughts", movesWithClock: false))
+check("search panel: This week's key moves with the hour; All time's doesn't",
+      SearchPanelResults.memoKey("folding", scope: "week|all", movesWithClock: true, now: hourA) != SearchPanelResults.memoKey("folding", scope: "week|all", movesWithClock: true, now: hourB)
+      && SearchPanelResults.memoKey("folding", scope: "all|all", movesWithClock: false, now: hourA) == SearchPanelResults.memoKey("folding", scope: "all|all", movesWithClock: false, now: hourB))
 
 // Bulk changes (Model/BulkChange.swift): which transcripts Empty, the 30-day purge, and dictation retention take, so the
 // Store can make each one change to the library.
