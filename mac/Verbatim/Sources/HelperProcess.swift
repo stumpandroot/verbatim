@@ -199,6 +199,26 @@ enum YtDlpCommand {
         ([tag] + fields.map { "%(\($0))j" }).joined(separator: "\t")
     }
 
+    /// The link as yt-dlp is given it. A TikTok photo post (a slideshow with sound, `/@name/photo/<id>`) isn't a link
+    /// yt-dlp accepts, but the same post as `/@name/video/<id>` is, and yt-dlp downloads its sound as an MP3. Everything
+    /// else is passed as is. Short links (vm.tiktok.com) are resolved first (`LinkFetcher.resolveShortTikTok`).
+    static func helperLink(_ link: String) -> String {
+        let trimmed = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let u = URL(string: trimmed), let host = u.host?.lowercased(),
+              ["tiktok.com", "www.tiktok.com", "m.tiktok.com"].contains(host) else { return link }
+        let parts = u.path.split(separator: "/", omittingEmptySubsequences: true)
+        guard parts.count == 3, parts[0].hasPrefix("@"), parts[0].count > 1, parts[1] == "photo",
+              !parts[2].isEmpty, parts[2].allSatisfy(\.isNumber) else { return link }
+        return "https://www.tiktok.com/\(parts[0])/video/\(parts[2])"
+    }
+
+    /// A TikTok short link (vm.tiktok.com/…, vt.tiktok.com/…, tiktok.com/t/…), which redirects to the post.
+    static func isShortTikTok(_ link: String) -> Bool {
+        guard let u = URL(string: link.trimmingCharacters(in: .whitespacesAndNewlines)), let host = u.host?.lowercased() else { return false }
+        if host == "vm.tiktok.com" || host == "vt.tiktok.com" { return true }
+        return (host == "tiktok.com" || host == "www.tiktok.com") && u.path.hasPrefix("/t/")
+    }
+
     /// Download a link's best audio to `template`. `--` ends the options, so a link can never be read as one.
     static func audio(link: String, template: String, signIn: [String], setup: Setup) -> [String] {
         signIn + setup.options + base + [
@@ -207,7 +227,7 @@ enum YtDlpCommand {
             "--print", "video:" + Self.template(metaTag, metaFields),
             "--print", "after_move:" + Self.template(fileTag, fileFields),
             "--no-simulate",
-            "-o", template, "--", link,
+            "-o", template, "--", helperLink(link),
         ]
     }
 
@@ -218,7 +238,7 @@ enum YtDlpCommand {
         return signIn + setup.options + base + [
             "-f", format,
             "--print", "after_move:" + Self.template(keepTag, keepFields),
-            "--no-simulate", "-o", template, "--", link,
+            "--no-simulate", "-o", template, "--", helperLink(link),
         ]
     }
 

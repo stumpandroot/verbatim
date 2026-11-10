@@ -32,6 +32,21 @@ let setup = YtDlpCommand.Setup(support: dir.appendingPathComponent("support").pa
 let env = YtDlpCommand.environment(from: ProcessInfo.processInfo.environment, home: dir.path, setup: setup)
 
 func runTests() async {
+    // TikTok photo posts: yt-dlp takes the same post as a video link and downloads its sound.
+    check("tiktok photo post becomes its video link", YtDlpCommand.helperLink("https://www.tiktok.com/@some.one_2/photo/7704388165406182669?_r=1&_t=abc")
+          == "https://www.tiktok.com/@some.one_2/video/7704388165406182669")
+    check("tiktok photo post without www", YtDlpCommand.helperLink("https://tiktok.com/@name/photo/123") == "https://www.tiktok.com/@name/video/123")
+    check("tiktok photo post on m.tiktok.com", YtDlpCommand.helperLink("https://m.tiktok.com/@name/photo/123/") == "https://www.tiktok.com/@name/video/123")
+    check("tiktok video link unchanged", YtDlpCommand.helperLink("https://www.tiktok.com/@name/video/123") == "https://www.tiktok.com/@name/video/123")
+    check("non-numeric photo id unchanged", YtDlpCommand.helperLink("https://www.tiktok.com/@name/photo/abc") == "https://www.tiktok.com/@name/photo/abc")
+    check("other sites unchanged", YtDlpCommand.helperLink("https://example.com/@name/photo/123") == "https://example.com/@name/photo/123"
+          && YtDlpCommand.helperLink("https://nottiktok.com/@name/photo/123") == "https://nottiktok.com/@name/photo/123")
+    check("not a link unchanged", YtDlpCommand.helperLink("--exec rm") == "--exec rm")
+    check("short tiktok links", YtDlpCommand.isShortTikTok("https://vm.tiktok.com/ZT9abc/") && YtDlpCommand.isShortTikTok("https://www.tiktok.com/t/ZT9abc/")
+          && !YtDlpCommand.isShortTikTok("https://www.tiktok.com/@name/video/1") && !YtDlpCommand.isShortTikTok("https://example.com/t/x"))
+    let photoArgs = YtDlpCommand.audio(link: "https://www.tiktok.com/@name/photo/99", template: "/tmp/x.%(ext)s", signIn: [],
+                                       setup: YtDlpCommand.Setup(support: "/tmp/support"))
+    check("audio command gets the video link after --", Array(photoArgs.suffix(2)) == ["--", "https://www.tiktok.com/@name/video/99"])
     // 1. Prints a lot on both streams and exits at once: nothing may be lost.
     let burst = fake("burst", """
     i=1

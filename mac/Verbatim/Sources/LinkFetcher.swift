@@ -48,6 +48,18 @@ enum LinkFetcher {
         }
     }
 
+    /// A TikTok short link that redirects to a photo post, as that post's link (yt-dlp can't follow it there itself);
+    /// any other link as is. One HEAD request, 10 seconds at most; a failure leaves the link as it was.
+    static func resolveShortTikTok(_ link: String) async -> String {
+        guard YtDlpCommand.isShortTikTok(link), let u = URL(string: link.trimmingCharacters(in: .whitespacesAndNewlines)) else { return link }
+        var req = URLRequest(url: u, timeoutInterval: 10)
+        req.httpMethod = "HEAD"
+        guard let (_, response) = try? await URLSession.shared.data(for: req), let final = response.url?.absoluteString else { return link }
+        let rewritten = YtDlpCommand.helperLink(final)
+        if rewritten != final { Log.note("yt-dlp: a TikTok short link to a photo post goes as its video link") }
+        return rewritten != final ? rewritten : link
+    }
+
     static func looksLikeLink(_ s: String) -> Bool {
         guard let u = URL(string: s.trimmingCharacters(in: .whitespaces)), let h = u.host else { return false }
         return ["http", "https"].contains(u.scheme ?? "") && h.contains(".")
@@ -82,9 +94,11 @@ enum LinkFetcher {
                 try? fm.removeItem(at: Paths.downloads.appendingPathComponent(f))
             }
         }
+        // A TikTok short link to a photo post goes to yt-dlp as the post itself, so its sound downloads (helperLink).
+        let helperLink = await resolveShortTikTok(link)
         let out: String
         do {
-            out = try await run(helper, YtDlpCommand.audio(link: link, template: template, signIn: LinkSignIn.arguments(signIn), setup: setup()),
+            out = try await run(helper, YtDlpCommand.audio(link: helperLink, template: template, signIn: LinkSignIn.arguments(signIn), setup: setup()),
                                 progress: progress, events: events)
         } catch {
             if error is CancellationError { removePartials() }
