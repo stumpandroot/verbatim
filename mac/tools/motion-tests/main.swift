@@ -91,7 +91,7 @@ check("toasts: the iPhone times its toasts by length with ToastTiming, keeps act
       && !phone.contains("3_000_000_000); if self.toast"))
 let delete = block(phone, from: "    func delete(_ ids: [UUID])")
 check("toasts: Delete on iPhone offers Undo, which restores through the Store",
-      delete.contains("action: ToastUndo.title") && delete.contains("store.restore($0)"), delete)
+      delete.contains("action: ToastUndo.title") && delete.contains("self?.store.restore(ids)"), delete)
 let macToast = read("Verbatim/App/Toast.swift")
 check("toasts: the Mac times its toasts by length with ToastTiming and holds any one under the pointer",
       macToast.contains("plain: ToastTiming.plain(for: t.message, floor: ToastTiming.macPlain)") && macToast.contains(".onHover { over in hold.set(over, for: t.id) }")
@@ -102,7 +102,7 @@ check("toasts: the Mac announces every toast and its action, and keeps an action
 check("toasts: ⌘Z on the Mac runs the toast's Undo through ToastUndo, never while editing text",
       macToast.contains("ToastUndo.commandZRuns(") && macToast.contains("firstResponder is NSText")
       && read("Verbatim/Views/ContentView.swift").contains("ToastUndoKey.shared.install(app)"))
-check("toasts: Delete on the Mac offers the same Undo", read("Verbatim/App/AppState+Library.swift").contains("action: \"Undo\") { [weak self] in\n            ids.forEach { self?.store.restore($0) }"))
+check("toasts: Delete on the Mac offers the same Undo", read("Verbatim/App/AppState+Library.swift").contains("action: \"Undo\") { [weak self] in\n            self?.store.restore(ids)"))
 
 // Keyboard actions don't animate.
 let recall = typeBody(read("Verbatim/Flow/Recall.swift"), from: "struct RecallPanelView")

@@ -1104,14 +1104,21 @@ final class PhoneState {
     // MARK: Organizing and notes
 
     func delete(_ ids: [UUID]) {
-        for id in ids { forgetKeyboardCopy(id); linkTasks.removeValue(forKey: id)?.cancel(); coordinator.cancelIfActive(id); store.moveToTrash(id) }
+        for id in ids { forgetKeyboardCopy(id); linkTasks.removeValue(forKey: id)?.cancel(); coordinator.cancelIfActive(id) }
+        // One change to the library for the lot (Store.moveToTrash(_ ids:)).
+        store.moveToTrash(ids)
         // Undo puts them straight back, as on the Mac and in Recently Deleted (Store.restore).
         say(ids.count == 1 ? "Moved to Recently Deleted" : "Moved \(ids.count) to Recently Deleted", action: ToastUndo.title) { [weak self] in
-            ids.forEach { self?.store.restore($0) }
+            self?.store.restore(ids)
         }
     }
     func restore(_ id: UUID) { store.restore(id); say("Restored") }
-    func purge(_ id: UUID) { forgetKeyboardCopy(id); if let t = store.transcript(id) { store.delete(t) } }
+    func purge(_ id: UUID) { purge([id]) }
+    /// Permanent, for each of these (Recently Deleted's Delete permanently, and Empty for the lot, in one change).
+    func purge(_ ids: [UUID]) {
+        for id in ids { forgetKeyboardCopy(id) }
+        store.delete(ids.compactMap { store.transcript($0) })
+    }
 
     /// A deleted dictation leaves the keyboard's Recent row and the App Group's last-dictation fields too, so the
     /// keyboard can't show or insert its words again.
@@ -1229,7 +1236,7 @@ final class PhoneState {
         for task in linkTasks.values { task.cancel() }
         linkTasks = [:]; linkImports = [:]; latestLinkImport = nil
         linkCardImport = nil; linkBadgeHeld = []
-        for t in store.transcripts { store.delete(t) }
+        store.delete(store.transcripts)
         store.projects = []
         store.dictionary = []
         store.snippets = []
