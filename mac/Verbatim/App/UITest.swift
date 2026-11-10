@@ -2338,10 +2338,12 @@ enum UITest {
             t.speakers = [Speaker(id: "S1", name: "Speaker 1"), Speaker(id: "S2", name: "Speaker 2")]
             return t
         }
-        func open(_ name: String, _ t: Transcript, after: ((UUID) async -> Void)? = nil) async {
+        func open(_ name: String, _ t: Transcript, at line: Int? = nil, after: ((UUID) async -> Void)? = nil) async {
             app.go(.home)
             try? await Task.sleep(nanoseconds: 500_000_000)
             app.store.add(t)
+            // Opened at a passage far down, as from search: the list has to place a line it hasn't built.
+            if let line, line < t.segments.count { app.focusSegment = t.segments[line].id }
             let meter = StallMeter()
             meter.start()
             let start = Date()
@@ -2365,6 +2367,10 @@ enum UITest {
         chips.unclear = stride(from: 0, to: 800, by: 3).map { i in UnclearSpan(start: Double(i) * 6 + 5.45, end: Double(i) * 6 + 5.95) }
         chips.sponsors = [SponsorSpan(start: 600, end: 900, name: "Sample Sponsor"), SponsorSpan(start: 2_400, end: 2_700)]
         await open("chips and folds", chips)
+        await open("chips and folds, at the end", { var c = chips; c.id = UUID(); return c }(), at: 790)
+        var marked = make("Stress: 4,000 lines at the end", lines: 4_000)
+        marked.unclear = stride(from: 0, to: 4_000, by: 5).map { i in UnclearSpan(start: Double(i) * 4 + 3.65, end: Double(i) * 4 + 3.95) }
+        await open("4,000 lines with chips, at the end", marked, at: 3_990)
         // Finishes while open (the processing card, then the lines), then its speakers arrive in a few updates.
         var job = make("Stress: ready while open", lines: 0)
         job.status = .processing
