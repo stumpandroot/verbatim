@@ -133,6 +133,14 @@ extension Store {
         }
     }
 
+    /// The Cleaned tab's text (`Transcript.documentText`, built from every line until there's an edited copy), kept
+    /// until the transcript changes, so a render doesn't rebuild it and the lints made from it compare as the same
+    /// string. Nil for a transcript that isn't in the library.
+    func documentText(_ id: UUID) -> String? {
+        guard transcript(id) != nil else { return nil }
+        return perTranscript(id, "document-text") { transcript(id)?.documentText ?? "" }
+    }
+
     /// Today, as a number that changes when the day does: the part of a memo key for values that say "Today".
     static func dayKey(_ now: Date = Date()) -> Int {
         Int(Calendar.current.startOfDay(for: now).timeIntervalSinceReferenceDate)

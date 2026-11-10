@@ -20,11 +20,19 @@ struct DocumentView: View {
     /// matches (MAC-22 follow-up).
     @ObservedObject private var find = TranscriptFind.shared
 
-    private var text: String { transcript.documentText }
+    /// Kept until the transcript changes (Store+Memo.swift): a render, one after a keystroke included, doesn't build it
+    /// again from every line.
+    private var text: String { app.store.documentText(transcript.id) ?? transcript.documentText }
     /// Lints computed for exactly this text. After Clean up, Accept all, Undo, or typing, the old lints are
     /// dropped until Harper re-runs, so the editor never applies stale positions.
     private var currentLints: [Harper.Lint] { Self.matching(lints, text: text) }
-    private static func matching(_ all: [Harper.Lint], text: String) -> [Harper.Lint] { all.filter { $0.source == text } }
+    /// The lints made from exactly `text`. One Harper run's lints all hold the same source string, so the text is
+    /// compared once for the lot, not once per lint (each comparison can read the whole text).
+    nonisolated static func matching(_ all: [Harper.Lint], text: String) -> [Harper.Lint] {
+        guard let first = all.first else { return [] }
+        if all.allSatisfy({ $0.source == first.source }) { return first.source == text ? all : [] }
+        return all.filter { $0.source == text }
+    }
     private var level: Polish.Level { Polish.Level(rawValue: transcript.documentLevel) ?? .none }
     private var tone: Polish.Tone { Polish.Tone(rawValue: transcript.documentTone) ?? .spoken }
 
@@ -357,12 +365,18 @@ struct DocumentEditor: NSViewRepresentable {
         context.coordinator.applyFind(find)
     }
 
+    /// SwiftUI asks for a size many times per pass, often at the same width: each width's height is measured once per
+    /// change to the editor's text (a layout of the whole Cleaned text), then reused until the text changes again.
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {
         guard let tv = nsView.documentView as? NSTextView, let lm = tv.layoutManager, let tc = tv.textContainer else { return nil }
         let w = proposal.width ?? 720
-        tc.containerSize = NSSize(width: w, height: .greatestFiniteMagnitude)
+        if tc.containerSize.width != w { tc.containerSize = NSSize(width: w, height: .greatestFiniteMagnitude) }
+        let length = tv.textStorage?.length ?? 0
+        if let h = context.coordinator.measuredHeight(width: w, length: length) { return CGSize(width: w, height: h) }
         lm.ensureLayout(for: tc)
-        return CGSize(width: w, height: lm.usedRect(for: tc).height + 12)
+        let h = lm.usedRect(for: tc).height + 12
+        context.coordinator.remember(height: h, width: w, length: length)
+        return CGSize(width: w, height: h)
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -376,7 +390,27 @@ struct DocumentEditor: NSViewRepresentable {
         /// The find marks last drawn, and the match last scrolled to; nil after the text is replaced, so they draw again.
         private var drawnFind: FindMarks?
         private var revealed: NSRange?
+        /// Bumped whenever the editor's text or its styling changes (`apply`, typing): the heights measured for the
+        /// last version, by width, and the text length they were measured at.
+        private var textVersion = 0
+        private var heights: [CGFloat: CGFloat] = [:]
+        private var heightsVersion = -1
+        private var heightsLength = -1
         init(_ p: DocumentEditor) { parent = p }
+
+        /// The height measured at `width` for the editor's text as it stands, if there is one.
+        func measuredHeight(width: CGFloat, length: Int) -> CGFloat? {
+            guard heightsVersion == textVersion, heightsLength == length else { return nil }
+            return heights[width]
+        }
+
+        func remember(height: CGFloat, width: CGFloat, length: Int) {
+            if heightsVersion != textVersion || heightsLength != length {
+                heights.removeAll(keepingCapacity: true)
+                heightsVersion = textVersion; heightsLength = length
+            }
+            heights[width] = height
+        }
 
         /// Draws the find bar's marks: every match in butter with ink on it, the current one underlined (never color
         /// alone), as temporary attributes; scrolls to the current match when it changes. Clears them when the bar
@@ -407,8 +441,7 @@ struct DocumentEditor: NSViewRepresentable {
 
         func apply(text: String, lints: [Harper.Lint]) {
             guard let tv = textView else { return }
-            self.lints = lints
-            let lints = lints.filter { $0.source == text }
+            let lints = DocumentView.matching(lints, text: text)
             self.lints = lints
             let key = lints.map { "\($0.id):\($0.nsRange.location)" }.joined(separator: ",") + "|" + parent.speakers.joined(separator: ",")
             guard !editing, (text != lastText || key != lastLintKey) else { return }
@@ -444,6 +477,7 @@ struct DocumentEditor: NSViewRepresentable {
                                     .link: URL(string: "verbatim-lint://\(l.id)")!, .cursor: NSCursor.pointingHand], range: r)
             }
             tv.textStorage?.setAttributedString(attr)
+            textVersion &+= 1
             tv.selectedRanges = sel
             tv.invalidateIntrinsicContentSize()
             drawnFind = nil   // the find marks go with the old text; they draw again on the new one
@@ -452,6 +486,7 @@ struct DocumentEditor: NSViewRepresentable {
         func textDidChange(_ n: Notification) {
             guard let tv = textView else { return }
             editing = true
+            textVersion &+= 1
             lastText = tv.string
             parent.onEdit(tv.string)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.editing = false }
