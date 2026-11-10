@@ -55,3 +55,50 @@ enum HangWatch {
         stallStep = nil
     }
 }
+
+/// The longest the main thread went without answering, between `start()` and `stop()`, in ms (the self-test's
+/// stress steps). A timer on its own queue pings the main queue every 20 ms; each answer's wait is a sample, and a
+/// ping still unanswered at `stop()` counts up to then.
+final class StallMeter: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "co.stumpandroot.verbatim.stallmeter", qos: .userInitiated)
+    // Only touched on `queue`.
+    private var timer: DispatchSourceTimer?
+    private var sentAt: TimeInterval?
+    private var longest: TimeInterval = 0
+
+    private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
+
+    func start() {
+        queue.sync {
+            longest = 0; sentAt = nil
+            let t = DispatchSource.makeTimerSource(queue: queue)
+            t.schedule(deadline: .now(), repeating: 0.02, leeway: .milliseconds(5))
+            t.setEventHandler { [weak self] in self?.tick() }
+            t.resume()
+            timer = t
+        }
+    }
+
+    private func tick() {
+        guard sentAt == nil else { return }
+        let at = now
+        sentAt = at
+        DispatchQueue.main.async { [weak self] in self?.queue.async { self?.answered(at) } }
+    }
+
+    private func answered(_ at: TimeInterval) {
+        guard sentAt == at else { return }
+        longest = max(longest, now - at)
+        sentAt = nil
+    }
+
+    /// Stops the meter and returns the longest wait in ms.
+    func stop() -> Int {
+        queue.sync {
+            timer?.cancel(); timer = nil
+            if let at = sentAt { longest = max(longest, now - at) }
+            sentAt = nil
+            return Int((longest * 1000).rounded())
+        }
+    }
+}

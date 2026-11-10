@@ -57,6 +57,8 @@ enum UITest {
             SoundChecks.run { check($0, $1) }
             // Screen changes with 1,000 transcripts while a file transcribes; then the big library goes again.
             await bigLibrarySteps(app: app)
+            // Long and unusual transcripts open without a stall (the November 10 freeze on a transcript's lines).
+            await stressTranscriptSteps(app: app)
 
             if app.store.transcripts.isEmpty {
                 var t = Transcript(title: "Self-test memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 12, audioFileName: nil, model: "Test")
@@ -2314,6 +2316,79 @@ enum UITest {
         app.go(.home)
         try? await Task.sleep(nanoseconds: 800_000_000)
         timings = []
+    }
+
+    /// Transcripts shaped to stress the reading lines, each opened on Original while a meter watches the main thread:
+    /// many lines, unclear chips and sponsor folds between them, a transcript that finishes while it's open and then
+    /// gets its speakers, one very long line, and thousands of one-word lines (music). Logs
+    /// `UITEST STRESS <case> lines=<n> settled=<ms> max-stall=<ms>` and checks that no stall reaches 2 s.
+    /// Each transcript is deleted afterwards.
+    private static func stressTranscriptSteps(app: AppState) async {
+        let words = ["so", "the", "catalog", "leads", "with", "wheels", "and", "wagons", "out", "in", "the", "field"]
+        func line(_ i: Int, words n: Int) -> String {
+            (0..<n).map { words[($0 + i) % words.count] }.joined(separator: " ").capitalized(with: nil) + "."
+        }
+        func make(_ title: String, lines: Int, every: Double = 4, words n: Int = 12) -> Transcript {
+            var t = Transcript(title: title, source: .file, sourceLabel: "MP3 file", duration: Double(lines) * every,
+                               audioFileName: nil, model: "Parakeet TDT v3")
+            t.segments = (0..<lines).map { i in
+                Segment(start: Double(i) * every, end: Double(i) * every + every * 0.9, text: line(i, words: n), speaker: i % 5 == 0 ? "S2" : "S1")
+            }
+            t.original = t.segments
+            t.speakers = [Speaker(id: "S1", name: "Speaker 1"), Speaker(id: "S2", name: "Speaker 2")]
+            return t
+        }
+        func open(_ name: String, _ t: Transcript, after: ((UUID) async -> Void)? = nil) async {
+            app.go(.home)
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            app.store.add(t)
+            let meter = StallMeter()
+            meter.start()
+            let start = Date()
+            app.go(.transcript(t.id))
+            await mainTurn()
+            let settled = Int(Date().timeIntervalSince(start) * 1000)
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            if let after { await after(t.id) }
+            let stall = meter.stop()
+            let n = app.store.transcript(t.id)?.segments.count ?? 0
+            Log.note("UITEST STRESS \(name) lines=\(n) settled=\(settled) max-stall=\(stall)")
+            check("stress: \(name) opens without a stall of 2 s (\(stall) ms)", stall < 2_000)
+            app.go(.home)
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            if let gone = app.store.transcript(t.id) { app.store.delete(gone) }
+        }
+        WindowNav.shared.mode = .original
+        await open("1,500 lines", make("Stress: 1,500 lines", lines: 1_500))
+        await open("4,000 lines", make("Stress: 4,000 lines", lines: 4_000))
+        var chips = make("Stress: chips and folds", lines: 800, every: 6)
+        chips.unclear = stride(from: 0, to: 800, by: 3).map { i in UnclearSpan(start: Double(i) * 6 + 5.45, end: Double(i) * 6 + 5.95) }
+        chips.sponsors = [SponsorSpan(start: 600, end: 900, name: "Good Ranchers"), SponsorSpan(start: 2_400, end: 2_700)]
+        await open("chips and folds", chips)
+        // Finishes while open (the processing card, then the lines), then its speakers arrive in a few updates.
+        var job = make("Stress: ready while open", lines: 0)
+        job.status = .processing
+        job.stage = "Transcribing 90%"
+        await open("ready while open", job) { id in
+            let done = make("x", lines: 800, every: 6)
+            app.store.update(id) { t in
+                t.segments = done.segments; t.original = done.segments; t.duration = done.duration
+                t.unclear = stride(from: 0, to: 800, by: 4).map { i in UnclearSpan(start: Double(i) * 6 + 5.45, end: Double(i) * 6 + 5.95) }
+                t.status = .ready; t.stage = nil
+            }
+            for k in 0..<6 {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                app.store.update(id) { t in for i in t.segments.indices where i % 6 == k { t.segments[i].speaker = "S2" } }
+            }
+            try? await Task.sleep(nanoseconds: 800_000_000)
+        }
+        await open("one long line", make("Stress: one long line", lines: 1, every: 900, words: 6_000))
+        await open("5,000 short lines", make("Stress: 5,000 short lines", lines: 5_000, every: 0.6, words: 1))
+    }
+
+    /// The next turn of the main loop: everything already queued on the main thread, layout included, has run.
+    private static func mainTurn() async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in DispatchQueue.main.async { c.resume() } }
     }
 
     /// Screen changes timed since the last summary: (appeared, settled) in ms.
