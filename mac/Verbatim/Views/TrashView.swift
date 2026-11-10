@@ -34,10 +34,13 @@ struct TrashView: View {
                     RefinedEmptyState(art: .iconDeleted, title: "Nothing here",
                                       message: "Transcripts you delete wait here for 30 days, so you can restore them.")
                 } else {
+                    // One view per row, the hairline inside it: Recently Deleted can hold hundreds (expired dictations
+                    // land here), and the lazy stack then measures only the rows on screen.
                     LazyVStack(spacing: 0) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
-                            if i > 0 { PaperDivider(leading: 16, trailing: 16) }
-                            TrashRow(transcript: t, detail: daysLeft(t), restore: { app.restore([t.id]) }, purge: { confirmPurge(t) })
+                            PaperDividedRow(divider: i > 0, leading: 16, trailing: 16) {
+                                TrashRow(transcript: t, detail: daysLeft(t), restore: { app.restore([t.id]) }, purge: { confirmPurge(t) })
+                            }
                         }
                     }
                     .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))

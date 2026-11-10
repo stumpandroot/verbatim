@@ -1143,6 +1143,50 @@ struct PaperDivider: View {
     }
 }
 
+/// A row of a lazy card with the hairline above it (every row but the first) inside it, so the row is one view. A lazy
+/// stack whose rows give a varying number of views builds every row to count them (ListRows).
+struct PaperDividedRow<Content: View>: View {
+    var divider: Bool
+    var leading: CGFloat = 14
+    var trailing: CGFloat = 0
+    var alignment: HorizontalAlignment = .center
+    @ViewBuilder var content: Content
+    var body: some View {
+        VStack(alignment: alignment, spacing: 0) {
+            if divider { PaperDivider(leading: leading, trailing: trailing) }
+            content
+        }
+    }
+}
+
+/// `PaperList` for a list that can run to hundreds of rows inside a scroll view (a transcript's corrections): the same
+/// card and hairlines, built lazily, one view per row, so only the rows on screen are made.
+struct LazyPaperList<Data: RandomAccessCollection, ID: Hashable, Row: View>: View {
+    var data: Data
+    var id: KeyPath<Data.Element, ID>
+    var inset: CGFloat = 14
+    var trailingInset: CGFloat = 0
+    var row: (Data.Element) -> Row
+
+    init(_ data: Data, id: KeyPath<Data.Element, ID>, inset: CGFloat = 14, trailingInset: CGFloat = 0,
+         @ViewBuilder row: @escaping (Data.Element) -> Row) {
+        self.data = data; self.id = id; self.inset = inset; self.trailingInset = trailingInset; self.row = row
+    }
+
+    var body: some View {
+        let first = data.first.map { $0[keyPath: id] }
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(data, id: id) { element in
+                PaperDividedRow(divider: element[keyPath: id] != first, leading: inset, trailing: trailingInset, alignment: .leading) {
+                    row(element)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+    }
+}
+
 /// A card of rows with a hairline between each: `PaperList(recent, id: \.id, inset: 60) { RowView($0) }`.
 struct PaperList<Data: RandomAccessCollection, ID: Hashable, Row: View>: View {
     var data: Data

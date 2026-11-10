@@ -18,11 +18,38 @@ struct AddFromLibrarySheet: View {
 
     private var projectName: String { app.store.projects.first { $0.id == project }?.name ?? "Project" }
 
+    /// What the sheet lists for the search, type, and kind.
+    private struct Lists {
+        /// Everything the search finds (the type chips count these).
+        var candidates: [Transcript]
+        /// The rows: the candidates of the chosen type and kind.
+        var shown: [Transcript]
+        var shownIDs: Set<UUID>
+        /// `shown`'s ids as one number, for the list's animation.
+        var shownKey: Int
+        /// The candidates of the chosen type, by kind (the kind chips).
+        var kindCounts: [RecordingKind: Int]
+    }
+
+    /// Worked out once per library change, search, type, and kind (Store+Memo.swift), not on every click of a checkbox:
+    /// the search reads every transcript's text.
+    private func lists() -> Lists {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let filter = self.filter, kind = self.kind, project = self.project
+        return app.store.memo("add-from-library|\(project.uuidString)|\(filter.raw)|\(kind?.rawValue ?? "-")|\(q)") {
+            let candidates = ProjectAdd.candidates(app.store.transcripts, project: project, query: q) { app.store.searchText($0) }
+            let typed = filter.apply(candidates, searching: !q.isEmpty)
+            let shown = kind.map { k in typed.filter { $0.kind == k } } ?? typed
+            return Lists(candidates: candidates, shown: shown, shownIDs: Set(shown.map(\.id)),
+                         shownKey: ListRows.fingerprint(shown, id: \.id),
+                         kindCounts: Dictionary(grouping: typed.compactMap(\.kind), by: { $0 }).mapValues(\.count))
+        }
+    }
+
     var body: some View {
         let searching = !query.trimmingCharacters(in: .whitespaces).isEmpty
-        let candidates = ProjectAdd.candidates(app.store.transcripts, project: project, query: query) { app.store.searchText($0) }
-        let typed = filter.apply(candidates, searching: searching)
-        let shown = kind.map { k in typed.filter { $0.kind == k } } ?? typed
+        let lists = self.lists()
+        let candidates = lists.candidates, shown = lists.shown
         let chosen = candidates.filter { selection.contains($0.id) }
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
@@ -33,10 +60,10 @@ struct AddFromLibrarySheet: View {
             }
             RefinedSearchField(text: $query, prompt: "Search titles, tags, and text")
             LibraryFilterBar(filter: $filter, items: candidates, searching: searching, wraps: true) { filter.save(LibraryFilter.addSheetKey) }
-            kindChips(typed)
-            list(shown)
+            kindChips(lists.kindCounts)
+            list(shown, key: lists.shownKey)
             HStack(spacing: 8) {
-                let ids = Set(shown.map(\.id))
+                let ids = lists.shownIDs
                 Button(!ids.isEmpty && ids.isSubset(of: selection) ? "Deselect all" : "Select all") {
                     if ids.isSubset(of: selection) { selection.subtract(ids) } else { selection.formUnion(ids) }
                 }
@@ -62,7 +89,7 @@ struct AddFromLibrarySheet: View {
         }
     }
 
-    private func list(_ shown: [Transcript]) -> some View {
+    private func list(_ shown: [Transcript], key: Int) -> some View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 if shown.isEmpty {
@@ -70,14 +97,15 @@ struct AddFromLibrarySheet: View {
                         .refinedFont(.body).foregroundStyle(Refined.mute)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(16)
                 }
+                // One view per row, the hairline inside it, so the lazy stack measures only the rows on screen.
                 ForEach(Array(shown.enumerated()), id: \.element.id) { i, t in
-                    if i > 0 { PaperDivider(leading: 48, trailing: 14) }
-                    row(t)
+                    PaperDividedRow(divider: i > 0, leading: 48, trailing: 14) { row(t) }
                 }
             }
         }
         .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
-        .animation(limitMotion ? Motion.fade : Motion.settle, value: shown.map(\.id))
+        // The rows' ids as one number: the same animation, without comparing a list of every id on each render.
+        .animation(limitMotion ? Motion.fade : Motion.settle, value: key)
     }
 
     private func row(_ t: Transcript) -> some View {
@@ -103,8 +131,7 @@ struct AddFromLibrarySheet: View {
     }
 
     /// The Library's kinds that have something here, as chips; a second click clears one.
-    @ViewBuilder private func kindChips(_ items: [Transcript]) -> some View {
-        let counts = Dictionary(grouping: items.compactMap(\.kind), by: { $0 }).mapValues(\.count)
+    @ViewBuilder private func kindChips(_ counts: [RecordingKind: Int]) -> some View {
         let kinds = RecordingKind.pickable.filter { (counts[$0] ?? 0) > 0 || kind == $0 }
         if !kinds.isEmpty {
             FlowRow(spacing: 8, lineSpacing: 8) {

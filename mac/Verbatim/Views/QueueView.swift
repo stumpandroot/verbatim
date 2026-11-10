@@ -51,16 +51,17 @@ struct QueueView: View {
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
                         SectionTitle("Up next")
-                        // Lazy: a batch import can queue hundreds.
+                        // Lazy: a batch import can queue hundreds. One list of rows (the running file, what's importing,
+                        // then what waits), each one view with its hairline inside, so only the rows on screen are measured.
+                        let lines = ListRows.divided([running.map { [QueueLine(transcript: $0, state: .running)] } ?? [],
+                                                      importing.map { QueueLine(transcript: $0, state: .importing) },
+                                                      waiting.enumerated().map { QueueLine(transcript: $1, state: .waiting($0 + 1)) }],
+                                                     id: \.transcript.id)
                         LazyVStack(spacing: 0) {
-                            if let r = running { QueueRow(transcript: r, state: .running) }
-                            ForEach(Array(importing.enumerated()), id: \.element.id) { i, t in
-                                if i > 0 || running != nil { PaperDivider(leading: 16, trailing: 16) }
-                                QueueRow(transcript: t, state: .importing)
-                            }
-                            ForEach(Array(waiting.enumerated()), id: \.element.id) { i, t in
-                                if i > 0 || running != nil || !importing.isEmpty { PaperDivider(leading: 16, trailing: 16) }
-                                QueueRow(transcript: t, state: .waiting(i + 1))
+                            ForEach(lines) { line in
+                                PaperDividedRow(divider: line.divider, leading: 16, trailing: 16) {
+                                    QueueRow(transcript: line.element.transcript, state: line.element.state)
+                                }
                             }
                         }
                         .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
@@ -99,6 +100,12 @@ struct QueueView: View {
         .animation(Motion.touch, value: dropping)
         .onDrop(of: [.fileURL], isTargeted: $dropping) { app.handleDrop($0) }
     }
+}
+
+/// A row of the queue's Up next card: a transcript and how it stands.
+private struct QueueLine {
+    let transcript: Transcript
+    let state: QueueRow.State
 }
 
 /// The dashed area at the foot of the queue. Drops land anywhere on the page; this only says so.

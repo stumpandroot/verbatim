@@ -534,7 +534,12 @@ struct TranscriptScreen: View {
             Text("Nothing changed yet. Dictionary fixes and your corrections show here beside the original.")
                 .refinedFont(.body).foregroundStyle(Refined.dim).fixedSize(horizontal: false, vertical: true)
         } else {
-            PaperList(t.corrections, id: \.id, inset: 46) { c in
+            // Each fix's line from a lookup kept until the transcript changes, not a search of every line per fix, and the
+            // card built lazily: a transcript can carry hundreds of fixes.
+            let lines = app.store.perTranscript(t.id, "review-lines") {
+                Dictionary((app.store.transcript(t.id)?.segments ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            }
+            LazyPaperList(t.corrections, id: \.id, inset: 46) { c in
                 HStack(alignment: .top, spacing: 10) {
                     IconGlyph(art: c.isNameFix ? .iconSpeakers : c.byDictionary ? .iconDictionary : .iconFeedback, size: 18, color: Refined.ink).frame(width: 22)
                     VStack(alignment: .leading, spacing: 4) {
@@ -544,7 +549,7 @@ struct TranscriptScreen: View {
                             Text(c.to).fontWeight(.semibold).foregroundStyle(Refined.ink)
                         }
                         .refinedFont(.body)
-                        if let seg = t.segments.first(where: { $0.id == c.segmentId }) {
+                        if let seg = lines[c.segmentId] {
                             Text(seg.text).refinedFont(.meta).foregroundStyle(Refined.dim).lineLimit(2)
                         }
                         Text(c.madeBy).refinedFont(.caption).foregroundStyle(Refined.mute)

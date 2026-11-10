@@ -25,11 +25,20 @@ struct DictationsListScreen: View {
         }
     }
 
+    /// The dictations under their days, one row each (ListRows): a day's title, or a dictation. Once per library change,
+    /// search, and day, not on every render. `items` is newest first, so each day's dictations are together.
+    private func rows(_ items: [Transcript]) -> [ListRows.Grouped<Date, Transcript>] {
+        let q = search.trimmingCharacters(in: .whitespaces).lowercased()
+        return app.store.memo("phone.dictation-rows|\(Store.dayKey())|\(q)") {
+            let days: [(title: Date?, items: [Transcript])] = ListRows.runs(items) { Calendar.current.startOfDay(for: $0.createdAt) }
+                .map { (title: $0.key, items: $0.items) }
+            return ListRows.grouped(days, id: \.id)
+        }
+    }
+
     var body: some View {
         let items = self.items
         let keptCount = app.store.memo("phone.dictation-count") { app.store.live.filter(\.isDictation).count }
-        let days = Dictionary(grouping: items) { Calendar.current.startOfDay(for: $0.createdAt) }
-        let order = days.keys.sorted(by: >)
         List {
             VStack(alignment: .leading, spacing: 6) {
                 if !tabRoot {
@@ -54,16 +63,19 @@ struct DictationsListScreen: View {
                     .padding(.top, 16)
                     .modifier(DictationPageRow())
             }
-            ForEach(order, id: \.self) { day in
-                SectionTitle(DayLabel.title(day))
-                    .padding(.top, 22).padding(.bottom, 8)
-                    .modifier(DictationPageRow())
-                let list = days[day] ?? []
-                ForEach(Array(list.enumerated()), id: \.element.id) { i, t in
+            // One row each, a day's title or a dictation (ListRows), so the List counts its rows without building
+            // every day.
+            ForEach(rows(items)) { r in
+                switch r.kind {
+                case .title(let day):
+                    SectionTitle(DayLabel.title(day))
+                        .padding(.top, 22).padding(.bottom, 8)
+                        .modifier(DictationPageRow())
+                case .item(let t, let first, let last):
                     PhoneDictationRow(transcript: t)
-                        .overlay(alignment: .top) { if i > 0 { PaperDivider(leading: 44) } }
+                        .overlay(alignment: .top) { if !first { PaperDivider(leading: 44) } }
                         .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-                        .listRowBackground(PaperRowBackground(first: i == 0, last: i == list.count - 1))
+                        .listRowBackground(PaperRowBackground(first: first, last: last))
                         .listRowSeparator(.hidden)
                         .contextMenu {
                             Button { open(t.id) } label: { Label("Open transcript", systemImage: "arrow.right") }   // brand: system surface (menu)

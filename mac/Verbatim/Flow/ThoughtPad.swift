@@ -303,9 +303,12 @@ struct ThoughtPageView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 0) {
+                            // One view per thought, the hairline inside it (ListRows).
                             ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
-                                if i > 0 { PaperDivider(leading: 64, trailing: 12) }
-                                ThoughtCard(transcript: t, highlighted: t.id == capture.lastAdded, state: state, controller: controller).id(t.id)
+                                PaperDividedRow(divider: i > 0, leading: 64, trailing: 12) {
+                                    ThoughtCard(transcript: t, highlighted: t.id == capture.lastAdded, state: state, controller: controller)
+                                }
+                                .id(t.id)
                             }
                         }
                         .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))

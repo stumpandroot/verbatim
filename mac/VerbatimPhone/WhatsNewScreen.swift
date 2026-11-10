@@ -27,6 +27,31 @@ struct WhatsNewScreen: View {
     /// What the UI tour's last `ReleaseNotes.showForTest` opened: a line's detail, and the "Also on" row.
     static var shownForTest = (detail: false, also: false)
 
+    /// What's new as the lazy stack's rows: each version's header, then its builds while it's open.
+    private struct Row: Identifiable {
+        enum Kind {
+            /// `first`: the newest version.
+            case header(ReleaseVersion, first: Bool, open: Bool)
+            /// `newest`: the newest build of all; `first`: its version's newest.
+            case card(ReleaseNote, newest: Bool, first: Bool)
+        }
+        let id: String
+        let kind: Kind
+    }
+
+    private var rows: [Row] {
+        var out: [Row] = []
+        for (i, version) in ReleaseNotes.byVersion(notes).enumerated() {
+            let open = (i == 0) != toggled.contains(version.id)
+            out.append(Row(id: "version|" + version.id, kind: .header(version, first: i == 0, open: open)))
+            guard open else { continue }
+            for (j, note) in version.notes.enumerated() {
+                out.append(Row(id: "build|" + version.id + "|" + note.id, kind: .card(note, newest: i == 0 && j == 0, first: j == 0)))
+            }
+        }
+        return out
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
         ScrollView {
@@ -39,14 +64,16 @@ struct WhatsNewScreen: View {
                         .refinedFont(.body).foregroundStyle(Refined.mute)
                         .padding(.top, 18)
                 }
-                ForEach(Array(ReleaseNotes.byVersion(notes).enumerated()), id: \.element.id) { i, version in
-                    let open = (i == 0) != toggled.contains(version.id)
-                    versionHeader(version, open: open)
-                        .padding(.top, i == 0 ? 14 : 22)
-                    if open {
-                        ForEach(Array(version.notes.enumerated()), id: \.element.id) { j, note in
-                            card(note, newest: i == 0 && j == 0)
-                                .padding(.top, j == 0 ? 8 : 14)
+                // One view per row, a version's header or one of its builds, and no rows for a closed version's builds.
+                ForEach(rows) { row in
+                    VStack(alignment: .leading, spacing: 0) {
+                        switch row.kind {
+                        case .header(let version, let first, let open):
+                            versionHeader(version, open: open)
+                                .padding(.top, first ? 14 : 22)
+                        case .card(let note, let newest, let first):
+                            card(note, newest: newest)
+                                .padding(.top, first ? 8 : 14)
                         }
                     }
                 }
