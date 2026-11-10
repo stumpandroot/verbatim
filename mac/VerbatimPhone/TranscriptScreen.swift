@@ -799,31 +799,36 @@ struct PhoneLines: View {
         // Each still's place in the viewer's order (by time), so a tap opens the viewer on it.
         let stillOrder = StillViewerRules.ordered(transcript.stills ?? [], at: \.at)
         let stillPlace = Dictionary(stillOrder.enumerated().map { ($1.file, $0) }, uniquingKeysWith: { a, _ in a })
+        // One view per row, and no rows for lines inside a closed read (ReadingRows), so the list measures only
+        // what's on screen however long the transcript is.
+        let rows = ReadingRows.rows(segs.map(\.id), folds: folds, chips: chips, open: openSponsors)
         LazyVStack(alignment: .leading, spacing: 4) {
-            ForEach(Array(segs.enumerated()), id: \.element.id) { i, s in
-                // After a folded read, name the speaker again: the line above on screen is someone else's.
-                let afterFold = i > 0 && folds[i - 1].map { !openSponsors.contains($0.span.id) } == true
-                let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || afterFold || segs[i - 1].speaker != s.speaker)
-                let playing = current.contains(s.id)
-                let fold = folds[i]
-                if let spans = chips[i] { unclearChips(spans) }
-                if let fold, fold.first {
-                    SponsorFoldRow(span: fold.span, open: openSponsors.contains(fold.span.id), compact: false,
-                                   onToggle: { if openSponsors.remove(fold.span.id) == nil { openSponsors.insert(fold.span.id) } },
-                                   onPlay: app.player.canPlay ? { app.player.play(from: fold.span.start) } : nil,
-                                   onNotSponsor: { app.store.update(transcript.id) { $0.dismissSponsor(fold.span.id) } })
-                        .padding(.top, i == 0 ? 2 : 10).padding(.bottom, 4)
+            ForEach(rows) { row in
+                VStack(alignment: .leading, spacing: 4) {
+                    switch row.kind {
+                    case .unclear(let spans):
+                        unclearChips(spans)
+                    case .fold(let span):
+                        SponsorFoldRow(span: span, open: openSponsors.contains(span.id), compact: false,
+                                       onToggle: { if openSponsors.remove(span.id) == nil { openSponsors.insert(span.id) } },
+                                       onPlay: app.player.canPlay ? { app.player.play(from: span.start) } : nil,
+                                       onNotSponsor: { app.store.update(transcript.id) { $0.dismissSponsor(span.id) } })
+                            .padding(.top, row.index == 0 ? 2 : 10).padding(.bottom, 4)
+                    case .line:
+                        let i = row.index, s = segs[i]
+                        // After a folded read, name the speaker again: the line above on screen is someone else's.
+                        let afterFold = ReadingRows.afterClosedRead(i, folds: folds, open: openSponsors)
+                        let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || afterFold || segs[i - 1].speaker != s.speaker)
+                        turn(s, showSpeaker: showSpeaker, index: s.speaker.flatMap { order[$0] } ?? 0, playing: current.contains(s.id),
+                             marked: saved.contains(s.id) || marked[s.id] != nil, mark: marked[s.id], inFold: folds[i] != nil,
+                             still: stills[s.id], margin: margin,
+                             stillIndex: stills[s.id].flatMap { stillPlace[$0.file] } ?? 0, stillCount: stillOrder.count)
+                            .padding(.top, showSpeaker && i > 0 ? 10 : 0)
+                            .scrubRow(scrub, index: i, count: segs.count)
+                    }
                 }
-                turn(s, showSpeaker: showSpeaker, index: s.speaker.flatMap { order[$0] } ?? 0, playing: playing,
-                     marked: saved.contains(s.id) || marked[s.id] != nil, mark: marked[s.id], inFold: fold != nil,
-                     still: stills[s.id], margin: margin,
-                     stillIndex: stills[s.id].flatMap { stillPlace[$0.file] } ?? 0, stillCount: stillOrder.count)
-                    .padding(.top, showSpeaker && i > 0 ? 10 : 0)
-                    .id(s.id)
-                    .scrubRow(scrub, index: i, count: segs.count)
-                    .foldedAway(fold.map { !openSponsors.contains($0.span.id) } ?? false)
+                .id(row.id)
             }
-            if let spans = chips[segs.count] { unclearChips(spans) }
             // A free recording's words stop at 10 minutes; the rest is saved and plays (FreeTranscription).
             if transcript.status == .ready, FreeTranscription.hasUntranscribed(limit: transcript.freeTranscriptLimit, duration: transcript.duration) {
                 FreeTranscriptNote(transcript: transcript).padding(.top, 14)

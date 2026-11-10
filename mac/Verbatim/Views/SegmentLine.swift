@@ -292,30 +292,36 @@ struct TranscriptLines: View {
         // Each still's place in the viewer's order (by time), so a click opens the viewer on it.
         let stillOrder = StillViewerRules.ordered(transcript.stills ?? [], at: \.at)
         let stillPlace = Dictionary(stillOrder.enumerated().map { ($1.file, $0) }, uniquingKeysWith: { a, _ in a })
+        // One view per row, and no rows for lines inside a closed read (ReadingRows), so the list measures only
+        // what's on screen however long the transcript is.
+        let rows = ReadingRows.rows(segments.map(\.id), folds: folds, chips: chips, open: openSponsors)
         LazyVStack(alignment: .leading, spacing: 2) {
-            ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
-                // After a folded read, name the speaker again: the line above on screen is someone else's.
-                let afterFold = i > 0 && folds[i - 1].map { !openSponsors.contains($0.span.id) } == true
-                let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || afterFold || segments[i - 1].speaker != s.speaker)
-                let fold = folds[i]
-                if let spans = chips[i] { unclearChips(spans) }
-                if let fold, fold.first {
-                    SponsorFoldLine(transcript: transcript, span: fold.span, open: openSponsors.contains(fold.span.id)) {
-                        if openSponsors.remove(fold.span.id) == nil { openSponsors.insert(fold.span.id) }
+            ForEach(rows) { row in
+                VStack(alignment: .leading, spacing: 2) {
+                    switch row.kind {
+                    case .unclear(let spans):
+                        unclearChips(spans)
+                    case .fold(let span):
+                        SponsorFoldLine(transcript: transcript, span: span, open: openSponsors.contains(span.id)) {
+                            if openSponsors.remove(span.id) == nil { openSponsors.insert(span.id) }
+                        }
+                        .padding(.top, row.index == 0 ? 0 : 8).padding(.bottom, 6)
+                    case .line:
+                        let i = row.index, s = segments[i]
+                        // After a folded read, name the speaker again: the line above on screen is someone else's.
+                        let afterFold = ReadingRows.afterClosedRead(i, folds: folds, open: openSponsors)
+                        let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || afterFold || segments[i - 1].speaker != s.speaker)
+                        SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, speakerIndex: s.speaker.flatMap { order[$0] } ?? 0,
+                                    current: current.contains(s.id), marked: saved.contains(s.id) || marked[s.id] != nil, mark: marked[s.id],
+                                    selected: selected == s.id, editable: editable, size: textSize, first: i == 0,
+                                    still: stills[s.id], margin: margin,
+                                    stillIndex: stills[s.id].flatMap { stillPlace[$0.file] } ?? 0, stillCount: stillOrder.count) {
+                            selected = selected == s.id ? nil : s.id
+                        }
                     }
-                    .padding(.top, i == 0 ? 0 : 8).padding(.bottom, 6)
                 }
-                SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, speakerIndex: s.speaker.flatMap { order[$0] } ?? 0,
-                            current: current.contains(s.id), marked: saved.contains(s.id) || marked[s.id] != nil, mark: marked[s.id],
-                            selected: selected == s.id, editable: editable, size: textSize, first: i == 0,
-                            still: stills[s.id], margin: margin,
-                            stillIndex: stills[s.id].flatMap { stillPlace[$0.file] } ?? 0, stillCount: stillOrder.count) {
-                    selected = selected == s.id ? nil : s.id
-                }
-                .id(s.id)
-                .foldedAway(fold.map { !openSponsors.contains($0.span.id) } ?? false)
+                .id(row.id)
             }
-            if let spans = chips[segments.count] { unclearChips(spans) }
         }
         .onReceive(clock.$time) { now in syncPlaying(at: now) }
         .onChange(of: isPlaying) { _, _ in syncPlaying(at: clock.time) }

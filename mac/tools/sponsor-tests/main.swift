@@ -235,5 +235,31 @@ check("then B sets its own", ba.owner == "B" && ba.isHeld("B"))
 var none = ScreenHolds<String>()
 check("releasing what was never held does nothing", none.release("X") == false && none.owner == nil)
 
+// The reading lines as rows (ReadingRows): one view each, no rows for lines inside a closed read.
+do {
+    let ids = (0..<6).map { _ in UUID() }
+    let span = SponsorSpan(start: 10, end: 20)
+    let folds: [SponsorFold.Place?] = [nil, SponsorFold.Place(span: span, first: true), SponsorFold.Place(span: span, first: false), nil, nil, nil]
+    let chip = UnclearSpan(start: 30, end: 33)
+    let chips: [Int: [UnclearSpan]] = [3: [chip], 6: [chip, chip], 4: []]
+    let closed = ReadingRows.rows(ids, folds: folds, chips: chips, open: [])
+    check("rows: a closed read is one row, its lines aren't rows", closed.map(\.kind) == [.line, .fold(span), .unclear([chip]), .line, .line, .line, .unclear([chip, chip])],
+          "\(closed.map(\.kind))")
+    check("rows: lines keep their own ids and indexes", closed.filter { $0.kind == .line }.map(\.index) == [0, 3, 4, 5]
+          && closed.filter { $0.kind == .line }.map(\.id) == [0, 3, 4, 5].map { AnyHashable(ids[$0]) })
+    check("rows: chips after the last line sit at the end, an empty chip list adds nothing", closed.last?.index == 6 && closed.count == 7)
+    let opened = ReadingRows.rows(ids, folds: folds, chips: chips, open: [span.id])
+    check("rows: an opened read shows its row and its lines", opened.map(\.kind) == [.line, .fold(span), .line, .line, .unclear([chip]), .line, .line, .line, .unclear([chip, chip])])
+    check("rows: every row's id is different", Set(opened.map(\.id)).count == opened.count)
+    check("rows: the line after a closed read names its speaker again", ReadingRows.afterClosedRead(3, folds: folds, open: [])
+          && !ReadingRows.afterClosedRead(3, folds: folds, open: [span.id]) && !ReadingRows.afterClosedRead(0, folds: folds, open: [])
+          && !ReadingRows.afterClosedRead(5, folds: folds, open: []))
+    check("rows: folds missing for some lines are read as none", ReadingRows.rows(ids, folds: [], chips: [:], open: []).count == 6)
+    let many = (0..<20_000).map { _ in UUID() }
+    let started = Date()
+    let big = ReadingRows.rows(many, folds: Array(repeating: nil, count: many.count), chips: [:], open: [])
+    check("rows: 20,000 lines in well under a second", big.count == 20_000 && Date().timeIntervalSince(started) < 0.5)
+}
+
 if failures > 0 { print("\(failures) sponsor check(s) failed"); exit(1) }
 print("All sponsor checks passed.")

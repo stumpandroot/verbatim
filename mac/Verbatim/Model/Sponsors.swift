@@ -110,6 +110,53 @@ extension Transcript {
     }
 }
 
+/// The reading lines as the rows of a lazy list, both apps: an "unclear" chip group, a sponsor read's folded row, or a
+/// line. Each row is exactly one view, and a line inside a closed read isn't a row at all, so the list measures only
+/// the rows on screen. (Lines that drew a varying number of views, with a chip or a fold row before them or nothing
+/// when folded, made SwiftUI walk every line on each layout: a long transcript froze the Mac, November 10, 2026.)
+enum ReadingRows {
+    enum Kind: Equatable {
+        /// The chips before line `index` (`index == count`: after the last line).
+        case unclear([UnclearSpan])
+        /// A read's folded row, before its first shown line.
+        case fold(SponsorSpan)
+        /// Line `index`.
+        case line
+    }
+
+    struct Row: Identifiable, Equatable {
+        /// A line's own id (what scrolling to a line and the find bar use); a key of its own otherwise.
+        let id: AnyHashable
+        let kind: Kind
+        /// The line the row is, or sits before.
+        let index: Int
+    }
+
+    private enum Key: Hashable { case unclear(Int), fold(UUID) }
+
+    /// `ids` are the shown lines' ids; `folds` has one entry per line (`SponsorFold.places`); `chips` maps a line's
+    /// index to the chips before it (`UnclearStyle.chips`); `open` holds the reads opened from their row.
+    static func rows(_ ids: [UUID], folds: [SponsorFold.Place?], chips: [Int: [UnclearSpan]], open: Set<UUID>) -> [Row] {
+        var out: [Row] = []
+        out.reserveCapacity(ids.count + chips.count)
+        for (i, id) in ids.enumerated() {
+            if let spans = chips[i], !spans.isEmpty { out.append(Row(id: AnyHashable(Key.unclear(i)), kind: .unclear(spans), index: i)) }
+            let fold = i < folds.count ? folds[i] : nil
+            if let fold, fold.first { out.append(Row(id: AnyHashable(Key.fold(fold.span.id)), kind: .fold(fold.span), index: i)) }
+            if let fold, !open.contains(fold.span.id) { continue }
+            out.append(Row(id: AnyHashable(id), kind: .line, index: i))
+        }
+        if let spans = chips[ids.count], !spans.isEmpty { out.append(Row(id: AnyHashable(Key.unclear(ids.count)), kind: .unclear(spans), index: ids.count)) }
+        return out
+    }
+
+    /// Whether line `i` follows a closed read, so its speaker is named again (the line above on screen is someone else's).
+    static func afterClosedRead(_ i: Int, folds: [SponsorFold.Place?], open: Set<UUID>) -> Bool {
+        guard i > 0, i - 1 < folds.count, let f = folds[i - 1] else { return false }
+        return !open.contains(f.span.id)
+    }
+}
+
 /// How a list of shown lines folds: each line's read, if any, and whether it's the read's first shown line.
 enum SponsorFold {
     struct Place: Equatable {

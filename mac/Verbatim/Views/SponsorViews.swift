@@ -81,11 +81,6 @@ private struct SponsorSkipping: ViewModifier {
 }
 
 extension View {
-    /// A line inside a folded sponsor read: not drawn until its row is opened.
-    @ViewBuilder func foldedAway(_ folded: Bool) -> some View {
-        if folded { EmptyView() } else { self }
-    }
-
     /// Playback on this screen jumps past the transcript's sponsor reads while Skip sponsor reads is on.
     func skipsSponsors(_ t: Transcript, player: Player) -> some View { modifier(SponsorSkipping(transcript: t, player: player)) }
 }
