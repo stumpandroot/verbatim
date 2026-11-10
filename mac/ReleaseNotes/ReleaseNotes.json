@@ -1,6 +1,75 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Steadier with long lists and TikTok sound",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "TikTok photo posts add sound",
+          "icon": "links",
+          "text": "A TikTok slideshow link downloads its sound as an MP3 and transcribes it.",
+          "detail": "Photo posts used to fail with Unsupported URL. Short links that lead to a photo post work too."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Updated link helper",
+          "icon": "privacy",
+          "text": "yt-dlp moves to October 26, which fixes a security flaw in older copies.",
+          "detail": "Older copies could be fooled by a network that impersonates a website. The update closes that."
+        },
+        {
+          "platforms": [
+            "mac",
+            "iphone"
+          ],
+          "head": "Transcript lines lay out faster",
+          "icon": "notes",
+          "text": "Each line of a transcript is built only when it's on screen, however long the transcript.",
+          "detail": "Lines inside a folded sponsor read aren't built until you open it."
+        },
+        {
+          "platforms": [
+            "mac",
+            "iphone"
+          ],
+          "head": "Long lists stay smooth",
+          "icon": "library",
+          "text": "Recently Deleted, the Queue, Add from Library, and iPhone lists build rows as you scroll."
+        },
+        {
+          "platforms": [
+            "mac",
+            "iphone"
+          ],
+          "head": "Faster bulk deletes",
+          "icon": "library",
+          "text": "Empty, Restore all, and deleting many recordings change the library in one step.",
+          "detail": "Before, each recording was handled one at a time against the whole library, which stalled large libraries."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Snappier search and typing",
+          "icon": "ask",
+          "text": "Arrow keys in Search don't search again; the Cleaned tab measures text once per change."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Select text keeps up",
+          "icon": "play",
+          "text": "It no longer rebuilds the whole transcript as playback moves, and shows find matches."
+        }
+      ]
+    },
+    {
       "build": "316",
       "date": "2026-11-08",
       "version": "1.0 beta",
