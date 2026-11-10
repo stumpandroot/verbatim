@@ -2363,7 +2363,7 @@ enum UITest {
         await open("4,000 lines", make("Stress: 4,000 lines", lines: 4_000))
         var chips = make("Stress: chips and folds", lines: 800, every: 6)
         chips.unclear = stride(from: 0, to: 800, by: 3).map { i in UnclearSpan(start: Double(i) * 6 + 5.45, end: Double(i) * 6 + 5.95) }
-        chips.sponsors = [SponsorSpan(start: 600, end: 900, name: "Good Ranchers"), SponsorSpan(start: 2_400, end: 2_700)]
+        chips.sponsors = [SponsorSpan(start: 600, end: 900, name: "Sample Sponsor"), SponsorSpan(start: 2_400, end: 2_700)]
         await open("chips and folds", chips)
         // Finishes while open (the processing card, then the lines), then its speakers arrive in a few updates.
         var job = make("Stress: ready while open", lines: 0)
