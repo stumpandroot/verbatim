@@ -467,6 +467,8 @@ targets:
       # Dictation cleanup with Apple's on-device model (iOS 26), its meaning guard, and the cleanup level and
       # snippet types (FlowSettings; on the iPhone only `cleanup` is read, under the Mac's key, per device).
       - Verbatim/Flow/Cleanup.swift
+      # Cleanup's parts and their outcomes (the Mac cleans finished sentences while you talk; the iPhone doesn't).
+      - Verbatim/Model/PreClean.swift
       - Verbatim/Flow/MeaningCheck.swift
       - Verbatim/Flow/FlowSettings.swift
       # Harper's grammar pass on dictation (in the app process, where keyboard cleanup runs; never in the

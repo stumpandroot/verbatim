@@ -161,6 +161,11 @@ final class DictationController: ObservableObject {
     private let abandoned = SessionSet()
     /// Pastes handed to the paster that haven't finished.
     private var pastesInFlight = 0
+    /// Clean while you talk, for the dictation being listened to (Model/PreClean.swift): finished sentences are
+    /// cleaned on this Mac before you let go. Nil when it's off or this dictation isn't one it runs for.
+    private var preClean: PreCleanRun?
+    /// The same worker once the words are being written, so Esc can stop it. The writing task owns it.
+    private weak var writingPreClean: PreCleanRun?
     func showPendingLearn() { learner.showPending() }
 
     /// Live words, between dictations (the Ribbon went idle) or when the setting is turned on: gets the on-device
@@ -320,6 +325,8 @@ final class DictationController: ObservableObject {
     /// Back to idle after listening ended without a recording to transcribe.
     private func resetListening() {
         isListening = false; handsFree = false; command = false; toPad = false; tailing = false
+        preClean?.cancel()
+        preClean = nil
     }
 
     /// "Couldn't hear the Shure MV7 mic. Check Settings › Recording and transcription › Record from.", with a button that opens it.
@@ -686,12 +693,19 @@ final class DictationController: ObservableObject {
         // recording keeps what the mic hears from when the tick ends (Sounds.playBeforeMic, SoundRules.swift's MicArm),
         // so nothing is silenced and the tick isn't in it.
         let showWords = LiveWordsSetting.isOn
-        recorder.liveTap = showWords ? liveWords.tap : nil
+        // Clean while you talk: only the quick checks here (the switch is read once per dictation); the worker checks
+        // the rest off the main thread. It gets its own copy of the audio from the same tap as the live words.
+        preClean?.cancel()
+        preClean = nil
+        let ahead = PreClean.mayStart(flag: PreClean.isOn, engine: app?.engineChoice.engine ?? "fluid", command: wantCommand,
+                                      usesModel: FlowSettings.shared.cleanup.usesModel) ? PreCleanRun() : nil
+        recorder.liveTap = Self.liveTap(words: showWords ? liveWords.tap : nil, ahead: ahead?.tap)
         Sounds.playBeforeMic(.dictationStart, arming: recorder)
         do {
             try recorder.start(to: app?.store.newRecordingURL() ?? Paths.downloads.appendingPathComponent("dictation-\(Int(Date().timeIntervalSince1970)).wav"))
         } catch {
             Log.note("dictation start failed: \(error)")
+            ahead?.cancel()
             showMicProblem("Couldn't start")
             return
         }
@@ -707,11 +721,13 @@ final class DictationController: ObservableObject {
         context = ctx
         command = wantCommand && !ctx.selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !ctx.selectionClipped
         if wantCommand && ctx.selectionClipped {
+            ahead?.cancel()
             cancel(quiet: true)
             bar?.flash("That selection is too long to edit here. Select less than about 6,000 characters.", seconds: 4)
             return
         }
         if wantCommand && !command {
+            ahead?.cancel()
             cancel(quiet: true)
             bar?.flash("Select some text first, then edit it by voice")
             return
@@ -726,8 +742,40 @@ final class DictationController: ObservableObject {
         }
         bar?.setPhase(.listening)
         FlowCleanup.prewarm()
+        startPreClean(ahead, context: ctx, handsFree: handsFree)
         scheduleTimeLimit()
         Log.note("dictation begin -> \(targetAppName) [\(ctx.category.rawValue)] handsFree=\(handsFree) command=\(command)")
+    }
+
+    /// The recorder's tap for a dictation: the live words, the clean-while-you-talk copy, both, or neither.
+    nonisolated private static func liveTap(words: (@Sendable (AVAudioPCMBuffer) -> Void)?,
+                                            ahead: (@Sendable (AVAudioPCMBuffer) -> Void)?) -> (@Sendable (AVAudioPCMBuffer) -> Void)? {
+        guard let ahead else { return words }
+        guard let words else { return ahead }
+        return { buffer in words(buffer); ahead(buffer) }
+    }
+
+    /// Starts clean while you talk for this dictation with what the release will use (`finishNow` reads the same
+    /// settings again when you let go). Not for a command, a thought, or a code app.
+    private func startPreClean(_ ahead: PreCleanRun?, context ctx: AppContext, handsFree: Bool) {
+        guard let ahead else { return }
+        guard !command, !toPad, ctx.category != .code, let choice = app?.engineChoice, choice.engine == "fluid" else { ahead.cancel(); return }
+        let s = FlowSettings.shared
+        let project = activeProject
+        let dict = (app?.store.dictionary ?? []).filter { $0.projectId == nil || $0.projectId == project }
+        let boost = s.boostVocabulary ? dict.filter(\.enabled) + BuiltInVocabulary.boostEntries(excluding: dict) : []
+        preClean = ahead
+        ahead.start(.init(model: choice.model, dictionary: dict, boost: boost, project: project, handsFree: handsFree, level: s.cleanup,
+                          styles: Dictionary(uniqueKeysWithValues: AppCategory.allCases.map { ($0, s.style(for: $0)) }),
+                          vocabulary: dict.filter(\.enabled).map(\.preferred), useContext: s.useContext, context: ctx, site: siteProbe))
+    }
+
+    /// A dictation's words as one text for the rules and the model: long pauses become sentence breaks (and,
+    /// hands-free, paragraph breaks) with `pauseHints`, plain spaces without. The release and clean while you talk
+    /// both use it, so they write the same text for the same words.
+    nonisolated static func spokenText(_ segments: [Segment], pauseHints: Bool, handsFree: Bool) -> String {
+        (pauseHints ? PauseBreaks.join(segments.map { ($0.text, $0.start, $0.end) }, handsFree: handsFree)
+                    : segments.map(\.text).joined(separator: " ")).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Dictation stops itself after `FlowSettings.maxDictationMinutes` (and pastes what it heard), with a
@@ -778,6 +826,9 @@ final class DictationController: ObservableObject {
     func cancel(quiet: Bool = false) {
         guard isListening else { return }
         tailing = false
+        // Nothing cleaned while you talked is kept.
+        preClean?.cancel()
+        preClean = nil
         // The recorder already stopped on its own: still end listening, so the Ribbon never stays stuck.
         guard let stopped = recorder.stop() else { resetListening(); bar?.setPhase(.idle); return }
         isListening = false; handsFree = false; command = false
@@ -790,6 +841,7 @@ final class DictationController: ObservableObject {
     private func cancelWriting() {
         guard let s = writingSession else { return }
         abandoned.insert(s)
+        writingPreClean?.cancel()
         queuedStart = nil
         writingSession = nil
         isWorking = false
@@ -840,6 +892,8 @@ final class DictationController: ObservableObject {
         let delay = DictationTiming.tailDelay(for: stop)
         if tailing && delay > 0 { return }
         if !tailing { releasedAt = Date() }
+        // No new snapshots from here on, so nothing competes with the release's transcription.
+        preClean?.letGo()
         guard delay > 0 else { tailing = false; finishNow(tail: 0); return }
         tailing = true
         bar?.setPhase(.working)
@@ -853,6 +907,12 @@ final class DictationController: ObservableObject {
 
     private func finishNow(tail: Double) {
         guard isListening else { return }
+        // Clean while you talk: handed to the writing task below, and dropped on every path that doesn't get there.
+        let ahead = preClean
+        preClean = nil
+        ahead?.letGo()
+        var handedOff = false
+        defer { if !handedOff { ahead?.cancel() } }
         let warned = recorder.micWarning
         guard let stopped = recorder.stop() else {
             // The recorder already stopped on its own: end listening anyway, so the Ribbon never stays stuck.
@@ -919,7 +979,11 @@ final class DictationController: ObservableObject {
         let vocabulary = dict.filter(\.enabled).map(\.preferred)
         let boostDict = dict.filter(\.enabled) + BuiltInVocabulary.boostEntries(excluding: dict)
         let saved = s.actions
+        handedOff = true
+        writingPreClean = ahead
         Task.detached(priority: .userInitiated) { [weak self] in
+            // Whatever happens below, nothing cleaned while you talked outlives this dictation.
+            defer { ahead?.cancel() }
             do {
                 let t0 = Date()
                 var heard: EngineResult
@@ -944,8 +1008,7 @@ final class DictationController: ObservableObject {
                 // Long pauses become sentence breaks (and, hands-free, paragraph breaks) for the rules and the model.
                 // Not in Literal, which keeps your words as spoken, or in code apps.
                 let pauseHints = !isCommand && level != .literal && category != .code
-                let raw = (pauseHints ? PauseBreaks.join(segs.map { ($0.text, $0.start, $0.end) }, handsFree: wasHandsFree)
-                                      : segs.map(\.text).joined(separator: " ")).trimmingCharacters(in: .whitespacesAndNewlines)
+                let raw = Self.spokenText(segs, pauseHints: pauseHints, handsFree: wasHandsFree)
                 var final: String
                 var note: String?
                 var cleaned = false
@@ -967,6 +1030,8 @@ final class DictationController: ObservableObject {
                     let budget = DictationTiming.cleanupBudget(characters: raw.count)
                     request.timeBudget = budget
                     request.pauseHints = pauseHints
+                    // Sentences cleaned while you talked: the model step reuses the ones this text still starts with.
+                    request.preClean = ahead?.session
                     let req = request
                     let out: FlowCleanup.Result
                     if cancelled.contains(mine) {
@@ -989,7 +1054,14 @@ final class DictationController: ObservableObject {
                 info.cloudCleanup = cloudSent
                 let keepNote = note, wasCleaned = cleaned, finalText = final, keptSegs = segs, correction = corrected
                 let cleanupTime = Date().timeIntervalSince(t1)
-                let timing = DeliveryTiming(released: released, tail: tail, transcribe: transcribeTime, cleanup: cleanupTime, cleaned: wasCleaned, note: note)
+                // Counts only, never text: how many parts were cleaned ahead, and how many this cleanup reused.
+                var preCleaned: PreClean.Stats?
+                if let stats = await ahead?.end(), stats.sealed > 0 {
+                    preCleaned = stats
+                    Log.note(stats.logLine)
+                }
+                let timing = DeliveryTiming(released: released, tail: tail, transcribe: transcribeTime, cleanup: cleanupTime, cleaned: wasCleaned, note: note,
+                                            preClean: preCleaned)
                 let flowInfo = info
                 await MainActor.run {
                     // Cancelled with Esc while writing: kept in Dictations as not pasted, and nothing is pasted.
@@ -1029,6 +1101,8 @@ final class DictationController: ObservableObject {
         var cleanup: Double
         var cleaned: Bool
         var note: String?
+        /// Parts cleaned while you talked, and how many the cleanup reused. Nil when there were none.
+        var preClean: PreClean.Stats? = nil
     }
 
     private func keep(url: URL, duration: Double, env: [Float], original: [Segment], segments: [Segment], fixes: [Correction], result: EngineResult, info: FlowInfo, cleaned: Bool, project: UUID? = nil, brainDump: Bool = false) -> UUID? {
@@ -1133,7 +1207,8 @@ final class DictationController: ObservableObject {
             pastesInFlight -= 1
             let now = Date()
             Log.note(DictationTiming.timingLine(total: now.timeIntervalSince(timing.released), tail: timing.tail, transcribe: timing.transcribe,
-                                                cleanup: timing.cleanup, paste: now.timeIntervalSince(pasteStarted), cleaned: timing.cleaned, note: timing.note))
+                                                cleanup: timing.cleanup, paste: now.timeIntervalSince(pasteStarted), cleaned: timing.cleaned, note: timing.note,
+                                                preClean: timing.preClean.map { (reused: $0.reused, sealed: $0.sealed) }))
             // A newer dictation is listening or being written: its Ribbon and sounds win. This one's text still
             // lands in Dictations.
             let current = session == mine && !isListening && !isWorking

@@ -1,8 +1,8 @@
 import Foundation
 
 /// Mac self-tests for dictation polish (`UITest` runs them): the pure checks in `DictationTimingChecks` (also run by
-/// `mac/tools/test-formatter.sh`), cleanup's time limit against work that ignores cancellation, and how long the
-/// Ribbon shows "Cancelled".
+/// `mac/tools/test-formatter.sh`), clean while you talk (`PreCleanChecks`), cleanup's time limit against work that
+/// ignores cancellation, and how long the Ribbon shows "Cancelled".
 @MainActor
 enum DictationPolishChecks {
     static func run(_ check: (String, Bool) -> Void) async {
@@ -10,6 +10,32 @@ enum DictationPolishChecks {
             check(r.name, r.ok)
             if !r.ok { Log.note("UITEST detail: " + r.detail.replacingOccurrences(of: "\n", with: "⏎")) }
         }
+
+        // Clean while you talk: sealing, matching, the switch, and one dictation's session with a stand-in for the
+        // model, including a cancel part way (PreCleanChecks, also run by mac/tools/test-preclean.sh).
+        for r in PreCleanChecks.run() + (await PreCleanChecks.runSession()) {
+            check("pre-clean " + r.name, r.ok)
+            if !r.ok { Log.note("UITEST detail: " + r.detail.replacingOccurrences(of: "\n", with: "⏎")) }
+        }
+
+        // What ties parts cleaned ahead to the cleanup that may reuse them, and cleanup with none to reuse.
+        let said = "um so I sent the draft to the client this morning. They want two more rounds of changes"
+        let work = FlowCleanup.Request(raw: said, level: .polished, style: .casual, category: .work, context: nil, vocabulary: [], useContext: false)
+        var email = work; email.category = .email
+        var clean = work; clean.level = .clean
+        var named = work; named.vocabulary = ["Lititz"]
+        var literal = work; literal.level = .literal
+        var code = work; code.category = .code
+        let key = FlowCleanup.preCleanKey(work)
+        check("pre-clean: parts are tied to the destination, the level, and your Dictionary terms",
+              key == FlowCleanup.preCleanKey(work) && key != FlowCleanup.preCleanKey(email) && key != FlowCleanup.preCleanKey(clean)
+                && key != FlowCleanup.preCleanKey(named))
+        check("pre-clean: snapshots get the same rule-based text as cleanup, and none at Literal or in code apps",
+              FlowCleanup.preCleanInput(work) == CleanupPrepass.clean(said, corrections: work.spokenCorrections)
+                && FlowCleanup.preCleanInput(literal) == nil && FlowCleanup.preCleanInput(code) == nil)
+        var idle = work
+        idle.preClean = PreCleanSession { _, _ in nil }
+        check("pre-clean: with nothing cleaned ahead, the rules give the same text", FlowCleanup.rulesOnly(idle) == FlowCleanup.rulesOnly(work))
 
         // A model call that ignores cancellation (it waits 2 s no matter what) still ends at the 0.3 s limit.
         let t0 = Date()
