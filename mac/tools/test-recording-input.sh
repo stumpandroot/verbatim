@@ -4,8 +4,9 @@
 # the accessory iOS routes to, then any accessory, then the iPhone's), the Record card's ready chip from a mocked
 # route, the recorder's microphone menu, the audio session's mode and AirPods high-quality option, and what a route
 # change does to a running recording; then, against the sources, that the iPhone sets the input before the session
-# activates and never asks for the high-quality option outside the default mode. Needs only a Swift toolchain (macOS
-# or Linux), not Xcode.
+# activates and never asks for the high-quality option outside the default mode, and that a headset left in call mode
+# (AirPods' high-quality link asked for and not on, or a hands-free route) is logged and said once. Needs only a
+# Swift toolchain (macOS or Linux), not Xcode.
 #   bash mac/tools/test-recording-input.sh
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"

@@ -118,5 +118,26 @@ check("sources: the recorder's microphone capsule is a menu of the inputs that s
 check("sources: the capsule names the route after a move, and keeps its name when the move fails (review fix 4)",
       sheet.contains("if app.recorder.useInput(input.uid) != nil { mic = HomeScreen.currentMic() }") && !sheet.contains("mic = name"))
 
+// Call mode: a Bluetooth headset on its hands-free profile is noticed, logged, and said once.
+let callState = body(recorder, "static func callModeState(")
+check("sources: the iPhone reads whether the high-quality link is really on, not only whether it was asked for",
+      callState.contains("port.bluetoothMicrophoneExtension") && callState.contains("highQualityRecording.isEnabled")
+      && callState.contains("if #available(iOS 26, *)") && callState.contains("RecordingInputRules.callMode("), callState)
+check("sources: every recording's start logs the route's call mode", body(recorder, "static func noteStart(").contains("callModeState(s, rate: format?.sampleRate).line"))
+let callCheck = body(recorder, "private func scheduleCallModeCheck(")
+check("sources: an iPhone recording looks once, a few seconds in, and says it in the microphone toast",
+      start.contains("scheduleCallModeCheck()") && callCheck.contains("RecordingInputRules.callModeCheck")
+      && callCheck.contains("self.callModeToken == token") && callCheck.contains("self.isRecording")
+      && callCheck.contains("self.onInputSwitched?(RecordingInputRules.callModeNotice(phone: true))"), callCheck)
+check("sources: the look never touches the session or the recording", !callCheck.contains("setCategory") && !callCheck.contains("setPreferredInput")
+      && !callCheck.contains("moveRecording") && !callState.contains("setCategory") && !callState.contains("setPreferredInput"))
+let macCall = body(recorder, "private func noteCallMode(")
+check("sources: the Mac goes by the device's transport and the rate it opened at, and logs no device name",
+      macCall.contains("device.transport == \"Bluetooth\"") && macCall.contains("RecordingInputRules.callMode(") && !macCall.contains("device.name"), macCall)
+check("sources: a Mac recording says it once at its start; dictation only logs it (the Ribbon has its own line)",
+      recorder.contains("noteCallMode(open.device, rate: open.unit.format.sampleRate, tell: true)")
+      && recorder.contains("noteCallMode(target, rate: unit?.format.sampleRate ?? 0, tell: false)")
+      && lines(recorder, containing: "noteCallMode(").count == 3)
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
