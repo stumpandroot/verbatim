@@ -802,6 +802,29 @@ enum RecordingRoute {
         var asked = false
         if #available(iOS 26, *) { asked = s.categoryOptions.contains(.bluetoothHighQualityRecording) }
         Log.note("\(context): recording on \(route), session \(Int(s.sampleRate)) Hz, mode \(s.mode.rawValue), high-quality AirPods asked: \(asked), available: \(available)")
+        // Whether the link that was asked for is really on. AirPods can still be coming up on it at this moment; a
+        // recording looks again a few seconds in (`Recorder.scheduleCallModeCheck`).
+        Log.note("\(context): \(callModeState(s, rate: format?.sampleRate).line)")
+    }
+
+    /// Whether the input a recording hears right now is a Bluetooth headset in its call mode
+    /// (`RecordingInputRules.callMode`), and the log's line for it: the kind of route and the rate, no device name.
+    /// On iOS 26 this reads whether AirPods' high-quality link is really on (`highQualityRecording.isEnabled`), so a
+    /// silent fallback to the hands-free profile is noticed. `rate` is the input node's rate when the caller has it.
+    static func callModeState(_ s: AVAudioSession = .sharedInstance(), rate: Double? = nil) -> (callMode: Bool, line: String) {
+        guard let port = s.currentRoute.inputs.first else { return (false, "input route: none") }
+        var asked = false
+        var enabled: Bool? = nil
+        if #available(iOS 26, *) {
+            asked = s.categoryOptions.contains(.bluetoothHighQualityRecording)
+            if let mic = port.bluetoothMicrophoneExtension { enabled = mic.highQualityRecording.isEnabled }
+        }
+        let hz = rate ?? s.sampleRate
+        let k = kind(port.portType)
+        let call = RecordingInputRules.callMode(kind: k, handsFreePort: port.portType == .bluetoothHFP, sampleRate: hz,
+                                                highQualityAsked: asked, highQualityEnabled: enabled)
+        return (call, RecordingInputRules.callModeLine(callMode: call, kind: k, port: port.portType.rawValue, sampleRate: hz,
+                                                       highQualityAsked: asked, highQualityEnabled: enabled))
     }
 }
 #endif
@@ -1041,6 +1064,7 @@ final class Recorder: ObservableObject {
         isRecording = true
         isPaused = false
         startPhoneMuteWatch()
+        scheduleCallModeCheck()
         #endif
     }
 
@@ -1172,6 +1196,24 @@ final class Recorder: ObservableObject {
             if !self.restartCapture() { self.autoPause("The microphone changed. Tap Resume to keep recording.") }
         }
         return picked
+    }
+
+    /// Bumped by every recording's start, so an older recording's look does nothing.
+    private var callModeToken = 0
+
+    /// Once per recording, `RecordingInputRules.callModeCheck` seconds in: when the route is a Bluetooth headset in
+    /// its call mode (AirPods' high-quality link asked for and not on, or a hands-free route), logs it and says so in
+    /// the toast that reports a microphone change (`onInputSwitched`). Nothing waits on it, and the recording goes on
+    /// as it is. A recording that's paused, over, or still waiting for its headset at that moment says nothing.
+    private func scheduleCallModeCheck() {
+        callModeToken += 1
+        let token = callModeToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + RecordingInputRules.callModeCheck) { [weak self] in
+            guard let self, self.callModeToken == token, self.isRecording, !self.isPaused, self.awaitingInput == nil else { return }
+            let state = RecordingRoute.callModeState()
+            Log.note("recorder: \(state.line)")
+            if state.callMode, RecordingInputRules.callModeNoticeDue() { self.onInputSwitched?(RecordingInputRules.callModeNotice(phone: true)) }
+        }
     }
 
     /// A Bluetooth headset the recording waits for: AirPods iOS hadn't listed when it started (the first recording),
@@ -1711,6 +1753,7 @@ final class Recorder: ObservableObject {
             watch(open)
             startMicWatch(device: open.device.id, name: open.device.name)
             Log.note("recorder: recording from \(open.device.name) (\(open.device.transport)), \(Int(open.unit.format.sampleRate)) Hz, \(open.unit.format.channelCount) ch; started in \(ms) ms")
+            noteCallMode(open.device, rate: open.unit.format.sampleRate, tell: true)
             done?(nil)
         case .failure(let error):
             Log.note("recorder: couldn't start after \(ms) ms: \(error.localizedDescription)")
@@ -1953,12 +1996,27 @@ final class Recorder: ObservableObject {
             teardown()
             throw error
         }
+        // Logged only: the Ribbon already says a Bluetooth mic records in lower quality (Dictation.bluetoothWarning).
+        noteCallMode(target, rate: unit?.format.sampleRate ?? 0, tell: false)
         #else
         throw Self.noInput
         #endif
     }
 
     #if os(macOS)
+    /// A Bluetooth microphone delivering a call rate is a headset in its call mode (`RecordingInputRules.callMode`;
+    /// the Mac has no port type, so the device's transport and the rate it opened at decide). Logged without the
+    /// device's name, and with `tell`, said once in the toast that reports a microphone change (`onInputSwitched`).
+    /// Called once per recording, after it has started; nothing waits on it.
+    private func noteCallMode(_ device: AudioDevices.Device, rate: Double, tell: Bool) {
+        let kind: RecordingInput.Kind = device.transport == "Bluetooth" ? .bluetooth : .other
+        guard RecordingInputRules.callMode(kind: kind, handsFreePort: false, sampleRate: rate, highQualityAsked: false,
+                                           highQualityEnabled: nil) else { return }
+        Log.note("recorder: " + RecordingInputRules.callModeLine(callMode: true, kind: kind, port: device.transport, sampleRate: rate,
+                                                                 highQualityAsked: false, highQualityEnabled: nil))
+        if tell, RecordingInputRules.callModeNoticeDue() { onInputSwitched?(RecordingInputRules.callModeNotice(phone: false)) }
+    }
+
     /// Whether the prepared unit is on this device and still matches its sample rate.
     private func unitFits(_ device: AudioDeviceID) -> Bool {
         guard let unit, unit.device == device else { return false }

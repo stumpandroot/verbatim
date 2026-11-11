@@ -189,6 +189,55 @@ enum RecordingInputRules {
     /// When a waiting recording looks for the headset again, in seconds; at the last, it settles on the best input
     /// left (the iPhone microphone) with that input's mode.
     static let awaitChecks: [Double] = [0.5, 1.5, 2.5, 4]
+
+    // MARK: Call mode
+
+    /// Whether a recording's input is a Bluetooth headset in its call mode (the hands-free profile): narrow, phone-call
+    /// audio that recognition hears worse than the built-in microphone. The recording goes on either way; this only
+    /// decides whether to say so once.
+    /// - AirPods' high-quality link on (`highQualityEnabled`, iOS 26's `highQualityRecording.isEnabled`): never.
+    /// - The link was asked for and iOS says it isn't on: call mode, whatever the port is called (the silent fallback).
+    /// - Otherwise (before iOS 26, or on the Mac, where `highQualityEnabled` is nil): a hands-free port, or a
+    ///   Bluetooth input at a call rate (`callModeMaxRate` or lower).
+    /// An input that isn't Bluetooth is never in call mode, whatever its rate.
+    static func callMode(kind: RecordingInput.Kind, handsFreePort: Bool, sampleRate: Double, highQualityAsked: Bool,
+                         highQualityEnabled: Bool?) -> Bool {
+        guard kind == .bluetooth else { return false }
+        if highQualityEnabled == true { return false }
+        if highQualityAsked, highQualityEnabled == false { return true }
+        if handsFreePort { return true }
+        return sampleRate > 0 && sampleRate <= callModeMaxRate
+    }
+
+    /// The highest rate a headset's call mode delivers: 8 and 16 kHz, and 24 kHz on newer AirPods. The high-quality
+    /// link and wired microphones deliver 44.1 kHz or more.
+    static let callModeMaxRate: Double = 24_000
+
+    /// Seconds into an iPhone recording when its route is checked for call mode: after AirPods have had the first
+    /// seconds (`startWindow`) to come up on their high-quality link, so a link that's still starting isn't reported.
+    static let callModeCheck: Double = 6
+
+    /// The call-mode notice shows once a day at most (the log has every recording): someone whose headset can't use
+    /// the high-quality link would otherwise see it on each recording. True when it's due, and marks today.
+    static func callModeNoticeDue(now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
+        let key = "recording.callModeNoticeDay"
+        let day = Int(now.timeIntervalSince1970 / 86_400)
+        guard defaults.integer(forKey: key) != day else { return false }
+        defaults.set(day, forKey: key)
+        return true
+    }
+
+    /// The one message, shown at most once per recording in the toast that already reports a microphone change.
+    static func callModeNotice(phone: Bool) -> String {
+        "This headset is in call mode, so words may be less accurate. The \(phone ? builtInName : "built-in mic") or a wired mic records better."
+    }
+
+    /// The diagnostic log's line: the kind of route and its rate, never a device's name.
+    static func callModeLine(callMode: Bool, kind: RecordingInput.Kind, port: String, sampleRate: Double, highQualityAsked: Bool,
+                             highQualityEnabled: Bool?) -> String {
+        let link = highQualityEnabled.map { $0 ? "on" : "off" } ?? "unknown"
+        return "input route: \(kind.rawValue) (\(port)) \(Int(sampleRate)) Hz, high-quality link asked: \(highQualityAsked), \(link); call mode: \(callMode)"
+    }
 }
 
 /// The recording-input rules, checked by the Linux tests (`mac/tools/test-recording-input.sh`) and by the iPhone's
@@ -293,5 +342,34 @@ enum RecordingInputChecks {
               !R.waits(for: airPods, secondsIn: 60, bluetoothOutputs: [])
               && !R.waits(for: wired, secondsIn: 1, bluetoothOutputs: [output]) && !R.waits(for: nil, secondsIn: 1, bluetoothOutputs: [output]))
         check("waiting: the last look is within a few seconds", (R.awaitChecks.last ?? 0) <= R.startWindow && R.awaitChecks == R.awaitChecks.sorted())
+
+        // Call mode: a Bluetooth headset on its hands-free profile.
+        func call(_ kind: RecordingInput.Kind, hfp: Bool, _ rate: Double, asked: Bool, enabled: Bool?) -> Bool {
+            R.callMode(kind: kind, handsFreePort: hfp, sampleRate: rate, highQualityAsked: asked, highQualityEnabled: enabled)
+        }
+        check("call mode: the high-quality link asked for and not on warns, whatever the port and rate",
+              call(.bluetooth, hfp: true, 16_000, asked: true, enabled: false) && call(.bluetooth, hfp: false, 48_000, asked: true, enabled: false))
+        check("call mode: the high-quality link on never warns, even on a port iOS still calls hands-free",
+              !call(.bluetooth, hfp: true, 48_000, asked: true, enabled: true) && !call(.bluetooth, hfp: true, 16_000, asked: true, enabled: true))
+        check("call mode: before iOS 26, a hands-free port warns", call(.bluetooth, hfp: true, 16_000, asked: false, enabled: nil)
+              && call(.bluetooth, hfp: true, 0, asked: false, enabled: nil))
+        check("call mode: a Bluetooth input at 8, 16, or 24 kHz warns (the Mac, which has no port type)",
+              [8_000, 16_000, 24_000].allSatisfy { call(.bluetooth, hfp: false, $0, asked: false, enabled: nil) })
+        check("call mode: a Bluetooth input at 44.1 or 48 kHz doesn't, and an unknown rate alone doesn't",
+              ![44_100, 48_000, 0].contains { call(.bluetooth, hfp: false, $0, asked: false, enabled: nil) })
+        check("call mode: the link asked for with no answer from iOS falls back to the port and the rate",
+              call(.bluetooth, hfp: true, 48_000, asked: true, enabled: nil) && !call(.bluetooth, hfp: false, 48_000, asked: true, enabled: nil))
+        check("call mode: the built-in, wired, USB, and car microphones never warn, at any rate",
+              RecordingInput.Kind.allCases.filter { $0 != .bluetooth }.allSatisfy { k in
+                  !call(k, hfp: true, 16_000, asked: true, enabled: false) && !call(k, hfp: false, 8_000, asked: false, enabled: nil) })
+        let notices = [R.callModeNotice(phone: true), R.callModeNotice(phone: false)]
+        check("call mode: the notice is two plain sentences, with the iPhone's own name for its microphone",
+              notices[0] == "This headset is in call mode, so words may be less accurate. The iPhone microphone or a wired mic records better."
+              && notices[1] == "This headset is in call mode, so words may be less accurate. The built-in mic or a wired mic records better."
+              && notices.allSatisfy { !$0.contains("!") && !$0.contains("\u{2014}") })
+        check("call mode: the route is checked after the first seconds, when AirPods have had time to come up", R.callModeCheck > R.startWindow)
+        let line = R.callModeLine(callMode: true, kind: .bluetooth, port: "BluetoothHFP", sampleRate: 16_000, highQualityAsked: true, highQualityEnabled: false)
+        check("call mode: the log line has the kind, the port type, and the rate, and no device name",
+              line == "input route: bluetooth (BluetoothHFP) 16000 Hz, high-quality link asked: true, off; call mode: true" && !line.contains(airPods.name))
     }
 }

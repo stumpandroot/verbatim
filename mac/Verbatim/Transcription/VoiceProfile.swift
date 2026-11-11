@@ -145,12 +145,14 @@ enum VoiceProfile {
     /// The saved profile's quality, 0…1; nil before enrollment.
     static var currentQuality: Float? { stored.map { quality(seconds: $0.seconds, consistency: $0.consistency) } }
 
-    /// Deletes the profile from this device.
+    /// Deletes the profile from this device, and with it the numbers kept about the dictation filter's decisions
+    /// (`VoiceShadowStore`): they come from scoring voices against the profile.
     static func reset() {
         lock.lock()
         try? FileManager.default.removeItem(at: fileURL)
         cache = .some(nil)
         lock.unlock()
+        VoiceShadowStore.clear()
         Log.note("voice profile: reset")
     }
 
@@ -326,65 +328,187 @@ enum VoiceProfile {
 
     /// Dictation: when another voice is heard, keeps only the words you said. Returns nil to keep the dictation as it
     /// is: the filter is off, nobody else spoke, none of the voices sounds like you, or nothing would be left. Fails
-    /// open: any problem keeps every word.
-    static func filterDictation(url: URL, segments: [Segment]) async -> [Segment]? {
+    /// open: any problem keeps every word. What it decided is kept as numbers (`VoiceShadowStore`), never as words.
+    /// `input` (the kind of microphone and its rate, for those numbers) is asked for only when the filter runs.
+    static func filterDictation(url: URL, segments: [Segment], clipSeconds: Double? = nil,
+                                input: () -> (kind: String?, rate: Int?) = { (nil, nil) }) async -> [Segment]? {
         guard dictationFilterEnabled, FluidDiarizer.isSupported, !segments.isEmpty else { return nil }
+        let run = await gateDictation(url: url, segments: segments)
+        let mic = input()
+        VoiceShadowStore.note(run, clipSeconds: clipSeconds ?? segments.map(\.end).max() ?? 0, filterOn: true, input: mic.kind, inputRate: mic.rate)
+        return run.kept
+    }
+
+    /// Shadow mode: with a voice profile and the filter off, works out what the filter would have done with a
+    /// dictation and keeps that as numbers (`VoiceShadowStore`), so the threshold can be tuned on real dictations.
+    /// It returns nothing and changes nothing: the dictation's words are already pasted and stored when it runs
+    /// (the Mac's dictation calls it after the paste, `DictationController.shadowScore`). Skipped when it's turned off
+    /// (`VoiceShadowRules.enabledKey`), for long dictations, in Low Power Mode, and while another dictation is under
+    /// way (`busy`); it never downloads the speaker models.
+    static func shadowDictation(url: URL, segments: [Segment], clipSeconds: Double, input: String?, inputRate: Int?, busy: Bool) async {
+        let supported = FluidDiarizer.isSupported && LocalOnly.modelReady("diarizer")
+        if let why = VoiceShadowRules.skip(enabled: VoiceShadowRules.enabled(.standard), enrolled: isEnrolled, filterOn: dictationFilterEnabled,
+                                           supported: supported, clipSeconds: clipSeconds,
+                                           lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled, busy: busy) {
+            if why == .tooLong || why == .lowPower || why == .busy { Log.note("voice filter (shadow): skipped (\(why.rawValue))") }
+            return
+        }
+        // A dictation deleted meanwhile leaves nothing to score, and no record.
+        guard !segments.isEmpty, FileManager.default.fileExists(atPath: url.path) else { return }
+        let run = await gateDictation(url: url, segments: segments)
+        VoiceShadowStore.note(run, clipSeconds: clipSeconds, filterOn: false, input: input, inputRate: inputRate)
+    }
+
+    /// One run of the filter's decision over a dictation.
+    struct GateRun {
+        /// The words to keep, or nil to keep the dictation as it is.
+        var kept: [Segment]?
+        /// What was decided and why, as numbers (`VoiceGate`, Model/VoiceShadow.swift).
+        var decision: VoiceGate.Decision
+        /// Whether words were judged (the engine gave word times) or whole lines.
+        var byWord: Bool
+    }
+
+    /// The scoring the real filter and shadow mode share: finds the voices in the dictation's audio and decides
+    /// which words are yours. Any problem keeps every word.
+    private static func gateDictation(url: URL, segments: [Segment]) async -> GateRun {
+        let byWord = segments.allSatisfy { !($0.words ?? []).isEmpty }
+        let count = byWord ? segments.reduce(0) { $0 + ($1.words?.count ?? 0) } : segments.count
         // Too short to tell voices apart.
-        guard let end = segments.map(\.end).max(), end >= 2 else { return nil }
+        guard let end = segments.map(\.end).max(), end >= VoiceGate.minClipSeconds else {
+            return GateRun(kept: nil, decision: .abstaining(.tooShort, spans: count), byWord: byWord)
+        }
         do {
             let out = try await FluidDiarizer.shared.diarizeDetailed(url: url, progress: { _ in })
-            return keepUserWords(segments, turns: out.turns, embeddings: out.embeddings)
+            return gate(segments, turns: out.turns, embeddings: out.embeddings)
         } catch {
             Log.note("voice filter: kept every word (\(String(describing: type(of: error))))")
-            return nil
+            return GateRun(kept: nil, decision: .abstaining(.failed, spans: count), byWord: byWord)
         }
     }
 
     /// The pure part of `filterDictation`: drops words (or, without word timings, whole lines) that fall mostly in
-    /// turns of voices that aren't yours. Words in no turn are kept.
+    /// turns of voices that aren't yours. Words in no turn are kept. Nil keeps the dictation as it is.
     static func keepUserWords(_ segments: [Segment], turns: [(speaker: String, start: Double, end: Double)],
                               embeddings: [String: [Float]]) -> [Segment]? {
-        let voices = Set(turns.map(\.speaker))
-        guard voices.count >= 2 else { return nil }
-        var mine = Set<String>(), others = Set<String>()
-        for v in voices {
-            if let e = embeddings[v], isUser(e) { mine.insert(v) } else { others.insert(v) }
-        }
-        guard !mine.isEmpty, !others.isEmpty else { return nil }
+        gate(segments, turns: turns, embeddings: embeddings).kept
+    }
 
-        func owner(_ start: Double, _ end: Double) -> String? {
-            var overlap: [String: Double] = [:]
-            for t in turns {
-                let o = min(end, t.end) - max(start, t.start)
-                if o > 0 { overlap[t.speaker, default: 0] += o }
-            }
-            return overlap.max(by: { $0.value < $1.value })?.key
-        }
-
-        let out: [Segment]
-        var dropped = 0
+    /// Scores each voice against your profile and lets `VoiceGate.decide` (the one decision, shared with the Linux
+    /// tests) say which words stay; then builds the kept words' lines.
+    static func gate(_ segments: [Segment], turns: [(speaker: String, start: Double, end: Double)], embeddings: [String: [Float]]) -> GateRun {
         let timed = segments.allSatisfy { !($0.words ?? []).isEmpty }
-        if timed {
-            let words = segments.flatMap { $0.words ?? [] }
-            let kept = words.filter { w in
-                guard let o = owner(w.start, max(w.end, w.start + 0.05)) else { return true }
-                return !others.contains(o)
-            }
-            dropped = words.count - kept.count
-            guard dropped > 0 else { return nil }
-            out = Engines.segments(fromWords: kept)
-        } else {
-            let kept = segments.filter { s in
-                guard let o = owner(s.start, max(s.end, s.start + 0.05)) else { return true }
-                return !others.contains(o)
-            }
-            dropped = segments.count - kept.count
-            guard dropped > 0 else { return nil }
-            out = kept
+        let words = timed ? segments.flatMap { $0.words ?? [] } : []
+        let spans = timed ? words.map { VoiceGate.Span(start: $0.start, end: $0.end) }
+                          : segments.map { VoiceGate.Span(start: $0.start, end: $0.end) }
+        var scores: [String: Float] = [:]
+        for v in Set(turns.map(\.speaker)) {
+            if let e = embeddings[v], let s = score(e) { scores[v] = s }
         }
-        guard !out.isEmpty else { return nil }
-        Log.note("voice filter: dropped \(dropped) \(timed ? "word" : "line")(s) from other voices")
-        return out
+        var d = VoiceGate.decide(spans: spans, turns: turns.map { VoiceGate.Turn(speaker: $0.speaker, start: $0.start, end: $0.end) },
+                                 scores: scores, threshold: threshold)
+        guard d.abstained == nil else { return GateRun(kept: nil, decision: d, byWord: timed) }
+        let out: [Segment]
+        if timed {
+            out = Engines.segments(fromWords: zip(words, d.keep).filter { $0.1 }.map { $0.0 })
+        } else {
+            out = zip(segments, d.keep).filter { $0.1 }.map { $0.0 }
+        }
+        guard !out.isEmpty else {
+            // The kept words made no line: keep everything, and say so in the numbers too.
+            d.abstained = .nothingLeft
+            d.keep = [Bool](repeating: true, count: spans.count)
+            d.dropped = 0
+            for i in d.turns.indices { d.turns[i].wouldDrop = false }
+            return GateRun(kept: nil, decision: d, byWord: timed)
+        }
+        return GateRun(kept: out, decision: d, byWord: timed)
+    }
+}
+
+/// What "Only keep my voice in dictation" decided, or in shadow mode would have decided, for each of the newest
+/// dictations (`VoiceShadowRules.limit`), as numbers only: lengths, each turn's score against your voice profile, word
+/// counts, and why it kept everything when it did (`VoiceShadowRecord`). Never a word, a name, or audio. It exists so
+/// the filter's threshold can be tuned on real dictations (`VoiceShadowRules.thresholdReport`).
+///
+/// On this device only, beside the voice profile (Application Support, excluded from backups), never in iCloud and
+/// never sent anywhere. `VoiceProfile.reset()` deletes it with the profile, and nothing is added without a profile.
+enum VoiceShadowStore {
+    /// The self-test and the screenshot tour write to their own file, never to your real numbers.
+    static var fileURL: URL {
+        let uiTest = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1"
+        return VoiceProfile.fileURL.deletingLastPathComponent().appendingPathComponent(uiTest ? "voice-shadow-uitest.json" : "voice-shadow.json")
+    }
+
+    /// One writer at a time, off whatever thread the dictation is on.
+    private static let queue = DispatchQueue(label: "voice-shadow-store", qos: .utility)
+
+    /// Logs one decision (counts only) and, unless the records are turned off, stores it. Returns at once: the
+    /// file is written on the store's own queue.
+    static func note(_ run: VoiceProfile.GateRun, clipSeconds: Double, filterOn: Bool, input: String?, inputRate: Int?) {
+        let r = VoiceShadowRules.record(run.decision, date: Date(), clipSeconds: clipSeconds, threshold: VoiceProfile.threshold,
+                                        filterOn: filterOn, byWord: run.byWord, input: input, inputRate: inputRate)
+        Log.note(VoiceShadowRules.summary(r))
+        guard VoiceShadowRules.enabled(.standard) else { return }
+        let url = fileURL
+        queue.async {
+            guard VoiceProfile.isEnrolled else { return }
+            add(r, to: url)
+        }
+    }
+
+    /// The stored records, oldest first; empty when there are none.
+    static func load(from url: URL = fileURL) -> [VoiceShadowRecord] {
+        (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode([VoiceShadowRecord].self, from: $0) } ?? []
+    }
+
+    /// Adds one record and trims the list to the newest `limit`.
+    static func add(_ r: VoiceShadowRecord, to url: URL, limit: Int = VoiceShadowRules.limit) {
+        let list = VoiceShadowRules.appending(r, to: load(from: url), limit: limit)
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let data = try JSONEncoder().encode(list)
+            #if os(iOS)
+            try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            #else
+            try data.write(to: url, options: .atomic)
+            #endif
+            var file = url
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try? file.setResourceValues(values)
+        } catch {
+            Log.note("voice filter: couldn't save its numbers (\(String(describing: type(of: error))))")
+        }
+    }
+
+    /// Deletes the records, after any write already under way.
+    static func clear() {
+        let url = fileURL
+        queue.sync { try? FileManager.default.removeItem(at: url) }
+    }
+
+    /// The Mac's self-test: the file keeps the newest records up to its cap, reads back what was written, and is gone
+    /// after a delete. Uses a file of its own in the temporary folder.
+    static func selfCheck(_ check: (String, Bool) -> Void) {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("voice-shadow-check-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let d = VoiceGate.decide(spans: [.init(start: 1, end: 1.3), .init(start: 5, end: 5.3)],
+                                 turns: [.init(speaker: "A", start: 0, end: 4), .init(speaker: "B", start: 4, end: 7)],
+                                 scores: ["A": 0.7, "B": 0.2], threshold: 0.5)
+        var written: [VoiceShadowRecord] = []
+        for n in 0..<5 {
+            let r = VoiceShadowRules.record(d, date: Date(timeIntervalSince1970: 1_800_000_000 + Double(n)), clipSeconds: Double(7 + n), threshold: 0.5,
+                                            filterOn: false, byWord: true, input: "Built-in", inputRate: 48_000)
+            written.append(r)
+            add(r, to: url, limit: 3)
+        }
+        let stored = load(from: url)
+        check("voice shadow store: the file keeps the newest records up to its cap, as written", stored == Array(written.suffix(3)))
+        let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        check("voice shadow store: the file holds numbers, not speaker labels", !text.isEmpty && !text.contains("\"A\"") && !text.contains("speaker"))
+        try? FileManager.default.removeItem(at: url)
+        check("voice shadow store: nothing is read once the file is deleted", load(from: url).isEmpty)
     }
 }
 

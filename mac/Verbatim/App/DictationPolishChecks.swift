@@ -1,8 +1,9 @@
 import Foundation
 
 /// Mac self-tests for dictation polish (`UITest` runs them): the pure checks in `DictationTimingChecks` (also run by
-/// `mac/tools/test-formatter.sh`), clean while you talk (`PreCleanChecks`), cleanup's time limit against work that
-/// ignores cancellation, and how long the Ribbon shows "Cancelled".
+/// `mac/tools/test-formatter.sh`), clean while you talk (`PreCleanChecks`), Only keep my voice's decision and the
+/// numbers kept about it (`VoiceShadowChecks`), cleanup's time limit against work that ignores cancellation, and how
+/// long the Ribbon shows "Cancelled".
 @MainActor
 enum DictationPolishChecks {
     static func run(_ check: (String, Bool) -> Void) async {
@@ -17,6 +18,12 @@ enum DictationPolishChecks {
             check("pre-clean " + r.name, r.ok)
             if !r.ok { Log.note("UITEST detail: " + r.detail.replacingOccurrences(of: "\n", with: "⏎")) }
         }
+
+        // Only keep my voice: the decision the filter and shadow mode share, the numbers kept per dictation, the list's
+        // cap, and the threshold report (VoiceShadowChecks, also run by mac/tools/test-voice-shadow.sh), then the file
+        // itself, in the temporary folder.
+        VoiceShadowChecks.run { name, ok in check("voice " + name, ok) }
+        VoiceShadowStore.selfCheck(check)
 
         // What ties parts cleaned ahead to the cleanup that may reuse them, and cleanup with none to reuse.
         let said = "um so I sent the draft to the client this morning. They want two more rounds of changes"
