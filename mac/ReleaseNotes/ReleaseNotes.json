@@ -1,7 +1,9 @@
 {
   "notes": [
     {
-      "build": "next",
+      "build": "328",
+      "date": "2026-11-10",
+      "version": "1.0 beta",
       "title": "Faster dictation paste and a headset check",
       "items": [
         {
