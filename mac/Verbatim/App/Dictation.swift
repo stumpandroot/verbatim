@@ -994,7 +994,9 @@ final class DictationController: ObservableObject {
                     heard = try await Engines.engine(for: engineId).transcribe(url: url, model: model, progress: { _ in })
                 }
                 // Settings › Only keep my voice in dictation: words from other voices nearby are dropped (VoiceProfile).
-                if let mine = await VoiceProfile.filterDictation(url: url, segments: heard.segments) { heard.segments = mine }
+                // What it decided is kept as numbers for tuning; with the setting off, the same scoring runs in shadow
+                // mode after the paste (`shadowScore`), never here.
+                if let mine = await VoiceProfile.filterDictation(url: url, segments: heard.segments, clipSeconds: duration, input: Self.micKind) { heard.segments = mine }
                 let r = heard
                 let transcribeTime = Date().timeIntervalSince(t0)
                 let t1 = Date()
@@ -1075,8 +1077,12 @@ final class DictationController: ObservableObject {
                         ActivityLog.shared.add(ActivityLog.event(id: id, date: Date(), info: flowInfo, seconds: duration, fixes: fixes.count, transcribe: transcribeTime, cleanup: cleanupTime))
                         SiteLog.shared.attach(id, site)
                     }
+                    // Shadow mode for Only keep my voice: scored after the paste, from the words as the engine heard them.
+                    let shadow: (() -> Void)? = (isCommand || toBrainDump) ? nil : { [weak self] in
+                        self?.shadowScore(transcriptID: id, segments: r.segments, duration: duration)
+                    }
                     self?.deliver(finalText, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw, correction: correction, session: mine, timing: timing,
-                                  intoNote: toBrainDump)
+                                  intoNote: toBrainDump, shadow: shadow)
                 }
             } catch {
                 Log.note("dictation transcribe failed: \(error)")
@@ -1146,7 +1152,7 @@ final class DictationController: ObservableObject {
     }
 
     private func deliver(_ text: String, transcriptID: UUID?, note: String?, raw: String = "", correction: SpokenCorrectionNotice? = nil,
-                         session mine: Int, timing: DeliveryTiming, intoNote: Bool = false) {
+                         session mine: Int, timing: DeliveryTiming, intoNote: Bool = false, shadow: (() -> Void)? = nil) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             mistake(raw: raw, transcriptID: transcriptID)
             endWriting(mine)
@@ -1205,6 +1211,8 @@ final class DictationController: ObservableObject {
             let outcome = await Paster.paste(spaced + (wasCommand ? "" : trailingSpace(text)), into: tgt, focusedField: ctx?.hasFocusedField ?? true,
                                              onFailure: .leaveOnClipboard, keepOnClipboard: !wasCommand && AlwaysCopy.isOn)
             pastesInFlight -= 1
+            // The paste has returned: only now may Only keep my voice's shadow scoring begin (`shadowScore`).
+            shadow?()
             let now = Date()
             Log.note(DictationTiming.timingLine(total: now.timeIntervalSince(timing.released), tail: timing.tail, transcribe: timing.transcribe,
                                                 cleanup: timing.cleanup, paste: now.timeIntervalSince(pasteStarted), cleaned: timing.cleaned, note: timing.note,
@@ -1261,6 +1269,35 @@ final class DictationController: ObservableObject {
             }
         }
         Log.note("dictation delivered \(text.count) chars")
+    }
+
+    /// Shadow mode for Settings › Only keep my voice in dictation (`VoiceProfile.shadowDictation`): with a voice
+    /// profile and the setting off, works out what the filter would have done with this dictation and keeps that as
+    /// numbers, so its threshold can be tuned. Called once the paste has returned, and it changes nothing: the words
+    /// are pasted and stored already. It waits a moment, gives way to a dictation that's listening or being written,
+    /// and runs at low priority off the main thread.
+    private func shadowScore(transcriptID: UUID?, segments: [Segment], duration: Double) {
+        // The quick checks first, so a dictation without a voice profile costs nothing more.
+        guard let id = transcriptID, let store = app?.store, !segments.isEmpty, VoiceShadowRules.enabled(.standard),
+              VoiceProfile.isEnrolled, !VoiceProfile.dictationFilterEnabled else { return }
+        Task(priority: .utility) { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(VoiceShadowRules.delayAfterPaste * 1_000_000_000))
+            // The dictation's audio, where the library keeps it now (a move into iCloud may still be finishing).
+            guard let self, let t = store.transcript(id), let url = store.audioURL(for: t) else { return }
+            await store.waitForAdoption(of: url)
+            let busy = self.isListening || self.isWorking || self.pastesInFlight > 0
+            let mic = Self.micKind()
+            Task.detached(priority: .utility) {
+                await VoiceProfile.shadowDictation(url: url, segments: segments, clipSeconds: duration, input: mic.kind, inputRate: mic.rate, busy: busy)
+            }
+        }
+    }
+
+    /// The kind of microphone in use ("Built-in", "Bluetooth", "USB") and its rate, for the filter's numbers. Never
+    /// its name.
+    nonisolated private static func micKind() -> (kind: String?, rate: Int?) {
+        guard let d = AudioDevices.current() else { return (nil, nil) }
+        return (d.transport, AudioDevices.nominalSampleRate(d.id).map { Int($0) })
     }
 
     /// Where the words went, for the last sound (SoundRules.afterPaste).

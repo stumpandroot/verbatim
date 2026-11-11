@@ -211,6 +211,8 @@ extension AppState {
         FlowSettings.shared.snippets = []
         ActivityLog.shared.reset()
         SiteLog.shared.reset()
+        // The numbers kept about Only keep my voice's decisions: they're about your dictations, like Activity.
+        VoiceShadowStore.clear()
         store.removeAllFiles()
         // Ask's index, recent questions, recipes, and digests (Transcription/AskEngine.swift).
         Task { await AskData.eraseAll() }
