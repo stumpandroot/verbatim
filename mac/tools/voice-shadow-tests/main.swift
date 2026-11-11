@@ -64,6 +64,16 @@ check("sources: the records sit beside the voice profile, on this device only",
       && !store.contains("Paths.root") && !store.contains("Cloud.") && store.contains("isExcludedFromBackup = true"))
 check("sources: the stored list is capped by the rules, and nothing is added without a profile",
       store.contains("VoiceShadowRules.appending(") && store.contains("guard VoiceProfile.isEnrolled"), store)
+let macDelete = body(read("Verbatim/App/AppState+Library.swift"), "    func deleteAllData()")
+check("sources: the Mac's Delete All Data deletes the voice profile and the named speakers' voices",
+      macDelete.contains("VoiceProfileStatus.shared.delete()") && macDelete.contains("SpeakerVoices.clear()"), macDelete)
+check("sources: the iPhone's dictation runs the filter, inside a time limit",
+      read("VerbatimPhone/KeyboardSession.swift").contains("await Self.onlyMyVoice(samples, segments: result.segments")
+      && body(read("VerbatimPhone/KeyboardSession.swift"), "static func onlyMyVoice(").contains("FluidEngine.race(seconds: PhoneVoiceFilterRules.budgetSeconds)"))
+check("iPhone filter: off, or without a profile, it doesn't run", PhoneVoiceFilterRules.skip(on: false, modelsReady: true, clipSeconds: 10) == .off)
+check("iPhone filter: it never downloads the speaker models", PhoneVoiceFilterRules.skip(on: true, modelsReady: false, clipSeconds: 10) == .noModels)
+check("iPhone filter: a long dictation keeps every word", PhoneVoiceFilterRules.skip(on: true, modelsReady: true, clipSeconds: 121) == .tooLong)
+check("iPhone filter: otherwise it runs", PhoneVoiceFilterRules.skip(on: true, modelsReady: true, clipSeconds: 120) == nil)
 let reset = body(profile, "static func reset(")
 check("sources: deleting the voice profile deletes the records", reset.contains("VoiceShadowStore.clear()"), reset)
 check("sources: what's logged is the rules' line of counts", store.contains("Log.note(VoiceShadowRules.summary(") || profile.contains("Log.note(VoiceShadowRules.summary("))

@@ -39,6 +39,24 @@
           "icon": "voice",
           "text": "Verbose keeps private numbers on how Only keep my voice would decide.",
           "detail": "With a voice profile, each dictation is scored after it pastes. Only numbers are kept, on this Mac, never words or audio. Deleting your voice profile deletes them."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Only keep my voice works",
+          "icon": "voice",
+          "text": "The iPhone's Only keep my voice switch now filters keyboard dictation.",
+          "detail": "It did nothing before. It waits 3 seconds at most, and keeps every word when it can't tell the voices apart or the dictation is over two minutes."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Delete All Data, voice too",
+          "icon": "voice",
+          "text": "Delete All Data on the Mac now deletes your voice profile and saved voices.",
+          "detail": "Before, the voice profile and the voices of speakers you named stayed on the Mac. The iPhone already deleted them."
         }
       ]
     },

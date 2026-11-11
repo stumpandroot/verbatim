@@ -168,6 +168,27 @@ struct VoiceShadowRecord: Codable, Equatable, Sendable {
     var inputRate: Int?
 }
 
+/// When the iPhone's dictation runs Only keep my voice. The keyboard is waiting for the words, so the filter gets a
+/// time limit, and anything it can't do in time keeps every word.
+enum PhoneVoiceFilterRules {
+    /// Longer dictations keep every word: finding the voices in them takes longer than the keyboard should wait.
+    static let maxClipSeconds: Double = 120
+    /// The longest the keyboard waits for the filter.
+    static let budgetSeconds: Double = 3
+
+    /// Why the filter doesn't run for a dictation, or nil when it does.
+    enum Skip: String, Sendable, CaseIterable { case off, noModels, tooLong }
+
+    /// It runs when the setting is on with a voice profile, the speaker models are already on the iPhone (a
+    /// dictation never downloads them), and the dictation isn't long.
+    static func skip(on: Bool, modelsReady: Bool, clipSeconds: Double) -> Skip? {
+        if !on { return .off }
+        if !modelsReady { return .noModels }
+        if clipSeconds > maxClipSeconds { return .tooLong }
+        return nil
+    }
+}
+
 enum VoiceShadowRules {
     /// The kill switch (no setting on screen): `defaults write … voice.shadowScoring -bool NO` turns the records off.
     static let enabledKey = "voice.shadowScoring"

@@ -955,7 +955,8 @@ final class KeyboardSession: ObservableObject {
             do {
                 let result = try await Self.transcribe(samples, engineId: settings.engineId, model: settings.model, ranked: ranked)
                 let heard = Date()
-                let original = result.segments
+                // Settings › Your voice › Only keep my voice in dictation: words from other voices nearby are dropped.
+                let original = await Self.onlyMyVoice(samples, segments: result.segments, duration: duration) ?? result.segments
                 var fixed = original
                 let corrections = dictionary.isEmpty && !BuiltInVocabulary.isActive ? [] : DictionaryApplier.apply(dictionary, to: &fixed)
                 let raw = fixed.filter { !$0.isFillerOnly }.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -1055,6 +1056,29 @@ final class KeyboardSession: ObservableObject {
         defer { try? FileManager.default.removeItem(at: url) }
         try writeWAV(samples, to: url)
         return try await Engines.engine(for: engineId).transcribe(url: url, model: model, progress: { _ in })
+    }
+
+    /// Only keep my voice in dictation, as on the Mac (`VoiceProfile.filterDictation`), within the keyboard's time
+    /// limit. Nil keeps every word: the setting is off, the dictation is long, nobody else spoke, or it took too long.
+    nonisolated private static func onlyMyVoice(_ samples: [Float], segments: [Segment], duration: Double) async -> [Segment]? {
+        if let why = PhoneVoiceFilterRules.skip(on: VoiceProfile.dictationFilterEnabled, modelsReady: LocalOnly.modelReady("diarizer"),
+                                                clipSeconds: duration) {
+            if why != .off { Log.note("voice filter: kept every word (\(why.rawValue))") }
+            return nil
+        }
+        let t0 = Date()
+        let out: [Segment]?? = await FluidEngine.race(seconds: PhoneVoiceFilterRules.budgetSeconds) {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("kb-voice-\(UUID().uuidString).wav")
+            defer { try? FileManager.default.removeItem(at: url) }
+            guard (try? writeWAV(samples, to: url)) != nil else { return nil }
+            return await VoiceProfile.filterDictation(url: url, segments: segments, clipSeconds: duration)
+        }
+        guard let kept = out else {
+            Log.note("voice filter: kept every word (took over \(Int(PhoneVoiceFilterRules.budgetSeconds)) s)")
+            return nil
+        }
+        Log.note("voice filter: \(kept == nil ? "kept every word" : "kept your words") in \(Int(Date().timeIntervalSince(t0) * 1000)) ms")
+        return kept
     }
 
     private func deliver(_ id: UUID, text: String, raw: String) {
