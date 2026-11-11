@@ -2,7 +2,7 @@
   "notes": [
     {
       "build": "next",
-      "title": "Faster dictation paste",
+      "title": "Faster dictation paste and a headset check",
       "items": [
         {
           "platforms": [
@@ -20,6 +20,25 @@
           "head": "Timing in the log",
           "icon": "quality",
           "text": "The log's timing line counts the sentences cleaned ahead, to measure the gain."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "head": "Call mode warning for headsets",
+          "icon": "mic",
+          "text": "Verbose tells you when a Bluetooth headset records in call mode.",
+          "detail": "Call mode is phone-call audio, so words can be less accurate. You see it once a day at most. The built-in mic or a wired mic records better."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Groundwork for voice filtering",
+          "icon": "voice",
+          "text": "Verbose keeps private numbers on how Only keep my voice would decide.",
+          "detail": "With a voice profile, each dictation is scored after it pastes. Only numbers are kept, on this Mac, never words or audio. Deleting your voice profile deletes them."
         }
       ]
     },
