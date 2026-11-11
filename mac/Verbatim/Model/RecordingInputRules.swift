@@ -217,6 +217,16 @@ enum RecordingInputRules {
     /// seconds (`startWindow`) to come up on their high-quality link, so a link that's still starting isn't reported.
     static let callModeCheck: Double = 6
 
+    /// The call-mode notice shows once a day at most (the log has every recording): someone whose headset can't use
+    /// the high-quality link would otherwise see it on each recording. True when it's due, and marks today.
+    static func callModeNoticeDue(now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
+        let key = "recording.callModeNoticeDay"
+        let day = Int(now.timeIntervalSince1970 / 86_400)
+        guard defaults.integer(forKey: key) != day else { return false }
+        defaults.set(day, forKey: key)
+        return true
+    }
+
     /// The one message, shown at most once per recording in the toast that already reports a microphone change.
     static func callModeNotice(phone: Bool) -> String {
         "This headset is in call mode, so words may be less accurate. The \(phone ? builtInName : "built-in mic") or a wired mic records better."

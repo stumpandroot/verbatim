@@ -1212,7 +1212,7 @@ final class Recorder: ObservableObject {
             guard let self, self.callModeToken == token, self.isRecording, !self.isPaused, self.awaitingInput == nil else { return }
             let state = RecordingRoute.callModeState()
             Log.note("recorder: \(state.line)")
-            if state.callMode { self.onInputSwitched?(RecordingInputRules.callModeNotice(phone: true)) }
+            if state.callMode, RecordingInputRules.callModeNoticeDue() { self.onInputSwitched?(RecordingInputRules.callModeNotice(phone: true)) }
         }
     }
 
@@ -2014,7 +2014,7 @@ final class Recorder: ObservableObject {
                                            highQualityEnabled: nil) else { return }
         Log.note("recorder: " + RecordingInputRules.callModeLine(callMode: true, kind: kind, port: device.transport, sampleRate: rate,
                                                                  highQualityAsked: false, highQualityEnabled: nil))
-        if tell { onInputSwitched?(RecordingInputRules.callModeNotice(phone: false)) }
+        if tell, RecordingInputRules.callModeNoticeDue() { onInputSwitched?(RecordingInputRules.callModeNotice(phone: false)) }
     }
 
     /// Whether the prepared unit is on this device and still matches its sample rate.
