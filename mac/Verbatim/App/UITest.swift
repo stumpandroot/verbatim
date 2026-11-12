@@ -1028,6 +1028,7 @@ enum UITest {
         await step("stills: Close shuts the viewer", window, target: "still-viewer-close", check: { WindowNav.shared.stillViewer == nil })
         try? await Task.sleep(nanoseconds: 700_000_000)
         check("stills: the viewer is gone after Close (\(StillViewer.onScreen) on screen)", StillViewer.onScreen == 0)
+        await linePickSteps(app: app, window: window)
         app.go(.home)
         try? await Task.sleep(nanoseconds: 600_000_000)
         StillFixtures.remove(from: app.store)
@@ -1126,6 +1127,55 @@ enum UITest {
         check("paste: it's an ordinary copy clipboard managers keep",
               !types.contains(.init("org.nspasteboard.ConcealedType")) && !types.contains(.init("org.nspasteboard.TransientType")))
         pb.clearContents()
+    }
+
+    /// Clicks, highlights, and double-clicks on a line's text (Views/LinePick.swift), on the stills fixture's second
+    /// line (12 to 30 seconds, no word timings): a click moves the playhead to the word under it and plays nothing, a
+    /// highlight moves it to the highlight's first word and keeps the phrase for Fix, and a double-click opens the Fix
+    /// box on the word (the screenshot, 06k-line-fix). Leaving the screen closes the box.
+    private static func linePickSteps(app: AppState, window: NSWindow) async {
+        let target = "line-text-12"
+        await waitForTarget(target, seconds: 3)
+        WordPickProbe.reset()
+        await step("line: a click lands on a word of the line", window, target: target, check: {
+            guard let c = WordPickProbe.click else { return false }
+            return c.line == 12 && c.word != nil && c.time >= 12 && c.time < 30
+        })
+        Log.note("UITEST line click: \(String(describing: WordPickProbe.click)) playhead=\(app.player.time) canPlay=\(app.player.canPlay)")
+        check("line: the click moves the playhead into the line (\(app.player.time))", app.player.time >= 12 && app.player.time < 30.1)
+        check("line: the click plays nothing", !app.player.isPlaying)
+        await reveal(target, in: window)
+        drag(target, from: 0.01, to: 0.25, in: window)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        Log.note("UITEST line highlight: \(String(describing: WordPickProbe.highlight)) phrase=\(PhrasePick.shared.text) playhead=\(app.player.time)")
+        check("line: a highlight runs from the line's first word", WordPickProbe.highlight.map { $0.line == 12 && $0.first == 0 && $0.last >= 1 } ?? false)
+        check("line: the highlighted phrase is kept for Fix", PhrasePick.shared.text.hasPrefix("The viewer"))
+        check("line: the highlight moves the playhead to its first word and plays nothing", !app.player.isPlaying && abs(app.player.time - 12) < 0.1)
+        WordPickProbe.fix = nil
+        click(target, in: window)
+        click(target, in: window, count: 2)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        check("line: a double-click opens Fix on the word (\(WordPickProbe.fix ?? "none"))", WordPickProbe.fix.map { !$0.isEmpty && !$0.contains(" ") } ?? false)
+        check("line: the double-click plays nothing", !app.player.isPlaying)
+        await show("06k-line-fix")
+    }
+
+    /// Presses at one place on the target's first row and lets go at another, both as fractions of its width.
+    private static func drag(_ id: String, from a: CGFloat, to b: CGFloat, in window: NSWindow) {
+        guard let f = frames[id], let content = window.contentView else { Log.note("UITEST missing target \(id)"); return }
+        let y = content.bounds.height - (f.minY + min(12, f.height / 2))
+        func at(_ x: CGFloat) -> CGPoint { CGPoint(x: f.minX + f.width * x, y: y) }
+        let t = ProcessInfo.processInfo.systemUptime
+        func ev(_ type: NSEvent.EventType, _ p: CGPoint, _ after: Double) -> NSEvent? {
+            NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: t + after, windowNumber: window.windowNumber, context: nil,
+                               eventNumber: Int(t * 1000) % 100000, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1)
+        }
+        Log.note("UITEST drag \(id) from=\(Int(at(a).x)) to=\(Int(at(b).x)) y=\(Int(y))")
+        if let m = ev(.mouseMoved, at(a), 0) { window.sendEvent(m) }
+        // Queued before the press, for a view that tracks the press in a loop of its own (see `click`).
+        for i in 1...6 { if let d = ev(.leftMouseDragged, at(a + (b - a) * CGFloat(i) / 6), Double(i) * 0.02) { NSApp.postEvent(d, atStart: false) } }
+        if let u = ev(.leftMouseUp, at(b), 0.16) { NSApp.postEvent(u, atStart: false) }
+        if let d = ev(.leftMouseDown, at(a), 0) { window.sendEvent(d) }
     }
 
     private static func check(_ name: String, _ ok: Bool) {
@@ -2546,7 +2596,7 @@ enum UITest {
     }
 
     /// Moves the pointer onto the target, then clicks it, through the window's own event path.
-    private static func click(_ id: String, in main: NSWindow) {
+    private static func click(_ id: String, in main: NSWindow, count: Int = 1) {
         let window = id.hasPrefix("sheet-") ? (main.attachedSheet ?? main) : main
         guard let f = windowFrames[id]?() ?? frames[id], let content = window.contentView else { Log.note("UITEST missing target \(id); known=\(frames.keys.sorted())"); return }
         let p = CGPoint(x: f.midX, y: content.bounds.height - f.midY)   // SwiftUI global (top-left) -> NSWindow (bottom-left)
@@ -2572,7 +2622,7 @@ enum UITest {
         Log.note("UITEST click \(id) frame=\(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height)) point=\(Int(p.x)),\(Int(p.y)) content=\(Int(content.bounds.width))x\(Int(content.bounds.height)) under=\(under)")
         let t = ProcessInfo.processInfo.systemUptime
         func ev(_ type: NSEvent.EventType) -> NSEvent? {
-            NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: t, windowNumber: window.windowNumber, context: nil, eventNumber: Int(t * 1000) % 100000, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1)
+            NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: t, windowNumber: window.windowNumber, context: nil, eventNumber: Int(t * 1000) % 100000, clickCount: count, pressure: type == .leftMouseUp ? 0 : 1)
         }
         // An AppKit control (an NSTableView like the sidebar, or an NSButton like the toolbar's Back) tracks the press in
         // a loop of its own that waits for the mouse-up in the event queue. Sent straight after the down, the up never

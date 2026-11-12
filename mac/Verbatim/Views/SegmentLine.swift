@@ -5,9 +5,10 @@ import AppKit
 /// speaker changes (click it to move the line to someone else or rename them) and the time (click to play from
 /// there), with a small accent mark on a bookmarked or marked line, over the serif reading text. The line being played
 /// takes the sage `playing` wash, a selected line (a note links to it) the neutral wash with an accent bar, and a
-/// hovered line the stripe. Click the text to select it and play from it; right-click to correct a word, add a note,
-/// open the video at that moment, copy a quote, or mark a sponsor read. A moment marked while recording shows its chip
-/// under the text.
+/// hovered line the stripe. Click the text to select the line and move the playhead to the word you clicked;
+/// highlight words to move it to where the highlight starts; double-click a word to fix it (Views/LinePick.swift).
+/// Right-click to correct a word or the highlighted phrase, add a note, open the video at that moment, copy a quote,
+/// or mark a sponsor read. A moment marked while recording shows its chip under the text.
 struct SegmentLine: View {
     @Environment(AppState.self) var app
     var transcript: Transcript
@@ -36,6 +37,8 @@ struct SegmentLine: View {
     var select: () -> Void
     @State private var hover = false
     @State private var fixing: String? = nil
+    /// Where the word or phrase being fixed sits in the text, for the Fix box's arrow (nil: the whole line).
+    @State private var fixRect: CGRect? = nil
     @State private var replacement = ""
     @State private var remember = true
     @State private var renaming = false
@@ -113,16 +116,22 @@ struct SegmentLine: View {
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                // A click selects the line (for a passage note) and, once the audio is open, plays from it.
-                .onTapGesture {
-                    select()
-                    if app.player.canPlay { app.player.play(from: PlaybackSync.seekTime(segment, duration: app.player.duration)) }
+                // A click selects the line (for a passage note) and moves the playhead to the word under it; a
+                // highlight moves it to where the highlight starts; a double-click opens Fix on the word.
+                .linePick(segment: segment, editable: editable, select: select) { phrase, at in startFix(phrase, at) }
+                .uiTarget("line-text-\(Int(segment.start))")
+                // Return, with a phrase highlighted in this line (TranscriptView).
+                .onChange(of: PhrasePick.shared.request) { _, asked in
+                    guard asked == segment.id else { return }
+                    let picked = PhrasePick.shared
+                    picked.request = nil
+                    if !picked.text.isEmpty { startFix(picked.text, picked.rect) }
                 }
                 .accessibilityLabel([name.map { "\($0.1)," }, RefinedRules.spokenTime(segment.start) + ",", segment.text].compactMap { $0 }.joined(separator: " "))
                 .accessibilityValue([current ? "Playing" : nil, marked ? "Marked" : nil, selected ? "Selected" : nil].compactMap { $0 }.joined(separator: ", "))
                 .contextMenu {
-                    CorrectionItems(text: segment.text, editable: editable) { w in fixing = w; replacement = w }
+                    PickedPhraseItem(segment: segment.id, editable: editable) { phrase, at in startFix(phrase, at) }
+                    CorrectionItems(text: segment.text, editable: editable) { w in startFix(w, nil) }
                     Divider()
                     Button("Note on This Passage") { select(); NotificationCenter.default.post(name: .verbatimFocusNote, object: nil) }
                     Button("Play from Here") { app.player.play(from: PlaybackSync.seekTime(segment, duration: app.player.duration)) }
@@ -140,7 +149,8 @@ struct SegmentLine: View {
                         Button("Mark as Sponsor") { app.store.update(transcript.id) { $0.markSponsor(segment: segment.id) } }
                     }
                 }
-                .popover(isPresented: Binding(get: { fixing != nil }, set: { if !$0 { fixing = nil } })) {
+                .popover(isPresented: Binding(get: { fixing != nil }, set: { if !$0 { fixing = nil } }),
+                         attachmentAnchor: .rect(fixRect.map { Anchor<CGRect>.Source.rect($0) } ?? .bounds)) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             Text("Heard as").refinedFont(.caption).foregroundStyle(Refined.mute)
@@ -208,7 +218,17 @@ struct SegmentLine: View {
         }
     }
 
+    /// Opens the Fix box on a word or phrase of this line (a double-click, the menu, or Return on a highlight).
+    private func startFix(_ phrase: String, _ at: CGRect?) {
+        guard editable, !phrase.isEmpty, fixing == nil else { return }
+        fixRect = at
+        replacement = phrase
+        fixing = phrase
+        WordPickProbe.fix = phrase
+    }
+
     private func commit() {
+        PhrasePick.shared.clear()
         guard let from = fixing else { return }
         let to = replacement.trimmingCharacters(in: .whitespaces)
         if !to.isEmpty, to != from { app.correct(transcript: transcript.id, segment: segment.id, from: from, to: to, remember: remember) }

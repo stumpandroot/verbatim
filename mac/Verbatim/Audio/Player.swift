@@ -227,7 +227,8 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 
     func seek(to t: TimeInterval) {
-        guard let p = player else { if loadedURL != nil { pendingStart = max(0, t) }; return }
+        // Still opening: the playhead shows the place now, and the file starts there once it's open.
+        guard let p = player else { if loadedURL != nil { pendingStart = max(0, t); time = max(0, t) }; return }
         p.currentTime = max(0, min(t, p.duration))
         clean?.seek(to: p.currentTime)
         time = p.currentTime

@@ -127,6 +127,7 @@ struct TranscriptView: View {
             // Stops only when the last screen for this transcript goes and no other transcript took playback.
             .onDisappear {
                 Self.onScreen = max(0, Self.onScreen - 1)
+                PhrasePick.shared.clear()
                 find.close()
                 celebrations.transcriptLeft(id)
                 if nav.stillViewer?.transcript == id { nav.stillViewer = nil }
@@ -139,6 +140,13 @@ struct TranscriptView: View {
             .onKeyPress(.leftArrow) { if Self.typing || nav.stillViewer != nil { return .ignored }; app.player.seek(to: app.player.time - 5); return .handled }
             .onKeyPress(.rightArrow) { if Self.typing || nav.stillViewer != nil { return .ignored }; app.player.seek(to: app.player.time + 5); return .handled }
             .onKeyPress("b") { if Self.typing || nav.stillViewer != nil { return .ignored }; nav.bookmark(t, app: app); return .handled }
+            // Return, with a phrase highlighted in a line: that line opens Fix on it (Views/LinePick.swift).
+            .onKeyPress(.return) {
+                guard !Self.typing, nav.stillViewer == nil, nav.mode == .original, !nav.selecting, !nav.showEngine,
+                      let line = PhrasePick.shared.segment else { return .ignored }
+                PhrasePick.shared.request = line
+                return .handled
+            }
             .onReceive(NotificationCenter.default.publisher(for: .verbatimShowMode)) { n in
                 if let raw = n.object as? String, let m = Mode(rawValue: raw) { nav.mode = m }
             }

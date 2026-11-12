@@ -1,6 +1,30 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Click a word to jump to it",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Click a word to jump",
+          "icon": "audio",
+          "text": "Click or highlight words in a transcript and the playhead moves to that word.",
+          "detail": "Audio stays paused if it was paused. Before, a click played from the start of the line, and a highlight did nothing."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Double-click to fix a word",
+          "icon": "words",
+          "text": "Double-click a word in a transcript to open the Fix box on it.",
+          "detail": "For a name of two or more words, highlight it, then press Return or right-click and choose Correct."
+        }
+      ]
+    },
+    {
       "build": "328",
       "date": "2026-11-10",
       "version": "1.0 beta",
