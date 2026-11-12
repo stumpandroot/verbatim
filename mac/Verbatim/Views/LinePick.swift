@@ -37,7 +37,9 @@ enum WordPickProbe {
     static var click: (line: Double, word: Int?, time: Double)?
     static var highlight: (line: Double, first: Int, last: Int)?
     static var fix: String?
-    static func reset() { click = nil; highlight = nil; fix = nil }
+    /// How the last press was read: "selection", "pointer", or "tap".
+    static var path: String?
+    static func reset() { click = nil; highlight = nil; fix = nil; path = nil }
 }
 
 /// A line's text as laid out, kept for the next click. A class in `@State`: setting it during a render changes
@@ -102,6 +104,99 @@ final class LineLayoutBox {
     }
 }
 
+/// A press on a line's text, as the window saw it (`LineClickHub`).
+struct LineHit {
+    /// Where the press went down and where the pointer was when it ended, in the text's own space (top-left).
+    var down: CGPoint
+    var up: CGPoint
+    var clicks: Int
+    /// What the system's text selection held once the press ended: its text, and the selected range (UTF-16).
+    var selection: (text: String, range: NSRange)?
+}
+
+/// Sits behind a line's text and gives the window's click watcher the line's place. Takes no clicks itself.
+final class LineProbeView: NSView {
+    var handler: ((LineHit) -> Void)?
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil { LineClickHub.shared.add(self) } else { LineClickHub.shared.remove(self) }
+    }
+}
+
+struct LineProbe: NSViewRepresentable {
+    var handler: (LineHit) -> Void
+    func makeNSView(context: Context) -> LineProbeView { let v = LineProbeView(); v.handler = handler; return v }
+    func updateNSView(_ v: LineProbeView, context: Context) { v.handler = handler }
+}
+
+/// Selectable text on the Mac is covered by the system's own selection view, which takes every press, so a SwiftUI
+/// gesture on the text never fires (the self-test of November 12, 2026). This watches the window's presses instead,
+/// lets each one through untouched, and tells the line under it once the press has ended, with what got selected.
+@MainActor
+final class LineClickHub {
+    static let shared = LineClickHub()
+    private let probes = NSHashTable<LineProbeView>.weakObjects()
+    private var monitor: Any?
+    /// Presses seen on a line, for the self-test.
+    private(set) var seen = 0
+
+    func add(_ v: LineProbeView) {
+        probes.add(v)
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown]) { e in
+            MainActor.assumeIsolated { LineClickHub.shared.saw(e) ? nil : e }
+        }
+    }
+
+    func remove(_ v: LineProbeView) { probes.remove(v) }
+
+    /// True when the event is used up here (only Return on a highlighted phrase).
+    @discardableResult
+    func saw(_ e: NSEvent) -> Bool {
+        if e.type == .keyDown { return returnPressed(e) }
+        guard e.type == .leftMouseDown, let window = e.window, let content = window.contentView else { return false }
+        let at = e.locationInWindow
+        // The view the press goes to: the selection view over one line's text, and nothing bigger (a sheet, the
+        // stills viewer, the page itself).
+        guard let hit = (content.superview ?? content).hitTest(at) else { return false }
+        let hitRect = hit.convert(hit.bounds, to: nil)
+        guard let probe = probes.allObjects.first(where: {
+            $0.window === window && !$0.isHiddenOrHasHiddenAncestor
+                && $0.convert($0.bounds, to: nil).insetBy(dx: -6, dy: -6).contains(hitRect) && $0.convert($0.bounds, to: nil).contains(at)
+        }) else { return false }
+        seen += 1
+        let down = Self.local(at, in: probe)
+        let clicks = e.clickCount
+        // The selection view follows the press in a loop of its own; this runs when that loop is over.
+        RunLoop.main.perform(inModes: [.default]) { [weak probe, weak hit, weak window] in
+            MainActor.assumeIsolated {
+                guard let probe, let window, probe.window === window else { return }
+                let up = Self.local(window.mouseLocationOutsideOfEventStream, in: probe)
+                let tv = (hit as? NSTextView) ?? (window.firstResponder as? NSTextView)
+                let near = tv.map { $0.window === window && $0.convert($0.bounds, to: nil).intersects(probe.convert(probe.bounds, to: nil)) } ?? false
+                let selection = near ? tv.map { (text: $0.string, range: $0.selectedRange()) } : nil
+                probe.handler?(LineHit(down: down, up: up, clicks: clicks, selection: selection))
+            }
+        }
+        return false
+    }
+
+    /// Return, with a phrase highlighted and the selection (not a field you type in) holding the keys: Fix on it.
+    private func returnPressed(_ e: NSEvent) -> Bool {
+        guard e.keyCode == 36, e.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
+              let segment = PhrasePick.shared.segment, !PhrasePick.shared.text.isEmpty,
+              let tv = e.window?.firstResponder as? NSTextView, !tv.isEditable else { return false }
+        PhrasePick.shared.request = segment
+        return true
+    }
+
+    private static func local(_ windowPoint: CGPoint, in v: NSView) -> CGPoint {
+        let p = v.convert(windowPoint, from: nil)
+        return v.isFlipped ? p : CGPoint(x: p.x, y: v.bounds.height - p.y)
+    }
+}
+
 /// A transcript line's text, taking clicks and highlights (see the top of this file). `fix` opens the line's Fix box
 /// on a word or phrase, with the box around it in the text's own space.
 struct LinePick: ViewModifier {
@@ -125,11 +220,11 @@ struct LinePick: ViewModifier {
                     Color.clear
                 }
             }
+            // Presses on the text itself: the system's selection view takes them, so the window's watcher reports them.
+            .background(LineProbe { hit in pressed(hit) })
+            // Presses beside the text (the rest of the row's width), which no selection view covers.
             .contentShape(Rectangle())
-            .onTapGesture(coordinateSpace: .local) { p in clicked(p) }
-            // Beside the text's own selection, never instead of it.
-            .simultaneousGesture(DragGesture(minimumDistance: 4).onEnded { v in highlighted(from: v.startLocation, to: v.location) },
-                                 including: Self.highlightSeeks ? .all : .subviews)
+            .onTapGesture(coordinateSpace: .local) { p in tapped(p) }
     }
 
     private func word(at p: CGPoint, in words: [WordPick.Word]) -> Int? {
@@ -150,7 +245,30 @@ struct LinePick: ViewModifier {
         return t
     }
 
-    private func clicked(_ p: CGPoint) {
+    /// A press on the text has ended. What the system selected says what it was: nothing selected is a click, a
+    /// range is a highlight, and a second click is a double-click. Without a selection to read, the pointer's
+    /// places say it.
+    private func pressed(_ hit: LineHit) {
+        guard hit.clicks <= 2 else { return }
+        let words = WordPick.words(segment.text)
+        if let sel = hit.selection, sel.text == segment.text, sel.range.location != NSNotFound {
+            WordPickProbe.path = "selection"
+            let first = WordPick.index(at: sel.range.location, in: words)
+            if hit.clicks == 2 { fixWord(first, words) }
+            else if sel.range.length > 0, let first, let last = WordPick.index(at: sel.range.location + sel.range.length - 1, in: words) {
+                highlighted(first, last, words)
+            } else { clicked(first, words) }
+            return
+        }
+        WordPickProbe.path = "pointer"
+        if hit.clicks == 2 { fixWord(word(at: hit.down, in: words), words) }
+        else if hypot(hit.up.x - hit.down.x, hit.up.y - hit.down.y) > 4, let i = word(at: hit.down, in: words), let j = word(at: hit.up, in: words) {
+            highlighted(min(i, j), max(i, j), words)
+        } else { clicked(word(at: hit.down, in: words), words) }
+    }
+
+    /// A click beside the text. The second of two close clicks is a double-click.
+    private func tapped(_ p: CGPoint) {
         let now = Date()
         let second = lastClick.map {
             WordPick.isDoubleClick(sinceLast: now.timeIntervalSince($0.at), distance: Double(hypot(p.x - $0.point.x, p.y - $0.point.y)),
@@ -158,25 +276,26 @@ struct LinePick: ViewModifier {
         } ?? false
         lastClick = second ? nil : (now, p)
         let words = WordPick.words(segment.text)
-        let w = word(at: p, in: words)
-        if second {
-            // The second click of a double-click: Fix on that word. The first already moved the playhead.
-            guard editable, let w, let phrase = WordPick.phrase(w, w, words: words, text: segment.text) else { return }
-            fix(phrase, box.rect(of: words[w].coreRange))
-            return
-        }
+        WordPickProbe.path = "tap"
+        if second { fixWord(word(at: p, in: words), words) } else { clicked(word(at: p, in: words), words) }
+    }
+
+    private func clicked(_ w: Int?, _ words: [WordPick.Word]) {
         select()
         PhrasePick.shared.clear()
         let t = seek(w, words)
         WordPickProbe.click = (segment.start, w, t)
     }
 
-    private func highlighted(from a: CGPoint, to b: CGPoint) {
-        let words = WordPick.words(segment.text)
-        guard let i = word(at: a, in: words), let j = word(at: b, in: words) else { return }
-        let first = min(i, j), last = max(i, j)
+    /// The second click of a double-click: Fix on that word. The first already moved the playhead.
+    private func fixWord(_ w: Int?, _ words: [WordPick.Word]) {
+        guard editable, let w, let phrase = WordPick.phrase(w, w, words: words, text: segment.text) else { return }
+        fix(phrase, box.rect(of: words[w].coreRange))
+    }
+
+    private func highlighted(_ first: Int, _ last: Int, _ words: [WordPick.Word]) {
         lastClick = nil
-        seek(first, words)
+        if Self.highlightSeeks { seek(first, words) }
         WordPickProbe.highlight = (segment.start, first, last)
         if editable, let phrase = WordPick.phrase(first, last, words: words, text: segment.text) {
             PhrasePick.shared.set(segment.id, phrase, rect: box.rect(of: words[first].coreRange))

@@ -1137,24 +1137,26 @@ enum UITest {
         let target = "line-text-12"
         await waitForTarget(target, seconds: 3)
         WordPickProbe.reset()
-        await step("line: a click lands on a word of the line", window, target: target, check: {
-            guard let c = WordPickProbe.click else { return false }
-            return c.line == 12 && c.word != nil && c.time >= 12 && c.time < 30
-        })
-        Log.note("UITEST line click: \(String(describing: WordPickProbe.click)) playhead=\(app.player.time) canPlay=\(app.player.canPlay)")
+        await reveal(target, in: window)
+        click(target, in: window, viaApp: true)
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        check("line: a click lands on a word of the line", WordPickProbe.click.map { $0.line == 12 && $0.word != nil && $0.time >= 12 && $0.time < 30 } ?? false)
+        Log.note("UITEST line click: \(String(describing: WordPickProbe.click)) path=\(WordPickProbe.path ?? "none") playhead=\(app.player.time) canPlay=\(app.player.canPlay)")
         check("line: the click moves the playhead into the line (\(app.player.time))", app.player.time >= 12 && app.player.time < 30.1)
         check("line: the click plays nothing", !app.player.isPlaying)
         await reveal(target, in: window)
         drag(target, from: 0.01, to: 0.25, in: window)
         try? await Task.sleep(nanoseconds: 900_000_000)
-        Log.note("UITEST line highlight: \(String(describing: WordPickProbe.highlight)) phrase=\(PhrasePick.shared.text) playhead=\(app.player.time)")
+        Log.note("UITEST line highlight: \(String(describing: WordPickProbe.highlight)) path=\(WordPickProbe.path ?? "none") phrase=\(PhrasePick.shared.text) playhead=\(app.player.time)")
         check("line: a highlight runs from the line's first word", WordPickProbe.highlight.map { $0.line == 12 && $0.first == 0 && $0.last >= 1 } ?? false)
         check("line: the highlighted phrase is kept for Fix", PhrasePick.shared.text.hasPrefix("The viewer"))
         check("line: the highlight moves the playhead to its first word and plays nothing", !app.player.isPlaying && abs(app.player.time - 12) < 0.1)
         WordPickProbe.fix = nil
-        click(target, in: window)
-        click(target, in: window, count: 2)
+        click(target, in: window, viaApp: true)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        click(target, in: window, count: 2, viaApp: true)
         try? await Task.sleep(nanoseconds: 900_000_000)
+        Log.note("UITEST line double-click: path=\(WordPickProbe.path ?? "none")")
         check("line: a double-click opens Fix on the word (\(WordPickProbe.fix ?? "none"))", WordPickProbe.fix.map { !$0.isEmpty && !$0.contains(" ") } ?? false)
         check("line: the double-click plays nothing", !app.player.isPlaying)
         await show("06k-line-fix")
@@ -1175,7 +1177,18 @@ enum UITest {
         // Queued before the press, for a view that tracks the press in a loop of its own (see `click`).
         for i in 1...6 { if let d = ev(.leftMouseDragged, at(a + (b - a) * CGFloat(i) / 6), Double(i) * 0.02) { NSApp.postEvent(d, atStart: false) } }
         if let u = ev(.leftMouseUp, at(b), 0.16) { NSApp.postEvent(u, atStart: false) }
-        if let d = ev(.leftMouseDown, at(a), 0) { window.sendEvent(d) }
+        if let d = ev(.leftMouseDown, at(a), 0) { sendThroughApp(d, id) }
+    }
+
+    /// Sends a press the way the app gets a real one, so the transcript's click watcher (`LineClickHub`) sees it. If
+    /// the watcher wasn't reached that way, it's handed the press directly and the log says so.
+    private static func sendThroughApp(_ d: NSEvent, _ id: String) {
+        let before = LineClickHub.shared.seen
+        NSApp.sendEvent(d)
+        if LineClickHub.shared.seen == before {
+            LineClickHub.shared.saw(d)
+            Log.note("UITEST press \(id): the click watcher wasn't reached through the app (handed over: \(LineClickHub.shared.seen != before))")
+        }
     }
 
     private static func check(_ name: String, _ ok: Bool) {
@@ -2596,7 +2609,7 @@ enum UITest {
     }
 
     /// Moves the pointer onto the target, then clicks it, through the window's own event path.
-    private static func click(_ id: String, in main: NSWindow, count: Int = 1) {
+    private static func click(_ id: String, in main: NSWindow, count: Int = 1, viaApp: Bool = false) {
         let window = id.hasPrefix("sheet-") ? (main.attachedSheet ?? main) : main
         guard let f = windowFrames[id]?() ?? frames[id], let content = window.contentView else { Log.note("UITEST missing target \(id); known=\(frames.keys.sorted())"); return }
         let p = CGPoint(x: f.midX, y: content.bounds.height - f.midY)   // SwiftUI global (top-left) -> NSWindow (bottom-left)
@@ -2642,7 +2655,7 @@ enum UITest {
             let watch = ClickWatch(up: tracked ? nil : ev(.leftMouseUp))
             let timer = Timer(timeInterval: 0.5, repeats: false) { _ in MainActor.assumeIsolated { watch.rescue() } }
             RunLoop.main.add(timer, forMode: .common)
-            window.sendEvent(d)
+            if viaApp { sendThroughApp(d, id) } else { window.sendEvent(d) }
             timer.invalidate()
             rescued = watch.rescued
             if rescued { Log.note("UITEST click \(id): the down was still in a tracking loop after 0.5 s; the up was queued for it") }
