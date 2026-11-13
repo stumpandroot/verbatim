@@ -21,6 +21,25 @@
           "icon": "speakers",
           "text": "A transcript without speaker labels has Find speakers in its Actions menu.",
           "detail": "It listens to the recording again for who spoke and leaves the words as they are."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Whisper keeps the whole meeting",
+          "icon": "words",
+          "text": "Whisper no longer drops stretches of a long room recording where people are talking.",
+          "detail": "Before, one low score could remove up to 30 seconds at a time. Text over silence is still removed."
+        },
+        {
+          "platforms": [
+            "mac",
+            "iphone"
+          ],
+          "head": "Transcribe again plays safe",
+          "icon": "swap",
+          "text": "If Transcribe again returns far fewer words, your transcript stays as it was.",
+          "detail": "Verbose tells you both word counts and keeps the shorter version, so you can still switch to it."
         }
       ]
     },

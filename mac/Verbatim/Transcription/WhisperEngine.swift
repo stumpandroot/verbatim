@@ -78,6 +78,9 @@ actor WhisperEngine: TranscriptionEngine {
         // Likely hallucinations go (repeated text, text over silence); long pauses inside a segment split it.
         let cleaned = UnclearRules.clean(scored, speech: speech)
         if !cleaned.dropped.isEmpty { Log.note("whisper: dropped \(cleaned.dropped.map { "\($0.value) \($0.key.rawValue)" }.sorted().joined(separator: ", "))") }
+        // Speech with no words back (counts only): what the engine skipped or the rules above dropped.
+        let silentRuns = UnclearRules.wordless(clips: clips, segments: cleaned.kept)
+        Log.note("whisper: \(scored.count) lines back, \(cleaned.kept.count) kept; \(silentRuns.count) stretches of speech without words (\(Int(silentRuns.seconds)) s)")
         var result = EngineResult(segments: cleaned.kept, language: lang, engine: "whisper", model: Engines.displayName(engine: "whisper", model: model))
         result.speech = speech
         return result
@@ -85,12 +88,15 @@ actor WhisperEngine: TranscriptionEngine {
 
     /// Word timings and probabilities for each segment, only the speech clips (start and end pairs, in seconds)
     /// when there are any, and VAD chunking inside them so long stretches split at a pause. WhisperKit's other
-    /// thresholds are the report's: compression ratio 2.4, log probability −1, no-speech 0.6.
+    /// thresholds are the report's: compression ratio 2.4 and log probability −1 (a window under either is decoded
+    /// again). No no-speech threshold when there are clips: with one, WhisperKit skips a whole window (up to 30
+    /// seconds) it scores as silence, and Silero has already taken the silence out. `UnclearRules.clean` still drops
+    /// text over silence, line by line.
     private static func options(clips: [ClosedRange<Double>]) -> DecodingOptions {
         DecodingOptions(skipSpecialTokens: true, wordTimestamps: true,
                         clipTimestamps: clips.flatMap { [Float($0.lowerBound), Float($0.upperBound)] },
                         compressionRatioThreshold: Float(UnclearRules.compressionLimit), logProbThreshold: Float(UnclearRules.logprobLimit),
-                        noSpeechThreshold: Float(UnclearRules.noSpeechLimit), chunkingStrategy: .vad)
+                        noSpeechThreshold: clips.isEmpty ? Float(UnclearRules.noSpeechLimit) : nil, chunkingStrategy: .vad)
     }
 
     /// A complete WhisperKit model for `model` already in Paths.models (models/argmaxinc/whisperkit-coreml/

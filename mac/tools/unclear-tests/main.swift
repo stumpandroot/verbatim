@@ -98,6 +98,21 @@ do {
           UnclearRules.drop(ScoredSegment(segment: seg(40, 41.5, "Thank you.")), speech: silent) == .overSilence)
     check("keep: a long line over no speech (speech detection can miss soft speech)",
           UnclearRules.drop(ScoredSegment(segment: seg(40, 46, "one two three four five six seven eight nine ten")), speech: silent) == nil)
+    // A room recording: someone talks from 100 to 400 s, and Whisper scored whole windows badly.
+    let meeting = probs(500, [(100, 400, 0.9)])
+    check("keep: a line someone talks over, though its window scored as repeated",
+          UnclearRules.drop(ScoredSegment(segment: seg(120, 128, "We give our customer a ship date and that's what we go by."), compressionRatio: 2.7), speech: meeting) == nil)
+    check("keep: a line someone talks over, though its window scored as no speech",
+          UnclearRules.drop(ScoredSegment(segment: seg(130, 138, "That whole job is run off of that date."), avgLogprob: -1.3, noSpeechProb: 0.8), speech: meeting) == nil)
+    check("drop: words that loop, even while someone talks",
+          UnclearRules.drop(ScoredSegment(segment: seg(140, 150, "Thank you. Thank you. Thank you. Thank you. Thank you."), compressionRatio: 3.1), speech: meeting) == .repeated)
+    check("drop: scored as no speech where nobody talks",
+          UnclearRules.drop(ScoredSegment(segment: seg(420, 428, "Thanks for watching, see you next time everyone."), avgLogprob: -1.3, noSpeechProb: 0.8), speech: meeting) == .noSpeech)
+    check("repeats: ordinary speech doesn't", !UnclearRules.repeats("So meeting promise dates is one thing that definitely keeps customers coming back as well as very competitive pricing"))
+    check("repeats: a loop does", UnclearRules.repeats("I'm sorry. I'm sorry. I'm sorry. I'm sorry.") && UnclearRules.repeats("you you you"))
+    let gaps = UnclearRules.wordless(clips: [100...400], segments: [seg(100, 130, "a"), seg(131, 160, "b"), seg(300, 330, "c"), seg(395, 400, "d")])
+    check("wordless: speech with no words back is counted", gaps.count == 2 && Int(gaps.seconds) == 205, "\(gaps)")
+    check("wordless: full cover has none", UnclearRules.wordless(clips: [100...160], segments: [seg(100, 130, "a"), seg(131, 160, "b")]).count == 0)
     check("keep: a short line inside speech",
           UnclearRules.drop(ScoredSegment(segment: seg(22, 23, "Thank you.")), speech: silent) == nil)
     check("keep: without speech probabilities the silence rule doesn't apply",
@@ -109,6 +124,26 @@ do {
     ], speech: silent)
     check("clean: keeps the real line and drops both hallucinations", cleaned.kept.map(\.text) == ["Her name's a kid in Alien."], "\(cleaned.kept.map(\.text))")
     check("clean: counts why each was dropped", cleaned.dropped[.noSpeech] == 1 && cleaned.dropped[.overSilence] == 1, "\(cleaned.dropped)")
+}
+
+// MARK: Transcribe again that comes back short
+
+do {
+    func lines(_ words: Int) -> [Segment] { (0..<(words / 10)).map { Segment(start: Double($0) * 4, end: Double($0) * 4 + 3, text: "one two three four five six seven eight nine ten") } }
+    check("rerun guard: a third of the words is far fewer", RerunGuard.muchShorter(new: lines(3820), old: lines(11730)))
+    check("rerun guard: 90% of the words is fine", !RerunGuard.muchShorter(new: lines(9000), old: lines(10000)))
+    check("rerun guard: more words is fine", !RerunGuard.muchShorter(new: lines(12000), old: lines(10000)))
+    check("rerun guard: short transcripts aren't judged", !RerunGuard.muchShorter(new: lines(40), old: lines(150)))
+    check("rerun guard: the message has both counts", RerunGuard.message(new: 3824, old: 11731) == "Your transcript is as it was. The new version has 3,824 words, down from 11,731. You can still switch to it.")
+    check("rerun guard: grouping", RerunGuard.grouped(950) == "950" && RerunGuard.grouped(1000) == "1,000" && RerunGuard.grouped(1234567) == "1,234,567")
+    var t = Transcript(title: "Planning", source: .voiceMemo, sourceLabel: "Voice memo", duration: 4260, audioFileName: "planning.m4a", model: "Parakeet")
+    t.segments = lines(1000); t.original = t.segments
+    let old = t.currentVersion
+    t.segments = lines(300); t.original = t.segments; t.model = "Whisper Large v3 Turbo"
+    t.previousVersion = old
+    if RerunGuard.muchShorter(new: t.segments, old: old.segments) { t.switchVersion() }
+    check("rerun guard: the transcript is as it was, and the short words are the other version",
+          RerunGuard.words(t.segments) == 1000 && t.model == "Parakeet" && RerunGuard.words(t.previousVersion?.segments ?? []) == 300 && t.previousVersion?.model == "Whisper Large v3 Turbo")
 }
 
 // MARK: Splitting at long pauses

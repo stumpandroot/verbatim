@@ -21,6 +21,15 @@ struct SpeechProbabilities: Equatable, Sendable {
         guard a <= b else { return 0 }
         return values[a...b].max() ?? 0
     }
+
+    /// The share of a time range (0…1) where the probability is at least `level` (0 when the range holds no frame).
+    func share(atLeast level: Float, from start: Double, to end: Double) -> Double {
+        guard frame > 0, !values.isEmpty, end > start else { return 0 }
+        let a = max(0, Int((start / frame).rounded(.down)))
+        let b = min(values.count - 1, Int((end / frame).rounded(.up)) - 1)
+        guard a <= b else { return 0 }
+        return Double(values[a...b].filter { $0 >= level }.count) / Double(b - a + 1)
+    }
 }
 
 /// One of Whisper's segments with the scores the hallucination rules read. Engines that don't score segments
@@ -194,12 +203,46 @@ enum UnclearRules {
     /// Why a segment is dropped, or nil to keep it.
     enum Drop: String { case repeated, noSpeech, overSilence }
 
+    /// Someone talks through at least this share of a line: its words stay, whatever its window scored.
+    static let talkingShare = 0.5
+
+    /// Whisper scores a whole window (up to 30 seconds) and every line in it carries that score, so one score could
+    /// drop half a minute of a meeting (November 13, 2026: a 71-minute room recording kept a third of its words).
+    /// A line someone is talking over stays unless its own words repeat; the scores still drop text over silence.
     static func drop(_ s: ScoredSegment, speech: SpeechProbabilities?) -> Drop? {
-        if let cr = s.compressionRatio, cr > compressionLimit { return .repeated }
-        if let ns = s.noSpeechProb, let lp = s.avgLogprob, ns > noSpeechLimit, lp < logprobLimit { return .noSpeech }
+        let talking = speech.map { $0.share(atLeast: speechHeard, from: s.segment.start, to: s.segment.end) >= talkingShare } ?? false
+        if let cr = s.compressionRatio, cr > compressionLimit, !talking || repeats(s.segment.text) { return .repeated }
+        if let ns = s.noSpeechProb, let lp = s.avgLogprob, ns > noSpeechLimit, lp < logprobLimit, !talking { return .noSpeech }
         if let p = speech, wordCount(s.segment.text) <= shortLineWords,
            p.peak(from: s.segment.start - 0.25, to: s.segment.end + 0.25) < silentPeak { return .overSilence }
         return nil
+    }
+
+    /// The line's own words loop ("Thank you. Thank you. Thank you."): under 60% of its three-word runs are
+    /// different. Ordinary speech repeats almost none of them.
+    static func repeats(_ text: String) -> Bool {
+        let words = text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" }).map(String.init)
+        guard words.count >= 6 else { return Set(words).count * 2 <= words.count }
+        var runs = Set<String>()
+        for i in 0..<(words.count - 2) { runs.insert(words[i] + " " + words[i + 1] + " " + words[i + 2]) }
+        return Double(runs.count) / Double(words.count - 2) < 0.6
+    }
+
+    /// Stretches of the speech clips at least `least` seconds long with none of `segments` over them: speech the
+    /// engine returned no words for. For the log.
+    static func wordless(clips: [ClosedRange<Double>], segments: [Segment], least: Double = 10) -> (count: Int, seconds: Double) {
+        let lines = segments.sorted { $0.start < $1.start }
+        var count = 0, seconds = 0.0
+        for clip in clips {
+            var at = clip.lowerBound
+            func gap(to end: Double) { if end - at >= least { count += 1; seconds += end - at } }
+            for s in lines where s.end > clip.lowerBound && s.start < clip.upperBound {
+                gap(to: min(s.start, clip.upperBound))
+                at = max(at, s.end)
+            }
+            gap(to: clip.upperBound)
+        }
+        return (count, seconds)
     }
 
     /// The segments to keep: likely hallucinations dropped, the rest split where their words pause `splitGap` or more.

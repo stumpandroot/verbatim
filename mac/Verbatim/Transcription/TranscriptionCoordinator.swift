@@ -696,6 +696,7 @@ final class TranscriptionCoordinator: ObservableObject {
                     defer { self.finished(id, token: token) }
                     // Cancelled while running (or started again): keep the cancellation, drop the late result.
                     guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { return }
+                    var shorter: (new: Int, old: Int)?
                     self.store.update(id) { x in
                         // Transcribe again with another engine: the words it replaces stay, to switch back to.
                         let old: TranscriptVersion? = keepsVersion ? x.currentVersion : nil
@@ -720,9 +721,18 @@ final class TranscriptionCoordinator: ObservableObject {
                             x.previousVersion = old
                             x.carryOver(from: old)
                             x.rerunRequest = nil
+                            // Far fewer words than before: the transcript stays, and the new words are the other version.
+                            if RerunGuard.muchShorter(new: x.segments, old: old.segments) {
+                                shorter = (RerunGuard.words(x.segments), RerunGuard.words(old.segments))
+                                x.switchVersion()
+                            }
                         }
                     }
-                    if !keepsVersion || !out.voices.isEmpty { SpeakerVoices.keep(id, voices: out.voices) }
+                    if let shorter {
+                        Log.note("transcribe again: \(shorter.new) words, down from \(shorter.old); kept the transcript as it was")
+                        self.host?.notify(RerunGuard.message(new: shorter.new, old: shorter.old))
+                    }
+                    if shorter == nil, !keepsVersion || !out.voices.isEmpty { SpeakerVoices.keep(id, voices: out.voices) }
                     self.dropSections(t)
                     // In a batch, stay quiet until the last one.
                     self.host?.transcriptReady(id, corrections: corrections.count, queueEmpty: self.queue.isEmpty)
@@ -835,6 +845,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 let findSpeakers = wantSpeakers && out.fixed.count > 1
                 let proceed = await MainActor.run { () -> Bool in
                     guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { self.finished(id, token: token); return false }
+                    var shorter: (new: Int, old: Int)?
                     self.store.update(id) { x in
                         let old: TranscriptVersion? = keepsVersion ? x.currentVersion : nil
                         x.original = out.original; x.segments = out.fixed; x.speakers = []; x.corrections = out.corrections; x.unclear = out.unclear
@@ -851,7 +862,16 @@ final class TranscriptionCoordinator: ObservableObject {
                             x.previousVersion = old
                             x.carryOver(from: old)
                             x.rerunRequest = nil
+                            // Far fewer words than before: the transcript stays, and the new words are the other version.
+                            if RerunGuard.muchShorter(new: x.segments, old: old.segments) {
+                                shorter = (RerunGuard.words(x.segments), RerunGuard.words(old.segments))
+                                x.switchVersion()
+                            }
                         }
+                    }
+                    if let shorter {
+                        Log.note("transcribe again: \(shorter.new) words, down from \(shorter.old); kept the transcript as it was")
+                        self.host?.notify(RerunGuard.message(new: shorter.new, old: shorter.old))
                     }
                     self.dropSections(t)
                     self.host?.transcriptReady(id, corrections: out.corrections.count, queueEmpty: self.queue.isEmpty)

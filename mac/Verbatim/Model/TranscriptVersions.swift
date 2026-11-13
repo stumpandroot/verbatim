@@ -3,6 +3,34 @@ import Foundation
 /// Transcribe again with Whisper Turbo keeps the words it replaces (`previousVersion`), so you can switch back, and
 /// carries what you added over to the new words: speaker names by time, and notes and moments by their time. Shared
 /// by the Mac and the iPhone; the Linux tests (mac/tools/test-unclear.sh) run it.
+/// Transcribe again that comes back with far fewer words than the words it would replace: the transcript stays as it
+/// was, and the shorter words are kept as the other version. (November 13, 2026: Whisper Turbo returned a third of a
+/// 71-minute meeting, and replaced the complete transcript without saying so.)
+enum RerunGuard {
+    /// New words under this share of the old count are "far fewer".
+    static let minShare = 0.6
+    /// Short transcripts vary too much between engines to judge.
+    static let minWords = 200
+
+    static func words(_ lines: [Segment]) -> Int { lines.reduce(0) { $0 + $1.text.split(whereSeparator: { $0.isWhitespace }).count } }
+
+    static func muchShorter(new: [Segment], old: [Segment]) -> Bool {
+        let before = words(old)
+        return before >= minWords && Double(words(new)) < Double(before) * minShare
+    }
+
+    /// The message for the person: "Your transcript is as it was. The new version has 3,824 words, down from 11,731. …"
+    static func message(new: Int, old: Int) -> String {
+        "Your transcript is as it was. The new version has \(grouped(new)) words, down from \(grouped(old)). You can still switch to it."
+    }
+
+    static func grouped(_ n: Int) -> String {
+        var out = "", digits = String(n)
+        while digits.count > 3 { out = "," + digits.suffix(3) + out; digits.removeLast(3) }
+        return digits + out
+    }
+}
+
 extension Transcript {
     /// Whisper Large v3 Turbo, the engine and model Transcribe again with Whisper Turbo runs.
     static let turboEngine = "whisper"
