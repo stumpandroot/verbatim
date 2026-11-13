@@ -635,7 +635,7 @@ struct TranscriptScreen: View {
                     // The speaker step alone, for words that came in without speakers (it failed, iOS stopped it, or
                     // Identify speakers was off): the words stay as they are.
                     if SpeakerPassRules.canFind(t), t.stage == nil {
-                        Button { app.findSpeakers(t.id) } label: { Label("Find speakers", systemImage: "person.2") }
+                        Button { app.findSpeakers(t.id) } label: { Label("Find speakers", systemImage: "person.2") }   // brand: system surface (menu)
                     }
                     // Whisper Turbo on the original audio, run by your Mac; and back to the words it replaced. Shown only
                     // when a Mac transcribes for this library, so nothing points elsewhere without one (App Review AR-12).
