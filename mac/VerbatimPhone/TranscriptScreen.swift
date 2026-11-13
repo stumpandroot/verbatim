@@ -399,6 +399,16 @@ struct TranscriptScreen: View {
             }
             .padding(.horizontal, 12).padding(.vertical, 4)
             .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        } else if SpeakerPassRules.showsFailure(t) {
+            // The speaker step failed, or iOS stopped it twice: the words are here, and it runs again when you ask.
+            HStack(spacing: 8) {
+                IconGlyph(art: .iconAttention, size: 18, color: Refined.accentText)
+                Text("Couldn't find speakers").refinedFont(.hint).foregroundStyle(Refined.dim).lineLimit(2)
+                Spacer(minLength: 4)
+                Button("Try again") { app.findSpeakers(t.id) }.buttonStyle(RefinedActionStyle())
+            }
+            .padding(.horizontal, 12).padding(.vertical, 4)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         } else if t.status == .ready {
             // A progress tick can change the label (StageClock), so it's read live.
             LiveStage(t) { t in
@@ -621,6 +631,11 @@ struct TranscriptScreen: View {
                     if t.audioFileName != nil, t.multitrack == nil {
                         Button { app.transcribeAgain(t.id) } label: { Label(TranscribeAgain.title, systemImage: "arrow.counterclockwise") }
                             .disabled(TranscribeAgain.unavailableReason(t) != nil)
+                    }
+                    // The speaker step alone, for words that came in without speakers (it failed, iOS stopped it, or
+                    // Identify speakers was off): the words stay as they are.
+                    if SpeakerPassRules.canFind(t), t.stage == nil {
+                        Button { app.findSpeakers(t.id) } label: { Label("Find speakers", systemImage: "person.2") }
                     }
                     // Whisper Turbo on the original audio, run by your Mac; and back to the words it replaced. Shown only
                     // when a Mac transcribes for this library, so nothing points elsewhere without one (App Review AR-12).

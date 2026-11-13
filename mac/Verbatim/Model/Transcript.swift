@@ -593,6 +593,50 @@ struct RerunRequest: Codable, Equatable {
     var deviceName: String = ""
 }
 
+/// The iPhone finds speakers in a step of its own, after the words are in. This mark stays on the transcript while
+/// that step is owed, so one that iOS stopped (the app was suspended or closed) runs again at the next launch, and one
+/// that failed says so with Try again. Cleared when the step ends, with speakers or with one voice.
+struct SpeakerPassMark: Codable, Equatable {
+    /// The device that owes the step (`Device.id`).
+    var device: String
+    /// Times the step has started for these words.
+    var tries: Int = 1
+    /// The step ended in an error, or kept stopping: nothing runs again until you ask.
+    var failed = false
+
+    /// Automatic starts per transcript: the first run and one more at launch. A step that stops the app twice
+    /// (memory, on a long recording) isn't started a third time on its own.
+    static let automaticTries = 2
+
+    init(device: String, tries: Int = 1, failed: Bool = false) { self.device = device; self.tries = tries; self.failed = failed }
+
+    init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        device = (try? c.decodeIfPresent(String.self, forKey: .device)) ?? ""
+        tries = (try? c.decodeIfPresent(Int.self, forKey: .tries)) ?? 1
+        failed = (try? c.decodeIfPresent(Bool.self, forKey: .failed)) ?? false
+    }
+}
+
+/// What a launch does with a transcript whose speaker step didn't end.
+enum SpeakerPassRules {
+    enum AtLaunch: Equatable { case nothing, runAgain, markFailed }
+
+    /// The words are in, with more than one line, no speakers, and audio to listen to.
+    static func canFind(_ t: Transcript) -> Bool {
+        t.status == .ready && t.deletedAt == nil && t.pendingAppend == nil && t.rerunRequest == nil && t.audioFileName != nil
+            && t.segments.count > 1 && t.speakers.isEmpty && !t.segments.contains { $0.speaker != nil }
+    }
+
+    static func atLaunch(_ t: Transcript, device: String) -> AtLaunch {
+        guard let mark = t.speakerPass, mark.device == device, !mark.failed, canFind(t) else { return .nothing }
+        return mark.tries < SpeakerPassMark.automaticTries ? .runAgain : .markFailed
+    }
+
+    /// "Couldn't find speakers" with Try again shows under the title.
+    static func showsFailure(_ t: Transcript) -> Bool { t.speakerPass?.failed == true && t.stage == nil && canFind(t) }
+}
+
 struct Transcript: Codable, Identifiable, Equatable {
     enum Status: String, Codable, TolerantEnum {
         case processing, ready, failed
@@ -609,7 +653,7 @@ struct Transcript: Codable, Identifiable, Equatable {
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
              summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited, schemaVersion,
              speakerSuggestions, unclear, previousVersion, rerunRequest, templateResults, autoRun, remindersSent, stills,
-             freeTranscriptLimit, meeting, askWhoDismissed
+             freeTranscriptLimit, meeting, askWhoDismissed, speakerPass
     }
     /// Every key this build reads or writes, including the legacy path keys: anything else is a newer build's.
     static let knownKeys: Set<String> = Set(CodingKeys.allCases.map(\.stringValue) + LegacyKeys.allCases.map(\.stringValue))
@@ -711,6 +755,9 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// Dismiss on the Mac's "Who was this with?" (`callPartnerToAsk`): it doesn't ask about this transcript again.
     /// Written only when true; older builds keep the key and write it back.
     var askWhoDismissed = false
+    /// The iPhone's speaker step, which runs on its own after the words are in (`SpeakerPassMark`): set while it's
+    /// owed or after it failed, nil once it ended. Written only when set; older builds keep the key and write it back.
+    var speakerPass: SpeakerPassMark? = nil
     /// An imported video's stills, one where the picture changes (VideoStill.pick), shown in the transcript's margin.
     /// nil for audio and for videos imported before stills.
     var stills: [VideoStill]? = nil
@@ -817,6 +864,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         multitrack = try? c.decodeIfPresent(MultitrackInfo.self, forKey: .multitrack)
         meeting = (try? c.decodeIfPresent(MeetingContext.self, forKey: .meeting)) ?? nil
         askWhoDismissed = (try? c.decodeIfPresent(Bool.self, forKey: .askWhoDismissed)) ?? false
+        speakerPass = (try? c.decodeIfPresent(SpeakerPassMark.self, forKey: .speakerPass)) ?? nil
         stills = (try? c.decodeIfPresent([VideoStill].self, forKey: .stills)) ?? nil
         // Spans a newer build wrote in a shape this one can't read are dropped, never the whole file.
         sponsors = (try? c.decodeIfPresent([SponsorSpan].self, forKey: .sponsors)) ?? nil
@@ -911,6 +959,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         try c.encodeIfPresent(multitrack, forKey: .multitrack)
         try c.encodeIfPresent(meeting, forKey: .meeting)
         if askWhoDismissed { try c.encode(true, forKey: .askWhoDismissed) }
+        try c.encodeIfPresent(speakerPass, forKey: .speakerPass)
         try c.encodeIfPresent(stills, forKey: .stills)
         try c.encodeIfPresent(sponsors, forKey: .sponsors)
         if let cleaned = documentCleanedBy { try c.encode(unknown.raw(for: "documentCleanedBy", current: cleaned.rawValue), forKey: .documentCleanedBy) }

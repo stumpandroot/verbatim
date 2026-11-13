@@ -1098,6 +1098,9 @@ final class PhoneState {
 
     func pump() { coordinator.pump() }
 
+    /// Find speakers and Try again on a transcript whose words are in (the speaker step alone).
+    func findSpeakers(_ id: UUID) { coordinator.findSpeakers(id) }
+
     /// Throws away a continued recording that hasn't been added; the transcript stays as it was.
     func discardPendingAppend(_ id: UUID) { coordinator.discardPendingAppend(id) }
 

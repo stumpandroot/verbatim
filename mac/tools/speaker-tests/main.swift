@@ -170,5 +170,42 @@ do {
 check("sentence ends", SpeakerTurns.endsSentence("accusations.") && SpeakerTurns.endsSentence("be?") && SpeakerTurns.endsSentence("said.”")
       && !SpeakerTurns.endsSentence("Mr.") && !SpeakerTurns.endsSentence("Yes,") && !SpeakerTurns.endsSentence("as"))
 
+// The iPhone's speaker step: what a launch does with one that didn't end (SpeakerPassRules).
+do {
+    func line(_ text: String, _ at: Double) -> Segment { Segment(start: at, end: at + 2, text: text) }
+    var t = Transcript(title: "Planning", source: .voiceMemo, sourceLabel: "Voice memo", duration: 4260, audioFileName: "planning.m4a", model: "parakeet")
+    t.segments = [line("So what is the plan?", 0), line("We start with the layout.", 3)]
+    t.status = .ready
+    check("speaker step: nothing owed, nothing runs", SpeakerPassRules.atLaunch(t, device: "phone") == .nothing)
+    t.speakerPass = SpeakerPassMark(device: "phone")
+    check("speaker step: one that was stopped runs again at launch", SpeakerPassRules.atLaunch(t, device: "phone") == .runAgain)
+    check("speaker step: another device's is left alone", SpeakerPassRules.atLaunch(t, device: "mac") == .nothing)
+    t.speakerPass?.tries = 2
+    check("speaker step: stopped twice, it's marked failed instead of run a third time", SpeakerPassRules.atLaunch(t, device: "phone") == .markFailed)
+    t.speakerPass?.failed = true
+    check("speaker step: a failed one waits for Try again", SpeakerPassRules.atLaunch(t, device: "phone") == .nothing && SpeakerPassRules.showsFailure(t))
+    t.stage = "Finding speakers"
+    check("speaker step: no failure line while it runs", !SpeakerPassRules.showsFailure(t))
+    t.stage = nil
+    var labeled = t
+    labeled.speakers = [Speaker(id: "S1", name: "Speaker 1"), Speaker(id: "S2", name: "Speaker 2")]
+    labeled.segments[0].speaker = "S1"
+    check("speaker step: a transcript with speakers (the Mac's run) shows no failure and runs nothing",
+          !SpeakerPassRules.showsFailure(labeled) && !SpeakerPassRules.canFind(labeled))
+    var one = t
+    one.segments = [one.segments[0]]
+    check("speaker step: one line has nobody to tell apart", !SpeakerPassRules.canFind(one))
+    var noAudio = t
+    noAudio.audioFileName = nil
+    check("speaker step: no audio, no step", !SpeakerPassRules.canFind(noAudio))
+    let data = try JSONEncoder().encode(t)
+    let back = try JSONDecoder().decode(Transcript.self, from: data)
+    check("speaker step: the mark is saved with the transcript", back.speakerPass == t.speakerPass)
+    var plain = t
+    plain.speakerPass = nil
+    let text = String(data: try JSONEncoder().encode(plain), encoding: .utf8) ?? ""
+    check("speaker step: no mark, no key in the file", !text.contains("speakerPass"))
+}
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

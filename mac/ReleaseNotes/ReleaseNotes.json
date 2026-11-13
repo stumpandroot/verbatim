@@ -1,6 +1,30 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Speakers on long iPhone meetings",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Speakers finish after a stop",
+          "icon": "speakers",
+          "text": "If iOS stops the speaker step on a long recording, it runs again when you open Verbose.",
+          "detail": "Before, the transcript kept its words and never got speaker labels. A step that fails now says so, with Try again."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Find speakers",
+          "icon": "speakers",
+          "text": "A transcript without speaker labels has Find speakers in its Actions menu.",
+          "detail": "It listens to the recording again for who spoke and leaves the words as they are."
+        }
+      ]
+    },
+    {
       "build": "332",
       "date": "2026-11-12",
       "version": "1.0 beta",

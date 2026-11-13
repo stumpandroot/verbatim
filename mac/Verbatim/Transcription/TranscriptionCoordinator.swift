@@ -144,6 +144,7 @@ final class TranscriptionCoordinator: ObservableObject {
                                      && ($0.processingDevice == Device.id || (includeUnowned && $0.processingDevice == nil)))
                                     || ($0.pendingAppend != nil && $0.processingDevice == Device.id) }
             .sorted { $0.createdAt < $1.createdAt }.map(\.id)
+        resumeSpeakerSteps()
         // Saved sections only for jobs that will pick up again; the rest finished, were deleted, or were cancelled.
         let resuming = Set((queue + [runningID].compactMap { $0 }).compactMap { store.transcript($0)?.audioFileName })
         // Jobs wait for the sweep: one queued in between (a recovered recording, a dropped file) could otherwise write
@@ -155,6 +156,114 @@ final class TranscriptionCoordinator: ObservableObject {
             self.sweeping -= 1
             self.pump()
         }
+    }
+
+    // MARK: The speaker step on its own (the iPhone)
+
+    /// Transcripts whose next run is the speaker step alone: their words are already in.
+    private var speakerOnlyIDs: Set<UUID> = []
+
+    /// Speaker steps iOS stopped before they ended (the app was suspended or closed): each runs once more, after the
+    /// jobs that still need their words. One that has already stopped twice is marked failed, with Try again.
+    private func resumeSpeakerSteps() {
+        guard config.speakerPass == .afterWords else { return }
+        for t in store.live.sorted(by: { $0.createdAt < $1.createdAt }) {
+            switch SpeakerPassRules.atLaunch(t, device: Device.id) {
+            case .nothing: break
+            case .runAgain:
+                Log.note("speaker step: didn't end last time, running again")
+                queueSpeakerStep(t.id)
+            case .markFailed:
+                Log.note("speaker step: stopped \(t.speakerPass?.tries ?? 0) times, waiting for Try again")
+                store.update(t.id) { $0.speakerPass?.failed = true }
+            }
+        }
+    }
+
+    @discardableResult
+    private func queueSpeakerStep(_ id: UUID) -> Bool {
+        guard let t = store.transcript(id), SpeakerPassRules.canFind(t), runningID != id, !queue.contains(id) else { return false }
+        let tries = (t.speakerPass?.device == Device.id ? t.speakerPass?.tries ?? 0 : 0) + 1
+        store.update(id) { $0.stage = "Finding speakers"; $0.speakerPass = SpeakerPassMark(device: Device.id, tries: tries) }
+        speakerOnlyIDs.insert(id)
+        queue.append(id)
+        return true
+    }
+
+    /// Find speakers (the transcript's menu) and Try again: the speaker step on its own, for words that are already in.
+    func findSpeakers(_ id: UUID) {
+        guard FluidDiarizer.isSupported else { return }
+        if queueSpeakerStep(id) { pump() }
+    }
+
+    private func runSpeakerStep(_ id: UUID, _ t: Transcript, _ url: URL) {
+        host?.runWillBegin(id)
+        let token = UUID(); runToken = token
+        let waitForDownload = config.waitForDownload
+        let freeLimit = FreeTranscription.runLimit(t.freeTranscriptLimit, hasEverything: FeatureGate.hasEverything)
+        Log.note("speaker step start tries=\(t.speakerPass?.tries ?? 1) minutes=\(Int(t.duration / 60))")
+        runningTask = Task.detached(priority: .userInitiated) {
+            do {
+                if waitForDownload { _ = await Cloud.ensureDownloaded(url) }
+                let work = try TranscriptionInput.prepare(url, limit: freeLimit)
+                defer { TranscriptionInput.finish(work, original: url) }
+                await self.speakerStep(id, audio: work, token: token)
+            } catch {
+                await MainActor.run {
+                    guard self.runToken == token else { return }
+                    Log.note("speaker step failed before it began: \(error)")
+                    self.speakerStepFailed(id)
+                    self.finished(id, token: token)
+                }
+            }
+        }
+    }
+
+    private func speakerStepFailed(_ id: UUID) {
+        store.update(id) { x in
+            x.stage = nil
+            x.speakerPass = SpeakerPassMark(device: Device.id, tries: x.speakerPass?.tries ?? 1, failed: true)
+        }
+        host?.notify("Couldn't find speakers. Open the transcript to try again.")
+    }
+
+    /// Finds the speakers of a transcript whose words are in, and ends its run. An error is logged and shown, never
+    /// dropped: the transcript keeps its words and offers Try again.
+    private func speakerStep(_ id: UUID, audio work: URL, token: UUID) async {
+        let began = Date()
+        var found: DiarizationOutput?
+        var failure: Error?
+        do { found = try await FluidDiarizer.shared.diarizeDetailed(url: work, progress: { _ in }) } catch { failure = error }
+        // Cancelled, or started again: that run owns the transcript now.
+        guard runToken == token else { return }
+        defer { finished(id, token: token) }
+        // Another device transcribing it again since (Retry there) owns its words and stage now.
+        guard let now = store.transcript(id), now.status == .ready, now.jobIsMine() else { return }
+        let seconds = Int(Date().timeIntervalSince(began))
+        guard let found else {
+            Log.note("speaker step failed after \(seconds) s: \(failure.map { "\($0)" } ?? "no result")")
+            speakerStepFailed(id)
+            return
+        }
+        var kept = 0
+        store.update(id) { x in
+            x.stage = nil
+            x.speakerPass = nil
+            // Only when nobody has assigned speakers by hand in the meantime.
+            guard x.speakers.isEmpty else { return }
+            var segs = x.segments
+            // The original lines are cut alongside (matched by index); lines with corrections stay whole.
+            var original: [Segment]? = x.original
+            let paired = x.original.count == segs.count
+            let speakers = SpeakerAssigner.assign(found, to: &segs, parallel: &original, keepWhole: Set(x.corrections.map(\.segmentId)))
+            kept = speakers.count
+            guard speakers.count >= 2 else { return }
+            x.segments = segs; x.speakers = speakers
+            if paired, let original { x.original = original }
+            else { for i in x.original.indices where i < segs.count { x.original[i].speaker = segs[i].speaker } }
+            SpeakerVoices.keep(id, voices: SpeakerNames.voices(turns: found.turns, embeddings: found.embeddings, segments: segs))
+        }
+        Log.note("speaker step done in \(seconds) s: turns=\(found.turns.count) speakers=\(kept)")
     }
 
     // MARK: Queueing
@@ -312,7 +421,8 @@ final class TranscriptionCoordinator: ObservableObject {
         }
         if config.speakerPass == .afterWords, store.transcript(id)?.status == .ready {
             // The words are in; only the speaker pass was running. Stop it and keep the transcript.
-            store.update(id) { $0.stage = nil }
+            speakerOnlyIDs.remove(id)
+            store.update(id) { $0.stage = nil; $0.speakerPass = nil }
             if runningID == id { stopRunning(); labelIfNeeded(id); SpeakerNameSuggester.runIfNeeded(id, store: store); SummaryCenter.shared.summarizeIfNeeded(id, store: store); pump() }
             return
         }
@@ -350,7 +460,8 @@ final class TranscriptionCoordinator: ObservableObject {
         while let next = queue.first {
             queue.removeFirst()
             // A job another device has taken over since it was queued (Retry or a claimed link there) is theirs now.
-            guard let t = store.transcript(next), (t.status == .processing && t.jobIsMine()) || (t.pendingAppend != nil && t.processingDevice == Device.id) else { continue }
+            guard let t = store.transcript(next), (t.status == .processing && t.jobIsMine()) || (t.pendingAppend != nil && t.processingDevice == Device.id)
+                    || (speakerOnlyIDs.contains(next) && SpeakerPassRules.canFind(t)) else { speakerOnlyIDs.remove(next); continue }
             // Audio only waits until you ask for its words (Transcribe sets it to processing).
             guard !AudioOnlyRules.skipsQueue(t) else { continue }
             runningID = next
@@ -514,6 +625,13 @@ final class TranscriptionCoordinator: ObservableObject {
 
     private func run(_ id: UUID) {
         if let t = store.transcript(id), t.pendingAppend != nil, let url = store.audioURL(for: t) { runAppend(id, t, url); return }
+        if speakerOnlyIDs.remove(id) != nil, let t = store.transcript(id), t.status == .ready {
+            guard let url = store.audioURL(for: t) else {
+                Log.note("speaker step: the audio file is missing")
+                speakerStepFailed(id); finished(id); return
+            }
+            runSpeakerStep(id, t, url); return
+        }
         guard let t = store.transcript(id), let url = store.audioURL(for: t) else {
             if store.transcript(id)?.rerunRequest != nil {
                 // Transcribe again with another engine: the words it would replace stay.
@@ -721,6 +839,8 @@ final class TranscriptionCoordinator: ObservableObject {
                         let old: TranscriptVersion? = keepsVersion ? x.currentVersion : nil
                         x.original = out.original; x.segments = out.fixed; x.speakers = []; x.corrections = out.corrections; x.unclear = out.unclear
                         x.status = .ready; x.stage = findSpeakers ? "Finding speakers" : nil; x.engine = out.engine; x.model = out.model; x.language = out.language
+                        // Owed until the step ends: one iOS stops runs again at the next launch (`resumeSpeakerSteps`).
+                        x.speakerPass = findSpeakers ? SpeakerPassMark(device: Device.id) : nil
                         x.processingDevice = nil; x.processingDeviceName = nil
                         if freeLimit == nil { x.freeTranscriptLimit = nil }
                         self.promoteAudioOnly(&x, id)
@@ -740,28 +860,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 }
                 guard proceed, findSpeakers else { return }
                 guard !Task.isCancelled else { await MainActor.run { self.store.update(id) { $0.stage = nil }; self.finished(id, token: token) }; return }
-                let found = try? await FluidDiarizer.shared.diarizeDetailed(url: work, progress: { _ in })
-                await MainActor.run {
-                    guard self.runToken == token else { return }
-                    defer { self.finished(id, token: token) }
-                    // Another device transcribing it again since (Retry there) owns its words and stage now.
-                    guard let now = self.store.transcript(id), now.status == .ready, now.jobIsMine() else { return }
-                    self.store.update(id) { x in
-                        x.stage = nil
-                        // Only when nobody has assigned speakers by hand in the meantime.
-                        guard let found, x.speakers.isEmpty else { return }
-                        var segs = x.segments
-                        // The original lines are cut alongside (matched by index); lines with corrections stay whole.
-                        var original: [Segment]? = x.original
-                        let paired = x.original.count == segs.count
-                        let speakers = SpeakerAssigner.assign(found, to: &segs, parallel: &original, keepWhole: Set(x.corrections.map(\.segmentId)))
-                        guard speakers.count >= 2 else { return }
-                        x.segments = segs; x.speakers = speakers
-                        if paired, let original { x.original = original }
-                        else { for i in x.original.indices where i < segs.count { x.original[i].speaker = segs[i].speaker } }
-                        SpeakerVoices.keep(id, voices: SpeakerNames.voices(turns: found.turns, embeddings: found.embeddings, segments: segs))
-                    }
-                }
+                await self.speakerStep(id, audio: work, token: token)
             } catch {
                 if logsJobs { Log.note("transcribe failed: \(error)") }
                 await MainActor.run {
