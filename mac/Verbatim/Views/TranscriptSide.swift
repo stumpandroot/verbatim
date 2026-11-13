@@ -326,6 +326,8 @@ struct TranscriptMoreItems: View {
         Button(TurboRerun.title + "…") { app.turboAsk = t.id }
             .disabled(!ready || TurboRerun.unavailableReason(t) != nil)
         if let other = TurboRerun.switchTitle(t) { Button(other) { app.switchTranscriptVersion(t.id) } }
+        // The speaker step alone, for words that have no speakers: the words stay as they are.
+        if SpeakerPassRules.canFind(t), t.stage == nil { Button("Find Speakers") { app.findSpeakers(t.id) } }
         Divider()
         Menu("Text Size") {
             Button("Larger Text (⌘+)") { nav.textSize = WindowNav.textSizes.clamp(nav.textSize + 1) }

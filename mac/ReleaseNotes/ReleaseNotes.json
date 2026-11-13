@@ -15,11 +15,12 @@
         },
         {
           "platforms": [
+            "mac",
             "iphone"
           ],
           "head": "Find speakers",
           "icon": "speakers",
-          "text": "A transcript without speaker labels has Find speakers in its Actions menu.",
+          "text": "A transcript without speaker labels has Find speakers in its menu.",
           "detail": "It listens to the recording again for who spoke and leaves the words as they are."
         },
         {
@@ -30,6 +31,15 @@
           "icon": "words",
           "text": "Whisper no longer drops stretches of a long room recording where people are talking.",
           "detail": "Before, one low score could remove up to 30 seconds at a time. Text over silence is still removed."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Speakers found fresh",
+          "icon": "speakers",
+          "text": "Transcribe again on the Mac finds speakers again and keeps the names you gave.",
+          "detail": "Before, old labels were laid over the new lines by time, so long lines held several people under one name."
         },
         {
           "platforms": [

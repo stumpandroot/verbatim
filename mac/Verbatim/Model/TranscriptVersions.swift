@@ -74,6 +74,32 @@ extension Transcript {
         notes = Self.remap(notes, from: old.segments, to: segments)
     }
 
+    /// New words came with speakers of their own (found again from the audio, so lines split where the speaker
+    /// changes): each takes the name you gave the old speaker who talks most over the same time. A name goes to one new
+    /// speaker only, the one sharing the most time with it; speakers nobody named keep "Speaker 1", "Speaker 2".
+    mutating func carryNames(from old: TranscriptVersion) {
+        let named = Dictionary(old.speakers.filter { !$0.isPlaceholder }.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+        guard !named.isEmpty, !speakers.isEmpty else { return }
+        let before = old.segments.filter { $0.speaker.map { named[$0] != nil } ?? false }.sorted { $0.start < $1.start }
+        var shared: [String: [String: Double]] = [:]   // new speaker → old speaker → seconds together
+        for s in segments {
+            guard let now = s.speaker else { continue }
+            for o in before where o.end > s.start && o.start < s.end {
+                guard let was = o.speaker else { continue }
+                shared[now, default: [:]][was, default: 0] += min(s.end, o.end) - max(s.start, o.start)
+            }
+        }
+        var pairs: [(now: String, was: String, seconds: Double)] = []
+        for (now, row) in shared { for (was, seconds) in row where seconds > 0 { pairs.append((now, was, seconds)) } }
+        pairs.sort { $0.seconds != $1.seconds ? $0.seconds > $1.seconds : ($0.now, $0.was) < ($1.now, $1.was) }
+        var takenNow = Set<String>(), takenWas = Set<String>()
+        for p in pairs where !takenNow.contains(p.now) && !takenWas.contains(p.was) {
+            guard let i = speakers.firstIndex(where: { $0.id == p.now }), speakers[i].isPlaceholder, let name = named[p.was] else { continue }
+            speakers[i].name = name
+            takenNow.insert(p.now); takenWas.insert(p.was)
+        }
+    }
+
     /// Swaps the words with the kept version: Switch back, and Switch to Whisper Turbo after that. False when there's
     /// no version kept.
     @discardableResult

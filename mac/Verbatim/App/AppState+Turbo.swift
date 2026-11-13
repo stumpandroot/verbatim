@@ -23,6 +23,13 @@ extension AppState {
     }
 
     /// Swaps the words with the kept version (Switch to …). Notes and moments follow by time.
+    /// Find Speakers on a transcript whose words have none: the speaker step alone, the words as they are.
+    func findSpeakers(_ id: UUID) {
+        guard let t = store.transcript(id), SpeakerPassRules.canFind(t) else { return }
+        coordinator.findSpeakers(id)
+        if store.transcript(id)?.stage == "Finding speakers" { toast = Toast("Finding speakers") }
+    }
+
     func switchTranscriptVersion(_ id: UUID) {
         guard store.transcript(id)?.previousVersion != nil else { return }
         store.update(id) { _ = $0.switchVersion() }

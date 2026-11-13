@@ -647,7 +647,11 @@ final class TranscriptionCoordinator: ObservableObject {
         // words had them (TranscriptVersions.swift) instead of found again.
         if let req = t.rerunRequest {
             s.engineId = req.engine; s.model = req.model
-            if t.speakers.count >= 1, t.segments.contains(where: { $0.speaker != nil }) { s.wantSpeakers = false }
+            // Where the speaker step runs on its own (the iPhone), speakers carry over by time instead of being found
+            // again. Where one job finds both (the Mac), they're found again, so lines split where the speaker changes,
+            // and the names you gave carry onto them (`carryNames`): labels laid over other lines by time were coarse
+            // (November 13, 2026: 62 turns for a 71-minute meeting).
+            if config.speakerPass == .afterWords, t.speakers.count >= 1, t.segments.contains(where: { $0.speaker != nil }) { s.wantSpeakers = false }
         }
         let dict = s.applyDictionary ? store.dictionary : []
         let token = UUID(); runToken = token
@@ -719,6 +723,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
                         if let old {
                             x.previousVersion = old
+                            x.carryNames(from: old)
                             x.carryOver(from: old)
                             x.rerunRequest = nil
                             // Far fewer words than before: the transcript stays, and the new words are the other version.

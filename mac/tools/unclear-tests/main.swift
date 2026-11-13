@@ -146,6 +146,33 @@ do {
           RerunGuard.words(t.segments) == 1000 && t.model == "Parakeet" && RerunGuard.words(t.previousVersion?.segments ?? []) == 300 && t.previousVersion?.model == "Whisper Large v3 Turbo")
 }
 
+// MARK: Names carried onto speakers found again
+
+do {
+    func line(_ a: Double, _ b: Double, _ who: String) -> Segment { Segment(start: a, end: b, text: "words here", speaker: who) }
+    var old = TranscriptVersion()
+    old.speakers = [Speaker(id: "S1", name: "Dana"), Speaker(id: "S2", name: "Lee"), Speaker(id: "S3", name: "Speaker 3")]
+    old.segments = [line(0, 60, "S1"), line(60, 100, "S2"), line(100, 130, "S3"), line(130, 200, "S1")]
+    var t = Transcript(title: "Planning", source: .voiceMemo, sourceLabel: "Voice memo", duration: 200, audioFileName: "planning.m4a", model: "Parakeet")
+    t.speakers = [Speaker(id: "A", name: "Speaker 1"), Speaker(id: "B", name: "Speaker 2"), Speaker(id: "C", name: "Speaker 3"), Speaker(id: "D", name: "Speaker 4")]
+    // Found again: B is Dana's voice, A is Lee's, C is the unnamed one, and D also falls in Dana's time for a moment.
+    t.segments = [line(0, 20, "B"), line(20, 24, "D"), line(24, 60, "B"), line(60, 100, "A"), line(100, 130, "C"), line(130, 200, "B")]
+    t.carryNames(from: old)
+    let names = Dictionary(uniqueKeysWithValues: t.speakers.map { ($0.id, $0.name) })
+    check("names: each speaker found again takes the name of the old speaker it shares the most time with", names["B"] == "Dana" && names["A"] == "Lee", "\(names)")
+    check("names: an unnamed old speaker gives no name, and a name goes to one speaker only", names["C"] == "Speaker 3" && names["D"] == "Speaker 4", "\(names)")
+    var plain = t
+    plain.speakers = [Speaker(id: "A", name: "Speaker 1")]
+    var nobody = old
+    nobody.speakers = [Speaker(id: "S1", name: "Speaker 1")]
+    plain.carryNames(from: nobody)
+    check("names: nothing to carry when nobody was named", plain.speakers.map(\.name) == ["Speaker 1"])
+    var mine = t
+    mine.speakers[0].name = "Sam"
+    mine.carryNames(from: old)
+    check("names: a name already on the new speaker stays", mine.speakers[0].name == "Sam")
+}
+
 // MARK: Splitting at long pauses
 
 do {
