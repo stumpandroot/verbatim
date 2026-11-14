@@ -134,7 +134,7 @@ final class BuiltText {
         }
         text = out
         lines = places
-        marks = found
+        self.marks = found
         self.key = key
         self.textKey = textKey
         let ms = Int(Date().timeIntervalSince(began) * 1000)
