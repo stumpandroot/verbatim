@@ -50,6 +50,15 @@
           "icon": "swap",
           "text": "If Transcribe again returns far fewer words, your transcript stays as it was.",
           "detail": "Verbose tells you both word counts and keeps the shorter version, so you can still switch to it."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Select text stays smooth",
+          "icon": "words",
+          "text": "Select text no longer pauses on a long meeting each time the playing line moves.",
+          "detail": "Before, a meeting of an hour or more could stall for a second or two at every new line while it played."
         }
       ]
     },
