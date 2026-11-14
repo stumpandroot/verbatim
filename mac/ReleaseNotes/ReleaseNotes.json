@@ -2,6 +2,24 @@
   "notes": [
     {
       "build": "next",
+      "title": "A quicker first dictation",
+      "items": [
+        {
+          "platforms": [
+            "mac",
+            "iphone"
+          ],
+          "head": "Built-in words are ready sooner",
+          "icon": "words",
+          "text": "Verbose prepares its built-in word list in the background when it opens.",
+          "detail": "Before, the first dictation or transcript after opening the app waited for the list."
+        }
+      ]
+    },
+    {
+      "build": "344",
+      "date": "2026-11-14",
+      "version": "1.0 beta",
       "title": "Speakers on long iPhone meetings",
       "items": [
         {
