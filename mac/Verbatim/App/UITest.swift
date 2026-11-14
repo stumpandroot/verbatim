@@ -656,6 +656,12 @@ enum UITest {
         await show("05e-recently-deleted")
         if let m = memo { app.go(.transcript(m.id)) }
         await show("06-transcript")
+        // Select text: the same transcript as one selectable text; it must look like the lines above.
+        WindowNav.shared.selecting = true
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        await show("06s-transcript-select-text")
+        WindowNav.shared.selecting = false
+        try? await Task.sleep(nanoseconds: 400_000_000)
         if let m = memo { transcriptLayoutCheck(app, m.id) }
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Summary")
         await show("06h-transcript-summary")
@@ -798,6 +804,12 @@ enum UITest {
         await meetingPromptShot("11e-dark-meeting-prompt")
         if let m = memo { app.go(.transcript(m.id)) }
         await show("12-dark-transcript")
+        // Select text: the same transcript as one selectable text; it must look like the lines above.
+        WindowNav.shared.selecting = true
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        await show("12s-dark-transcript-select-text")
+        WindowNav.shared.selecting = false
+        try? await Task.sleep(nanoseconds: 400_000_000)
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         await show("13-dark-document")
