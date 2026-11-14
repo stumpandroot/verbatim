@@ -9,8 +9,10 @@ import AppKit
 ///
 /// One text view: the playing wash is painted over the lines that play without touching the text, so a long meeting
 /// doesn't lay out again each time the playing line moves (as one SwiftUI `Text` did, for 1.5 s to 2.8 s at 4,000
-/// lines). The layout itself runs in short slices between turns of the main thread, so opening a long meeting, typing
-/// in the find bar, and resizing the window don't hold the app either; the first time, the text grows from the top.
+/// lines). Matches are painted the same way, so typing in the find bar doesn't lay it out either. The text goes into
+/// the view a stretch at a time between turns of the main thread, each stretch laid out as it arrives: a long meeting
+/// grows from the top for a few seconds instead of holding the app (given all at once, AppKit laid the whole text out
+/// the moment the view went on screen, 4 s at 4,000 lines).
 struct SelectableLines: View {
     @Environment(AppState.self) var app
     var clock: PlayerClock
@@ -51,18 +53,21 @@ struct SelectableLines: View {
     /// Every line as "0:12  text", speaker names where the speaker changes, a blank line between speakers, matches in
     /// butter. Built again only when its words, names, query, or size change.
     private func text(query: String, minLength: Int) -> BuiltText {
-        let key = contentKey(query: query, minLength: minLength)
+        let textKey = contentKey()
+        var h = Hasher()
+        h.combine(textKey); h.combine(query); h.combine(minLength)
+        let key = h.finalize()
         if built.key != key {
-            built.build(segments, transcript: transcript, query: query, minLength: minLength, size: textSize, key: key)
+            built.build(segments, transcript: transcript, query: query, minLength: minLength, size: textSize, key: key, textKey: textKey)
         }
         return built
     }
 
-    /// Everything the built text depends on: each line's id, time, speaker, and words, the speakers' names, the query,
-    /// and the text size. Hashing it costs far less than building the text.
-    private func contentKey(query: String, minLength: Int) -> Int {
+    /// Everything the text itself depends on: each line's id, time, speaker, and words, the speakers' names, and the
+    /// text size (not the query: matches are painted over the text). Hashing it costs far less than building the text.
+    private func contentKey() -> Int {
         var h = Hasher()
-        h.combine(query); h.combine(minLength); h.combine(textSize)
+        h.combine(textSize)
         h.combine(transcript.speakers.count)
         for sp in transcript.speakers { h.combine(sp.id); h.combine(sp.label) }
         h.combine(segments.count)
@@ -75,11 +80,15 @@ struct SelectableLines: View {
 /// the playing lines alone. A class kept in `@State`: building it during a render changes nothing a view observes.
 @MainActor
 final class BuiltText {
+    /// `key` covers the text and the query; `textKey` the text alone (the same text with new matches keeps it).
     private(set) var key: Int?
+    private(set) var textKey: Int?
     private(set) var text = NSAttributedString()
     private(set) var lines: [UUID: [NSRange]] = [:]
+    /// Where the query matches, by line; painted over the text (SelectableTextView), not part of it.
+    private(set) var marks: [UUID: [NSRange]] = [:]
 
-    func build(_ segments: [Segment], transcript: Transcript, query: String, minLength: Int, size: CGFloat, key: Int) {
+    func build(_ segments: [Segment], transcript: Transcript, query: String, minLength: Int, size: CGFloat, key: Int, textKey: Int) {
         let base = RefinedRules.TextRole.reading.size(mac: RefinedPlatform.mac)
         let spacing = RefinedRules.lineSpacing(.reading, mac: RefinedPlatform.mac) / base
         let para = NSMutableParagraphStyle()
@@ -93,12 +102,12 @@ final class BuiltText {
         timeStyle[.font] = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .regular)
         timeStyle[.foregroundColor] = NSColor(Refined.mute)
         let began = Date()
-        let butter = NSColor(Refined.badge(.butter)), onFill = NSColor(Refined.onFill)
         let q = query.trimmingCharacters(in: .whitespaces)
         let marks = q.count >= max(1, minLength)
 
         let out = NSMutableAttributedString()
         var places: [UUID: [NSRange]] = [:]
+        var found: [UUID: [NSRange]] = [:]
         let multi = transcript.speakers.count >= 2
         for (i, s) in segments.enumerated() {
             let changed = multi && s.speaker != nil && (i == 0 || segments[i - 1].speaker != s.speaker)
@@ -119,21 +128,23 @@ final class BuiltText {
             while from < words.length {
                 let r = words.range(of: q, options: [.caseInsensitive, .diacriticInsensitive], range: NSRange(location: from, length: words.length - from))
                 guard r.location != NSNotFound, r.length > 0 else { break }
-                out.addAttributes([.backgroundColor: butter, .foregroundColor: onFill], range: NSRange(location: at + r.location, length: r.length))
+                found[s.id, default: []].append(NSRange(location: at + r.location, length: r.length))
                 from = r.location + r.length
             }
         }
         text = out
         lines = places
+        marks = found
         self.key = key
+        self.textKey = textKey
         let ms = Int(Date().timeIntervalSince(began) * 1000)
         if ms >= 50 { Log.note("select text: built \(segments.count) lines in \(ms) ms") }
     }
 }
 
 /// The text view under SelectableLines: read-only, selectable, as wide as it's given and as tall as its text (the
-/// transcript's scroll view scrolls it). The playing wash is a temporary attribute, which repaints those lines without
-/// laying the text out again; it leaves search matches in their butter.
+/// transcript's scroll view scrolls it). The playing wash and the matches are temporary attributes, which repaint those
+/// lines without laying the text out again.
 private struct SelectableTextView: NSViewRepresentable {
     var built: BuiltText
     var playing: Set<UUID>
@@ -148,8 +159,8 @@ private struct SelectableTextView: NSViewRepresentable {
         let layout = NSLayoutManager()
         layout.backgroundLayoutEnabled = false
         let container = NSTextContainer(size: NSSize(width: 600, height: CGFloat.greatestFiniteMagnitude))
-        // The width is set by hand (Coordinator.layOut): tracking the view would make the container zero wide before
-        // SwiftUI places the view, and anything that asked for layout then would break the text one glyph to a line.
+        // The width is set by hand (Coordinator.setWidth), so the container is never zero wide before SwiftUI places
+        // the view.
         container.widthTracksTextView = false
         container.lineFragmentPadding = 0
         layout.addTextContainer(container)
@@ -169,18 +180,18 @@ private struct SelectableTextView: NSViewRepresentable {
         let c = context.coordinator
         v.onWidth = { [weak v, weak c] _ in
             guard let v, let c else { return }
-            c.layOut(v)
+            c.setWidth(v)
         }
         c.onSeek = onSeek
         c.onHeight = onHeight
-        apply(to: v, c)
+        c.show(built, playing: playing, in: v)
         return v
     }
 
     func updateNSView(_ v: NSTextView, context: Context) {
         context.coordinator.onSeek = onSeek
         context.coordinator.onHeight = onHeight
-        apply(to: v, context.coordinator)
+        context.coordinator.show(built, playing: playing, in: v)
     }
 
     /// The width SwiftUI offers and the height it already has (the frame around this view carries the measured
@@ -195,92 +206,147 @@ private struct SelectableTextView: NSViewRepresentable {
         coordinator.task?.cancel()
     }
 
-    private func apply(to v: NSTextView, _ c: Coordinator) {
-        guard let layout = v.layoutManager else { return }
-        if c.key != built.key {
-            let began = Date()
-            v.textStorage?.setAttributedString(built.text)
-            let ms = Int(Date().timeIntervalSince(began) * 1000)
-            if ms >= 50 { Log.note("select text: set \(built.text.length) characters in \(ms) ms") }
-            c.key = built.key
-            c.washed = []
-        }
-        c.layOut(v)
-        guard c.washed != playing || c.washedKey != c.key else { return }
-        let length = v.textStorage?.length ?? 0
-        for id in c.washed {
-            for r in built.lines[id] ?? [] where NSMaxRange(r) <= length { layout.removeTemporaryAttribute(.backgroundColor, forCharacterRange: r) }
-        }
-        let wash = NSColor(Refined.playing)
-        for id in playing {
-            for r in built.lines[id] ?? [] where NSMaxRange(r) <= length {
-                // Around the matches: a temporary attribute would paint over their butter.
-                v.textStorage?.enumerateAttribute(.backgroundColor, in: r) { value, part, _ in
-                    if value == nil { layout.addTemporaryAttribute(.backgroundColor, value: wash, forCharacterRange: part) }
-                }
-            }
-        }
-        c.washed = playing
-        c.washedKey = c.key
-    }
-
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var onSeek: (Double) -> Void = { _ in }
         var onHeight: (CGFloat) -> Void = { _ in }
-        /// The built text now in the view, and the lines that carry the wash.
-        var key: Int?
-        var washed: Set<UUID> = []
-        var washedKey: Int?
-        /// The text and width the layout is running for (or ran for), and whether a whole layout has finished once.
-        var laidKey: Int?
-        var laidWidth: CGFloat = 0
-        var measured = false
+        /// The text in the view (or on its way in), and where its lines and matches are.
+        private var textKey: Int?
+        private var key: Int?
+        private var lines: [UUID: [NSRange]] = [:]
+        private var marks: [UUID: [NSRange]] = [:]
+        private var playing: Set<UUID> = []
+        /// What's painted: the key its matches were painted for, and the lines that carry the wash.
+        private var paintedKey: Int?
+        private var washed: Set<UUID> = []
+        /// True while the text is still going into the view.
+        private var filling = false
+        private var width: CGFloat = 600
         var task: Task<Void, Never>?
-        /// When the view was made, for the log line on how long SwiftUI took to give it a width.
-        let made = Date()
 
-        /// Lays the text out in slices of about 20 ms with the main thread free between them, then reports the height.
-        /// The first time, the height is reported as it grows, so the text appears from the top; after that (a new
-        /// width, or new words or matches) the old height stays until the new one is known, which keeps your place.
-        func layOut(_ v: NSTextView) {
-            let width = v.frame.width
-            guard width >= 1, key != laidKey || abs(width - laidWidth) > 0.5 else { return }
-            guard let layout = v.layoutManager, let container = v.textContainer, let storage = v.textStorage else { return }
-            if laidKey == nil {
-                let ms = Int(Date().timeIntervalSince(made) * 1000)
-                if ms >= 100 { Log.note("select text: first width \(Int(width)) after \(ms) ms") }
+        /// About 20 ms of layout at 4,000 lines an hour of meeting.
+        private static let stretch = 1_500
+
+        func show(_ built: BuiltText, playing: Set<UUID>, in v: NSTextView) {
+            self.playing = playing
+            lines = built.lines
+            marks = built.marks
+            key = built.key
+            if textKey != built.textKey {
+                textKey = built.textKey
+                fill(v, with: built.text)
             }
-            laidKey = key
-            laidWidth = width
-            container.size = NSSize(width: width, height: .greatestFiniteMagnitude)
+            paint(v)
+        }
+
+        /// Puts the text into the view a stretch at a time (whole paragraphs), laying each out as it arrives, with the
+        /// main thread free between slices of about 20 ms. The height is reported as it grows. The text view never
+        /// holds text it hasn't laid out, so nothing AppKit asks of it can lay the whole meeting out in one go.
+        private func fill(_ v: NSTextView, with text: NSAttributedString) {
+            guard let layout = v.layoutManager, let container = v.textContainer, let storage = v.textStorage else { return }
             task?.cancel()
-            let total = storage.length
-            let growing = !measured
+            filling = true
+            storage.setAttributedString(NSAttributedString())
+            paintedKey = nil
+            washed = []
+            let mine = textKey
+            let whole = text.string as NSString
+            let total = whole.length
             let began = Date()
-            task = Task { @MainActor [weak self] in
+            task = Task { @MainActor [weak self, weak v] in
                 var at = 0
-                var reported = Date.distantPast
+                var reported = Date()
                 while at < total {
                     let slice = Date()
                     while at < total, Date().timeIntervalSince(slice) < 0.02 {
-                        let n = min(4_000, total - at)
-                        layout.ensureLayout(forCharacterRange: NSRange(location: at, length: n))
-                        at += n
+                        let para = whole.paragraphRange(for: NSRange(location: at, length: min(Coordinator.stretch, total - at)))
+                        let piece = NSRange(location: at, length: NSMaxRange(para) - at)
+                        storage.append(text.attributedSubstring(from: piece))
+                        layout.ensureLayout(forCharacterRange: piece)
+                        at = NSMaxRange(piece)
                     }
-                    if growing, at < total, Date().timeIntervalSince(reported) > 0.12 {
+                    if at < total, Date().timeIntervalSince(reported) > 0.12 {
                         reported = Date()
                         self?.onHeight(ceil(layout.usedRect(for: container).height))
                     }
                     try? await Task.sleep(nanoseconds: 4_000_000)
-                    if Task.isCancelled || storage.length != total { return }
+                    guard !Task.isCancelled, let self, self.textKey == mine else { return }
                 }
-                layout.ensureLayout(for: container)
-                self?.measured = true
-                self?.onHeight(ceil(layout.usedRect(for: container).height))
+                guard let self, let v else { return }
+                self.filling = false
+                self.onHeight(ceil(layout.usedRect(for: container).height))
+                // The wash and the matches for lines that weren't in the view yet.
+                self.paintedKey = nil
+                self.paint(v)
                 let ms = Int(Date().timeIntervalSince(began) * 1000)
-                if ms >= 100 { Log.note("select text: laid out \(total) characters in \(ms) ms at width \(Int(width))") }
+                if ms >= 100 { Log.note("select text: filled \(total) characters in \(ms) ms") }
             }
+        }
+
+        /// A new width: the lines break again. Laid out in slices, then the new height; until then the old height
+        /// stays, which keeps your place. While the text is still going in, the fill lays it out at the new width.
+        func setWidth(_ v: NSTextView) {
+            let w = v.frame.width
+            guard w >= 1, abs(w - width) > 0.5 else { return }
+            guard let layout = v.layoutManager, let container = v.textContainer, let storage = v.textStorage else { return }
+            width = w
+            container.size = NSSize(width: w, height: .greatestFiniteMagnitude)
+            guard !filling else { return }
+            task?.cancel()
+            let total = storage.length
+            let mine = textKey
+            task = Task { @MainActor [weak self] in
+                var at = 0
+                while at < total {
+                    let slice = Date()
+                    while at < total, Date().timeIntervalSince(slice) < 0.02 {
+                        let n = min(Coordinator.stretch, total - at)
+                        layout.ensureLayout(forCharacterRange: NSRange(location: at, length: n))
+                        at += n
+                    }
+                    try? await Task.sleep(nanoseconds: 4_000_000)
+                    guard !Task.isCancelled, let self, self.textKey == mine, storage.length == total else { return }
+                }
+                self?.onHeight(ceil(layout.usedRect(for: container).height))
+            }
+        }
+
+        /// Paints the matches (butter) and the playing wash as temporary attributes: no layout. New matches repaint
+        /// everything; a new playing line repaints the lines that changed. Lines not in the view yet are left for the
+        /// end of the fill.
+        private func paint(_ v: NSTextView) {
+            guard let layout = v.layoutManager, let length = v.textStorage?.length, length > 0 else { return }
+            let wash = NSColor(Refined.playing)
+            let butter = NSColor(Refined.badge(.butter)), onFill = NSColor(Refined.onFill)
+            func clear(_ id: UUID) {
+                for r in lines[id] ?? [] where NSMaxRange(r) <= length {
+                    layout.removeTemporaryAttribute(.backgroundColor, forCharacterRange: r)
+                    layout.removeTemporaryAttribute(.foregroundColor, forCharacterRange: r)
+                }
+            }
+            func mark(_ id: UUID) {
+                for r in marks[id] ?? [] where NSMaxRange(r) <= length {
+                    layout.addTemporaryAttributes([.backgroundColor: butter, .foregroundColor: onFill], forCharacterRange: r)
+                }
+            }
+            func washLine(_ id: UUID) {
+                for r in lines[id] ?? [] where NSMaxRange(r) <= length {
+                    layout.addTemporaryAttribute(.backgroundColor, value: wash, forCharacterRange: r)
+                }
+                mark(id)
+            }
+            if paintedKey != key {
+                let all = NSRange(location: 0, length: length)
+                layout.removeTemporaryAttribute(.backgroundColor, forCharacterRange: all)
+                layout.removeTemporaryAttribute(.foregroundColor, forCharacterRange: all)
+                for id in marks.keys { mark(id) }
+                for id in playing { washLine(id) }
+                paintedKey = key
+            } else if washed != playing {
+                for id in washed.subtracting(playing) { clear(id); mark(id) }
+                for id in playing.subtracting(washed) { washLine(id) }
+            }
+            washed = playing
         }
 
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
