@@ -782,6 +782,7 @@ final class Store: Observable {
     /// `finishLoad` takes them on main.
     private func decodeTranscripts(budget: LaunchBudget) {
         let deferred = Cloud.deferredAtLaunch
+        let started = loadStarted
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager.default
             let files = ((try? fm.contentsOfDirectory(at: Paths.transcripts, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "json" }
@@ -804,6 +805,11 @@ final class Store: Observable {
                 slots.set(i, (t, mod))
             }
             Perf.signposter.endInterval("Store.decode", decode)
+            // When the files were read, apart from how long the main thread then took to pick them up (finishLoad).
+            let decodedMs = Int((Date().timeIntervalSince(started) * 1000).rounded())
+            Log.note("load: read \(files.count) files in \(decodedMs) ms")
+            // The built-in vocabulary's patterns, compiled here so the first dictation doesn't wait for them.
+            DispatchQueue.global(qos: .userInitiated).async { BuiltInVocabulary.warm() }
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.finishLoad(files: files, slots: slots) } }
         }
     }
@@ -811,6 +817,7 @@ final class Store: Observable {
     /// The decoded transcripts join the library, then everything launch did after reading them runs in the same
     /// order as before: legacy rewrites, stuck imports, housekeeping, orphan recovery or the late reads, CloudSync.
     private func finishLoad(files: [URL], slots: LoadSlots) {
+        let finishStarted = Date()
         var list: [Transcript] = [], dates: [UUID: Date] = [:]
         var stuck: [UUID] = []
         for case let slot? in slots.items {
@@ -856,7 +863,7 @@ final class Store: Observable {
         Cloud.deferredAtLaunch = []
         if let interval = loadInterval { Perf.signposter.endInterval("Store.load", interval); loadInterval = nil }
         loadMs = Date().timeIntervalSince(loadStarted) * 1000
-        Log.note("load: \(transcripts.count) transcripts in \(Int(loadMs.rounded())) ms")
+        Log.note("load: \(transcripts.count) transcripts in \(Int(loadMs.rounded())) ms (\(Int((Date().timeIntervalSince(finishStarted) * 1000).rounded())) ms on the main thread)")
         LaunchClock.libraryLoaded()
         isLoaded = true
         let waiting = loadedCallbacks

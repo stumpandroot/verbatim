@@ -263,8 +263,18 @@ enum BuiltInVocabulary {
         return out
     }
 
-    /// Compiled once; NSRegularExpression is safe to share across threads.
-    private static let allRules: [Rule] = rules(for: terms)
+    /// Compiled once; NSRegularExpression is safe to share across threads. Compiling the whole list takes a moment
+    /// (a few thousand patterns), so launch does it in the background (`warm`) before the first dictation needs it.
+    static let allRules: [Rule] = rules(for: terms)
+
+    /// Compiles the rules now. Call off the main thread, at launch.
+    static func warm() { _ = allRules }
+
+    /// The compiled rules for `terms` only, in the same order (what `rules(for:)` gives, without compiling again).
+    static func compiled(for terms: [BuiltInTerm]) -> [Rule] {
+        let on = Set(terms.map(\.id))
+        return allRules.filter { on.contains($0.term) }
+    }
 
     // MARK: Applying
 

@@ -5,7 +5,8 @@ import Foundation
 enum VocabularySelfTest {
     static func run(_ check: (String, Bool) -> Void) {
         // The bundled list, whatever the switch says on this device.
-        let rules = BuiltInVocabulary.rules(for: BuiltInVocabulary.terms)
+        // The app's own compiled rules: compiling the list again here held the main thread for seconds.
+        let rules = BuiltInVocabulary.allRules
         check("vocabulary: the built-in list loads", BuiltInVocabulary.terms.count >= 300 && rules.count > BuiltInVocabulary.terms.count)
         func same(_ s: String) -> Bool {
             let got = BuiltInVocabulary.fix(s, rules: rules)
@@ -51,7 +52,7 @@ enum VocabularySelfTest {
               && VocabularyField.allCases.filter { !$0.isOnByDefault } == [.medical, .legal, .faith]
               && VocabularyField(category: "Film and video") == .film && VocabularyField(category: "AI") == nil)
         let byDefault = BuiltInVocabulary.active(BuiltInVocabulary.terms, on: true, disabled: [], fieldsOff: [.medical, .legal, .faith])
-        let defaultRules = BuiltInVocabulary.rules(for: byDefault)
+        let defaultRules = BuiltInVocabulary.compiled(for: byDefault)
         check("vocabulary: specialty fields that are off don't run", !byDefault.contains { $0.term == "metformin" }
               && BuiltInVocabulary.fix("Start metforman and read phillipians.", rules: defaultRules) == "Start metforman and read phillipians."
               && BuiltInVocabulary.fix("Shoot h 264.", rules: defaultRules) == "Shoot H.264.")

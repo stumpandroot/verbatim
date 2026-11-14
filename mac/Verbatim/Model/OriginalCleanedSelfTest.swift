@@ -36,7 +36,7 @@ enum OriginalCleanedSelfTest {
 
         // Built-in vocabulary keeps spans too.
         var built = [Segment(start: 0, end: 1, text: "Ask chat GPT, then chat GPT again.")]
-        let rules = BuiltInVocabulary.rules(for: BuiltInVocabulary.terms)
+        let rules = BuiltInVocabulary.allRules
         let fixes = BuiltInVocabulary.apply(to: &built, rules: rules, respecting: [])
         check("corrections: built-in fixes record where they went", built[0].text == "Ask ChatGPT, then ChatGPT again."
               && fixes.contains { $0.to == "ChatGPT" && $0.spans?.count == 2 })

@@ -383,12 +383,9 @@ jobs:
           PUB="$RUNNER_TEMP/ci-screens"; DIAG="$RUNNER_TEMP/diagnostics"
           rm -rf "$PUB" "$DIAG"; mkdir -p "$PUB" "$DIAG" dist/screens
           open --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app > "$DIAG/open-${N}.txt" 2>&1; echo "open exit=$?" >> "$DIAG/open-${N}.txt"
-          sleep 20
-          perl -e 'alarm 15; exec @ARGV' screencapture -x "$PUB/transcript-${N}.png" || true
-          # Screenshot tour: the app writes the current screen's name to show.txt; capture each one.
-          SHOW="$HOME/Library/Logs/Verbatim/show.txt"; TOUR="$PUB/screens-${N}"; mkdir -p "$TOUR"; last=""
           # A stack for each of the first eight stalls: when the app's log says the main thread stopped answering
           # (HangWatch, 1.5 s in), sample it for a second, so a failed stall check names what was running.
+          # Started before the wait below, so a stall during launch is sampled while it happens.
           rm -f "$RUNNER_TEMP/tour-done"
           (
             set +x
@@ -402,6 +399,10 @@ jobs:
               sleep 0.2
             done
           ) &
+          sleep 20
+          perl -e 'alarm 15; exec @ARGV' screencapture -x "$PUB/transcript-${N}.png" || true
+          # Screenshot tour: the app writes the current screen's name to show.txt; capture each one.
+          SHOW="$HOME/Library/Logs/Verbatim/show.txt"; TOUR="$PUB/screens-${N}"; mkdir -p "$TOUR"; last=""
           # Wait for "done" (up to 15 minutes) so the sampler below never pauses the app mid-tour.
           deadline=$(( $(date +%s) + 900 ))
           while [ "$(date +%s)" -lt "$deadline" ]; do
