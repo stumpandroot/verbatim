@@ -148,11 +148,13 @@ private struct SelectableTextView: NSViewRepresentable {
         let layout = NSLayoutManager()
         layout.backgroundLayoutEnabled = false
         let container = NSTextContainer(size: NSSize(width: 600, height: CGFloat.greatestFiniteMagnitude))
-        container.widthTracksTextView = true
+        // The width is set by hand (Coordinator.layOut): tracking the view would make the container zero wide before
+        // SwiftUI places the view, and anything that asked for layout then would break the text one glyph to a line.
+        container.widthTracksTextView = false
         container.lineFragmentPadding = 0
         layout.addTextContainer(container)
         storage.addLayoutManager(layout)
-        let v = WidthWatchingTextView(frame: .zero, textContainer: container)
+        let v = WidthWatchingTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 1), textContainer: container)
         v.isEditable = false
         v.isSelectable = true
         v.isRichText = true
@@ -181,6 +183,14 @@ private struct SelectableTextView: NSViewRepresentable {
         apply(to: v, context.coordinator)
     }
 
+    /// The width SwiftUI offers and the height it already has (the frame around this view carries the measured
+    /// height), so sizing never asks the text view to lay anything out.
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextView, context: Context) -> CGSize? {
+        let w = proposal.width ?? 600
+        let h = proposal.height ?? 1
+        return CGSize(width: w.isFinite ? w : 600, height: h.isFinite ? h : 1)
+    }
+
     static func dismantleNSView(_ v: NSTextView, coordinator: Coordinator) {
         coordinator.task?.cancel()
     }
@@ -188,7 +198,10 @@ private struct SelectableTextView: NSViewRepresentable {
     private func apply(to v: NSTextView, _ c: Coordinator) {
         guard let layout = v.layoutManager else { return }
         if c.key != built.key {
+            let began = Date()
             v.textStorage?.setAttributedString(built.text)
+            let ms = Int(Date().timeIntervalSince(began) * 1000)
+            if ms >= 50 { Log.note("select text: set \(built.text.length) characters in \(ms) ms") }
             c.key = built.key
             c.washed = []
         }
@@ -224,6 +237,8 @@ private struct SelectableTextView: NSViewRepresentable {
         var laidWidth: CGFloat = 0
         var measured = false
         var task: Task<Void, Never>?
+        /// When the view was made, for the log line on how long SwiftUI took to give it a width.
+        let made = Date()
 
         /// Lays the text out in slices of about 20 ms with the main thread free between them, then reports the height.
         /// The first time, the height is reported as it grows, so the text appears from the top; after that (a new
@@ -232,8 +247,13 @@ private struct SelectableTextView: NSViewRepresentable {
             let width = v.frame.width
             guard width >= 1, key != laidKey || abs(width - laidWidth) > 0.5 else { return }
             guard let layout = v.layoutManager, let container = v.textContainer, let storage = v.textStorage else { return }
+            if laidKey == nil {
+                let ms = Int(Date().timeIntervalSince(made) * 1000)
+                if ms >= 100 { Log.note("select text: first width \(Int(width)) after \(ms) ms") }
+            }
             laidKey = key
             laidWidth = width
+            container.size = NSSize(width: width, height: .greatestFiniteMagnitude)
             task?.cancel()
             let total = storage.length
             let growing = !measured
@@ -275,6 +295,9 @@ private struct SelectableTextView: NSViewRepresentable {
 private final class WidthWatchingTextView: NSTextView {
     var onWidth: ((CGFloat) -> Void)?
     private var lastWidth: CGFloat = -1
+
+    /// No size of its own: SwiftUI sets the frame, and asking must never force a layout.
+    override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric) }
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
