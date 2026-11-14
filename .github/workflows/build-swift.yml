@@ -394,7 +394,8 @@ jobs:
               n="$(grep -c 'hang: main thread not responding' "$LOG" 2>/dev/null)"; n="${n:-0}"
               if [ "$n" -gt "$seen" ]; then
                 seen="$n"; k=$((k+1)); P="$(pgrep -x Verbatim | head -1)"
-                [ -n "$P" ] && perl -e 'alarm 10; exec @ARGV' sample "$P" 1 -file "$DIAG/hang-${N}-${k}.txt" > /dev/null 2>&1
+                # Up to 45 s: on a busy machine at launch, sample took longer than 10 s to attach and left no file.
+                [ -n "$P" ] && perl -e 'alarm 45; exec @ARGV' sample "$P" 2 -file "$DIAG/hang-${N}-${k}.txt" > "$DIAG/hang-${N}-${k}.log" 2>&1
               fi
               sleep 0.2
             done
