@@ -2,7 +2,7 @@
   "notes": [
     {
       "build": "next",
-      "title": "A quicker first dictation",
+      "title": "A quicker start",
       "items": [
         {
           "platforms": [
@@ -13,6 +13,15 @@
           "icon": "words",
           "text": "Verbose prepares its built-in word list in the background when it opens.",
           "detail": "Before, the first dictation or transcript after opening the app waited for the list."
+        },
+        {
+         "platforms": [
+          "mac"
+         ],
+         "head": "Sounds load in the background",
+         "icon": "audio",
+         "text": "Verbose prepares its sounds in the background, so the window responds sooner.",
+         "detail": "Before, the window could pause right after it appeared while the sounds loaded."
         }
       ]
     },
