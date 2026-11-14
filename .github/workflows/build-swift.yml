@@ -387,6 +387,21 @@ jobs:
           perl -e 'alarm 15; exec @ARGV' screencapture -x "$PUB/transcript-${N}.png" || true
           # Screenshot tour: the app writes the current screen's name to show.txt; capture each one.
           SHOW="$HOME/Library/Logs/Verbatim/show.txt"; TOUR="$PUB/screens-${N}"; mkdir -p "$TOUR"; last=""
+          # A stack for each of the first eight stalls: when the app's log says the main thread stopped answering
+          # (HangWatch, 1.5 s in), sample it for a second, so a failed stall check names what was running.
+          rm -f "$RUNNER_TEMP/tour-done"
+          (
+            set +x
+            LOG="$HOME/Library/Logs/Verbatim/native.log"; seen=0; k=0
+            while [ ! -f "$RUNNER_TEMP/tour-done" ] && [ "$k" -lt 8 ]; do
+              n="$(grep -c 'hang: main thread not responding' "$LOG" 2>/dev/null)"; n="${n:-0}"
+              if [ "$n" -gt "$seen" ]; then
+                seen="$n"; k=$((k+1)); P="$(pgrep -x Verbatim | head -1)"
+                [ -n "$P" ] && perl -e 'alarm 10; exec @ARGV' sample "$P" 1 -file "$DIAG/hang-${N}-${k}.txt" > /dev/null 2>&1
+              fi
+              sleep 0.2
+            done
+          ) &
           # Wait for "done" (up to 15 minutes) so the sampler below never pauses the app mid-tour.
           deadline=$(( $(date +%s) + 900 ))
           while [ "$(date +%s)" -lt "$deadline" ]; do
@@ -397,6 +412,7 @@ jobs:
             fi
             sleep 0.5
           done
+          touch "$RUNNER_TEMP/tour-done"
           # The two-column pages at 1,440 pt, wider than this display, drawn by the app off screen (UITest.wideShots).
           cp "$HOME/Library/Logs/Verbatim/wide/"*.png "$TOUR/" 2>/dev/null || true
           (cd "$PUB" && zip -qr "screens-${N}.zip" "screens-${N}" && rm -rf "screens-${N}") || true
