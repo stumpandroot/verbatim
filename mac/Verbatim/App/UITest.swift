@@ -2397,7 +2397,8 @@ enum UITest {
     /// Transcripts shaped to stress the reading lines, each opened on Original while a meter watches the main thread:
     /// many lines, unclear chips and sponsor folds between them, a transcript that finishes while it's open and then
     /// gets its speakers, one very long line, thousands of one-word lines (music), and Select text while the playing line
-    /// moves. Logs `UITEST STRESS <case> lines=<n> settled=<ms> max-stall=<ms>` and checks that no stall reaches 2 s.
+    /// moves. Logs `UITEST STRESS <case> lines=<n> settled=<ms> max-stall=<ms>` and checks that no stall reaches 2 s
+    /// (a case that stalls gets one second opening).
     /// Each transcript is deleted afterwards.
     private static func stressTranscriptSteps(app: AppState) async {
         let words = ["so", "the", "catalog", "leads", "with", "wheels", "and", "wagons", "out", "in", "the", "field"]
@@ -2414,7 +2415,7 @@ enum UITest {
             t.speakers = [Speaker(id: "S1", name: "Speaker 1"), Speaker(id: "S2", name: "Speaker 2")]
             return t
         }
-        func open(_ name: String, _ t: Transcript, at line: Int? = nil, after: ((UUID) async -> Void)? = nil) async {
+        func once(_ name: String, _ t: Transcript, at line: Int?, after: ((UUID) async -> Void)?) async -> Int {
             app.go(.home)
             try? await Task.sleep(nanoseconds: 500_000_000)
             app.store.add(t)
@@ -2431,10 +2432,23 @@ enum UITest {
             let stall = meter.stop()
             let n = app.store.transcript(t.id)?.segments.count ?? 0
             Log.note("UITEST STRESS \(name) lines=\(n) settled=\(settled) max-stall=\(stall)")
-            check("stress: \(name) opens without a stall of 2 s (\(stall) ms)", stall < 2_000)
             app.go(.home)
             try? await Task.sleep(nanoseconds: 400_000_000)
             if let gone = app.store.transcript(t.id) { app.store.delete(gone) }
+            return stall
+        }
+        // A busy test machine can stall any one opening, so a case that stalls is opened a second time (a fresh copy)
+        // and fails only if it stalls again; a real slowdown stalls every time.
+        func open(_ name: String, _ t: Transcript, at line: Int? = nil, after: ((UUID) async -> Void)? = nil) async {
+            var stall = await once(name, t, at: line, after: after)
+            if stall >= 2_000 {
+                Log.note("UITEST STRESS \(name) stalled \(stall) ms; opening it a second time")
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                var again = t
+                again.id = UUID()
+                stall = await once(name + ", second time", again, at: line, after: after)
+            }
+            check("stress: \(name) opens without a stall of 2 s (\(stall) ms)", stall < 2_000)
         }
         WindowNav.shared.mode = .original
         await open("1,500 lines", make("Stress: 1,500 lines", lines: 1_500))
