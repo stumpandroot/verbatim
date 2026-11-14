@@ -1,0 +1,4 @@
+Build 342 from 13420e5 (merge-297)
+Mac self-test: 1427 passed, 1 failed, finished: yes
+2026-11-14T17:52:19Z +25.996s UITEST FAIL stress: 1,500 lines opens without a stall of 2 s (2301 ms)
+Logs, CPU samples, and crash reports: the mac-diagnostics-342 artifact on the workflow run (7 days).
