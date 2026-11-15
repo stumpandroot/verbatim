@@ -61,6 +61,15 @@ enum Sounds {
         #endif
     }
 
+    /// Whether every sound is prepared (the Mac prepares them in the background at launch).
+    static var allPrepared: Bool {
+        #if os(macOS)
+        return players.count == SoundMoment.allCases.count
+        #else
+        return ids.count == SoundMoment.allCases.count
+        #endif
+    }
+
     /// The moments whose file is missing or won't load (the self-tests expect none).
     static func unloadable() -> [SoundMoment] {
         SoundMoment.allCases.filter { !loaded($0) }

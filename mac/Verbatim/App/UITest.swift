@@ -52,6 +52,9 @@ enum UITest {
             // The Thoughts bubble stays off the screenshots except its own (thoughtsSteps and thoughtShots turn it on).
             Thoughts.showBubble = false
             // The interface sounds (DESIGN.md §7, Sounds): every file loads from the app, and the rules hold.
+            // The Mac prepares its sounds in the background; wait for that instead of preparing them again here,
+            // which holds the main thread while the two wait on each other.
+            for _ in 0..<120 where !Sounds.allPrepared { try? await Task.sleep(nanoseconds: 250_000_000) }
             let missingSounds = Sounds.unloadable().map { $0.fileName }.joined(separator: ", ")
             check("sounds: every sound file loads from the app" + (missingSounds.isEmpty ? "" : " (not loaded: " + missingSounds + ")"), missingSounds.isEmpty)
             SoundChecks.run { check($0, $1) }
