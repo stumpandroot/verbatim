@@ -1,6 +1,21 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Dictation right at launch",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Dictation sounds are ready first",
+          "icon": "audio",
+          "text": "Verbose prepares the dictation sounds first, so they play soon after it opens.",
+          "detail": "A sound that isn't ready in the first seconds is skipped, so dictation never waits on it."
+        }
+      ]
+    },
+    {
       "build": "348",
       "date": "2026-11-14",
       "version": "1.0 beta",

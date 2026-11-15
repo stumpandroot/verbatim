@@ -25,6 +25,7 @@ enum Sounds {
     static var enabled = true
     private static var players: [SoundMoment: AVAudioPlayer] = [:]
     private static var preloading = false
+    private static var preloaded = false
     /// Players made off the main thread, on their way to it.
     private struct Prepared: @unchecked Sendable { let players: [(SoundMoment, AVAudioPlayer)] }
     #else
@@ -40,20 +41,32 @@ enum Sounds {
             ?? Bundle.main.url(forResource: m.fileName, withExtension: SoundMoment.fileExtension, subdirectory: "Sounds")
     }
 
-    /// Loads every sound, once. Called at launch. On the Mac the players are prepared in the background and arrive a
-    /// moment later; a sound asked for before then is loaded on the spot (`loaded`).
+    /// Loads every sound, once. Called at launch. On the Mac the players are prepared in the background, dictation's
+    /// four first, and arrive a moment later. A sound asked for before it arrives is skipped (`loaded`), so nothing
+    /// waits on it.
     static func preload() {
         #if os(macOS)
-        guard !preloading else { return }
+        guard !preloading, !preloaded else { return }
         preloading = true
         let wanted = SoundMoment.allCases.filter { players[$0] == nil }
+        let first = wanted.filter(\.frequent), rest = wanted.filter { !$0.frequent }
         let started = Date()
         DispatchQueue.global(qos: .userInitiated).async {
-            let made = Prepared(players: wanted.compactMap { m in prepared(m).map { (m, $0) } })
-            DispatchQueue.main.async {
-                for (m, p) in made.players where players[m] == nil { players[m] = p }
-                let ms = Int((Date().timeIntervalSince(started) * 1000).rounded())
-                Log.note("sound: \(made.players.count) of \(wanted.count) prepared in \(ms) ms, off the main thread")
+            var count = 0
+            for (group, last) in [(first, false), (rest, true)] {
+                let made = Prepared(players: group.compactMap { m in prepared(m).map { (m, $0) } })
+                count += made.players.count
+                let total = count
+                DispatchQueue.main.async {
+                    for (m, p) in made.players where players[m] == nil { players[m] = p }
+                    let ms = Int((Date().timeIntervalSince(started) * 1000).rounded())
+                    if last {
+                        preloading = false; preloaded = true
+                        Log.note("sound: \(total) of \(wanted.count) prepared in \(ms) ms, off the main thread")
+                    } else {
+                        Log.note("sound: dictation's \(made.players.count) prepared in \(ms) ms")
+                    }
+                }
             }
         }
         #else
@@ -72,7 +85,10 @@ enum Sounds {
 
     /// The moments whose file is missing or won't load (the self-tests expect none).
     static func unloadable() -> [SoundMoment] {
-        SoundMoment.allCases.filter { !loaded($0) }
+        #if os(macOS)
+        if preloading { return SoundMoment.allCases.filter { players[$0] == nil } }
+        #endif
+        return SoundMoment.allCases.filter { !loaded($0) }
     }
 
     /// Plays the moment's sound. Returns its length in seconds when it plays, nil when it doesn't (sounds off, Verbose
@@ -125,6 +141,11 @@ enum Sounds {
     private static func loaded(_ m: SoundMoment) -> Bool {
         #if os(macOS)
         if players[m] != nil { return true }
+        // Still on its way from the background: skip it. Preparing it here would hold the main thread behind that work.
+        if preloading {
+            Log.note("sound: \(m.fileName) skipped (not prepared yet)")
+            return false
+        }
         guard let p = prepared(m) else { return false }
         players[m] = p
         return true
