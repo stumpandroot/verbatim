@@ -382,6 +382,8 @@ final class MeetingSession: ObservableObject {
                 verdictDone = false
                 writeSidecar()
                 Log.noteNow("meeting: the app isn't playing sound; switched the system track to all system audio except Verbose")
+                // Said out loud: the consent sheet named one app, and the recording is now wider than that.
+                notify("\(speaker) isn't playing sound, so Verbose is recording everything this Mac plays.")
                 return
             }
             Log.noteNow("meeting: the all-system-audio tap couldn't start; trying ScreenCaptureKit")
