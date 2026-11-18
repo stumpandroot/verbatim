@@ -304,12 +304,12 @@ do {
 // MARK: Quick actions
 
 do {
-    eq("quick actions: a new install shows Copy for AI and Send to AI", QuickActions.decode(nil), [.copyForAI, .sendToAI])
-    eq("quick actions: an empty list stays empty", QuickActions.decode(""), [])
+    eq("quick actions: a new install shows Copy for AI and Send to AI", QuickActions.decode(nil, on: .phone), [.copyForAI, .sendToAI])
+    eq("quick actions: an empty list stays empty", QuickActions.decode("", on: .phone), [])
     eq("quick actions: unknown names and repeats are dropped, three at most",
-       QuickActions.decode("export, nope,export,copyText,sendToAI,copyForAI"), [.export, .copyText, .sendToAI])
-    eq("quick actions: the list round trips", QuickActions.decode(QuickActions.encode([.sendToAI, .export])), [.sendToAI, .export])
-    eq("quick actions: the rest are offered in the catalog's order", QuickActions.hidden([.sendToAI, .copyForAI]), [.export, .copyText, .copyTimestamps])
+       QuickActions.decode("export, nope,export,copyText,sendToAI,copyForAI", on: .phone), [.export, .copyText, .sendToAI])
+    eq("quick actions: the list round trips", QuickActions.decode(QuickActions.encode([.sendToAI, .export]), on: .phone), [.sendToAI, .export])
+    eq("quick actions: the rest are offered in the catalog's order", QuickActions.hidden([.sendToAI, .copyForAI], on: .phone), [.export, .copyText, .copyTimestamps])
     eq("quick actions: adding puts it last", QuickActions.adding(.export, to: [.copyForAI, .sendToAI]), [.copyForAI, .sendToAI, .export])
     eq("quick actions: a fourth isn't added", QuickActions.adding(.copyText, to: [.copyForAI, .sendToAI, .export]), [.copyForAI, .sendToAI, .export])
     eq("quick actions: one shown already isn't added twice", QuickActions.adding(.copyForAI, to: [.copyForAI]), [.copyForAI])
@@ -319,6 +319,18 @@ do {
     eq("quick actions: a drag onto its own place changes nothing", QuickActions.moving([.copyForAI, .sendToAI], from: IndexSet(integer: 1), to: 1), [.copyForAI, .sendToAI])
     eq("AI prompt goes above the text", QuickActions.withPrompt("  Summarize this.\n", "# Title\n"), "Summarize this.\n\n# Title\n")
     eq("an empty AI prompt adds nothing", QuickActions.withPrompt(" \n", "# Title\n"), "# Title\n")
+    eq("quick actions: a new Mac shows Copy for AI, Open in Claude, and Open in ChatGPT", QuickActions.decode(nil, on: .mac), [.copyForAI, .openInClaude, .openInChatGPT])
+    eq("quick actions: the Mac drops the iPhone's Send to AI", QuickActions.decode("sendToAI,export,openInClaude", on: .mac), [.export, .openInClaude])
+    eq("quick actions: the iPhone drops the Mac's Open in actions", QuickActions.decode("openInClaude,copyText,openInChatGPT", on: .phone), [.copyText])
+    eq("quick actions: the Mac offers the rest in its catalog's order", QuickActions.hidden([.copyForAI], on: .mac), [.openInClaude, .openInChatGPT, .export, .copyText, .copyTimestamps])
+    check("quick actions: each place's new install comes from its own catalog",
+          QuickActions.standard(on: .phone).allSatisfy(QuickActions.catalog(on: .phone).contains) && QuickActions.standard(on: .mac).allSatisfy(QuickActions.catalog(on: .mac).contains))
+    eq("Claude's link carries the text, percent-encoded", AIHandoff.claudeLink("Sum up: a&b = 50%?\nNext")?.absoluteString,
+       "claude://claude.ai/new?q=Sum%20up%3A%20a%26b%20%3D%2050%25%3F%0ANext")
+    eq("Claude's link encodes letters outside ASCII", AIHandoff.claudeLink("café")?.absoluteString, "claude://claude.ai/new?q=caf%C3%A9")
+    check("Claude's link takes text up to its limit", AIHandoff.claudeLink(String(repeating: "a", count: AIHandoff.claudeLimit)) != nil)
+    check("a longer text has no link, so it's pasted", AIHandoff.claudeLink(String(repeating: "a", count: AIHandoff.claudeLimit + 1)) == nil)
+    check("an empty text has no link", AIHandoff.claudeLink("") == nil)
     check("quick actions: every action has a name and a line, with no exclamation point or em dash",
           QuickAction.allCases.allSatisfy { !$0.title.isEmpty && !$0.detail.isEmpty && !($0.title + $0.detail).contains("!") && !($0.title + $0.detail).contains("\u{2014}") })
 }

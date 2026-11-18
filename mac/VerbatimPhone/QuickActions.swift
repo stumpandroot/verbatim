@@ -26,7 +26,7 @@ extension QuickAction {
     var art: BrandArt {
         switch self {
         case .copyForAI: return .iconCopy
-        case .sendToAI: return .iconShare
+        case .sendToAI, .openInClaude, .openInChatGPT: return .iconShare
         case .export: return .iconExport
         case .copyText: return .iconNotes
         case .copyTimestamps: return .iconRecent
@@ -102,6 +102,8 @@ struct QuickActionsRow: View {
         switch a {
         case .copyForAI: app.copyForAI(transcript)
         case .sendToAI: share([app.textForAI(transcript)])
+        // The Mac's actions (QuickActions.catalog): never stored or offered on iPhone.
+        case .openInClaude, .openInChatGPT: break
         case .export: app.exportRequest = ExportRequest(ids: [transcript.id])
         case .copyText: app.copyText(transcript, copyVersion)
         case .copyTimestamps: app.copyText(transcript, copyVersion, timestamps: true)

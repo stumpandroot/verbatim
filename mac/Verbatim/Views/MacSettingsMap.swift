@@ -135,7 +135,8 @@ enum MacSettingsMap {
             ]),
             Section("Export", [
                 Setting("export.source"), Setting("export.speakers"), Setting("export.timecodes"), Setting("export.sponsors"),
-                Setting("export.single"), Setting("export.provenance"), Setting("export.watched"),
+                Setting("export.single"), Setting("export.provenance"),
+                Setting("export.quickActions", keys: ["transcript.quickActions", "ai.prompt"]), Setting("export.watched"),
             ]),
         ]),
         Pane(raw: "storage", title: "Sync and storage", sections: [

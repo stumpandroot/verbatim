@@ -1,6 +1,30 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Quick actions on the Mac",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Open in Claude or ChatGPT",
+          "icon": "copy",
+          "text": "Copy for AI, Open in Claude, and Open in ChatGPT sit under a transcript's title.",
+          "detail": "A short transcript arrives in a new Claude chat. A longer one, and any transcript for ChatGPT, is copied so you paste it with Command-V. Click the pencil to choose up to three actions."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Your prompt for AI",
+          "icon": "notes",
+          "text": "Save a prompt in Edit quick actions and it goes above the transcript you copy or open.",
+          "detail": "Find it in Settings under Watched folders and export too. The Mac and the iPhone each keep their own prompt."
+        }
+      ]
+    },
+    {
       "build": "356",
       "date": "2026-11-18",
       "version": "1.0 beta",

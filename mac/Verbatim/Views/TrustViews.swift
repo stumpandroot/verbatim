@@ -221,7 +221,8 @@ enum CopyForAI {
         guard t.status == .ready else { return }
         let pb = NSPasteboard.general
         pb.clearContents()
-        pb.setString(t.copyForAI, forType: .string)
+        // Your prompt from Edit quick actions goes above it, when there is one (QuickActionsMac.swift).
+        pb.setString(QuickActionsStore.shared.textForAI(t), forType: .string)
         app.toast = Toast("Copied for AI, with title, date, and source")
     }
 }

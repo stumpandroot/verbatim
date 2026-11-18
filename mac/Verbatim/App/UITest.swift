@@ -1395,6 +1395,12 @@ enum UITest {
         let meta = TranscriptView.meta(t)
         check("\(tag): the meta line says when and how long, and not the kind (\(meta))",
               meta.contains(RefinedRules.time(t.duration)) && !meta.contains(RecordingKind.refinedName(t.kind)))
+        // Quick actions under the meta line (QuickActionsMac.swift): the chosen ones, in order, on a finished transcript.
+        if t.status == .ready, t.pendingAppend == nil {
+            let quick = QuickActionsRow.onScreen.map(\.title).joined(separator: ", ")
+            check("\(tag): its quick actions are the chosen ones (\(quick); rows on screen: \(QuickActionsRow.rowsOnScreen))",
+                  QuickActionsRow.onScreen == QuickActionsStore.shared.shown)
+        }
         check("\(tag): the reading text starts at the serif's 18 pt", WindowNav.shared.textSize >= WindowNav.textSizes.min && WindowNav.textSizes.normal == 18)
     }
 

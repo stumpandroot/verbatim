@@ -250,6 +250,11 @@ struct TranscriptView: View {
                 }
                 .accessibilityElement(children: .combine)
             }
+            // Quick actions: Copy for AI, Open in Claude, Open in ChatGPT, or the ones chosen in Edit quick actions
+            // (QuickActionsMac.swift).
+            if t.status == .ready, t.pendingAppend == nil {
+                QuickActionsRow(transcript: t, copyVersion: copyVersion).padding(.top, 2)
+            }
             if t.status == .ready { KindOfferRow(transcript: t) { nav.mode = .result } }
             if t.status == .ready, !t.visibleSpeakerSuggestions.isEmpty {
                 SpeakerSuggestionRows(transcript: t,

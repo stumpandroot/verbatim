@@ -832,7 +832,7 @@ enum MarkdownNotes {
 /// An action a transcript's header can show under its title (DESIGN.md §6.9, Quick actions): up to three, in your
 /// order, chosen in Edit quick actions.
 enum QuickAction: String, CaseIterable, Identifiable {
-    case copyForAI, sendToAI, export, copyText, copyTimestamps
+    case copyForAI, sendToAI, openInClaude, openInChatGPT, export, copyText, copyTimestamps
     var id: String { rawValue }
 
     /// The button's name.
@@ -840,6 +840,8 @@ enum QuickAction: String, CaseIterable, Identifiable {
         switch self {
         case .copyForAI: return "Copy for AI"
         case .sendToAI: return "Send to AI"
+        case .openInClaude: return "Open in Claude"
+        case .openInChatGPT: return "Open in ChatGPT"
         case .export: return "Export"
         case .copyText: return "Copy text"
         case .copyTimestamps: return "Copy with timestamps"
@@ -851,6 +853,8 @@ enum QuickAction: String, CaseIterable, Identifiable {
         switch self {
         case .copyForAI: return "Copies the transcript under a header an assistant can read."
         case .sendToAI: return "Opens the share sheet, so the transcript goes straight to ChatGPT, Claude, or another app."
+        case .openInClaude: return "Opens Claude with the transcript in a new chat. A long transcript is copied instead, ready to paste."
+        case .openInChatGPT: return "Copies the transcript and opens ChatGPT, ready to paste."
         case .export: return "Opens Export, with your format and options."
         case .copyText: return "Copies the tab you're reading."
         case .copyTimestamps: return "Copies the tab you're reading, with a time on each line."
@@ -864,16 +868,43 @@ enum QuickActions {
     /// Your prompt for an assistant: it goes above the transcript in Copy for AI and Send to AI.
     static let promptKey = "ai.prompt"
     static let limit = 3
-    /// A new install's actions.
-    static let standard: [QuickAction] = [.copyForAI, .sendToAI]
 
-    /// The stored list, in order: unknown names and repeats dropped, three at most. Nothing stored is `standard`;
-    /// an empty string is no actions.
-    static func decode(_ raw: String?) -> [QuickAction] {
-        guard let raw else { return standard }
+    /// Where the row is. The iPhone sends through the share sheet; the Mac opens an assistant's app.
+    enum Place {
+        case phone, mac
+        static var current: Place {
+            #if os(macOS)
+            return .mac
+            #else
+            return .phone
+            #endif
+        }
+    }
+
+    /// The actions a place offers, in the order Edit quick actions lists them.
+    static func catalog(on place: Place = .current) -> [QuickAction] {
+        switch place {
+        case .phone: return [.copyForAI, .sendToAI, .export, .copyText, .copyTimestamps]
+        case .mac: return [.copyForAI, .openInClaude, .openInChatGPT, .export, .copyText, .copyTimestamps]
+        }
+    }
+
+    /// A new install's actions.
+    static func standard(on place: Place = .current) -> [QuickAction] {
+        switch place {
+        case .phone: return [.copyForAI, .sendToAI]
+        case .mac: return [.copyForAI, .openInClaude, .openInChatGPT]
+        }
+    }
+
+    /// The stored list, in order: unknown names, another place's actions, and repeats dropped, three at most. Nothing
+    /// stored is `standard`; an empty string is no actions.
+    static func decode(_ raw: String?, on place: Place = .current) -> [QuickAction] {
+        guard let raw else { return standard(on: place) }
+        let offered = catalog(on: place)
         var out: [QuickAction] = []
         for name in raw.split(separator: ",") {
-            guard let a = QuickAction(rawValue: name.trimmingCharacters(in: .whitespaces)), !out.contains(a) else { continue }
+            guard let a = QuickAction(rawValue: name.trimmingCharacters(in: .whitespaces)), offered.contains(a), !out.contains(a) else { continue }
             out.append(a)
         }
         return Array(out.prefix(limit))
@@ -882,7 +913,9 @@ enum QuickActions {
     static func encode(_ shown: [QuickAction]) -> String { shown.map(\.rawValue).joined(separator: ",") }
 
     /// The actions that aren't shown, in the catalog's order.
-    static func hidden(_ shown: [QuickAction]) -> [QuickAction] { QuickAction.allCases.filter { !shown.contains($0) } }
+    static func hidden(_ shown: [QuickAction], on place: Place = .current) -> [QuickAction] {
+        catalog(on: place).filter { !shown.contains($0) }
+    }
 
     static func canAdd(_ shown: [QuickAction]) -> Bool { shown.count < limit }
 
@@ -906,5 +939,22 @@ enum QuickActions {
     static func withPrompt(_ prompt: String, _ text: String) -> String {
         let p = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         return p.isEmpty ? text : p + "\n\n" + text
+    }
+}
+
+/// Handing a transcript to an assistant's Mac app. Claude's app takes a prompt in its link
+/// (`claude://claude.ai/new?q=`, Claude's help article 14729294) and keeps about 14,000 characters of it, so a longer
+/// transcript is copied and pasted instead. ChatGPT's app documents no such link, so it always takes the paste.
+enum AIHandoff {
+    /// The longest text sent in Claude's link, under the roughly 14,000 characters it keeps.
+    static let claudeLimit = 12_000
+    private static let unreserved = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+
+    static func fitsClaudeLink(_ text: String) -> Bool { !text.isEmpty && text.count <= claudeLimit }
+
+    /// The link that opens Claude's app on a new chat holding `text`, or nil when the text is empty or too long.
+    static func claudeLink(_ text: String) -> URL? {
+        guard fitsClaudeLink(text), let q = text.addingPercentEncoding(withAllowedCharacters: unreserved) else { return nil }
+        return URL(string: "claude://claude.ai/new?q=" + q)
     }
 }

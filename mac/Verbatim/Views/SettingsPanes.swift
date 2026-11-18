@@ -477,6 +477,7 @@ private struct MeetingAppRow: View {
 /// popover and the other way round.
 struct ExportSettingsGroups: View {
     @State private var options = ExportOptions.saved
+    @State private var editingQuickActions = false
     @ObservedObject private var model = SettingsModel.shared
 
     var body: some View {
@@ -494,6 +495,14 @@ struct ExportSettingsGroups: View {
                 .settingsAnchor("export.single", radius: Radius.row)
             ExportPaneToggle("“Transcribed with Verbose” footer", isOn: $options.provenance)
                 .settingsAnchor("export.provenance", radius: Radius.row)
+            // The actions under a transcript's title and the prompt for AI (QuickActionsMac.swift).
+            SettingsRow("export.quickActions") {
+                Button("Edit") { editingQuickActions = true }.buttonStyle(.settingsPill)
+                    .popover(isPresented: $editingQuickActions, arrowEdge: .leading) {
+                        EditQuickActionsView(onDone: { editingQuickActions = false })
+                            .frame(width: 380)
+                    }
+            }
         }
         SettingsGroup(title: "Speakers and time") {
             ExportPaneRow("Speaker names") {

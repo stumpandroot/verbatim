@@ -250,6 +250,7 @@ enum SettingsIndex {
         .init("export.sponsors", .watched, "Include sponsor reads", "Sponsor reads found in podcasts and videos are left out unless this is on. Copy always leaves them out.", keywords: "sponsor sponsors ads advertisement promo"),
         .init("export.single", .watched, "One paragraph", "Everything joined into a single paragraph.", keywords: "line breaks join"),
         .init("export.provenance", .watched, "Add a “transcribed with” footer", "Title, source, length, model, and date at the end.", keywords: "provenance credit footer"),
+        .init("export.quickActions", .watched, "Transcript quick actions", "The buttons under a transcript's title, such as Copy for AI, Open in Claude, and Open in ChatGPT, and your prompt for AI.", keywords: "copy for ai chatgpt claude assistant prompt send open buttons header"),
         .init("export.watched", .watched, "Watched folders export with these options", keywords: "auto-export timecode"),
 
         // Storage and iCloud
