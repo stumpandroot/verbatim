@@ -219,6 +219,11 @@ final class TranscriptionCoordinator: ObservableObject {
         }
     }
 
+    /// Dismisses "Couldn't tell the voices apart" on a transcript.
+    func dismissOneVoiceNote(_ id: UUID) {
+        store.update(id) { x in if x.speakerPass?.oneVoice == true { x.speakerPass = nil } }
+    }
+
     private func speakerStepFailed(_ id: UUID) {
         store.update(id) { x in
             x.stage = nil
@@ -247,6 +252,7 @@ final class TranscriptionCoordinator: ObservableObject {
         }
         var kept = 0
         store.update(id) { x in
+            let tries = x.speakerPass?.tries ?? 1
             x.stage = nil
             x.speakerPass = nil
             // Only when nobody has assigned speakers by hand in the meantime.
@@ -257,7 +263,12 @@ final class TranscriptionCoordinator: ObservableObject {
             let paired = x.original.count == segs.count
             let speakers = SpeakerAssigner.assign(found, to: &segs, parallel: &original, keepWhole: Set(x.corrections.map(\.segmentId)))
             kept = speakers.count
-            guard speakers.count >= 2 else { return }
+            guard speakers.count >= 2 else {
+                // One voice where more were likely (a meeting, or audio that was hard to hear): the transcript says
+                // so instead of staying silent (SpeakerPassRules.showsOneVoice).
+                if SpeakerPassRules.oneVoiceWorthSaying(x) { x.speakerPass = SpeakerPassMark(device: Device.id, tries: tries, oneVoice: true) }
+                return
+            }
             x.segments = segs; x.speakers = speakers
             if paired, let original { x.original = original }
             else { for i in x.original.indices where i < segs.count { x.original[i].speaker = segs[i].speaker } }

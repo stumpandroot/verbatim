@@ -414,6 +414,25 @@ struct TranscriptScreen: View {
             }
             .padding(.horizontal, 12).padding(.vertical, 4)
             .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        } else if SpeakerPassRules.showsOneVoice(t) {
+            // The speaker step found one voice where more were likely: said plainly, with Try again and a dismiss.
+            HStack(spacing: 8) {
+                IconGlyph(art: .iconAttention, size: 18, color: Refined.accentText)
+                    .accessibilityHidden(true)
+                Text("Couldn't tell the voices apart. The recording may be too quiet or muffled.")
+                    .refinedFont(.hint).foregroundStyle(Refined.dim)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                Button("Try again") { app.findSpeakers(t.id) }.buttonStyle(RefinedActionStyle())
+                Button { app.dismissOneVoiceNote(t.id) } label: {
+                    Image(systemName: "xmark").imageScale(.small).foregroundStyle(Refined.dim)
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
+            }
+            .padding(.leading, 12).padding(.vertical, 4)
+            .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         } else if t.status == .ready {
             // A progress tick can change the label (StageClock), so it's read live.
             LiveStage(t) { t in

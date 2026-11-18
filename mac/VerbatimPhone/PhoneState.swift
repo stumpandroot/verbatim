@@ -1101,6 +1101,9 @@ final class PhoneState {
     /// Find speakers and Try again on a transcript whose words are in (the speaker step alone).
     func findSpeakers(_ id: UUID) { coordinator.findSpeakers(id) }
 
+    /// Dismisses "Couldn't tell the voices apart" under a transcript's title.
+    func dismissOneVoiceNote(_ id: UUID) { coordinator.dismissOneVoiceNote(id) }
+
     /// Throws away a continued recording that hasn't been added; the transcript stays as it was.
     func discardPendingAppend(_ id: UUID) { coordinator.discardPendingAppend(id) }
 

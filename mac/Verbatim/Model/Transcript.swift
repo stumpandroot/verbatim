@@ -595,7 +595,8 @@ struct RerunRequest: Codable, Equatable {
 
 /// The iPhone finds speakers in a step of its own, after the words are in. This mark stays on the transcript while
 /// that step is owed, so one that iOS stopped (the app was suspended or closed) runs again at the next launch, and one
-/// that failed says so with Try again. Cleared when the step ends, with speakers or with one voice.
+/// that failed says so with Try again. Cleared when the step ends, with speakers or with one voice; one voice on
+/// a recording that likely holds more (`SpeakerPassRules.oneVoiceWorthSaying`) keeps the mark to say so.
 struct SpeakerPassMark: Codable, Equatable {
     /// The device that owes the step (`Device.id`).
     var device: String
@@ -603,18 +604,24 @@ struct SpeakerPassMark: Codable, Equatable {
     var tries: Int = 1
     /// The step ended in an error, or kept stopping: nothing runs again until you ask.
     var failed = false
+    /// The step ended with fewer than two voices on a recording that likely holds more: the transcript says so, with
+    /// Try again, until you dismiss it. Nothing runs again on its own.
+    var oneVoice = false
 
     /// Automatic starts per transcript: the first run and one more at launch. A step that stops the app twice
     /// (memory, on a long recording) isn't started a third time on its own.
     static let automaticTries = 2
 
-    init(device: String, tries: Int = 1, failed: Bool = false) { self.device = device; self.tries = tries; self.failed = failed }
+    init(device: String, tries: Int = 1, failed: Bool = false, oneVoice: Bool = false) {
+        self.device = device; self.tries = tries; self.failed = failed; self.oneVoice = oneVoice
+    }
 
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
         device = (try? c.decodeIfPresent(String.self, forKey: .device)) ?? ""
         tries = (try? c.decodeIfPresent(Int.self, forKey: .tries)) ?? 1
         failed = (try? c.decodeIfPresent(Bool.self, forKey: .failed)) ?? false
+        oneVoice = (try? c.decodeIfPresent(Bool.self, forKey: .oneVoice)) ?? false
     }
 }
 
@@ -629,12 +636,28 @@ enum SpeakerPassRules {
     }
 
     static func atLaunch(_ t: Transcript, device: String) -> AtLaunch {
-        guard let mark = t.speakerPass, mark.device == device, !mark.failed, canFind(t) else { return .nothing }
+        guard let mark = t.speakerPass, mark.device == device, !mark.failed, !mark.oneVoice, canFind(t) else { return .nothing }
         return mark.tries < SpeakerPassMark.automaticTries ? .runAgain : .markFailed
     }
 
     /// "Couldn't find speakers" with Try again shows under the title.
     static func showsFailure(_ t: Transcript) -> Bool { t.speakerPass?.failed == true && t.stage == nil && canFind(t) }
+
+    /// The step found one voice, and the recording likely holds more: a meeting or an interview, or one that was hard
+    /// to hear (a phone in a pocket: muffled voices sound alike), a minute long or more. A voice note you made alone
+    /// says nothing.
+    static func oneVoiceWorthSaying(_ t: Transcript) -> Bool {
+        guard t.duration >= 60 else { return false }
+        if t.kind == .meeting || t.kind == .interview { return true }
+        let spans = t.unclear ?? []
+        let seconds = spans.reduce(0.0) { $0 + max(0, $1.end - $1.start) }
+        return spans.count >= 3 || seconds >= t.duration * 0.1
+    }
+
+    /// "Couldn't tell the voices apart" with Try again shows under the title.
+    static func showsOneVoice(_ t: Transcript) -> Bool {
+        t.speakerPass?.oneVoice == true && t.speakerPass?.failed != true && t.stage == nil && canFind(t)
+    }
 }
 
 struct Transcript: Codable, Identifiable, Equatable {

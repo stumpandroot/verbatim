@@ -16,6 +16,15 @@
         },
         {
           "platforms": [
+            "iphone"
+          ],
+          "head": "When voices can't be told apart",
+          "icon": "speakers",
+          "text": "A meeting that comes back without speakers now says why, with Try again.",
+          "detail": "A quiet or muffled recording, such as a phone in a pocket, can make two voices sound like one."
+        },
+        {
+          "platforms": [
             "mac"
           ],
           "head": "Open in Claude or ChatGPT",

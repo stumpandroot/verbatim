@@ -198,6 +198,30 @@ do {
     var noAudio = t
     noAudio.audioFileName = nil
     check("speaker step: no audio, no step", !SpeakerPassRules.canFind(noAudio))
+    // One voice found where more were likely (SpeakerPassRules.oneVoiceWorthSaying, showsOneVoice).
+    var quiet = t
+    quiet.speakerPass = nil
+    quiet.kind = .note
+    quiet.duration = 240
+    check("one voice: a clear voice note says nothing", !SpeakerPassRules.oneVoiceWorthSaying(quiet))
+    quiet.unclear = [UnclearSpan(start: 5, end: 9, reason: .lowConfidence), UnclearSpan(start: 30, end: 34, reason: .lowConfidence), UnclearSpan(start: 80, end: 83)]
+    check("one voice: a recording that was hard to hear says so", SpeakerPassRules.oneVoiceWorthSaying(quiet))
+    quiet.unclear = [UnclearSpan(start: 5, end: 40)]
+    check("one voice: one long unclear stretch counts too", SpeakerPassRules.oneVoiceWorthSaying(quiet))
+    quiet.unclear = nil
+    quiet.kind = .meeting
+    check("one voice: a meeting says so", SpeakerPassRules.oneVoiceWorthSaying(quiet))
+    quiet.duration = 40
+    check("one voice: under a minute says nothing", !SpeakerPassRules.oneVoiceWorthSaying(quiet))
+    quiet.duration = 240
+    quiet.speakerPass = SpeakerPassMark(device: "phone", oneVoice: true)
+    check("one voice: the line shows, and nothing runs again at launch",
+          SpeakerPassRules.showsOneVoice(quiet) && !SpeakerPassRules.showsFailure(quiet) && SpeakerPassRules.atLaunch(quiet, device: "phone") == .nothing)
+    quiet.stage = "Finding speakers"
+    check("one voice: no line while Try again runs", !SpeakerPassRules.showsOneVoice(quiet))
+    quiet.stage = nil
+    let quietBack = try JSONDecoder().decode(Transcript.self, from: try JSONEncoder().encode(quiet))
+    check("one voice: the mark is saved with the transcript", quietBack.speakerPass?.oneVoice == true)
     let data = try JSONEncoder().encode(t)
     let back = try JSONDecoder().decode(Transcript.self, from: data)
     check("speaker step: the mark is saved with the transcript", back.speakerPass == t.speakerPass)
