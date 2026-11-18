@@ -165,7 +165,8 @@ struct MeetingTarget: ViewModifier {
 enum MeetingBannerKind: Equatable {
     /// "Zoom is using your microphone": Not now or Record…. Hides after 20 seconds.
     case call(app: String)
-    /// "Verbose isn't hearing anything from Zoom": Open Settings or Keep my mic only.
+    /// "Verbose isn't hearing anything from Zoom": Open Settings or OK. Neither drops the call's track: one click on a floating
+    /// banner must not throw away the other side of a call (November 18, 2026).
     case silent(app: String)
     /// "Your Mac went to sleep, so the recording paused": Resume or Stop and save.
     case slept
@@ -329,7 +330,7 @@ struct MeetingBannerView: View {
         case .silent(let app):
             row(icon: .iconAttention, iconColor: Refined.accentText, title: MeetingCopy.silentTitle(app), detail: MeetingCopy.silentDetail) {
                 MeetingButton(title: "Open Settings", target: "meeting-silent-settings") { act(.openSettings) }
-                MeetingButton(title: "Keep my mic only", style: .quiet, target: "meeting-silent-miconly") { act(.keepMicOnly) }
+                MeetingButton(title: "OK", style: .quiet, target: "meeting-silent-ok") { act(.dismiss) }
             }
         case .slept:
             row(icon: .iconPause, title: MeetingCopy.sleptTitle, detail: MeetingCopy.sleptDetail) {

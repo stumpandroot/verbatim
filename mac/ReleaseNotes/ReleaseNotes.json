@@ -16,6 +16,15 @@
         },
         {
           "platforms": [
+            "mac"
+          ],
+          "head": "Calls record the right app",
+          "icon": "audio",
+          "text": "A call recorded from the menu uses the app on your microphone, not one that's only open.",
+          "detail": "If that app plays no sound, Verbose records everything the Mac plays, so the other side is kept. The silent-call warning no longer has a button that drops the call's track."
+        },
+        {
+          "platforms": [
             "mac",
             "iphone"
           ],

@@ -228,10 +228,17 @@ final class MeetingCoordinator: ObservableObject {
 
     // MARK: Starting
 
-    /// File › Record As › Meeting… and the Record panel's menu: the frontmost (or first running) meeting app, else all
-    /// system audio; then the consent sheet.
+    /// File › Record As › Meeting… and the Record panel's menu: the call app using the microphone right now; without
+    /// one, the frontmost meeting app, else all system audio; then the consent sheet. Verbose is frontmost when its
+    /// own menu starts this, so the microphone is the evidence (November 18, 2026: a Meet call in Chrome was recorded
+    /// as Discord, which was only running).
     func recordFromMenu() {
         guard !MeetingSession.shared.isActive else { return }
+        if let info = callAppOnMic() {
+            Log.note("meeting: Record as Meeting with \(info.name) on the microphone")
+            requestRecording(app: info, target: MeetingSession.target(for: info), speaker: info.name)
+            return
+        }
         let choice = MeetingSession.chooseTarget()
         requestRecording(app: choice.app, target: choice.target, speaker: choice.speaker)
     }

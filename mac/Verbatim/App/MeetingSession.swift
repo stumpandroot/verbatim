@@ -105,9 +105,9 @@ final class MeetingSession: ObservableObject {
         app.globalTap ? .allSystemAudio : .app(bundleID: app.bundleID, name: app.name)
     }
 
-    /// For a start from the menu: the target override, else the frontmost meeting app, else the first running one
-    /// (`MeetingApps.known` order), else all system audio. Also the system track's speaker name and the app (nil
-    /// for all system audio).
+    /// For a start from the menu with no call app on the microphone: the target override, else the frontmost meeting
+    /// app, else all system audio. A meeting app that's only running is never guessed: its tap hears nothing while the
+    /// call plays somewhere else. Also the system track's speaker name and the app (nil for all system audio).
     static func chooseTarget() -> (target: MeetingAudioTarget, speaker: String, app: MeetingAppInfo?) {
         let running = NSWorkspace.shared.runningApplications
         func name(_ id: String) -> String {
@@ -122,7 +122,6 @@ final class MeetingSession: ObservableObject {
         let ids = running.compactMap { $0.bundleIdentifier?.lowercased() }
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         if let f = front, let app = MeetingApps.resolve(f, running: Set(ids)) { return (target(for: app), app.name, app) }
-        if let app = MeetingApps.known.first(where: { ids.contains($0.key) }) { return (target(for: app), app.name, app) }
         return (.allSystemAudio, "Others", nil)
     }
 
@@ -366,8 +365,27 @@ final class MeetingSession: ObservableObject {
             remoteSilent = true
             return
         }
+        let appPlaying = t.targetPlaying
         await t.discard()
         tapObject = nil
+        // The app isn't playing anything: the call's sound is coming from somewhere else (another app, or a process
+        // the tap didn't list). Everything this Mac plays except Verbose, so the other side is still recorded.
+        if appPlaying != true {
+            let wide = ProcessTapCapture(target: .allSystemAudio)
+            if (try? wide.start(to: systemURL)) != nil {
+                tapObject = wide
+                target = .allSystemAudio
+                sidecar?.capturePath = "tap"
+                sidecar?.events.append("tap silent; switched to all system audio except Verbose")
+                sidecar?.update(.system) { $0.startHostTime = nil }
+                startsWritten = false
+                verdictDone = false
+                writeSidecar()
+                Log.noteNow("meeting: the app isn't playing sound; switched the system track to all system audio except Verbose")
+                return
+            }
+            Log.noteNow("meeting: the all-system-audio tap couldn't start; trying ScreenCaptureKit")
+        }
         if await startScreenCapture(to: systemURL) {
             sidecar?.capturePath = "screenCapture"
             sidecar?.events.append("tap silent; switched to ScreenCaptureKit")

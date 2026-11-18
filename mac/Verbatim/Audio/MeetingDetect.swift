@@ -252,7 +252,7 @@ enum MeetingCopy {
     static let consentLaw = "In some places, including California, Florida, Illinois, Pennsylvania, and Washington, everyone on the call must agree before you record."
     static let tellEveryone = "Tell everyone: copy a notice to paste in the chat"
     static let promptDetail = "Record this meeting? Verbose asks every time."
-    static let silentDetail = "Check System Settings › Privacy & Security › Screen & System Audio Recording, or keep recording only your mic."
+    static let silentDetail = "Your mic is still recording. Verbose keeps listening and adds the call's sound when it hears it. If it stays silent, check Screen & System Audio Recording in System Settings."
     static let sleptTitle = "Your Mac went to sleep, so the recording paused"
     static let sleptDetail = "Everything before that is saved."
 
