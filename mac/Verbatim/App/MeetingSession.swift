@@ -486,6 +486,65 @@ final class MeetingSession: ObservableObject {
         Log.noteNow("meeting: ScreenCaptureKit delivers only zeros; asking about Screen & System Audio Recording")
     }
 
+    /// Whether the call track has heard anything audible so far. Changing its source is only offered before that:
+    /// the change starts the track over, which must never cost recorded speech.
+    var heardCallSound: Bool {
+        if #available(macOS 14.4, *), let t = tap { return t.evidence.lastAudibleAt != nil }
+        if screenCapture != nil { return screenSilence.everNonZero }
+        return false
+    }
+
+    /// The call track's source can change now: recording, on macOS 14.4 or later, and nothing audible was recorded on it.
+    var canChangeSource: Bool {
+        guard phase == .recording, systemURL != nil, !heardCallSound else { return false }
+        if #available(macOS 14.4, *) { return true }
+        return false
+    }
+
+    /// The warning's Record <App> and Record everything this Mac plays (mockup "Verbose meeting recording", board 3,
+    /// November 18, 2026): the call track starts over on another source while the mic keeps recording. Only while
+    /// nothing audible was recorded on it (`canChangeSource`).
+    func changeSource(to newTarget: MeetingAudioTarget, speaker newSpeaker: String, appBundleID newBundleID: String?) {
+        guard canChangeSource, let systemURL, #available(macOS 14.4, *) else { return }
+        Log.noteNow("meeting: changing the call track's source to \(newTarget.name)")
+        Task {
+            if let t = tap { await t.discard() }
+            tapObject = nil
+            if let c = screenCapture { _ = await c.stop(); c.liveTap.set(nil); screenCapture = nil }
+            try? FileManager.default.removeItem(at: systemURL)
+            RecordingSegments.removeSegments(of: systemURL)
+            guard phase == .recording else { return }
+            let t = ProcessTapCapture(target: newTarget)
+            do {
+                try t.start(to: systemURL)
+                tapObject = t
+                target = newTarget
+                speaker = newSpeaker
+                appBundleID = newBundleID
+                micOnly = false
+                remoteSilent = false
+                verdictDone = false
+                startsWritten = false
+                stalledSince = nil
+                remoteHealth = .starting
+                sidecar?.targetName = newTarget.name
+                sidecar?.targetBundleID = newTarget.bundleID
+                sidecar?.capturePath = "tap"
+                sidecar?.update(.system) { $0.speaker = newSpeaker; $0.startHostTime = nil }
+                sidecar?.events.append("source changed to \(newTarget.name)")
+                writeSidecar()
+                Log.noteNow("meeting: the call track now records \(t.isGlobal ? "all system audio except Verbose" : t.tappedBundleIDs.joined(separator: ", "))")
+            } catch {
+                micOnly = true
+                remoteSilent = true
+                sidecar?.capturePath = "none"
+                sidecar?.events.append("source change failed: \(error.localizedDescription)")
+                writeSidecar()
+                Log.noteNow("meeting: changing the source failed (\(error.localizedDescription)); the mic keeps recording")
+            }
+        }
+    }
+
     /// Keep my mic only: the system track (zeros, so far) is dropped and the warning goes away.
     func keepMicOnly() {
         guard isActive else { return }

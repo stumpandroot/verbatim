@@ -152,6 +152,35 @@ struct MeetingCheckbox: View {
     }
 }
 
+/// One source in the consent sheet: a radio row with the source's name and what Verbose knows about it.
+struct MeetingSourceRow: View {
+    var choice: MeetingSourceChoice
+    var selected: Bool
+    var pick: () -> Void
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Circle().strokeBorder(selected ? Refined.ink : Refined.faint, lineWidth: 1.5)
+                .overlay { if selected { Circle().fill(Refined.ink).frame(width: 8, height: 8) } }
+                .frame(width: 16, height: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(choice.title).refinedFont(.body, weight: .semibold).foregroundStyle(Refined.ink)
+                Text(choice.detail).refinedFont(.meta).foregroundStyle(Refined.dim)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .background(selected ? Refined.paper : Color.clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .contentShape(Rectangle())
+        .tapArea(pick)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(choice.title), \(choice.detail)")
+        .accessibilityValue(selected ? "Selected" : "Not selected")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { pick() }
+        .modifier(MeetingTarget(id: "meeting-consent-source-\(choice.id == "system" ? "system" : "app")"))
+    }
+}
+
 /// `uiTarget` when there's an identifier (the self-test clicks these), plus the accessibility identifier.
 struct MeetingTarget: ViewModifier {
     var id: String?
@@ -210,6 +239,8 @@ final class MeetingBannerController {
     private var remaining: Double = 0
     private var hovering = false
     private var generation = 0
+    /// The recording indicator's frame, when it's on screen: a banner sits below it, never over it.
+    var avoid: (() -> NSRect?)?
 
     var kind: MeetingBannerKind? { model.kind }
     var isShowing: Bool { model.kind != nil && panel?.isVisible == true }
@@ -284,7 +315,8 @@ final class MeetingBannerController {
         host.layoutSubtreeIfNeeded()
         let size = NSSize(width: Self.width, height: max(60, ceil(host.fittingSize.height)))
         let f = screen.visibleFrame
-        let origin = NSPoint(x: f.maxX - size.width - 16, y: f.maxY - size.height - 12)
+        var origin = NSPoint(x: f.maxX - size.width - 16, y: f.maxY - size.height - 12)
+        if let r = avoid?(), r.intersects(NSRect(origin: origin, size: size)) { origin.y = r.minY - size.height - 8 }
         p.setFrame(NSRect(origin: origin, size: size), display: true)
         host.frame = NSRect(origin: .zero, size: size)
         p.invalidateShadow()
@@ -391,6 +423,17 @@ struct MeetingConsentRequest: Equatable {
     var wait: CallWaitSetup? = nil
     /// Stills of shared screens are on (Settings › Meetings): the sheet says so.
     var stills = false
+    /// Where the call's sound can come from, when there's a choice: the app on the microphone, everything this Mac
+    /// plays, and the app the start named. The sheet shows them so a wrong pick is seen and changed before recording.
+    var sources: [MeetingSourceChoice] = []
+    var selectedSource: String? = nil
+}
+
+/// One source for the call's sound in the consent sheet. `id` is `MeetingAppInfo.key`, or "system".
+struct MeetingSourceChoice: Equatable, Identifiable {
+    var id: String
+    var title: String
+    var detail: String
 }
 
 /// The wait's setup in the consent sheet: the app picker's choices and the one chosen, and the event it's for.
@@ -406,6 +449,8 @@ struct MeetingConsentResult: Equatable {
     var dontAskAgain: Bool
     /// The app picker's choice (`CallWaitChoice.id`), when setting up a wait.
     var choiceID: String? = nil
+    /// The chosen source (`MeetingSourceChoice.id`), when the sheet offered a choice.
+    var sourceID: String? = nil
 }
 
 @MainActor
@@ -414,6 +459,7 @@ final class MeetingConsentModel: ObservableObject {
     @Published var copyNotice = true
     @Published var dontAskAgain = false
     @Published var choiceID = "any"
+    @Published var sourceID = ""
 }
 
 /// "Record this meeting?" in its own small window near the top of the screen with the pointer, in front of the
@@ -438,6 +484,7 @@ final class MeetingConsentController {
         model.copyNotice = copyDefault
         model.dontAskAgain = false
         model.choiceID = request.wait?.selected ?? "any"
+        model.sourceID = request.selectedSource ?? request.sources.first?.id ?? ""
         self.completion = completion
         let p = panel ?? make()
         place(p)
@@ -462,7 +509,8 @@ final class MeetingConsentController {
     func finish(record: Bool) {
         guard model.request != nil else { return }
         let result = record ? MeetingConsentResult(copyNotice: model.copyNotice, dontAskAgain: model.dontAskAgain && (model.request?.offerSkip ?? false),
-                                                   choiceID: model.request?.wait == nil ? nil : model.choiceID) : nil
+                                                   choiceID: model.request?.wait == nil ? nil : model.choiceID,
+                                                   sourceID: (model.request?.sources.count ?? 0) > 1 ? model.sourceID : nil) : nil
         let done = completion
         completion = nil
         model.request = nil
@@ -507,7 +555,18 @@ struct MeetingConsentView: View {
                 waitSetup(wait)
             } else {
                 Text(MeetingCopy.consentTitle).font(Refined.serif(26)).accessibilityAddTraits(.isHeader)
-                Text(MeetingCopy.consentBody(model.request?.appName)).modifier(ConsentText())
+                if let sources = model.request?.sources, sources.count > 1 {
+                    Text(MeetingCopy.consentBodySources).modifier(ConsentText())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(MeetingCopy.sourceHeading).refinedFont(.hint, weight: .semibold).foregroundStyle(Refined.dim)
+                            .padding(.bottom, 2).accessibilityAddTraits(.isHeader)
+                        ForEach(sources) { s in
+                            MeetingSourceRow(choice: s, selected: model.sourceID == s.id) { model.sourceID = s.id }
+                        }
+                    }
+                } else {
+                    Text(MeetingCopy.consentBody(model.request?.appName)).modifier(ConsentText())
+                }
                 if model.request?.stills == true { Text(MeetingCopy.stillsOn).modifier(ConsentText()) }
                 Text(MeetingCopy.consentLaw).modifier(ConsentText())
                 MeetingCheckbox(title: MeetingCopy.tellEveryone, isOn: $model.copyNotice, target: "meeting-consent-notice")

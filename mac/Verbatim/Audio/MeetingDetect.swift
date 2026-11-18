@@ -249,6 +249,13 @@ enum MeetingCopy {
     static let stillsOn = "Stills of shared screens are on: Verbose keeps a picture of the call window when a shared screen or slide changes."
     static func chatNotice(stills: Bool) -> String { stills ? chatNoticeWithStills : chatNotice }
     static let consentTitle = "Record this meeting?"
+    /// The consent sheet's first line when it shows where the call's sound comes from (November 18, 2026).
+    static let consentBodySources = "Verbose records your microphone and the call's sound on this Mac. Nothing leaves this Mac."
+    static let sourceHeading = "Record the call's sound from"
+    static let sourceEverything = "Everything this Mac plays"
+    static let sourceEverythingDetail = "Every app's sound except Verbose"
+    static let sourceOnMic = "Using your microphone now"
+    static let sourceOpen = "Open, not on a call"
     static let consentLaw = "In some places, including California, Florida, Illinois, Pennsylvania, and Washington, everyone on the call must agree before you record."
     static let tellEveryone = "Tell everyone: copy a notice to paste in the chat"
     static let promptDetail = "Record this meeting? Verbose asks every time."

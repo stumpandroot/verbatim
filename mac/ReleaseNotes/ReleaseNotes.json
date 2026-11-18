@@ -18,6 +18,15 @@
           "platforms": [
             "mac"
           ],
+          "head": "A recording indicator on screen",
+          "icon": "audio",
+          "text": "A small card stays on screen while a call records, with the time, both tracks, and Stop.",
+          "detail": "If the call's sound is missing, the card says so and offers the app on your microphone or everything the Mac plays. The consent sheet shows which app is recorded and lets you change it."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
           "head": "Call sound checked all call long",
           "icon": "audio",
           "text": "Verbose checks the call's sound every second and warns you if it stops arriving.",

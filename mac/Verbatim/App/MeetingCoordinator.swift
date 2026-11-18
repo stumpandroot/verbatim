@@ -37,6 +37,8 @@ final class MeetingCoordinator: ObservableObject {
     let banner = MeetingBannerController()
     let consent = MeetingConsentController()
     let status = MeetingStatusController()
+    /// The on-screen recording indicator (Views/MeetingIndicator.swift).
+    let indicator = MeetingIndicatorController()
     private let detector = MeetingDetector()
     private var tracker = MeetingCallTracker()
     private weak var app: AppState?
@@ -64,6 +66,9 @@ final class MeetingCoordinator: ObservableObject {
         let session = MeetingSession.shared
         session.onNotice = { [weak self] m in self?.banner.show(.notice(m)) }
         banner.onAction = { [weak self] a in self?.handle(a) }
+        banner.avoid = { [weak self] in self?.indicator.frame }
+        indicator.offers = { [weak self] in self?.sourceOffers() ?? [] }
+        indicator.onChangeSource = { [weak self] key in self?.changeSource(to: key) }
         status.copyNotice = { [weak self] in self?.copyChatNotice() }
         session.$phase.removeDuplicates().sink { [weak self] p in self?.phaseChanged(p) }.store(in: &bag)
         session.$remoteSilent.removeDuplicates().sink { [weak self] on in self?.remoteSilentChanged(on) }.store(in: &bag)
@@ -390,10 +395,22 @@ final class MeetingCoordinator: ObservableObject {
                   title: event?.title, attendees: event?.attendees ?? [])
             return
         }
+        let onMic = appOnMicNow()
+        let sources = sourceChoices(named: info, onMic: onMic)
         let request = MeetingConsentRequest(key: key, appName: name, offerSkip: info != nil && book.canOfferSkip(key),
-                                            stills: info != nil && CallStillCapture.active)
+                                            stills: info != nil && CallStillCapture.active,
+                                            sources: sources, selectedSource: info?.key ?? onMic?.key ?? "system")
         consent.show(request, copyDefault: Self.copyNoticeOnStart) { [weak self] result in
             guard let self, let result else { return }
+            // The source you chose in the sheet, when it isn't the one the start named.
+            if let chosen = result.sourceID, chosen != key {
+                let s = self.source(for: chosen)
+                let e = s.app.flatMap { self.currentCall(appKey: $0.key) }
+                Log.note("meeting: consent sheet source changed to \(s.app?.name ?? "all system audio")")
+                self.start(key: s.app?.key ?? "system", name: s.app?.name ?? s.speaker, target: s.target, speaker: s.speaker, copy: result.copyNotice,
+                           skipFromNowOn: false, title: e?.title, attendees: e?.attendees ?? [])
+                return
+            }
             self.start(key: key, name: name ?? speaker, target: target, speaker: speaker, copy: result.copyNotice, skipFromNowOn: result.dontAskAgain,
                        title: event?.title, attendees: event?.attendees ?? [])
         }
@@ -432,6 +449,7 @@ final class MeetingCoordinator: ObservableObject {
         switch phase {
         case .idle:
             status.hide()
+            indicator.hide()
             // The recording the iPhone asked for is over: its status file says so on its next write.
             if wait == nil { phoneRequestID = nil }
             pendingCount = nil
@@ -447,8 +465,10 @@ final class MeetingCoordinator: ObservableObject {
             preferencesChanged()
         case .starting, .stopping:
             status.show()
+            indicator.show()
         case .recording, .paused:
             status.show()
+            indicator.show()
             if endWatch == nil, let key = recordingKey, Self.stopWhenEnds { endWatch = CallEndWatch(key: key); startPolling() }
             if let p = pendingCount, phase == .recording {
                 book.recorded(p.key, name: p.name)
@@ -460,12 +480,61 @@ final class MeetingCoordinator: ObservableObject {
     }
 
     private func remoteSilentChanged(_ on: Bool) {
+        // The recording indicator carries this warning now (one card over the call, not two); a banner left from
+        // before goes away.
+        if !on { banner.hide { if case .silent = $0 { return true }; return false } }
+        Log.note("meeting: the indicator \(on ? "shows" : "clears") the missing-sound warning")
+    }
+
+    // MARK: The call's sound source
+
+    /// The call app using the microphone right now, without starting the detector or touching the polling: this
+    /// runs once a second while the warning shows.
+    private func appOnMicNow() -> MeetingAppInfo? {
+        guard !UITest.enabled, !Bench.isRequested, detector.isRunning, let users = detector.snapshot().users else { return nil }
+        let running = Set(NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier?.lowercased() })
+        let keys = Set(users.compactMap { MeetingApps.resolve($0, running: running)?.key })
+        return MeetingApps.known.first { keys.contains($0.key) }
+    }
+
+    /// What the missing-sound warning offers: the call app on the microphone when it isn't the one being recorded,
+    /// and everything this Mac plays when that isn't the source already.
+    private func sourceOffers() -> [MeetingSourceOffer] {
         let s = MeetingSession.shared
-        if on {
-            banner.show(.silent(app: MeetingStatusController.appName(s) ?? "other apps"))
-        } else {
-            banner.hide { if case .silent = $0 { return true }; return false }
+        let current = s.tapsEverything ? "system" : (recordingKey ?? "")
+        var out: [MeetingSourceOffer] = []
+        if let m = appOnMicNow(), m.key != current, !m.globalTap || current != "system" {
+            out.append(MeetingSourceOffer(key: m.key, title: MeetingIndicatorCopy.record(m.name)))
         }
+        if current != "system" { out.append(MeetingSourceOffer(key: "system", title: MeetingIndicatorCopy.everything)) }
+        return out
+    }
+
+    /// A source key ("system", or `MeetingAppInfo.key`) as a target, a speaker name, and the app.
+    private func source(for key: String) -> (target: MeetingAudioTarget, speaker: String, app: MeetingAppInfo?) {
+        if key != "system", let info = MeetingApps.info(key: key) { return (MeetingSession.target(for: info), info.name, info) }
+        return (.allSystemAudio, "Others", nil)
+    }
+
+    /// The warning's Record <App> or Record everything this Mac plays: the call track starts over on that source.
+    /// Stop when the call ends follows the new app.
+    private func changeSource(to key: String) {
+        let s = source(for: key)
+        Log.note("meeting: the indicator's source button for \(s.app?.name ?? "all system audio")")
+        MeetingSession.shared.changeSource(to: s.target, speaker: s.speaker, appBundleID: s.app?.bundleID)
+        recordingKey = s.app?.key
+        endWatch = Self.stopWhenEnds ? s.app.map { CallEndWatch(key: $0.key) } : nil
+        if endWatch != nil { startPolling() }
+    }
+
+    /// The sources the consent sheet shows: the call app on the microphone first, then everything this Mac plays,
+    /// then the app the start named when it's a different one.
+    private func sourceChoices(named info: MeetingAppInfo?, onMic: MeetingAppInfo?) -> [MeetingSourceChoice] {
+        var out: [MeetingSourceChoice] = []
+        if let m = onMic { out.append(MeetingSourceChoice(id: m.key, title: m.name, detail: MeetingCopy.sourceOnMic)) }
+        out.append(MeetingSourceChoice(id: "system", title: MeetingCopy.sourceEverything, detail: MeetingCopy.sourceEverythingDetail))
+        if let i = info, i.key != onMic?.key { out.append(MeetingSourceChoice(id: i.key, title: i.name, detail: MeetingCopy.sourceOpen)) }
+        return out
     }
 
     // MARK: Settings
