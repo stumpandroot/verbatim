@@ -38,6 +38,8 @@ final class MeetingSession: ObservableObject {
     @Published private(set) var slept = false
     /// Only your mic is recording: no system track could start, or you chose Keep my mic only.
     @Published private(set) var micOnly = false
+    /// The call track's health right now, checked every second for the whole call (RemoteEvidence).
+    @Published private(set) var remoteHealth: RemoteHealth = .starting
     /// The system track's speaker: the meeting app's name ("Zoom"), or "Others" for all system audio.
     private(set) var speaker = "Others"
     /// The microphone recording your side, for the panel ("MacBook Pro Microphone").
@@ -75,6 +77,11 @@ final class MeetingSession: ObservableObject {
     private var lastProgressNote: TimeInterval = 0
     private var sleepObservers: [NSObjectProtocol] = []
     private var screenStartedAt: Double = 0
+    /// Seconds into the recording when the call track stalled; nil while it's delivering.
+    private var stalledSince: TimeInterval?
+    /// The sound output's UID when the recording started (the tap's aggregate device is built on it).
+    private var outputUID: String?
+    private var lastMembershipNote = ""
     private var pausedForSleep = false
     /// The calendar event's title and attendees, for the sidecar (a call set up from Home's Next call card). The title
     /// is what the recording saves as ("Zoom left the call" says so).
@@ -339,6 +346,7 @@ final class MeetingSession: ObservableObject {
                 await fallBackFromTap(t)
             }
         }
+        checkRemoteHealth(elapsed: elapsed)
         checkRemoteSilence()
         if elapsed >= nextWindowRead {
             nextWindowRead = nextWindowRead < 10 ? 10 : nextWindowRead + 60
@@ -405,14 +413,69 @@ final class MeetingSession: ObservableObject {
         writeSidecar()
     }
 
+    /// The capture's evidence, and whether it follows one app that isn't playing anything (so no buffers is
+    /// expected). ScreenCaptureKit counts as idle here: whether it delivers buffers while its app is silent isn't
+    /// measured yet, so a gap there is never called a stall.
+    private var currentEvidence: (evidence: RemoteEvidence, idle: Bool)? {
+        if #available(macOS 14.4, *), let t = tap { return (t.evidence, t.targetPlaying == false) }
+        if screenCapture != nil, screenStartedAt > 0 { return (screenSilence.evidence(startedAt: screenStartedAt), true) }
+        return nil
+    }
+
+    /// Every second, for the whole call: is the call track still delivering, and is anything audible? A capture
+    /// that stops delivering for `RemoteEvidence.stallWarning` seconds raises the silent-call warning. Nothing here
+    /// drops or restarts a track. Also notes a changed sound output and changed audio processes, which are the
+    /// usual reasons a tap goes quiet mid-call.
+    private func checkRemoteHealth(elapsed: TimeInterval) {
+        guard phase == .recording, !micOnly, let e = currentEvidence else { stalledSince = nil; return }
+        let h = e.evidence.health(now: HostClock.now(), sourceIdle: e.idle)
+        let broken: (RemoteHealth) -> Bool = { $0 == .stalled || $0 == .noBuffers }
+        if h != remoteHealth {
+            if broken(h) || broken(remoteHealth) || remoteHealth == .starting {
+                Log.noteNow("meeting: call track \(remoteHealth.rawValue) → \(h.rawValue) at \(Int(elapsed)) s")
+            }
+            remoteHealth = h
+        }
+        if h == .stalled {
+            if stalledSince == nil { stalledSince = elapsed }
+            if let s = stalledSince, elapsed - s >= RemoteEvidence.stallWarning, !remoteSilent {
+                remoteSilent = true
+                sidecar?.events.append("call track stalled at \(Int(s)) s")
+                writeSidecar()
+                Log.noteNow("meeting: the call track stopped delivering \(Int(elapsed - s)) s ago; showing the warning")
+            }
+        } else {
+            stalledSince = nil
+        }
+        if #available(macOS 14.4, *), let t = tap {
+            let uid = ProcessTapCapture.defaultOutputDevice().flatMap { AudioDevices.deviceUID($0) }
+            if outputUID == nil { outputUID = uid }
+            else if let uid, uid != outputUID {
+                outputUID = uid
+                sidecar?.events.append("sound output changed at \(Int(elapsed)) s")
+                writeSidecar()
+                Log.noteNow("meeting: the sound output changed \(Int(elapsed)) s in; the tap was built on the earlier one")
+            }
+            if Int(elapsed) % 5 == 0 {
+                let note = t.membershipChange().map { "\($0.tapped) tapped, \($0.added) new, \($0.gone) gone" } ?? ""
+                if note != lastMembershipNote {
+                    lastMembershipNote = note
+                    if !note.isEmpty {
+                        sidecar?.events.append("audio processes changed at \(Int(elapsed)) s: \(note)")
+                        writeSidecar()
+                    }
+                    Log.noteNow("meeting: the app's audio processes \(note.isEmpty ? "match the tap again" : "changed (\(note))") at \(Int(elapsed)) s")
+                }
+            }
+        }
+    }
+
     /// The ScreenCaptureKit track delivering only zeros past the limit is the same problem as a silent tap; and a
     /// warning goes away by itself once real sound arrives.
     private func checkRemoteSilence() {
         if remoteSilent, !micOnly {
-            var hearing = false
-            if #available(macOS 14.4, *), let t = tap { hearing = t.verdict == .ok }
-            if screenCapture != nil { hearing = screenSilence.everNonZero }
-            if hearing { remoteSilent = false; Log.noteNow("meeting: the system track hears sound again") }
+            // Sound in the last few seconds, not sound at any time: an early chime doesn't clear a warning.
+            if remoteHealth == .hearing { remoteSilent = false; Log.noteNow("meeting: the system track hears sound again") }
             return
         }
         guard !remoteSilent, screenCapture != nil, !screenSilence.everNonZero, screenStartedAt > 0,
@@ -599,6 +662,7 @@ final class MeetingSession: ObservableObject {
         tapObject = nil; screenCapture = nil
         folder = nil; micURL = nil; systemURL = nil; sidecar = nil
         remoteSilent = false; slept = false; pausedForSleep = false; screenStartedAt = 0
+        remoteHealth = .starting; stalledSince = nil; outputUID = nil; lastMembershipNote = ""
         phase = .idle
     }
 
@@ -833,5 +897,9 @@ final class SilenceBox: @unchecked Sendable {
     func feed(peak: Float, at time: Double) { lock.lock(); tracker.feed(peak: peak, at: time); lock.unlock() }
     func reset() { lock.lock(); tracker = SilenceTracker(); lock.unlock() }
     var silentFor: Double { lock.lock(); defer { lock.unlock() }; return tracker.silentFor(now: HostClock.now()) }
+    func evidence(startedAt: Double) -> RemoteEvidence {
+        lock.lock(); defer { lock.unlock() }
+        return RemoteEvidence(startedAt: startedAt, lastBufferAt: tracker.lastBufferAt, lastAudibleAt: tracker.lastAudibleAt)
+    }
     var everNonZero: Bool { lock.lock(); defer { lock.unlock() }; return tracker.everNonZero }
 }

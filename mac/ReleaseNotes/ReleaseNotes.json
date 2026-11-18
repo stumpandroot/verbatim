@@ -18,6 +18,15 @@
           "platforms": [
             "mac"
           ],
+          "head": "Call sound checked all call long",
+          "icon": "audio",
+          "text": "Verbose checks the call's sound every second and warns you if it stops arriving.",
+          "detail": "Quiet moments are not treated as a problem. The log notes a changed sound output, which is the usual reason a call's sound drops out mid-call."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
           "head": "Calls record the right app",
           "icon": "audio",
           "text": "A call recorded from the menu uses the app on your microphone, not one that's only open.",

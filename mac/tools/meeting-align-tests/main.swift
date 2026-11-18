@@ -108,6 +108,25 @@ do {
     check("verdict: any nonzero sample is ok", MeetingAlign.tapVerdict(elapsed: 30, buffersArrived: true, silence: room, now: 5, targetPlaying: true) == .ok)
     room.feed(peak: 0.2, at: 6)
     check("silence: audible again resets", room.silentFor(now: 6.5) == 0.5)
+
+    // Health for the whole call (November 18, 2026): quiet isn't broken, and one early sound vouches for nothing later.
+    let fresh = RemoteEvidence(startedAt: 100, lastBufferAt: nil, lastAudibleAt: nil)
+    check("health: starting for the first seconds", fresh.health(now: 101) == .starting)
+    check("health: no buffers after the heartbeat", fresh.health(now: 103) == .noBuffers)
+    check("health: no buffers from an idle app is quiet", fresh.health(now: 130, sourceIdle: true) == .quiet)
+    let live = RemoteEvidence(startedAt: 100, lastBufferAt: 200, lastAudibleAt: 199)
+    check("health: hearing with recent sound", live.health(now: 200.5) == .hearing)
+    let hush = RemoteEvidence(startedAt: 100, lastBufferAt: 200, lastAudibleAt: 140)
+    check("health: a minute of silence with buffers is quiet", hush.health(now: 200.5) == .quiet)
+    let never = RemoteEvidence(startedAt: 100, lastBufferAt: 200, lastAudibleAt: nil)
+    check("health: zeros with buffers are quiet, not a permission verdict", never.health(now: 200.5) == .quiet)
+    let chime = RemoteEvidence(startedAt: 100, lastBufferAt: 110, lastAudibleAt: 101)
+    check("health: an early chime doesn't hide a later stall", chime.health(now: 120) == .stalled)
+    check("health: a stall from an idle app is quiet", chime.health(now: 120, sourceIdle: true) == .quiet)
+    check("health: a short gap isn't a stall", chime.health(now: 112) == .quiet)
+    var beat = SilenceTracker()
+    beat.feed(peak: 0, at: 5); beat.feed(peak: 0.3, at: 6); beat.feed(peak: 0, at: 7)
+    check("silence: keeps the latest buffer's time", beat.lastBufferAt == 7 && beat.lastAudibleAt == 6)
 }
 
 // MARK: Track clock

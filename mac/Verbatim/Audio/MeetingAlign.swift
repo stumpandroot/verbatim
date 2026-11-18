@@ -130,11 +130,14 @@ struct SilenceTracker: Equatable {
     private(set) var lastAudibleAt: Double?
     private(set) var everNonZero = false
     private(set) var buffers = 0
+    /// When the latest buffer arrived, audible or not: the capture's heartbeat (RemoteEvidence).
+    private(set) var lastBufferAt: Double?
 
     /// One buffer's peak (0…1), heard at `time` (any clock, seconds).
     mutating func feed(peak: Float, at time: Double) {
         if startedAt == nil { startedAt = time }
         buffers += 1
+        lastBufferAt = time
         if peak > 0 { everNonZero = true }
         if peak >= Self.audibleFloor { lastAudibleAt = time }
     }
@@ -149,6 +152,46 @@ struct SilenceTracker: Equatable {
     func onlyZeros(for seconds: Double, now: Double) -> Bool {
         guard let s = startedAt, buffers > 0 else { return false }
         return !everNonZero && now - s >= seconds
+    }
+}
+
+/// The call track's health right now. Judged every second for the whole call, not once at the start: one early
+/// sound (a call chime) must not vouch for the rest of the recording (November 18, 2026).
+enum RemoteHealth: String, Equatable {
+    /// Just started; no buffer yet, and it's too early to say.
+    case starting
+    /// Buffers are arriving and something audible came in the last few seconds.
+    case hearing
+    /// Buffers are arriving (or the app isn't playing anything), and nothing is audible: people may just be quiet.
+    case quiet
+    /// No buffer ever arrived, though the source should be delivering.
+    case noBuffers
+    /// Buffers arrived and then stopped: the capture's transport broke (an output change, a lost device).
+    case stalled
+}
+
+/// What a capture has delivered so far, on the host clock: enough to tell quiet from broken.
+struct RemoteEvidence: Equatable {
+    /// A capture that delivered nothing for this long isn't running.
+    static let heartbeat: Double = 3
+    /// Audible within this long counts as hearing.
+    static let hearingWindow: Double = 3
+    /// A stall this long is worth telling you about.
+    static let stallWarning: Double = 10
+    var startedAt: Double
+    var lastBufferAt: Double?
+    var lastAudibleAt: Double?
+
+    /// `sourceIdle`: the capture follows one app and that app isn't playing anything, so missing buffers are
+    /// expected and count as quiet.
+    func health(now: Double, sourceIdle: Bool = false) -> RemoteHealth {
+        guard let b = lastBufferAt else {
+            if now - startedAt < Self.heartbeat { return .starting }
+            return sourceIdle ? .quiet : .noBuffers
+        }
+        if now - b >= Self.heartbeat { return sourceIdle ? .quiet : .stalled }
+        if let a = lastAudibleAt, now - a < Self.hearingWindow { return .hearing }
+        return .quiet
     }
 }
 

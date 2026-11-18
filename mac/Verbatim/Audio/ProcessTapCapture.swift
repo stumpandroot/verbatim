@@ -291,6 +291,21 @@ final class ProcessTapCapture: @unchecked Sendable {
         return MeetingAlign.tapVerdict(elapsed: now - since, buffersArrived: s.buffers > 0, silence: s, now: now, targetPlaying: targetPlaying)
     }
 
+    /// What the tap has delivered so far, for the whole-call health check (RemoteEvidence).
+    var evidence: RemoteEvidence {
+        lock.lock(); defer { lock.unlock() }
+        return RemoteEvidence(startedAt: startedAt, lastBufferAt: silence.lastBufferAt, lastAudibleAt: silence.lastAudibleAt)
+    }
+
+    /// The app's audio processes now against the ones this tap was built on: how many it was built on, how many are
+    /// new, and how many are gone. nil for a global tap, or when nothing changed.
+    func membershipChange() -> (tapped: Int, added: Int, gone: Int)? {
+        guard !isGlobal, case .app(let bundleID, _) = target else { return nil }
+        let now = Set(Self.processObjects(matching: bundleID)), was = Set(tappedObjects)
+        let added = now.subtracting(was).count, gone = was.subtracting(now).count
+        return added == 0 && gone == 0 ? nil : (was.count, added, gone)
+    }
+
     /// Whether any tapped process says it's playing sound right now. nil for a global tap.
     var targetPlaying: Bool? {
         guard !isGlobal, !tappedObjects.isEmpty else { return nil }
