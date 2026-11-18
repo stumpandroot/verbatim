@@ -233,6 +233,7 @@ struct SettingsScreen: View {
         case .tabBar: TabBarSettingsScreen()
         case .templates: TemplatesAutoScreen()
         case .specialtyWords: SpecialtyWordsScreen()
+        case .quickActions: EditQuickActionsView()
         }
     }
 
@@ -327,6 +328,8 @@ struct SettingsScreen: View {
             }
             squareDivider
             pageRow("tabBarRow", .tabBar, art: .iconTabBar, title: "Tab bar", value: tabBarValue)
+            squareDivider
+            pageRow("quickActionsRow", .quickActions, art: .iconShare, title: "Transcript quick actions")
             squareDivider
             pageRow("aboutMeRow", .aboutMe, art: .iconAboutMe, title: "About me", value: aboutMe.isEmpty ? "Add" : "Added")
             squareDivider

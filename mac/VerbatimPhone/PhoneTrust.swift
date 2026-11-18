@@ -7,9 +7,10 @@ import UniformTypeIdentifiers
 // are shared with the Mac (Model/NetworkActivity.swift, Model/Transcript+Trust.swift).
 
 extension PhoneState {
-    /// Copy for AI: the transcript under a header (title, date, duration, speakers, source, language).
+    /// Copy for AI: the transcript under a header (title, date, duration, speakers, source, language), with your
+    /// prompt above it when Edit quick actions has one (QuickActions.swift).
     func copyForAI(_ t: Transcript) {
-        UIPasteboard.general.string = t.copyForAI
+        UIPasteboard.general.string = textForAI(t)
         say("Copied for AI, with title, date, and source")
         Haptics.play(.copied)
     }

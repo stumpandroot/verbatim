@@ -365,6 +365,11 @@ struct TranscriptScreen: View {
             }
             stageRow(t)
             if let info = t.linkInfo { PhoneLinkCard(info: info) }
+            // Quick actions: Copy for AI, Send to AI, or the ones chosen in Edit quick actions (QuickActions.swift).
+            if t.status == .ready, t.pendingAppend == nil {
+                QuickActionsRow(transcript: t, copyVersion: copyVersion) { shareItems = $0 }
+                    .padding(.top, 4)
+            }
         }
         .task(id: t.id) { SpeakerNameSuggester.openedIfNeeded(t.id, store: app.store) }
     }

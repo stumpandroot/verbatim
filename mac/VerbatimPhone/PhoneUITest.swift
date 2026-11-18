@@ -1772,6 +1772,11 @@ enum PhoneUITest {
         let order = t.speakerOrder
         let first = t.segments.first?.speaker
         layoutCheck("the first speaker to talk takes the first chip color", first.map { order[$0] == 0 } ?? true)
+        // Quick actions under the meta line (QuickActions.swift): the chosen ones, in order, on a finished transcript.
+        if t.status == .ready, t.pendingAppend == nil {
+            let row = QuickActionsRow.onScreen.map(\.title)
+            layoutCheck("a transcript's quick actions are the chosen ones (\(row.joined(separator: ", ")))", QuickActionsRow.onScreen == QuickActionsStore.shared.shown)
+        }
     }
 
     /// Home's Recent dictations (HomeSections.swift): on by default, three newest with the not-pasted line, and Recent

@@ -13,7 +13,7 @@ enum SettingsSearchTarget: Equatable {
 enum SettingsSubpage: String, CaseIterable, Equatable {
     case aboutMe, dictionary, keyboard, snippets, actionButton, appearance, whatsNew
     case speakers, moreTranscription, cloudCleanup, privacy, tour, widgets, shortcuts, customizeHome, thoughts, tabBar
-    case templates, specialtyWords
+    case templates, specialtyWords, quickActions
 
     /// The page's title, as its navigation bar shows it.
     var title: String {
@@ -37,6 +37,7 @@ enum SettingsSubpage: String, CaseIterable, Equatable {
         case .tabBar: return "Tab bar"
         case .templates: return "Templates"
         case .specialtyWords: return "Specialty words"
+        case .quickActions: return "Quick actions"
         }
     }
 }
@@ -85,6 +86,8 @@ enum SettingsSearchIndex {
               description: "Show, hide, reorder, and resize Home's sections", target: .page(.customizeHome)),
         .init(id: "tabBar", section: personalization, label: "Tab bar", keywords: ["tabs", "tab bar", "bottom bar", "thoughts tab", "journal tab", "projects", "dictations", "reorder", "customize"],
               description: "Choose up to four tabs after Home", target: .page(.tabBar)),
+        .init(id: "quickActions", section: personalization, label: "Transcript quick actions", keywords: ["quick actions", "copy for ai", "send to ai", "chatgpt", "claude", "share", "export", "prompt", "buttons", "transcript header"],
+              description: "Choose the actions under a transcript's title, and your prompt for AI", target: .page(.quickActions)),
         .init(id: "aboutMe", section: personalization, label: "About me", keywords: ["profile", "context", "titles", "summaries", "bio"],
               description: "Context for titles and summaries", target: .page(.aboutMe)),
         .init(id: "voice", section: personalization, label: "Your voice", keywords: ["speaker", "recognize", "me", "voice print", "voice profile"],

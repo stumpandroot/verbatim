@@ -1,6 +1,30 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Quick actions",
+      "items": [
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Send a transcript to AI",
+          "icon": "copy",
+          "text": "Send to AI opens the share sheet, so a transcript goes to ChatGPT or Claude in two taps.",
+          "detail": "It sits under the transcript's title beside Copy for AI. Tap the pencil to choose up to three actions."
+        },
+        {
+          "platforms": [
+            "iphone"
+          ],
+          "head": "Your prompt for AI",
+          "icon": "notes",
+          "text": "Save a prompt in Edit quick actions and it goes above the transcript you copy or send.",
+          "detail": "Find it in Settings under Transcript quick actions too. Leave it empty to send the transcript alone."
+        }
+      ]
+    },
+    {
       "build": "352",
       "date": "2026-11-15",
       "version": "1.0 beta",

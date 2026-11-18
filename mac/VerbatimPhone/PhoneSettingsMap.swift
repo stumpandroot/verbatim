@@ -46,6 +46,8 @@ enum PhoneSettingsMap {
             Row(id: "customizeHomeRow", page: "customizeHome", settings: [Setting("customizeHome")]),
             // Tab bar: the up to four tabs after Home (TabBarSettings.swift, PhoneTabBar.swift).
             Row(id: "tabBarRow", page: "tabBar", settings: [Setting("tabBar", keys: ["appearance.tabBar"])]),
+            // Transcript quick actions: the actions under a transcript's title and the prompt for AI (QuickActions.swift).
+            Row(id: "quickActionsRow", page: "quickActions", settings: [Setting("quickActions", keys: ["transcript.quickActions", "ai.prompt"])]),
             Row(id: "aboutMeRow", page: "aboutMe", settings: [Setting("aboutMe", keys: ["profile.aboutMe"])]),
             Row(id: "voice", settings: [Setting("voice")]),
             Row(id: "dictionaryRow", page: "dictionary", settings: [

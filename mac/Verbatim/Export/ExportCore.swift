@@ -826,3 +826,85 @@ enum MarkdownNotes {
         return ExportNames.unique(safe, ext: "md", used: &used, exists: exists)
     }
 }
+
+// MARK: - Quick actions
+
+/// An action a transcript's header can show under its title (DESIGN.md §6.9, Quick actions): up to three, in your
+/// order, chosen in Edit quick actions.
+enum QuickAction: String, CaseIterable, Identifiable {
+    case copyForAI, sendToAI, export, copyText, copyTimestamps
+    var id: String { rawValue }
+
+    /// The button's name.
+    var title: String {
+        switch self {
+        case .copyForAI: return "Copy for AI"
+        case .sendToAI: return "Send to AI"
+        case .export: return "Export"
+        case .copyText: return "Copy text"
+        case .copyTimestamps: return "Copy with timestamps"
+        }
+    }
+
+    /// What it does, under its name in Edit quick actions.
+    var detail: String {
+        switch self {
+        case .copyForAI: return "Copies the transcript under a header an assistant can read."
+        case .sendToAI: return "Opens the share sheet, so the transcript goes straight to ChatGPT, Claude, or another app."
+        case .export: return "Opens Export, with your format and options."
+        case .copyText: return "Copies the tab you're reading."
+        case .copyTimestamps: return "Copies the tab you're reading, with a time on each line."
+        }
+    }
+}
+
+/// The header's quick actions as they're stored and edited: a comma-separated list under `key`, three at most.
+enum QuickActions {
+    static let key = "transcript.quickActions"
+    /// Your prompt for an assistant: it goes above the transcript in Copy for AI and Send to AI.
+    static let promptKey = "ai.prompt"
+    static let limit = 3
+    /// A new install's actions.
+    static let standard: [QuickAction] = [.copyForAI, .sendToAI]
+
+    /// The stored list, in order: unknown names and repeats dropped, three at most. Nothing stored is `standard`;
+    /// an empty string is no actions.
+    static func decode(_ raw: String?) -> [QuickAction] {
+        guard let raw else { return standard }
+        var out: [QuickAction] = []
+        for name in raw.split(separator: ",") {
+            guard let a = QuickAction(rawValue: name.trimmingCharacters(in: .whitespaces)), !out.contains(a) else { continue }
+            out.append(a)
+        }
+        return Array(out.prefix(limit))
+    }
+
+    static func encode(_ shown: [QuickAction]) -> String { shown.map(\.rawValue).joined(separator: ",") }
+
+    /// The actions that aren't shown, in the catalog's order.
+    static func hidden(_ shown: [QuickAction]) -> [QuickAction] { QuickAction.allCases.filter { !shown.contains($0) } }
+
+    static func canAdd(_ shown: [QuickAction]) -> Bool { shown.count < limit }
+
+    /// `a` at the end, unless it's shown already or three are.
+    static func adding(_ a: QuickAction, to shown: [QuickAction]) -> [QuickAction] {
+        shown.contains(a) || !canAdd(shown) ? shown : shown + [a]
+    }
+
+    static func removing(_ a: QuickAction, from shown: [QuickAction]) -> [QuickAction] { shown.filter { $0 != a } }
+
+    /// A list's drag: the rows at `from` land before the row that was at `to`, keeping their order.
+    static func moving(_ shown: [QuickAction], from: IndexSet, to: Int) -> [QuickAction] {
+        let picked = from.filter { shown.indices.contains($0) }.map { shown[$0] }
+        guard !picked.isEmpty else { return shown }
+        let before = shown.enumerated().filter { $0.offset < to && !from.contains($0.offset) }.map(\.element)
+        let after = shown.enumerated().filter { $0.offset >= to && !from.contains($0.offset) }.map(\.element)
+        return before + picked + after
+    }
+
+    /// Your prompt, a blank line, then the text. An empty prompt adds nothing.
+    static func withPrompt(_ prompt: String, _ text: String) -> String {
+        let p = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        return p.isEmpty ? text : p + "\n\n" + text
+    }
+}

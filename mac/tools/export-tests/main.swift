@@ -301,6 +301,28 @@ do {
        "# Transcript\n\n- Date: Today\n- Duration: 38 s\n- Source: Voice memo\n- Text: Original transcript\n\n---\n\nHi.\n")
 }
 
+// MARK: Quick actions
+
+do {
+    eq("quick actions: a new install shows Copy for AI and Send to AI", QuickActions.decode(nil), [.copyForAI, .sendToAI])
+    eq("quick actions: an empty list stays empty", QuickActions.decode(""), [])
+    eq("quick actions: unknown names and repeats are dropped, three at most",
+       QuickActions.decode("export, nope,export,copyText,sendToAI,copyForAI"), [.export, .copyText, .sendToAI])
+    eq("quick actions: the list round trips", QuickActions.decode(QuickActions.encode([.sendToAI, .export])), [.sendToAI, .export])
+    eq("quick actions: the rest are offered in the catalog's order", QuickActions.hidden([.sendToAI, .copyForAI]), [.export, .copyText, .copyTimestamps])
+    eq("quick actions: adding puts it last", QuickActions.adding(.export, to: [.copyForAI, .sendToAI]), [.copyForAI, .sendToAI, .export])
+    eq("quick actions: a fourth isn't added", QuickActions.adding(.copyText, to: [.copyForAI, .sendToAI, .export]), [.copyForAI, .sendToAI, .export])
+    eq("quick actions: one shown already isn't added twice", QuickActions.adding(.copyForAI, to: [.copyForAI]), [.copyForAI])
+    eq("quick actions: removing", QuickActions.removing(.sendToAI, from: [.copyForAI, .sendToAI]), [.copyForAI])
+    eq("quick actions: dragging the first to the end", QuickActions.moving([.copyForAI, .sendToAI, .export], from: IndexSet(integer: 0), to: 3), [.sendToAI, .export, .copyForAI])
+    eq("quick actions: dragging the last to the front", QuickActions.moving([.copyForAI, .sendToAI, .export], from: IndexSet(integer: 2), to: 0), [.export, .copyForAI, .sendToAI])
+    eq("quick actions: a drag onto its own place changes nothing", QuickActions.moving([.copyForAI, .sendToAI], from: IndexSet(integer: 1), to: 1), [.copyForAI, .sendToAI])
+    eq("AI prompt goes above the text", QuickActions.withPrompt("  Summarize this.\n", "# Title\n"), "Summarize this.\n\n# Title\n")
+    eq("an empty AI prompt adds nothing", QuickActions.withPrompt(" \n", "# Title\n"), "# Title\n")
+    check("quick actions: every action has a name and a line, with no exclamation point or em dash",
+          QuickAction.allCases.allSatisfy { !$0.title.isEmpty && !$0.detail.isEmpty && !($0.title + $0.detail).contains("!") && !($0.title + $0.detail).contains("\u{2014}") })
+}
+
 // MARK: Markdown notes (bulk export)
 
 do {
