@@ -1775,7 +1775,7 @@ enum PhoneUITest {
         // Quick actions under the meta line (QuickActions.swift): the chosen ones, in order, on a finished transcript.
         if t.status == .ready, t.pendingAppend == nil {
             let row = QuickActionsRow.onScreen.map(\.title)
-            layoutCheck("a transcript's quick actions are the chosen ones (\(row.joined(separator: ", ")))", QuickActionsRow.onScreen == QuickActionsStore.shared.shown)
+            layoutCheck("a transcript's quick actions are the chosen ones (\(row.joined(separator: ", ")); rows on screen: \(QuickActionsRow.rowsOnScreen))", QuickActionsRow.onScreen == QuickActionsStore.shared.shown)
         }
     }
 

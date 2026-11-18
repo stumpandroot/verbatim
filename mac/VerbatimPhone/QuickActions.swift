@@ -56,8 +56,13 @@ struct QuickActionsRow: View {
     @ObservedObject private var store = QuickActionsStore.shared
     @State private var copied: QuickAction? = nil
     @State private var editing = false
-    /// The actions on screen and the last one run, for the self-test.
-    static var onScreen: [QuickAction] = []
+    /// This row's place in `rows`.
+    @State private var token = UUID()
+    /// The rows on screen, by row (a screen being left can disappear after the next one appears), and the last
+    /// action run, for the self-test.
+    private static var rows: [UUID: [QuickAction]] = [:]
+    static var onScreen: [QuickAction] { rows.count == 1 ? rows.values.first ?? [] : [] }
+    static var rowsOnScreen: Int { rows.count }
     static var lastRun: QuickAction? = nil
 
     var body: some View {
@@ -87,9 +92,9 @@ struct QuickActionsRow: View {
         .onReceive(NotificationCenter.default.publisher(for: .verbatimEditQuickActions)) { note in
             editing = (note.object as? Bool) ?? true
         }
-        .onAppear { Self.onScreen = store.shown }
-        .onChange(of: store.shown) { _, now in Self.onScreen = now }
-        .onDisappear { Self.onScreen = [] }
+        .onAppear { Self.rows[token] = store.shown }
+        .onChange(of: store.shown) { _, now in Self.rows[token] = now }
+        .onDisappear { Self.rows[token] = nil }
     }
 
     private func run(_ a: QuickAction) {
