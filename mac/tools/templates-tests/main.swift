@@ -46,7 +46,7 @@ let planCopy = TemplateLibrary.duplicate(builtIn[0])
 check("a built-in's copy drops the rule from its editable instruction (it's added back when it runs)", !planCopy.instructions.contains(rule)
       && TemplatePrompt.instruction(planCopy).hasSuffix(rule))
 let all = TemplateLibrary.all(yours: [mine])
-check("library order: Scenarios, Yours, Built in", all.map(\.origin) == Array(repeating: .scenario, count: 9) + [.yours] + Array(repeating: .builtIn, count: 2))
+check("library order: Scenarios, Yours, Built in", all.map(\.origin) == Array(repeating: .scenario, count: 11) + [.yours] + Array(repeating: .builtIn, count: 2))
 check("a template is found by ID among all three", TemplateLibrary.template(mine.id, yours: [mine]) == mine
       && TemplateLibrary.template(meeting.id, yours: []) == meeting && TemplateLibrary.template(builtIn[1].id, yours: []) == builtIn[1]
       && TemplateLibrary.template(UUID(), yours: [mine]) == nil)
