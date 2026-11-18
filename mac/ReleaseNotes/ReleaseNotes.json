@@ -2,8 +2,18 @@
   "notes": [
     {
       "build": "next",
-      "title": "Quick actions on the Mac",
+      "title": "AI prompts and quick actions",
       "items": [
+        {
+          "platforms": [
+            "mac",
+            "iphone"
+          ],
+          "head": "A kind for AI prompts",
+          "icon": "notes",
+          "text": "File a recording as AI prompt and its Prompt tab holds your words, ready to paste.",
+          "detail": "Copy prompt and Send to AI carry the prompt alone, with no title or date. For Goal, Format, Warnings, and Context sections, choose Prompt in sections in Templates, under Run automatically."
+        },
         {
           "platforms": [
             "mac",
