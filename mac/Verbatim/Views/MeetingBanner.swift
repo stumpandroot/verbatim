@@ -169,7 +169,7 @@ struct MeetingSourceRow: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
-        .background(selected ? Refined.paper : Color.clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(selected ? Refined.paper : Color.clear, in: RoundedRectangle(cornerRadius: RefinedPlatform.radius(.field), style: .continuous))
         .contentShape(Rectangle())
         .tapArea(pick)
         .accessibilityElement(children: .ignore)
