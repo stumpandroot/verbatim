@@ -17,11 +17,11 @@ let now = Date(timeIntervalSince1970: 1_800_000_000)
 let builtIn = TemplateLibrary.builtIn, scenarios = TemplateLibrary.scenarios
 check("two built-ins, the actions, with their IDs", builtIn.map(\.name) == TranscriptActions.builtIn.map(\.name)
       && builtIn.map(\.id) == TranscriptActions.builtIn.map(\.id) && builtIn.allSatisfy { $0.origin == .builtIn })
-check("nine scenarios in the mockup's order, Plan my day last", scenarios.map(\.name) == ["Meeting notes", "1:1", "Client call", "Interview", "Lecture",
-                                                                       "Sermon notes", "Brainstorm", "Daily reflection", "Plan my day"],
+check("eleven scenarios in the mockup's order, then Plan my day and AI prompt's two", scenarios.map(\.name) == ["Meeting notes", "1:1", "Client call", "Interview", "Lecture",
+                                                                       "Sermon notes", "Brainstorm", "Daily reflection", "Plan my day", "Prompt", "Prompt in sections"],
       "\(scenarios.map(\.name))")
 let allIDs = (builtIn + scenarios).map(\.id)
-check("every template has its own fixed ID", Set(allIDs).count == 11 && scenarios.allSatisfy { $0.origin == .scenario })
+check("every template has its own fixed ID", Set(allIDs).count == 13 && scenarios.allSatisfy { $0.origin == .scenario })
 check("every built-in and scenario has sections and a summary", (builtIn + scenarios).allSatisfy { !$0.sections.isEmpty && !$0.summary.isEmpty })
 let shipped: [TranscriptTemplate] = builtIn + scenarios
 let sectionIDs: [UUID] = shipped.flatMap { t in t.sections.map { $0.id } }
@@ -90,10 +90,10 @@ check("Interview asks for quotes with times", TemplatePrompt.instruction(scenari
 
 let d = UserDefaults(suiteName: "templates-tests-\(UUID().uuidString)")!
 var settings = AutoRunSettings.load(d)
-check("defaults: every kind Off but Brain dump (Plan my day), skip short on, show first off, notify on",
-      settings.assignments == [RecordingKind.brainDump.rawValue: TemplateLibrary.planMyDayID] && settings.skipShort && !settings.showFirst && settings.notify
+check("defaults: every kind Off but Brain dump (Plan my day) and AI prompt (Prompt), skip short on, show first off, notify on",
+      settings.assignments == [RecordingKind.brainDump.rawValue: TemplateLibrary.planMyDayID, RecordingKind.aiPrompt.rawValue: TemplateLibrary.promptID] && settings.skipShort && !settings.showFirst && settings.notify
       && settings == AutoRunSettings.startingChoices)
-check("Run automatically lists nine kinds, Brain dump last, never dictations or Audio only", AutoRunSettings.kinds.count == 9 && AutoRunSettings.kinds.last == .brainDump
+check("Run automatically lists ten kinds, AI prompt then Brain dump last, never dictations or Audio only", AutoRunSettings.kinds.count == 10 && AutoRunSettings.kinds.suffix(2) == [.aiPrompt, .brainDump]
       && !AutoRunSettings.kinds.contains(.dictation) && !AutoRunSettings.kinds.contains(.audio))
 settings.set(meeting.id, for: .meeting)
 settings.set(reflection.id, for: .journal)
@@ -103,7 +103,7 @@ settings.save(d)
 let loaded = AutoRunSettings.load(d)
 check("the per-kind assignment and options round-trip", loaded == settings && loaded.template(for: .meeting) == meeting.id && loaded.template(for: .talk) == nil)
 check("one template per kind; a template can run for several kinds", { var s = loaded; s.set(meeting.id, for: .interview); return s.kinds(for: meeting.id) == [.meeting, .interview] && s.template(for: .interview) == meeting.id }())
-check("\"4 of 9 kinds\" (with Brain dump's Plan my day)", loaded.assignedCount == 4)
+check("\"5 of 10 kinds\" (with Brain dump's Plan my day and AI prompt's Prompt)", loaded.assignedCount == 5)
 let offD = UserDefaults(suiteName: "templates-tests-off-\(UUID().uuidString)")!
 var turnedOff = AutoRunSettings.load(offD)
 turnedOff.set(nil, for: .brainDump)
@@ -340,6 +340,27 @@ var bdRan = bd
 bdRan.addTemplateResult(TemplateResult(templateId: TemplateLibrary.planMyDayID, name: "Plan my day", text: "## Today\n- [ ] Call [00:04]"))
 check("no offer once Plan my day has a result", AutoRunRules.offer(bdRan, settings: startS, templates: lib) == nil)
 check("no offer with Brain dump Off", AutoRunRules.offer(bd, settings: AutoRunSettings(), templates: lib) == nil)
+
+// MARK: AI prompt
+
+var ap = rec(.meeting, minutes: 1)
+ap.kind = .aiPrompt; ap.kindIsAuto = false
+let apOffer = AutoRunRules.offer(ap, settings: startS, templates: lib)
+check("filed as an AI prompt afterward with nothing run: \"Now an AI prompt. Run Prompt?\"", apOffer?.text == "Now an AI prompt. Run Prompt?"
+      && apOffer?.result == nil && apOffer?.template == TemplateLibrary.promptID, "\(String(describing: apOffer))")
+check("a short AI prompt still runs with Skip short recordings on", decide(ap, startS) == .run(TemplateLibrary.promptID, .aiPrompt), "\(decide(ap, startS))")
+check("an AI prompt has no prompt text until its template has run", ap.aiPromptText == nil)
+var apRan = ap
+apRan.addTemplateResult(TemplateResult(templateId: TemplateLibrary.promptID, name: "Prompt", text: "## Prompt\nWrite three emails.\n\nKeep each under 150 words."))
+check("AI prompt: the prompt alone, without its lone heading", apRan.aiPromptText == "Write three emails.\n\nKeep each under 150 words.\n", "\(String(describing: apRan.aiPromptText))")
+check("no offer once Prompt has a result", AutoRunRules.offer(apRan, settings: startS, templates: lib) == nil)
+var apSorted = ap
+apSorted.addTemplateResult(TemplateResult(templateId: TemplateLibrary.promptInSectionsID, name: "Prompt in sections", text: "## Goal\nThree emails.\n\n## Format\n- Under 150 words"))
+check("AI prompt: sections keep their headings", apSorted.aiPromptText == "## Goal\nThree emails.\n\n## Format\n- Under 150 words\n", "\(String(describing: apSorted.aiPromptText))")
+var apOther = apRan
+apOther.kind = .note
+check("another kind has no prompt text, even with the result", apOther.aiPromptText == nil)
+check("AI prompt takes a kit hue and a name", RecordingKind.aiPrompt.label == "AI prompt" && RecordingKind.aiPrompt.plural == "AI prompts" && RecordingKind.pickable.contains(.aiPrompt))
 var bdAuto = rec(.meeting)
 bdAuto.addTemplateResult(TemplateResult(templateId: meeting.id, name: "Meeting notes", text: "## Summary\nx", auto: true, kind: .meeting))
 bdAuto.kind = .brainDump; bdAuto.kindIsAuto = false

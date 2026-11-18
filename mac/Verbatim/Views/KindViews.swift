@@ -18,6 +18,7 @@ extension RecordingKind {
         case .interview: return .kindInterview
         case .brainDump: return .kindBrainDump
         case .audio: return .kindAudio
+        case .aiPrompt: return .kindNote
         }
     }
 }

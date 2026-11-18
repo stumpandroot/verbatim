@@ -223,7 +223,7 @@ enum CopyForAI {
         pb.clearContents()
         // Your prompt from Edit quick actions goes above it, when there is one (QuickActionsMac.swift).
         pb.setString(QuickActionsStore.shared.textForAI(t), forType: .string)
-        app.toast = Toast("Copied for AI, with title, date, and source")
+        app.toast = Toast(t.aiPromptText != nil ? "Copied the prompt" : "Copied for AI, with title, date, and source")
     }
 }
 

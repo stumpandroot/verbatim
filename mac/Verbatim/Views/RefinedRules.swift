@@ -93,7 +93,7 @@ enum RefinedRules {
     static func kindHue(_ raw: String?) -> RefinedHue {
         switch raw {
         case nil, "note", "meeting": return .persimmon
-        case "interview", "talk", "video": return .sage
+        case "interview", "talk", "video", "aiPrompt": return .sage
         case "audio", "journal", "podcast": return .petal
         case "idea", "brainDump", "dictation": return .butter
         default: return .persimmon

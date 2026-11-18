@@ -1515,6 +1515,7 @@ extension RecordingKind {
         case .dictation: return .iconDictations
         case .podcast: return .iconSpeak
         case .video: return .iconFilm
+        case .aiPrompt: return .iconAI
         }
     }
 }

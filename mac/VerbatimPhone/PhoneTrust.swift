@@ -11,7 +11,7 @@ extension PhoneState {
     /// prompt above it when Edit quick actions has one (QuickActions.swift).
     func copyForAI(_ t: Transcript) {
         UIPasteboard.general.string = textForAI(t)
-        say("Copied for AI, with title, date, and source")
+        say(t.aiPromptText != nil ? "Copied the prompt" : "Copied for AI, with title, date, and source")
         Haptics.play(.copied)
     }
 }

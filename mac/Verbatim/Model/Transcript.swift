@@ -51,6 +51,8 @@ struct Segment: Codable, Identifiable, Equatable {
 /// unchanged while the kind stays as read (`Transcript.init(from:)`, `UnknownFields`).
 enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
     case journal, idea, meeting, note, dictation, podcast, video, talk, interview, brainDump, audio
+    /// A recording made to hand to an assistant: its Prompt tab is what you paste (Templates.swift, `aiPromptText`).
+    case aiPrompt
     static var fallback: RecordingKind { .note }
     init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
     var id: String { rawValue }
@@ -68,6 +70,7 @@ enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
         case .interview: return "Interview"
         case .brainDump: return "Brain dump"
         case .audio: return "Audio only"
+        case .aiPrompt: return "AI prompt"
         }
     }
     /// The kind as a filter or a list names it: "Meetings", "Thoughts", "Audio".
@@ -83,12 +86,13 @@ enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
         case .talk: return "Talks"
         case .interview: return "Interviews"
         case .brainDump: return "Brain dumps"
+        case .aiPrompt: return "AI prompts"
         case .audio: return "Audio"
         }
     }
     /// The kinds a person can pick; dictation is set automatically for dictations. Brain dump and Audio only come last,
     /// as they do in Record as.
-    static let pickable: [RecordingKind] = [.journal, .idea, .meeting, .note, .podcast, .video, .talk, .interview, .brainDump, .audio]
+    static let pickable: [RecordingKind] = [.journal, .idea, .meeting, .note, .podcast, .video, .talk, .interview, .aiPrompt, .brainDump, .audio]
     /// The kinds Apple Intelligence may suggest for a recording (AutoLabel). Links and imported media get theirs from
     /// `AutoLabel.mediaKind`; interview is only ever picked.
     static let modelKinds: [RecordingKind] = [.journal, .idea, .meeting, .note]

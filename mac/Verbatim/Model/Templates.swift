@@ -275,7 +275,20 @@ enum TemplateLibrary {
                  planMyDayInstruction,
                  [("Top three", .checklist), ("Today", .checklist), ("Tomorrow", .checklist), ("This week", .checklist),
                   ("Someday", .checklist), ("Ideas", .bullets)]),
+        // AI prompt's templates (November 18, 2026, mockup "Verbose AI prompt and recording fixes"): what you said,
+        // as the prompt you'd paste. The first runs for the kind from the start; the second sorts it into sections.
+        scenario(10, "Prompt", "Your words as a prompt you can paste", [.aiPrompt], TemplateGlyph.draft,
+                 "The speaker is dictating a request for an AI assistant. Write it as the prompt they would send, in their own words, with every specific they gave. Remove filler, false starts, and repeats. Keep one idea in each paragraph. Don't answer the request, don't address the speaker, and don't add steps, constraints, or examples they didn't say.",
+                 [("Prompt", .paragraph)]),
+        scenario(11, "Prompt in sections", "Goal, format, warnings, and context", [.aiPrompt], TemplateGlyph.draft,
+                 "The speaker is dictating a request for an AI assistant. Sort what they said into the sections, in their own words. Goal is what they want made or answered. Format is the shape, length, or structure they asked for. Warnings are what to avoid or be careful about. Context is the background the assistant needs. Leave a section out when they said nothing for it. Don't answer the request, and don't add anything they didn't say.",
+                 [("Goal", .paragraph), ("Format", .bullets), ("Warnings", .bullets), ("Context", .paragraph)]),
     ]
+
+    /// AI prompt's template from the start, and the one that sorts it into sections.
+    static let promptID = id(10)
+    static let promptInSectionsID = id(11)
+    static let promptIDs: Set<UUID> = [promptID, promptInSectionsID]
 
     static let scenarioIDs: Set<UUID> = Set(scenarios.map(\.id))
 
@@ -381,6 +394,7 @@ struct AutoRunSettings: Equatable {
     /// Set once Run automatically's choices are saved on this device: Brain dump's Plan my day is seeded only before it,
     /// so turning Brain dump Off stays Off.
     static let seededKey = "templates.auto.seeded"
+    static let promptSeededKey = "templates.auto.seeded.prompt"
 
     /// Kind raw value → template ID. A kind that isn't here is Off.
     var assignments: [String: UUID] = [:]
@@ -393,13 +407,15 @@ struct AutoRunSettings: Equatable {
 
     /// The kinds Run automatically lists, in the mockup's order, then Brain dump. Dictations never run a template, and
     /// neither does Audio only (no transcript; the screens list it with no picker).
-    static let kinds: [RecordingKind] = [.meeting, .journal, .idea, .interview, .talk, .podcast, .note, .video, .brainDump]
+    static let kinds: [RecordingKind] = [.meeting, .journal, .idea, .interview, .talk, .podcast, .note, .video, .aiPrompt, .brainDump]
 
     /// What a device starts with: every kind Off but Brain dump, which runs Plan my day, because the plan is the point
     /// of the kind (decision 4, October 27, 2026).
     static var startingChoices: AutoRunSettings {
         var s = AutoRunSettings()
         s.set(TemplateLibrary.planMyDayID, for: .brainDump)
+        // An AI prompt's Prompt tab is the point of the kind, as the plan is of a brain dump.
+        s.set(TemplateLibrary.promptID, for: .aiPrompt)
         return s
     }
 
@@ -429,6 +445,10 @@ struct AutoRunSettings: Equatable {
         if !d.bool(forKey: seededKey), s.assignments[RecordingKind.brainDump.rawValue] == nil {
             s.assignments[RecordingKind.brainDump.rawValue] = TemplateLibrary.planMyDayID
         }
+        // The same for AI prompt, which came later (its own mark, so a device that saved before it still starts with Prompt).
+        if !d.bool(forKey: promptSeededKey), s.assignments[RecordingKind.aiPrompt.rawValue] == nil {
+            s.assignments[RecordingKind.aiPrompt.rawValue] = TemplateLibrary.promptID
+        }
         if d.object(forKey: skipShortKey) != nil { s.skipShort = d.bool(forKey: skipShortKey) }
         if d.object(forKey: showFirstKey) != nil { s.showFirst = d.bool(forKey: showFirstKey) }
         if d.object(forKey: notifyKey) != nil { s.notify = d.bool(forKey: notifyKey) }
@@ -441,6 +461,7 @@ struct AutoRunSettings: Equatable {
         d.set(showFirst, forKey: Self.showFirstKey)
         d.set(notify, forKey: Self.notifyKey)
         d.set(true, forKey: Self.seededKey)
+        d.set(true, forKey: Self.promptSeededKey)
     }
 }
 
@@ -483,7 +504,7 @@ enum AutoRunRules {
         guard AutoRunSettings.kinds.contains(kind), let id = settings.template(for: kind),
               templates.contains(where: { $0.id == id }) else { return .off }
         // A brain dump is often short, and its plan is the point: Skip short recordings leaves it alone.
-        if settings.skipShort && t.duration < shortLimit && kind != .brainDump { return .short }
+        if settings.skipShort && t.duration < shortLimit && kind != .brainDump && kind != .aiPrompt { return .short }
         return .run(id, kind)
     }
 
@@ -532,11 +553,13 @@ enum AutoRunRules {
     /// while Run automatically still decides on a recording that just finished (`TemplateCenter.isPending`).
     static func brainDumpOffer(_ t: Transcript, settings: AutoRunSettings, templates: [TranscriptTemplate]) -> Offer? {
         let results = t.templateResults ?? []
-        guard t.kind == .brainDump, !t.kindIsAuto, t.status == .ready, t.deletedAt == nil, !t.segments.isEmpty,
+        // An AI prompt you filed after it finished gets the same offer ("Now an AI prompt. Run Prompt?").
+        guard let kind = t.kind, kind == .brainDump || kind == .aiPrompt,
+              !t.kindIsAuto, t.status == .ready, t.deletedAt == nil, !t.segments.isEmpty,
               t.autoRun == nil, !results.contains(where: { $0.auto }),
-              let id = settings.template(for: .brainDump), !results.contains(where: { $0.templateId == id }),
+              let id = settings.template(for: kind), !results.contains(where: { $0.templateId == id }),
               let tpl = templates.first(where: { $0.id == id }) else { return nil }
-        return Offer(result: nil, kind: .brainDump, template: id, templateName: tpl.name)
+        return Offer(result: nil, kind: kind, template: id, templateName: tpl.name)
     }
 
     /// Not now on an offer with no result to mark: the recording's Run automatically mark says it was skipped, so the
@@ -1006,3 +1029,22 @@ final class RecordAsStore: ObservableObject {
     }
 }
 #endif
+
+// MARK: - AI prompt
+
+extension Transcript {
+    /// An AI prompt's Prompt tab as the text you paste: the result of Prompt, Prompt in sections, or whichever
+    /// template ran for the kind, without the lone "## Prompt" heading (section headings stay). Nil until a result is
+    /// in, and for every other kind. Copy for AI, Send to AI, and Open in carry this alone: no title or date header and
+    /// no saved prompt above it, because the recording is the prompt.
+    var aiPromptText: String? {
+        guard kind == .aiPrompt, let r = (templateResults ?? []).first(where: {
+            TemplateLibrary.promptIDs.contains($0.templateId) || ($0.auto && $0.kind == .aiPrompt)
+        }) else { return nil }
+        var lines = r.text.components(separatedBy: "\n")
+        let headings = lines.indices.filter { lines[$0].hasPrefix("## ") }
+        if headings.count == 1 { lines.remove(at: headings[0]) }
+        let text = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text + "\n"
+    }
+}

@@ -23,7 +23,8 @@ final class QuickActionsStore: ObservableObject {
     }
 
     /// What Copy for AI copies and Open in sends: your prompt, when there is one, over the transcript and its header.
-    func textForAI(_ t: Transcript) -> String { QuickActions.withPrompt(prompt, t.copyForAI) }
+    /// An AI prompt with its Prompt tab in is the prompt alone (Templates.swift, `aiPromptText`).
+    func textForAI(_ t: Transcript) -> String { t.aiPromptText ?? QuickActions.withPrompt(prompt, t.copyForAI) }
 }
 
 extension QuickAction {
@@ -112,7 +113,7 @@ struct QuickActionsRow: View {
                     HStack(spacing: 6) {
                         IconGlyph(art: a.art, size: 15, color: i == 0 ? Refined.paper : Refined.ink)
                             .accessibilityHidden(true)
-                        Text(a.title)
+                        Text(a == .copyForAI && transcript.aiPromptText != nil ? "Copy prompt" : a.title)
                     }
                 }
                 .buttonStyle(RefinedActionStyle(kind: i == 0 ? .strong : .quiet))

@@ -40,7 +40,9 @@ extension QuickAction {
 extension PhoneState {
     /// What Copy for AI copies and Send to AI shares: your prompt, when there is one, over the transcript and its header.
     func textForAI(_ t: Transcript) -> String {
-        QuickActions.withPrompt(QuickActionsStore.shared.prompt, t.copyForAI)
+        // An AI prompt with its Prompt tab in: the prompt alone (Templates.swift, `aiPromptText`).
+        if let prompt = t.aiPromptText { return prompt }
+        return QuickActions.withPrompt(QuickActionsStore.shared.prompt, t.copyForAI)
     }
 }
 
@@ -72,7 +74,7 @@ struct QuickActionsRow: View {
                     HStack(spacing: 7) {
                         IconGlyph(art: a.art, size: 18, color: i == 0 ? Refined.paper : Refined.ink)
                             .accessibilityHidden(true)
-                        Text(copied == a ? "Copied" : a.title)
+                        Text(copied == a ? "Copied" : (a == .copyForAI && transcript.aiPromptText != nil ? "Copy prompt" : a.title))
                     }
                 }
                 .buttonStyle(RefinedActionStyle(kind: i == 0 ? .strong : .quiet))
