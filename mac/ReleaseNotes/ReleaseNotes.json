@@ -6,6 +6,16 @@
       "items": [
         {
           "platforms": [
+            "mac",
+            "iphone"
+          ],
+          "head": "No more stray Dictionary words",
+          "icon": "words",
+          "text": "Cleanup no longer adds a list of your Dictionary words to the end of a dictation.",
+          "detail": "Cleanup sees only the spellings that sound like something you said, and a Dictionary name you didn't say is never added."
+        },
+        {
+          "platforms": [
             "mac"
           ],
           "head": "Open in Claude or ChatGPT",

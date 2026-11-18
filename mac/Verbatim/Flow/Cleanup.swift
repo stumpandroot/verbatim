@@ -813,8 +813,11 @@ enum FlowCleanup {
         #endif
         if let d = destination(r.category, insertion: insertion) { lines.append("Destination: " + d) }
         lines.append("Tone: " + tone(r.style))
-        if !r.vocabulary.isEmpty {
-            lines.append("Spell these names and terms exactly like this when they appear: " + r.vocabulary.prefix(80).joined(separator: ", "))
+        // Only the spellings that something in this text sounds like (MeaningCheck.heard). Given the whole
+        // Dictionary, the model sometimes copied the list onto the end of a dictation that used none of it.
+        let spellings = r.vocabulary.filter { MeaningCheck.heard($0, in: text) }
+        if !spellings.isEmpty {
+            lines.append("Spell these names and terms exactly like this when they appear: " + spellings.prefix(80).joined(separator: ", "))
         }
         if r.pauseHints {
             lines.append("Pauses: some sentence ends and blank lines mark where the user paused. Keep them as sentence and paragraph breaks unless one clearly splits a single sentence.")

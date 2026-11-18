@@ -70,5 +70,27 @@ check("kept when a speaker is called Name", CleanupGuard.hidePlaceholderLabels(s
 check("text without Name: unchanged", CleanupGuard.hidePlaceholderLabels("Tim: hi\n\nJonathan: hello", speakers: two) == "Tim: hi\n\nJonathan: hello")
 check("Name: mid-paragraph unchanged", CleanupGuard.hidePlaceholderLabels("My Name: Tim", speakers: []) == "My Name: Tim")
 
+// MARK: Dictionary spellings (MeaningCheck.heard, the name check)
+
+do {
+    let dictionary = ["Stump And Root", "Descript", "StoryBrand", "Ervin", "WebTek"]
+    var limits = MeaningCheck.Limits.clean
+    limits.vocabulary = dictionary
+    let said = "I think he has an iPhone that he looks at stuff on. So I want to make it obvious that those are links where he can find my work."
+    check("a spelling list copied onto the end is caught",
+          MeaningCheck.problem(raw: said, output: said + " Stump And Root, Descript, StoryBrand, Ervin, WebTek.", limits: limits) == "a name was added")
+    check("one spelling nobody said is caught", MeaningCheck.problem(raw: said, output: said + " Thanks, Ervin.", limits: limits) == "a name was added")
+    check("the same text with nothing added passes", MeaningCheck.problem(raw: said, output: said, limits: limits) == nil)
+    check("a misheard name may take its Dictionary spelling",
+          MeaningCheck.problem(raw: "Send the cut to the team at stumper root and to irvin at web tech today.",
+                               output: "Send the cut to the team at Stump And Root and to Ervin at WebTek today.", limits: limits) == nil)
+    check("none of the spellings were heard in it", dictionary.allSatisfy { !MeaningCheck.heard($0, in: said) })
+    check("heard: the same letters across words", MeaningCheck.heard("StoryBrand", in: "we follow the story brand framework"))
+    check("heard: words in a row that sound like it", MeaningCheck.heard("Stump And Root", in: "the team at stumper root")
+          && MeaningCheck.heard("WebTek", in: "ask web tech") && MeaningCheck.heard("Descript", in: "cut it in the script") && MeaningCheck.heard("Ervin", in: "call irvin"))
+    check("heard: a short word that only shares letters isn't it", !MeaningCheck.heard("Ervin", in: "even so, every vine") && !MeaningCheck.heard("Stump And Root", in: "he looks at stuff on"))
+    check("heard: an empty spelling is never heard", !MeaningCheck.heard(" ", in: said))
+}
+
 if failures > 0 { print("\(failures) failed"); exit(1) }
 print("All cleanup tests passed.")

@@ -20,7 +20,8 @@ enum MeaningCheck {
         var maxGrowth: Double
         /// Shortest output allowed, as a multiple of the input's length.
         var minShrink: Double = 0.5
-        /// Dictionary spellings the model was told to use; they may replace a name that sounds like them.
+        /// Your Dictionary's spellings; one may replace a name that sounds like it, and may appear only when
+        /// something like it was said (`heard`).
         var vocabulary: [String] = []
         /// The style may drop a final period (very casual messages, an email's sign-off line).
         var finalPunctuationOptional = false
@@ -134,11 +135,37 @@ enum MeaningCheck {
         if missing.count > budget { return "a name was dropped or changed" }
         guard !b.mostlyCapitalized else { return nil }
         let rawSquashed = squash(raw.lowercased())
+        // A Dictionary spelling excuses a new name only when something like it was said. The model once copied
+        // the whole spelling list onto the end of a dictation, and every name in it passed as a Dictionary word.
+        let heardVocab = Set(vocabulary.filter { heard($0, in: raw) }.flatMap { v in
+            v.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" }).map(String.init)
+        })
         let added = Set(b.names).filter { name in
-            !a.words.contains(name) && !vocab.contains(name) && !rawSquashed.contains(squash(name))
+            !a.words.contains(name) && !heardVocab.contains(name) && !rawSquashed.contains(squash(name))
         }
         if !added.isEmpty { return "a name was added" }
         return nil
+    }
+
+    /// True when `term` (a Dictionary spelling) could be what was said: its letters are in `raw` ("story brand" for
+    /// StoryBrand), or one to three words in a row sound like it ("stumper root" for Stump And Root, "web tech" for
+    /// WebTek). Cleanup shows the model only the spellings that pass, and the name check allows only those.
+    static func heard(_ term: String, in raw: String) -> Bool {
+        let t = squash(term.lowercased())
+        guard !t.isEmpty else { return false }
+        let words = raw.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        if words.joined().contains(t) { return true }
+        for i in words.indices {
+            var run = ""
+            for j in i..<min(i + 3, words.count) {
+                run += words[j]
+                // `similar` allows a third of the shorter one's letters to differ; skip lengths that can't pass.
+                let slack = max(1, min(run.count, t.count) / 3)
+                if run.count > t.count + slack { break }
+                if run.count + slack >= t.count, similar(t, run) { return true }
+            }
+        }
+        return false
     }
 
     // MARK: Facts
