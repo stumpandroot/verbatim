@@ -22,8 +22,8 @@ check("iPhone: the Record card, tiles, This week, Recent dictations, Recent reco
 check("iPhone: Record card and tiles Large, This week a Compact strip",
       pv.size(.record) == .large && pv.size(.tiles) == .large && pv.size(.week) == .compact && pv.size(.recent) == .large)
 check("iPhone starts with the Record card shown", pv.isVisible(.record))
-check("Mac: the Record card, tiles, then Recent recordings beside This week",
-      names(mv.shown) == ["record", "tiles", "recent", "week"], "\(names(mv.shown))")
+check("Mac: the Record card, tiles, Recent dictations, then Recent recordings beside This week",
+      names(mv.shown) == ["record", "tiles", "dictations", "recent", "week"], "\(names(mv.shown))")
 check("Mac: every section Large", mv.shown.allSatisfy { $0.size == .large })
 check("Mac starts with the Record card shown", mv.isVisible(.record))
 // The consolidation (October 28, 2026): eleven sections down to six.
@@ -49,8 +49,8 @@ check("What's playing is iPhone only", HomeTile.available(on: .phone).contains(.
 check("App audio and the Thought pad are Mac only", HomeTile.available(on: .mac).contains(.appAudio) && HomeTile.available(on: .mac).contains(.thoughtPad)
       && !HomeTile.available(on: .phone).contains(.appAudio) && !HomeTile.available(on: .phone).contains(.thoughtPad))
 check("each app offers at least ten tiles", HomeTile.available(on: .phone).count >= 10 && HomeTile.available(on: .mac).count >= 10)
-check("every section but Recent dictations is on both apps", HomeSection.allCases.filter { $0 != .dictations }.allSatisfy { $0.platformOnly == nil }
-      && HomeSection.allCases.filter { $0 != .dictations }.allSatisfy { $0.isAvailable(on: .mac) && $0.isAvailable(on: .phone) })
+check("every section is on both apps", HomeSection.allCases.allSatisfy { $0.platformOnly == nil }
+      && HomeSection.allCases.allSatisfy { $0.isAvailable(on: .mac) && $0.isAvailable(on: .phone) })
 
 // MARK: Older settings (migration)
 
@@ -144,9 +144,9 @@ check("dropping a section where it was changes nothing", names(r.shown) == ["rec
 check("moving keeps the hidden sections", Set(r.hidden.map(\.section)) == Set(pv.hidden.map(\.section)) && r.items.count == pv.items.count)
 var m = mv
 m.moveShown(.recent, before: .record)
-check("move a section before another", names(m.shown) == ["recent", "record", "tiles", "week"])
+check("move a section before another", names(m.shown) == ["recent", "record", "tiles", "dictations", "week"])
 m.moveShown(.recent, before: nil)
-check("move a section to the end", names(m.shown) == ["record", "tiles", "week", "recent"])
+check("move a section to the end", names(m.shown) == ["record", "tiles", "dictations", "week", "recent"])
 var s = pv
 s.setSize(.week, .large)
 check("change a section's size", s.size(.week) == .large && s.size(.tiles) == .large && names(s.shown) == names(pv.shown))
@@ -173,20 +173,21 @@ check("tile slots keep their place and skip missing picks", HomeTileSlot.slots([
 // MARK: The Mac's grid
 
 func rowNames(_ rows: [HomeRow]) -> [[String]] { rows.map { names($0.items) } }
-check("Mac: the Record card across, the tiles across, Recent recordings beside This week",
-      rowNames(HomeRows.rows(mv.shown, wide: true)) == [["record"], ["tiles"], ["recent", "week"]], "\(rowNames(HomeRows.rows(mv.shown, wide: true)))")
+check("Mac: the Record card across, the tiles across, Recent dictations across, Recent recordings beside This week",
+      rowNames(HomeRows.rows(mv.shown, wide: true)) == [["record"], ["tiles"], ["dictations"], ["recent", "week"]], "\(rowNames(HomeRows.rows(mv.shown, wide: true)))")
 check("the Record card and the tiles never pair, even Large and side by side",
       !HomeRows.pairable(HomeLayout.Item(section: .record, visible: true, size: .large))
       && !HomeRows.pairable(HomeLayout.Item(section: .tiles, visible: true, size: .large))
+      && !HomeRows.pairable(HomeLayout.Item(section: .dictations, visible: true, size: .large))
       && HomeRows.pairable(HomeLayout.Item(section: .week, visible: true, size: .large)))
 check("a narrow window stacks every section", HomeRows.rows(mv.shown, wide: false).allSatisfy { $0.items.count == 1 } && HomeRows.rows(mv.shown, wide: false).count == mv.shown.count)
 var g = mv
 g.setSize(.tiles, .compact)
 g.setVisible(.thoughts, true)
 g.setSize(.week, .compact)
-check("a Compact section runs across the grid and breaks the pair", rowNames(HomeRows.rows(g.shown, wide: true)) == [["record"], ["tiles"], ["recent"], ["week"], ["thoughts"]],
+check("a Compact section runs across the grid and breaks the pair", rowNames(HomeRows.rows(g.shown, wide: true)) == [["record"], ["tiles"], ["dictations"], ["recent"], ["week"], ["thoughts"]],
       "\(rowNames(HomeRows.rows(g.shown, wide: true)))")
-check("rows are identified by their first section", HomeRows.rows(mv.shown, wide: true).map(\.id) == [.record, .tiles, .recent])
+check("rows are identified by their first section", HomeRows.rows(mv.shown, wide: true).map(\.id) == [.record, .tiles, .dictations, .recent])
 
 // MARK: Today's thoughts and Journal (October 26, 2026)
 
@@ -195,7 +196,7 @@ check("Today's thoughts and Journal start hidden on both apps", [pv, mv].allSati
 check("they're offered on both apps", [HomePlatform.phone, .mac].allSatisfy { p in
     HomeSection.thoughts.isAvailable(on: p) && HomeSection.journal.isAvailable(on: p) })
 check("Today's thoughts and Journal didn't change the shown sections", names(pv.shown) == ["record", "tiles", "week", "dictations", "recent"]
-      && names(mv.shown) == ["record", "tiles", "recent", "week"])
+      && names(mv.shown) == ["record", "tiles", "dictations", "recent", "week"])
 check("section names", HomeSection.thoughts.title == "Today's thoughts" && HomeSection.journal.title == "Journal")
 // A layout saved by the build before them, with every section it knew: they're added at the end, hidden.
 let before223 = json(#"{"version":1,"items":[{"section":"record","visible":true,"size":"large"},{"section":"tiles","visible":true,"size":"large"},{"section":"week","visible":true,"size":"compact"},{"section":"recent","visible":true,"size":"large"},{"section":"moments","visible":true,"size":"large"},{"section":"lastDictation","visible":false,"size":"compact"},{"section":"projects","visible":false,"size":"compact"},{"section":"queue","visible":false,"size":"compact"}],"tiles":["dictate","import","whatsPlaying","captions"]}"#)
@@ -456,7 +457,7 @@ check("kind sections: a one-line empty state each, with no exclamation point",
 check("kind sections: hidden by default on both apps, at Large, after Journal", [pv, mv].allSatisfy { l in
     HomeSection.kinds.allSatisfy { l.item($0) != nil && !l.isVisible($0) && l.size($0) == .large }
     && Array(names(l.items).suffix(5)) == ["meetings", "interviews", "talks", "brainDumps", "audioOnly"] })
-check("kind sections: the shown defaults are unchanged", names(pv.shown) == ["record", "tiles", "week", "dictations", "recent"] && names(mv.shown) == ["record", "tiles", "recent", "week"])
+check("kind sections: the shown defaults are unchanged", names(pv.shown) == ["record", "tiles", "week", "dictations", "recent"] && names(mv.shown) == ["record", "tiles", "dictations", "recent", "week"])
 check("kind sections: titled in both sizes, like Recent", HomeSection.kinds.allSatisfy { s in
     HomeLayout.Item(section: s, visible: true, size: .compact).headed && HomeLayout.Item(section: s, visible: true, size: .large).headed })
 check("kind sections: Large pairs on the Mac", HomeRows.pairable(HomeLayout.Item(section: .meetings, visible: true, size: .large))
@@ -533,17 +534,20 @@ if let suite = UserDefaults(suiteName: "home-layout-tests-call-\(UUID().uuidStri
 }
 
 
-// MARK: Recent dictations (iPhone, November 6, 2026)
+// MARK: Recent dictations (iPhone, November 6, 2026; Mac, November 20, 2026)
 
 check("Recent dictations: its raw value isn't the retired Last dictation's", HomeSection.dictations.rawValue == "dictations"
       && HomeSection.retired.contains("lastDictation") && HomeSection(rawValue: "lastDictation") == nil)
 check("Recent dictations: titled and described for Edit Home", HomeSection.dictations.title == "Recent dictations"
       && HomeSection.dictations.detail(on: .phone) == "Your three newest dictations, with Copy")
 check("Recent dictations: a one-line empty state, no exclamation point", HomeSection.dictations.emptyLine == "No dictations yet.")
-check("Recent dictations: iPhone only", HomeSection.dictations.platformOnly == .phone && HomeSection.dictations.isAvailable(on: .phone)
-      && !HomeSection.dictations.isAvailable(on: .mac))
-check("Recent dictations: the Mac's layout never has it", mv.item(.dictations) == nil && HomeLayout.initial(.mac, legacy: .init()).item(.dictations) == nil
-      && HomeLayout.decode(json(#"{"items":[{"section":"dictations","visible":true,"size":"large"}]}"#), .mac)?.item(.dictations) == nil)
+check("Recent dictations: on both apps", HomeSection.dictations.platformOnly == nil && HomeSection.dictations.isAvailable(on: .phone)
+      && HomeSection.dictations.isAvailable(on: .mac))
+check("Recent dictations: shown by default on the Mac, Large, right after the tiles and before Recent recordings",
+      mv.isVisible(.dictations) && mv.size(.dictations) == .large && HomeLayout.initial(.mac, legacy: .init()).isVisible(.dictations)
+      && names(mv.items).firstIndex(of: "dictations") == names(mv.items).firstIndex(of: "tiles").map { $0 + 1 }
+      && names(mv.items).firstIndex(of: "recent") == names(mv.items).firstIndex(of: "dictations").map { $0 + 1 })
+check("Recent dictations: the Mac reads a layout that names it", HomeLayout.decode(json(#"{"items":[{"section":"dictations","visible":true,"size":"large"}]}"#), .mac)?.isVisible(.dictations) == true)
 check("Recent dictations: shown by default on iPhone, Large, right after This week and before Recent recordings",
       pv.isVisible(.dictations) && pv.size(.dictations) == .large
       && names(pv.items).firstIndex(of: "dictations") == names(pv.items).firstIndex(of: "week").map { $0 + 1 }
@@ -609,10 +613,28 @@ check("migration: a layout that already hid it keeps it hidden", HomeDictationsM
 let dFresh = UserDefaults(suiteName: dSuite + ".fresh")!
 check("migration: a new install has nothing to change and is marked done", HomeDictationsMigration.runOnce(dFresh, platform: .phone)
       && dFresh.data(forKey: HomeLayout.key) == nil && dFresh.bool(forKey: HomeDictationsMigration.key))
+// The Mac (November 20, 2026): its own flag, and the section goes before Recent recordings.
+let beforeMac = json(#"{"version":1,"items":[{"section":"record","visible":true,"size":"large"},{"section":"tiles","visible":true,"size":"compact"},{"section":"week","visible":true,"size":"large"},{"section":"recent","visible":true,"size":"large"},{"section":"thoughts","visible":false,"size":"large"},{"section":"journal","visible":true,"size":"large"}],"tiles":["dictate","import","call","newThought"]}"#)
+let bm = HomeLayout.decode(beforeMac, .mac)!
+check("Mac migration: a layout from before joins it hidden", !bm.isVisible(.dictations) && names(bm.shown) == ["record", "tiles", "week", "recent", "journal"], "\(names(bm.items))")
+let bmOn = HomeDictationsMigration.apply(bm, platform: .mac)
+check("Mac migration: shown right before Recent recordings", names(bmOn.shown) == ["record", "tiles", "week", "dictations", "recent", "journal"], "\(names(bmOn.shown))")
+check("Mac migration: everything else as saved", bmOn.items.filter { $0.section != .dictations } == bm.items.filter { $0.section != .dictations }
+      && bmOn.tiles == bm.tiles && bmOn.size(.tiles) == .compact)
+let macNoRecent = HomeLayout.decode(json(#"{"items":[{"section":"record","visible":true,"size":"large"},{"section":"week","visible":false,"size":"large"},{"section":"recent","visible":false,"size":"large"},{"section":"tiles","visible":true,"size":"large"}]}"#), .mac)!
+check("Mac migration: with Recent recordings hidden, it goes at the end of Home",
+      names(HomeDictationsMigration.apply(macNoRecent, platform: .mac).shown) == ["record", "tiles", "dictations"], "\(names(HomeDictationsMigration.apply(macNoRecent, platform: .mac).shown))")
+check("Mac migration: its own flag", HomeDictationsMigration.macKey == "home.dictations.shown.mac.v1" && HomeDictationsMigration.key(.mac) == HomeDictationsMigration.macKey
+      && HomeDictationsMigration.key(.phone) == HomeDictationsMigration.key)
 let dMac = UserDefaults(suiteName: dSuite + ".mac")!
-dMac.set(mv.encoded()!, forKey: HomeLayout.key)
-check("migration: never on the Mac", !HomeDictationsMigration.runOnce(dMac, platform: .mac) && !dMac.bool(forKey: HomeDictationsMigration.key)
-      && dMac.data(forKey: HomeLayout.key) == mv.encoded())
+dMac.set(beforeMac, forKey: HomeLayout.key)
+check("Mac migration: runs once and saves the layout", HomeDictationsMigration.runOnce(dMac, platform: .mac) && dMac.bool(forKey: HomeDictationsMigration.macKey)
+      && !dMac.bool(forKey: HomeDictationsMigration.key) && dMac.data(forKey: HomeLayout.key).flatMap { HomeLayout.decode($0, .mac) } == bmOn)
+var bmHiddenAgain = bmOn
+bmHiddenAgain.setVisible(.dictations, false)
+dMac.set(bmHiddenAgain.encoded()!, forKey: HomeLayout.key)
+check("Mac migration: never again, so hiding it afterward sticks", !HomeDictationsMigration.runOnce(dMac, platform: .mac)
+      && dMac.data(forKey: HomeLayout.key).flatMap { HomeLayout.decode($0, .mac) }?.isVisible(.dictations) == false)
 for name in [dSuite, dSuite + ".hid", dSuite + ".fresh", dSuite + ".mac"] { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name) }
 
 print("\n\(passed) passed, \(failed) failed")

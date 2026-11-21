@@ -923,8 +923,8 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 900_000_000)
         check("edit home: Reset puts Home back", store.layout == HomeLayout.defaults(.mac)
               && Set(HomeProbe.sections.keys) == Set(store.layout.shown.map(\.section)))
-        check("edit home: Home starts with the Record card, the tiles, then Recent recordings beside This week",
-              store.layout.shown.map(\.section) == [.record, .tiles, .recent, .week] && HomeProbe.sections[.record] == .large)
+        check("edit home: Home starts with the Record card, the tiles, Recent dictations, then Recent recordings beside This week",
+              store.layout.shown.map(\.section) == [.record, .tiles, .dictations, .recent, .week] && HomeProbe.sections[.record] == .large)
     }
 
     /// Home's Today's thoughts and Journal sections and the New thought and Journal tiles (HomeSectionsMac.swift,

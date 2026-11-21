@@ -1,6 +1,30 @@
 {
   "notes": [
     {
+      "build": "next",
+      "title": "Recent dictations on the Mac",
+      "items": [
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Recent dictations on Home",
+          "icon": "home",
+          "text": "Home shows your three newest dictations. Click one to copy it.",
+          "detail": "The section sits above Recent recordings. See all opens Dictations, and Edit Home hides or moves it."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "head": "Dictations in the Library",
+          "icon": "library",
+          "text": "The Library's filter row has a Dictations chip. Click a dictation to copy it.",
+          "detail": "Dictations list by day, newest first. Copy turns into Copied when the words are on the clipboard."
+        }
+      ]
+    },
+    {
       "build": "361",
       "date": "2026-11-18",
       "version": "1.0 beta",

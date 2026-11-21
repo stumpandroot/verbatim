@@ -173,6 +173,8 @@ struct LibraryView: View {
             Group {
                 if rows.isEmpty {
                     emptyState.macColumnsTop().padding(.top, 16)
+                } else if showsDictations {
+                    dictationList(lists.list).padding(.top, 16)
                 } else {
                     table(rows, order: order, columns: LibraryColumns(width: width)).macColumnsTop().padding(.top, 16)
                 }
@@ -186,7 +188,8 @@ struct LibraryView: View {
     private func titleRow(count: Int) -> some View {
         // The last baseline: controls line up with the title, not the count over it.
         HStack(alignment: .lastTextBaseline, spacing: 12) {
-            LargeSerifTitle(title: projectName ?? "Library", count: HomeCounts.countLabel(count, "recording", "recordings"))
+            LargeSerifTitle(title: projectName ?? "Library",
+                            count: showsDictations ? HomeCounts.countLabel(count, "dictation", "dictations") : HomeCounts.countLabel(count, "recording", "recordings"))
                 .accessibilityElement(children: .combine)
             Spacer(minLength: 8)
             if let k = app.libraryKind, k == .idea || k == .journal {
@@ -210,6 +213,34 @@ struct LibraryView: View {
 
     // MARK: Chips and sort
 
+    /// The Dictations chip is chosen (November 20, 2026): the Library lists dictations as the Dictations page's rows,
+    /// by day, so a click on the words copies them. A table row selects; a dictation is for copying.
+    private var showsDictations: Bool { app.libraryFilter.source == .dictations && app.libraryKind == nil }
+
+    /// Dictations by day, newest first, whatever the table's sort: each day's card of rows that copy when clicked.
+    private func dictationList(_ list: [Transcript]) -> some View {
+        let store = app.store
+        let key = "library-dictation-days|\(app.projectFilter?.uuidString ?? "-")|\(app.search.trimmingCharacters(in: .whitespaces).lowercased())|\(Store.dayKey())"
+        let days = store.memo(key) { DictationsView.days(list.sorted { $0.createdAt > $1.createdAt }) }
+        // Lazy: only the dictations on screen are built (people keep hundreds).
+        return LazyVStack(alignment: .leading, spacing: 16) {
+            ForEach(Array(days.enumerated()), id: \.element.0) { n, group in
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionTitle(group.0)
+                    VStack(spacing: 0) {
+                        ForEach(Array(group.1.enumerated()), id: \.element.id) { i, t in
+                            if i > 0 { PaperDivider(leading: 16, trailing: 16) }
+                            DictationRow(transcript: t)
+                        }
+                    }
+                    .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+                    .macColumnsTop(n == 0)
+                }
+            }
+        }
+        .uiTarget("lib-dictations")
+    }
+
     /// The chip the current filter is, or nil when it's one the chips don't name.
     private var currentChip: LibraryChip? { LibraryChip.matching(app.libraryFilter, kind: app.libraryKind) }
 
@@ -218,7 +249,8 @@ struct LibraryView: View {
     /// filter; the chosen one again goes back to All.
     private var chipsRow: some View {
         let current = currentChip
-        let other = LibraryChip.otherLabel(app.libraryFilter, kind: app.libraryKind)
+        // Dictations has a chip of its own on the Mac (below), so it never shows as the extra chosen chip.
+        let other = showsDictations ? nil : LibraryChip.otherLabel(app.libraryFilter, kind: app.libraryKind)
         return HStack(spacing: 12) {
             RefinedChipRow(label: "Filter") {
                 // The panel's Show all in the Library (MAC-35): the words, chosen, with a click to clear them.
@@ -239,6 +271,13 @@ struct LibraryView: View {
                     RefinedChip(title: c.label, selected: current == c) { choose(current == c ? .all : c) }
                         .libraryTarget(Self.chipTarget(c))
                 }
+                // Dictations (November 20, 2026): always in the row, after Marked, where it was under More.
+                RefinedChip(title: LibrarySource.dictations.label, selected: showsDictations) {
+                    if showsDictations { choose(.all) } else {
+                        fadeList { app.libraryKind = nil; app.libraryFilter = LibraryFilter(source: .dictations) }
+                    }
+                }
+                .libraryTarget("source-dictations")
                 moreFilters
             }
             sortMenu.fixedSize()
@@ -271,7 +310,7 @@ struct LibraryView: View {
     /// Every type and kind the chips don't name, as a menu at the end of the chips.
     private var moreFilters: some View {
         let lists = app.libraryLists(kind: app.libraryKind)
-        let chipSources = Set(LibraryChip.allCases.map(\.source))
+        let chipSources = Set(LibraryChip.allCases.map(\.source)).union([.dictations])
         let chipKinds = Set(LibraryChip.allCases.compactMap(\.kind))
         let sources = lists.sources.map(\.0).filter { !chipSources.contains($0) }
         let kinds = RecordingKind.pickable.filter { !chipKinds.contains($0) && ((lists.kindCounts[$0] ?? 0) > 0 || app.libraryKind == $0) }

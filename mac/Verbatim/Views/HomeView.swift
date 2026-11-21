@@ -251,8 +251,7 @@ struct HomeView: View {
         case .thoughts: HomeThoughtsMac(size: item.size)
         case .journal: HomeJournalMac(size: item.size)
         case .meetings, .interviews, .talks, .brainDumps, .audioOnly: kindCard(item)
-        // Recent dictations is the iPhone's (`HomeSection.platformOnly`): the Mac's layout never holds it.
-        case .dictations: EmptyView()
+        case .dictations: dictationsCard(item.size)
         }
     }
 
@@ -583,6 +582,32 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
         // No animation when a recording arrives or changes: rows change often and never animate (DESIGN.md §7).
+    }
+
+    /// Recent dictations (November 20, 2026): the three newest dictations as the Dictations page's rows, so a click on
+    /// the words copies them and Copy turns into "Copied" (Compact: the newest one). See all opens Dictations. Always across the column
+    /// (`HomeRows.pairable`).
+    private func dictationsCard(_ size: HomeCardSize) -> some View {
+        let store = app.store
+        let all = store.memo("dictations") { store.live.filter { $0.source == .dictation }.sorted { $0.createdAt > $1.createdAt } }
+        let items = Array(all.prefix(size == .large ? HomeDictations.count : 1))
+        return VStack(alignment: .leading, spacing: 0) {
+            SectionTitle(HomeSection.dictations.title, link: "See all") { app.go(.dictations) }
+                .padding(.horizontal, 16).padding(.top, 2)
+            if items.isEmpty {
+                Text(HomeSection.dictations.emptyLine).refinedFont(.meta).foregroundStyle(Refined.mute).lineLimit(1)
+                    .padding(.horizontal, 16).padding(.bottom, 14)
+            } else {
+                ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
+                    if i > 0 { PaperDivider(leading: 16, trailing: 16) }
+                    DictationRow(transcript: t).uiTarget("home-dictation-\(i)")
+                }
+            }
+        }
+        .padding(.bottom, 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))
+        .uiTarget("home-dictations")
     }
 
     /// A kind's section (Recent meetings, Recent interviews, Recent talks, Recent brain dumps, Audio only), drawn like

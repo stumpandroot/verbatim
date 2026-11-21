@@ -41,7 +41,7 @@ struct DictationsView: View {
         app.store.memo("dictation-today|\(Store.dayKey())") { all.filter { Calendar.current.isDateInToday($0.createdAt) } }
     }
     /// "Today · Fri Oct 23", "Yesterday · Thu Oct 22", "Monday, Oct 19".
-    private static func days(_ shown: [Transcript]) -> [(String, [Transcript])] {
+    static func days(_ shown: [Transcript]) -> [(String, [Transcript])] {
         let cal = Calendar.current
         let f = Formats.pattern("EEEE, MMM d")
         let short = Formats.pattern("EEE MMM d")
