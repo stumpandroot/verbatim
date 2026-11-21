@@ -230,7 +230,7 @@ struct LibraryView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(group.1.enumerated()), id: \.element.id) { i, t in
                             if i > 0 { PaperDivider(leading: 16, trailing: 16) }
-                            DictationRow(transcript: t)
+                            DictationRow(transcript: t).uiTarget("lib-dictation-\(n)-\(i)")
                         }
                     }
                     .refinedSurface(Refined.card, radius: RefinedPlatform.radius(.card))

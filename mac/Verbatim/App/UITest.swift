@@ -617,6 +617,9 @@ enum UITest {
         // Type and platform chips: Links, broken down by site.
         app.libraryFilter = LibraryFilter(source: .links)
         await show("05k-library-links-filter")
+        // The Dictations chip: dictations as rows that copy on a click.
+        app.libraryFilter = LibraryFilter(source: .dictations)
+        await show("05p-library-dictations")
         app.libraryFilter = .all
         // A project's Library with Add from Library open (the seeded transcripts; nothing is added).
         if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
@@ -1348,6 +1351,23 @@ enum UITest {
         await step("\(tag): the Voice notes chip shows voice notes and clears Meetings", window, target: "source-voiceMemos",
                    check: { app.libraryFilter.source == .voiceMemos && app.libraryKind == nil })
         await step("\(tag): All clears the filter", window, target: "kind-all", check: { app.libraryFilter == .all && app.libraryKind == nil })
+
+        // The Dictations chip lists dictations as rows; a click on a row's words copies them; a second click on the chip
+        // goes back to All.
+        await step("\(tag): the Dictations chip shows dictations", window, target: "source-dictations",
+                   check: { app.libraryFilter.source == .dictations && app.libraryKind == nil })
+        if let newest = app.store.live.filter({ $0.source == .dictation }).max(by: { $0.createdAt < $1.createdAt }),
+           newest.status != .failed, !(newest.flow?.pasted ?? newest.text).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            let clipboardWas = NSPasteboard.general.string(forType: .string)
+            NSPasteboard.general.clearContents()
+            await step("\(tag): a click on a dictation copies it", window, target: "lib-dictation-0-0",
+                       check: { NSPasteboard.general.string(forType: .string) == (newest.flow?.pasted ?? newest.text) })
+            NSPasteboard.general.clearContents()
+            if let clipboardWas { NSPasteboard.general.setString(clipboardWas, forType: .string) }
+        }
+        await step("\(tag): a second click on the Dictations chip goes back to All", window, target: "source-dictations",
+                   check: { app.libraryFilter == .all && app.libraryKind == nil })
 
         // The columns sort: Name A to Z, then Z to A, then back to Newest first.
         func titles() -> [String] { LibraryView.shownOrder.compactMap { app.store.transcript($0)?.title } }
