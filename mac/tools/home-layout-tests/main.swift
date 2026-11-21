@@ -55,7 +55,7 @@ check("every section is on both apps", HomeSection.allCases.allSatisfy { $0.plat
 // MARK: Older settings (migration)
 
 let noWeek = HomeLayout.initial(.mac, legacy: .init(showWeek: false))
-check("Mac: Show This week on Home turned off carries over as a hidden This week", !noWeek.isVisible(.week) && names(noWeek.shown) == ["record", "tiles", "recent"])
+check("Mac: Show This week on Home turned off carries over as a hidden This week", !noWeek.isVisible(.week) && names(noWeek.shown) == ["record", "tiles", "dictations", "recent"])
 check("Mac: the switch left on changes nothing", HomeLayout.initial(.mac, legacy: .init(showWeek: true)) == mv)
 check("no older settings: the defaults", HomeLayout.initial(.phone, legacy: .init()) == pv && HomeLayout.initial(.mac, legacy: .init()) == mv)
 check("an install from before keeps the four tiles it had (Live captions)", HomeLayout.initial(.phone, legacy: .init(keepsEarlierTiles: true)).tiles
