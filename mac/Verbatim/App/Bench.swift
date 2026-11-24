@@ -132,7 +132,7 @@ enum Bench {
         var voices: [String: String]?
     }
 
-    /// Reads `<dir>/clips.json` (optional) and every `<id>.wav` in the folder. A WAV without a clips.json entry
+    /// Reads `<dir>/clips.json` (optional) and every `<id>.wav` or `<id>.m4a` in the folder. A clip without a clips.json entry
     /// needs `<id>.txt` (its reference); `<id>.terms` and `<dir>/dictionary.txt` are optional.
     static func loadSuite(_ dir: URL) throws -> Suite {
         let fm = FileManager.default
@@ -155,7 +155,7 @@ enum Bench {
         }
 
         let wavs = (try fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))
-            .filter { $0.pathExtension.lowercased() == "wav" }
+            .filter { ["wav", "m4a"].contains($0.pathExtension.lowercased()) }   // m4a: what Voice Memos exports
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
         var byId: [String: URL] = [:]
         for w in wavs { byId[w.deletingPathExtension().lastPathComponent] = w }
@@ -995,15 +995,15 @@ enum BenchMarkdown {
         md.append("")
         md.append("## Models")
         md.append("")
-        md.append("| Model | Status | Load s | WER engine | WER boosted | WER pasted | Names engine → pasted | Negation kept | Numbers kept | False activations | Median ms | p90 ms | RTFx |")
-        md.append("|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|")
+        md.append("| Model | Status | Load s | WER engine | WER boosted | WER pasted | Names engine → pasted | Wrong swaps | Negation kept | Numbers kept | False activations | Median ms | p90 ms | RTFx |")
+        md.append("|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|")
         for run in r.models {
             let a = run.overall
             let fa = a.map { "\($0.falseActivationsEngine) / \($0.falseActivationsDictation) of \($0.silenceClips)" } ?? "–"
-            md.append("| \(run.name) | \(run.status)\(run.error.map { ": " + cell($0) } ?? "") | \(fmt(run.loadSeconds, 1)) | \(pct(a?.werEngine)) | \(pct(a?.werBoosted)) | \(pct(a?.werDictation)) | \(pct(a?.nameRecallEngine)) → \(pct(a?.nameRecallDictation)) | \(pct(a?.negationKept)) | \(pct(a?.numbersKept)) | \(fa) | \(fmt(a?.dictationMs?.p50Ms, 0)) | \(fmt(a?.dictationMs?.p90Ms, 0)) | \(fmt(a?.rtfx, 0)) |")
+            md.append("| \(run.name) | \(run.status)\(run.error.map { ": " + cell($0) } ?? "") | \(fmt(run.loadSeconds, 1)) | \(pct(a?.werEngine)) | \(pct(a?.werBoosted)) | \(pct(a?.werDictation)) | \(pct(a?.nameRecallEngine)) → \(pct(a?.nameRecallDictation)) | \(a.map { String($0.vocabFalseInsertions) } ?? "–") | \(pct(a?.negationKept)) | \(pct(a?.numbersKept)) | \(fa) | \(fmt(a?.dictationMs?.p50Ms, 0)) | \(fmt(a?.dictationMs?.p90Ms, 0)) | \(fmt(a?.rtfx, 0)) |")
         }
         md.append("")
-        md.append("WER is normalized (case, punctuation, number format, and contractions ignored). *Pasted* is the text dictation hands to cleanup: the boosted transcript with Dictionary replacements, after the loudness gate. False activations are engine / pasted text on silence-only clips. Latency is the pasted path (transcription plus Dictionary) per clip, model already loaded.")
+        md.append("WER is normalized (case, punctuation, number format, and contractions ignored). *Pasted* is the text dictation hands to cleanup: the boosted transcript with Dictionary replacements, after the loudness gate. Wrong swaps counts Dictionary words in the pasted text that the speaker never said. False activations are engine / pasted text on silence-only clips. Latency is the pasted path (transcription plus Dictionary) per clip, model already loaded.")
 
         let cleanupRows = r.models.flatMap { run -> [String] in
             guard let a = run.overall else { return [] }
@@ -1030,10 +1030,10 @@ enum BenchMarkdown {
             md.append("")
             md.append("## By category: \(run.name)")
             md.append("")
-            md.append("| Category | Clips | WER engine | WER pasted | Names | Median ms |")
-            md.append("|---|--:|--:|--:|--:|--:|")
+            md.append("| Category | Clips | WER engine | WER pasted | Names | Wrong swaps | Median ms |")
+            md.append("|---|--:|--:|--:|--:|--:|--:|")
             for (cat, a) in run.categories.sorted(by: { $0.key < $1.key }) {
-                md.append("| \(cat) | \(a.clips) | \(pct(a.werEngine)) | \(pct(a.werDictation)) | \(pct(a.nameRecallDictation)) | \(fmt(a.dictationMs?.p50Ms, 0)) |")
+                md.append("| \(cat) | \(a.clips) | \(pct(a.werEngine)) | \(pct(a.werDictation)) | \(pct(a.nameRecallDictation)) | \(a.vocabFalseInsertions) | \(fmt(a.dictationMs?.p50Ms, 0)) |")
             }
             let worst = run.clips.filter { ($0.dictation?.score?.wer ?? 0) > 0 }
                 .sorted { ($0.dictation?.score?.wer ?? 0) > ($1.dictation?.score?.wer ?? 0) }.prefix(5)

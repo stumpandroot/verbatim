@@ -1,0 +1,477 @@
+{
+  "version": 1,
+  "about": "Reference text for clips you record in your own voice. Every name here is invented. See SCRIPT.md. Recordings stay out of the repo.",
+  "dictionary": [
+    {
+      "text": "Brightwater",
+      "heardAs": []
+    },
+    {
+      "text": "Hollis Marsh",
+      "heardAs": [
+        "Hollace Marsh"
+      ]
+    },
+    {
+      "text": "Copperfield Supply",
+      "heardAs": [
+        "Copper Field Supply"
+      ]
+    },
+    {
+      "text": "Larkspur",
+      "heardAs": []
+    },
+    {
+      "text": "Dana Whitlock",
+      "heardAs": [
+        "Dana Whitlok"
+      ]
+    },
+    {
+      "text": "Fernbank",
+      "heardAs": []
+    },
+    {
+      "text": "Stonebridge",
+      "heardAs": []
+    },
+    {
+      "text": "Maple Run Farm",
+      "heardAs": []
+    },
+    {
+      "text": "Wrenly",
+      "heardAs": [
+        "Renly",
+        "Wrenley"
+      ]
+    },
+    {
+      "text": "Quillon",
+      "heardAs": [
+        "Quillan",
+        "Kwillon"
+      ]
+    },
+    {
+      "text": "Sjoberg",
+      "heardAs": [
+        "Showberg",
+        "Shoberg"
+      ]
+    },
+    {
+      "text": "Pfenning Mill",
+      "heardAs": [
+        "Fenning Mill",
+        "Penning Mill"
+      ]
+    },
+    {
+      "text": "Aoife",
+      "heardAs": [
+        "Eefa",
+        "Ifa"
+      ]
+    },
+    {
+      "text": "Bly",
+      "heardAs": [
+        "Bligh",
+        "Bli"
+      ]
+    },
+    {
+      "text": "Roe Street",
+      "heardAs": [
+        "Row Street"
+      ]
+    },
+    {
+      "text": "Thaddeus Krol",
+      "heardAs": [
+        "Thaddeus Crawl",
+        "Thaddeus Kroll"
+      ]
+    },
+    {
+      "text": "Xiomara",
+      "heardAs": [
+        "Siomara",
+        "Zeeomara"
+      ]
+    },
+    {
+      "text": "Verdigris",
+      "heardAs": [
+        "Verdigree",
+        "Verdi Gris"
+      ]
+    },
+    {
+      "text": "Ondry",
+      "heardAs": []
+    },
+    {
+      "text": "Halvick",
+      "heardAs": []
+    },
+    {
+      "text": "Marlowe Pine",
+      "heardAs": []
+    },
+    {
+      "text": "Tessaly",
+      "heardAs": []
+    }
+  ],
+  "clips": [
+    {
+      "id": "plain-01",
+      "category": "voice-plain",
+      "text": "Can you send me the invoice before lunch? I want to pay it today."
+    },
+    {
+      "id": "plain-02",
+      "category": "voice-plain",
+      "text": "I'm running about ten minutes late, so start without me."
+    },
+    {
+      "id": "plain-03",
+      "category": "voice-plain",
+      "text": "Let's move the review to Thursday at 2:30 and keep it to half an hour."
+    },
+    {
+      "id": "plain-04",
+      "category": "voice-plain",
+      "text": "The first cut is close, but the opening still feels slow to me."
+    },
+    {
+      "id": "plain-05",
+      "category": "voice-plain",
+      "text": "Please don't publish the page until I've checked the photos."
+    },
+    {
+      "id": "plain-06",
+      "category": "voice-plain",
+      "text": "We need three things from the shoot: wide shots, product details, and a short interview."
+    },
+    {
+      "id": "plain-07",
+      "category": "voice-plain",
+      "text": "Thanks for the quick turnaround. I'll send notes by the end of the day."
+    },
+    {
+      "id": "plain-08",
+      "category": "voice-plain",
+      "text": "I'm not sure the budget covers a second day, so let's plan for one."
+    },
+    {
+      "id": "easy-01",
+      "category": "voice-easy",
+      "text": "Brightwater approved the logo, so we can start on the packaging.",
+      "terms": [
+        "Brightwater"
+      ]
+    },
+    {
+      "id": "easy-02",
+      "category": "voice-easy",
+      "text": "Hollis Marsh wants to see two more color options by Friday.",
+      "terms": [
+        "Hollis Marsh"
+      ]
+    },
+    {
+      "id": "easy-03",
+      "category": "voice-easy",
+      "text": "Send the proof to Copperfield Supply and copy me on it.",
+      "terms": [
+        "Copperfield Supply"
+      ]
+    },
+    {
+      "id": "easy-04",
+      "category": "voice-easy",
+      "text": "The Larkspur catalog needs forty pages, not thirty-six.",
+      "terms": [
+        "Larkspur"
+      ]
+    },
+    {
+      "id": "easy-05",
+      "category": "voice-easy",
+      "text": "Dana Whitlock is out this week, so hold the contract until Monday.",
+      "terms": [
+        "Dana Whitlock"
+      ]
+    },
+    {
+      "id": "easy-06",
+      "category": "voice-easy",
+      "text": "Fernbank moved the launch to the first week of March.",
+      "terms": [
+        "Fernbank"
+      ]
+    },
+    {
+      "id": "easy-07",
+      "category": "voice-easy",
+      "text": "I told Stonebridge we'd deliver the video on the twelfth.",
+      "terms": [
+        "Stonebridge"
+      ]
+    },
+    {
+      "id": "easy-08",
+      "category": "voice-easy",
+      "text": "We're filming at Maple Run Farm on Saturday morning.",
+      "terms": [
+        "Maple Run Farm"
+      ]
+    },
+    {
+      "id": "hard-01",
+      "category": "voice-hard",
+      "text": "Wrenly signed off on the homepage this morning.",
+      "terms": [
+        "Wrenly"
+      ]
+    },
+    {
+      "id": "hard-02",
+      "category": "voice-hard",
+      "text": "Ask Quillon whether the trade show booth is ten feet or twenty.",
+      "terms": [
+        "Quillon"
+      ]
+    },
+    {
+      "id": "hard-03",
+      "category": "voice-hard",
+      "text": "Mr. Sjoberg wants the interview finished before the holidays.",
+      "terms": [
+        "Sjoberg"
+      ]
+    },
+    {
+      "id": "hard-04",
+      "category": "voice-hard",
+      "text": "The shoot at Pfenning Mill starts at seven, so pack the lights tonight.",
+      "terms": [
+        "Pfenning Mill"
+      ]
+    },
+    {
+      "id": "hard-05",
+      "category": "voice-hard",
+      "text": "Aoife is writing the email series, and I'm reviewing it on Tuesday.",
+      "terms": [
+        "Aoife"
+      ]
+    },
+    {
+      "id": "hard-06",
+      "category": "voice-hard",
+      "text": "Send Bly the invoice, and ask about the second deposit.",
+      "terms": [
+        "Bly"
+      ]
+    },
+    {
+      "id": "hard-07",
+      "category": "voice-hard",
+      "text": "The new office is on Roe Street, across from the bank.",
+      "terms": [
+        "Roe Street"
+      ]
+    },
+    {
+      "id": "hard-08",
+      "category": "voice-hard",
+      "text": "Thaddeus Krol is the contact for the retainer.",
+      "terms": [
+        "Thaddeus Krol"
+      ]
+    },
+    {
+      "id": "hard-09",
+      "category": "voice-hard",
+      "text": "Xiomara needs the brand guide in both print and web versions.",
+      "terms": [
+        "Xiomara"
+      ]
+    },
+    {
+      "id": "hard-10",
+      "category": "voice-hard",
+      "text": "The Verdigris rebrand uses green, cream, and a dark copper.",
+      "terms": [
+        "Verdigris"
+      ]
+    },
+    {
+      "id": "hard-11",
+      "category": "voice-hard",
+      "text": "Quillon and Wrenly both want the Sjoberg interview in the reel.",
+      "terms": [
+        "Quillon",
+        "Wrenly",
+        "Sjoberg"
+      ]
+    },
+    {
+      "id": "hard-12",
+      "category": "voice-hard",
+      "text": "Tell Aoife that Bly approved the Verdigris copy.",
+      "terms": [
+        "Aoife",
+        "Bly",
+        "Verdigris"
+      ]
+    },
+    {
+      "id": "trap-01",
+      "category": "voice-trap",
+      "text": "Stop by the shop on your way home and grab the hard drive."
+    },
+    {
+      "id": "trap-02",
+      "category": "voice-trap",
+      "text": "Put the chairs in a row along the back wall."
+    },
+    {
+      "id": "trap-03",
+      "category": "voice-trap",
+      "text": "A wren landed on the fence while we were filming."
+    },
+    {
+      "id": "trap-04",
+      "category": "voice-trap",
+      "text": "She set the quill on the desk next to the ink."
+    },
+    {
+      "id": "trap-05",
+      "category": "voice-trap",
+      "text": "The bright water in the background is blowing out the shot."
+    },
+    {
+      "id": "trap-06",
+      "category": "voice-trap",
+      "text": "We crossed the stone bridge and parked by the mill."
+    },
+    {
+      "id": "trap-07",
+      "category": "voice-trap",
+      "text": "The lark spurred the whole flock into the air."
+    },
+    {
+      "id": "trap-08",
+      "category": "voice-trap",
+      "text": "I'll fly out Sunday and be back by Wednesday."
+    },
+    {
+      "id": "noise-01",
+      "category": "voice-noise",
+      "text": "Wrenly wants the proofs by Friday, and Brightwater wants them Monday.",
+      "terms": [
+        "Wrenly",
+        "Brightwater"
+      ]
+    },
+    {
+      "id": "noise-02",
+      "category": "voice-noise",
+      "text": "Please don't send the Sjoberg cut until I've heard the audio.",
+      "terms": [
+        "Sjoberg"
+      ]
+    },
+    {
+      "id": "noise-03",
+      "category": "voice-noise",
+      "text": "I'm at the shop, so it's loud. Can you call me back at 4:15?"
+    },
+    {
+      "id": "noise-04",
+      "category": "voice-noise",
+      "text": "Aoife said the budget is twelve thousand dollars, not fifteen.",
+      "terms": [
+        "Aoife"
+      ]
+    },
+    {
+      "id": "noise-05",
+      "category": "voice-noise",
+      "text": "Put the chairs in a row and tell Bly we're ready.",
+      "terms": [
+        "Bly"
+      ]
+    },
+    {
+      "id": "noise-06",
+      "category": "voice-noise",
+      "text": "We need two cameras, three lights, and one backup battery."
+    },
+    {
+      "id": "quiet-01",
+      "category": "voice-quiet",
+      "text": "Quillon is on the other line, so I'll keep this short.",
+      "terms": [
+        "Quillon"
+      ]
+    },
+    {
+      "id": "quiet-02",
+      "category": "voice-quiet",
+      "text": "Move the Fernbank call to tomorrow morning.",
+      "terms": [
+        "Fernbank"
+      ]
+    },
+    {
+      "id": "quiet-03",
+      "category": "voice-quiet",
+      "text": "I can't talk right now. I'll send the notes tonight."
+    },
+    {
+      "id": "quiet-04",
+      "category": "voice-quiet",
+      "text": "Xiomara approved the second option.",
+      "terms": [
+        "Xiomara"
+      ]
+    },
+    {
+      "id": "airpods-01",
+      "category": "voice-airpods",
+      "text": "Hollis Marsh and Thaddeus Krol are both on the email.",
+      "terms": [
+        "Hollis Marsh",
+        "Thaddeus Krol"
+      ]
+    },
+    {
+      "id": "airpods-02",
+      "category": "voice-airpods",
+      "text": "The Pfenning Mill shoot is confirmed for the ninth.",
+      "terms": [
+        "Pfenning Mill"
+      ]
+    },
+    {
+      "id": "airpods-03",
+      "category": "voice-airpods",
+      "text": "Remind me to order more tape and two memory cards."
+    },
+    {
+      "id": "airpods-04",
+      "category": "voice-airpods",
+      "text": "Stop by Roe Street and pick up the signed contract.",
+      "terms": [
+        "Roe Street"
+      ]
+    }
+  ]
+}

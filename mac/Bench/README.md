@@ -46,12 +46,14 @@ The app quits when it finishes. Progress lines start with `BENCH` in `~/Library/
 Real dictations catch problems that synthetic speech doesn't. Keep them out of the repo.
 
 1. Make a folder anywhere on your Mac, for example `~/VerbatimBench`.
-2. For each clip, add `<id>.wav` and `<id>.txt`. The `.txt` holds exactly what you said, in normal writing (numbers, punctuation, and casing as you'd type them). Any sample rate works; Verbatim converts it.
+2. For each clip, add `<id>.wav` (or `<id>.m4a`, which Voice Memos exports) and `<id>.txt`. The `.txt` holds exactly what you said, in normal writing (numbers, punctuation, and casing as you'd type them). Any sample rate works; Verbatim converts it.
 3. Optional: add `<id>.terms` with one Dictionary word per line that the clip contains, to measure name recall.
 4. Optional: add `dictionary.txt` with one entry per line, `Preferred` or `Preferred | heard as, another heard as`. Every term from `.terms` files is added automatically.
 5. Run the bench with `-bench ~/VerbatimBench`.
 
 Clips without a `clips.json` entry get the category `private`. To set categories, expected cleanup output, and checks, copy `mac/Bench/clips.json` into the folder and list your clips there. Mixing your clips with the synthetic set also works: generate the synthetic clips into the same folder, then add yours.
+
+For a ready-made set, `mac/Bench/voice-kit/SCRIPT.md` has 50 sentences to read, with invented names, hard names, and sound-alike traps, and `voice-kit/clips.json` holds their reference text, so those clips need no `.txt` files.
 
 Recordings of other people need their consent. Keep the folder out of iCloud if it holds client audio.
 
@@ -84,7 +86,7 @@ All text metrics compare normalized words. The normalizer is modeled on Whisper'
 | Negation kept | Share of clips whose reference has a negation (not, no, never, nobody, nothing, none, neither, nor, nowhere, including `n't`) where the output has at least as many. A drop means the meaning flipped. |
 | Numbers kept | Share of clips whose reference has numbers where every number appears in the output. |
 | False activations | On silence-only clips (empty `text`): engine / pasted. The engine number shows what the model invents in silence; the pasted number shows whether the gate stops it. |
-| Vocabulary false insertions | Dictionary terms in the output that aren't in the reference, such as a distractor brand appearing in ordinary speech. In the JSON per clip and per group. |
+| Wrong swaps (vocabulary false insertions) | Dictionary terms in the pasted text that aren't in the reference, such as a distractor brand appearing in ordinary speech. A count, per model and per category; in the JSON per clip as `vocabFalseInsertions`. |
 | Checks passed | Share of cleaned clips that pass their must-contain and must-not-contain checks. |
 | Load s | First transcription after switching models: download (first run only), Core ML compile, and inference. |
 | Median ms, p90 ms | Pasted path per clip: transcription plus Dictionary, model warm. Cleanup times are separate. |
